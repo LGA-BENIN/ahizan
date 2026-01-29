@@ -1,5 +1,6 @@
 import {
     dummyPaymentHandler,
+    defaultShippingCalculator,
     DefaultJobQueuePlugin,
     DefaultSchedulerPlugin,
     DefaultSearchPlugin,
@@ -12,6 +13,9 @@ import { GraphiqlPlugin } from '@vendure/graphiql-plugin';
 import 'dotenv/config';
 import path from 'path';
 import dns from 'dns';
+import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
+import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
+import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 
 // Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
@@ -44,19 +48,17 @@ export const config: VendureConfig = {
         },
     },
     dbConnectionOptions: {
-        type: 'postgres',
-        host: process.env.DB_HOST,
-        port: +(process.env.DB_PORT || 5432),
-        username: process.env.DB_USERNAME,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME,
-        // url: `postgres://${process.env.DB_USERNAME}:${encodeURIComponent(process.env.DB_PASSWORD || '')}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME}`,
+        type: 'better-sqlite3',
+        database: path.join(__dirname, '../vendure.sqlite'),
         synchronize: true, // Auto-create tables for first run
         logging: false,
         migrations: [path.join(__dirname, './migrations/*.+(js|ts)')],
     },
+    shippingOptions: {
+        shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator],
+    },
     paymentOptions: {
-        paymentMethodHandlers: [dummyPaymentHandler],
+        paymentMethodHandlers: [dummyPaymentHandler, cashOnDeliveryHandler],
     },
     // When adding or altering custom field definitions, the database will
     // need to be updated. See the "Migrations" section in README.md.
@@ -93,5 +95,6 @@ export const config: VendureConfig = {
             route: 'admin',
             appDir: path.join(__dirname, '../dist/dashboard'),
         }),
+        MultivendorPlugin,
     ],
 };

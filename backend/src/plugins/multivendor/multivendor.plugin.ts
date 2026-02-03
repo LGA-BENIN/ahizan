@@ -14,11 +14,7 @@ import path from 'path';
 
     providers: [VendorService, VendorOrderSubscriber],
 
-    dashboard: {
-        location: path.resolve(__dirname, 'ui'),
-        // FIX: path.resolve assure un chemin ABSOLU stable.
-        // path.join peut parfois produire un chemin relatif selon l'environnement build.
-    },
+    dashboard: './dashboard',
 
     compatibility: '^3.0.0',
 
@@ -110,4 +106,4 @@ import path from 'path';
         return config;
     },
 })
-export class MultivendorPlugin {}
+export class MultivendorPlugin { }

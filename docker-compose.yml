@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  vendure:
+    build:
+      context: .
+      dockerfile: docker/vendure/Dockerfile
+    container_name: ahizan_backend
+    restart: unless-stopped
+    ports:
+      - "3000" # Expose interne pour le réseau, pas public
+    env_file: .env
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      # Autres variables Vendure
+    networks:
+      - web
+      - internal
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: ahizan_frontend
+    restart: unless-stopped
+    ports:
+      - "3000"
+    env_file: .env
+    environment:
+      - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
+    networks:
+      - web
+      - internal
+
+  media:
+    build: ./docker/media
+    container_name: ahizan_media
+    restart: unless-stopped
+    ports:
+      - "80"
+    volumes:
+      - ./storage:/srv/ahizan/storage
+    depends_on:
+      - db
+    networks:
+      - web
+
+  db:
+    image: postgres:16-alpine
+    container_name: ahizan_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - web
+    # Pas de port mapping nécessaire, communication interne Docker uniquement
+
+volumes:
+  db_data:
+
+networks:
+  web:
+    external: true
+  internal:
+    driver: bridge

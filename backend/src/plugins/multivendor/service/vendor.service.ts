@@ -1,16 +1,37 @@
-import { Injectable } from '@nestjs/common';
-import { TransactionalConnection, ListQueryBuilder, RequestContext, ListQueryOptions, PaginatedList, Product, Order, EventBus, Asset, User, RoleService, PasswordCipher, Permission, NativeAuthenticationMethod } from '@vendure/core';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import {
+    TransactionalConnection,
+    ListQueryBuilder,
+    RequestContext,
+    ListQueryOptions,
+    PaginatedList,
+    Product,
+    Order,
+    EventBus,
+    Asset,
+    User,
+    RoleService,
+    PasswordCipher,
+    Permission,
+    NativeAuthenticationMethod,
+    AssetService,
+    Role,
+    Channel,
+    Administrator,
+    Customer
+} from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { VendorEvent } from '../events/vendor-event';
 
 @Injectable()
-export class VendorService {
+export class VendorService implements OnApplicationBootstrap {
     constructor(
         private connection: TransactionalConnection,
         private listQueryBuilder: ListQueryBuilder,
         private eventBus: EventBus,
         private roleService: RoleService,
         private passwordCipher: PasswordCipher,
+        private assetService: AssetService,
     ) { }
 
     findAll(ctx: RequestContext, options?: ListQueryOptions<Vendor>): Promise<PaginatedList<Vendor>> {
@@ -70,8 +91,8 @@ export class VendorService {
     }
 
     async create(ctx: RequestContext, input: {
-        name: string;
-        email: string;
+        name?: string;
+        email?: string;
         phoneNumber?: string;
         address?: string;
         description?: string;
@@ -83,12 +104,34 @@ export class VendorService {
         rating?: number;
         ratingCount?: number;
         type?: string;
+
+        rccmNumber?: string;
+        rccmFile?: any; // Upload
+        ifuNumber?: string;
+        ifuFile?: any; // Upload
+        idCardNumber?: string;
+        idCardFile?: any; // Upload
+        website?: string;
+        facebook?: string;
+        instagram?: string;
+
+        dynamicDetails?: any;
+
         userId?: string;
         password?: string;
     }): Promise<Vendor> {
+        // Generate defaults if missing
+        const timestamp = new Date().getTime();
+        const finalName = input.name || `Vendor ${timestamp}`;
+        const finalEmail = input.email || `no-email-${timestamp}@ahizan.com`; // Placeholder email
+
+        // Create SuperAdmin Context for the entire operation
+        const adminCtx = await this.getSuperAdminContext(ctx);
+        console.log('VendorService.create: Starting with SuperAdmin context');
+
         const vendor = new Vendor({
-            name: input.name,
-            email: input.email,
+            name: finalName,
+            email: finalEmail,
             phoneNumber: input.phoneNumber,
             address: input.address,
             description: input.description,
@@ -99,45 +142,104 @@ export class VendorService {
             ratingCount: input.ratingCount || 0,
             type: input.type as any || 'INDIVIDUAL',
             status: VendorStatus.PENDING,
+
+            rccmNumber: input.rccmNumber,
+            ifuNumber: input.ifuNumber,
+            idCardNumber: input.idCardNumber,
+            website: input.website,
+            facebook: input.facebook,
+            instagram: input.instagram,
+
+            dynamicDetails: input.dynamicDetails,
         });
 
         if (input.logoId) {
-            vendor.logo = await this.connection.getEntityOrThrow(ctx, Asset, input.logoId);
+            vendor.logo = await this.connection.getEntityOrThrow(adminCtx, Asset, input.logoId);
         }
+
         if (input.coverImageId) {
-            vendor.coverImage = await this.connection.getEntityOrThrow(ctx, Asset, input.coverImageId);
+            vendor.coverImage = await this.connection.getEntityOrThrow(adminCtx, Asset, input.coverImageId);
+        }
+
+        // Handle File Uploads
+        if (input.rccmFile) {
+            const asset = await this.assetService.create(adminCtx, { file: input.rccmFile, tags: ['vendor-doc', 'rccm'] });
+            if (!(asset as any).errorCode) {
+                vendor.rccmFile = asset as Asset;
+            }
+        }
+        if (input.ifuFile) {
+            const asset = await this.assetService.create(adminCtx, { file: input.ifuFile, tags: ['vendor-doc', 'ifu'] });
+            if (!(asset as any).errorCode) {
+                vendor.ifuFile = asset as Asset;
+            }
+        }
+        if (input.idCardFile) {
+            const asset = await this.assetService.create(adminCtx, { file: input.idCardFile, tags: ['vendor-doc', 'id-card'] });
+            if (!(asset as any).errorCode) {
+                vendor.idCardFile = asset as Asset;
+            }
         }
 
         // Link to user if userId provided (for authenticated users)
         if (input.userId) {
-            vendor.user = await this.connection.getEntityOrThrow(ctx, User, input.userId);
+            vendor.user = await this.connection.getEntityOrThrow(adminCtx, User, input.userId);
         } else if (input.password) {
             // Create a new user account for the vendor
             const passwordHash = await this.passwordCipher.hash(input.password);
-            const newUser = await this.connection.getRepository(ctx, User).save(
+
+            const newUser = await this.connection.getRepository(adminCtx, User).save(
                 new User({
-                    identifier: input.email,
-                    verified: false,
+                    identifier: finalEmail,
+                    verified: true,
                 })
             );
 
-            await this.connection.getRepository(ctx, NativeAuthenticationMethod).save(
+            await this.connection.getRepository(adminCtx, NativeAuthenticationMethod).save(
                 new NativeAuthenticationMethod({
-                    identifier: input.email,
+                    identifier: finalEmail,
                     passwordHash,
                     user: newUser
                 })
             );
 
+            // Assign Vendor Role
+            await this.assignVendorRole(adminCtx, newUser.id.toString());
+
+            // Create Administrator for Dashboard Access
+            console.log('VendorService.create: Creating Administrator entity for user...');
+            const administrator = new Administrator({
+                emailAddress: finalEmail,
+                firstName: finalName.split(' ')[0] || 'Vendor',
+                lastName: finalName.split(' ')[1] || 'Admin',
+                user: newUser,
+            });
+            await this.connection.getRepository(adminCtx, Administrator).save(administrator);
+            console.log('VendorService.create: Administrator entity created.');
+
+            // Create Customer for Shop Access (Login via Shop API)
+            console.log('VendorService.create: Creating Customer entity for user...');
+            const customer = await this.connection.getRepository(adminCtx, Customer).save(
+                new Customer({
+                    emailAddress: finalEmail,
+                    firstName: finalName.split(' ')[0] || 'Vendor',
+                    lastName: finalName.split(' ')[1] || 'Customer',
+                    user: newUser,
+                })
+            );
+            console.log('VendorService.create: Customer entity created.');
+
+
             vendor.user = newUser;
         }
 
-        const newVendor = await this.connection.getRepository(ctx, Vendor).save(vendor);
-        this.eventBus.publish(new VendorEvent(ctx, newVendor, 'created', input));
+        const newVendor = await this.connection.getRepository(adminCtx, Vendor).save(vendor);
+        this.eventBus.publish(new VendorEvent(adminCtx, newVendor, 'created', input));
+        console.log('VendorService.create: Registration completed successfully');
         return newVendor;
     }
 
-    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; coverImageId?: string; rejectionReason?: string }): Promise<Vendor> {
+    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; coverImageId?: string; rejectionReason?: string; dynamicDetails?: any }): Promise<Vendor> {
         const vendor = await this.findOne(ctx, id);
         if (!vendor) {
             throw new Error(`Vendor with id ${id} not found`);
@@ -233,27 +335,55 @@ export class VendorService {
     /**
      * Get or create the Vendor role with appropriate permissions
      */
+    /**
+     * Get or create the Vendor role with appropriate permissions
+     */
     private async getOrCreateVendorRole(ctx: RequestContext) {
-        const existingRole = await this.connection.getRepository(ctx, 'Role').findOne({
+        console.log('getOrCreateVendorRole: Checking for existing role...');
+        let role = await this.connection.getRepository(ctx, Role).findOne({
             where: { code: 'vendor' }
         });
 
-        if (existingRole) {
-            return existingRole;
+        const permissions = [
+            Permission.Authenticated,
+            Permission.ReadCatalog,
+            Permission.CreateCatalog,
+            Permission.UpdateCatalog,
+            Permission.DeleteCatalog,
+            Permission.ReadOrder,
+            Permission.UpdateOrder,
+            Permission.ReadAsset,
+            Permission.CreateAsset,
+            Permission.ReadCountry,
+            Permission.ReadZone,
+            Permission.ReadTaxCategory,
+            Permission.ReadTaxRate,
+            Permission.ReadPaymentMethod,
+            Permission.ReadShippingMethod,
+            Permission.ReadCustomer,
+            Permission.ReadFacet,
+            Permission.ReadAdministrator,
+            Permission.ReadChannel,
+
+            'Vendor' as Permission, // Custom permission defined in MultivendorPlugin
+        ];
+
+        if (role) {
+            console.log('getOrCreateVendorRole: Role found. Updating permissions to ensure correctness...');
+            role.permissions = permissions;
+            role.description = 'Vendor role for managing own products and orders';
+            role = await this.connection.getRepository(ctx, Role).save(role);
+            console.log('getOrCreateVendorRole: Role permissions updated.');
+            return role;
         }
 
-        // Create new Vendor role with basic permissions
-        const role = await this.roleService.create(ctx, {
+        console.log('getOrCreateVendorRole: Role not found, creating new one...');
+        role = await this.roleService.create(ctx, {
             code: 'vendor',
             description: 'Vendor role for managing own products and orders',
-            permissions: [
-                Permission.Authenticated,
-                Permission.ReadCatalog,
-                Permission.ReadOrder,
-                Permission.UpdateOrder,
-            ]
+            permissions: permissions,
         });
-
+        console.log('getOrCreateVendorRole: Role created.');
         return role;
     }
 
@@ -261,6 +391,7 @@ export class VendorService {
      * Assign Vendor role to a user
      */
     async assignVendorRole(ctx: RequestContext, userId: string) {
+        console.log(`assignVendorRole: Assigning role to user ${userId}`);
         const user = await this.connection.getEntityOrThrow(ctx, User, userId, {
             relations: ['roles']
         });
@@ -270,8 +401,98 @@ export class VendorService {
         // Check if user already has the role
         const hasRole = user.roles.some(role => role.id === vendorRole.id);
         if (!hasRole) {
+            console.log('assignVendorRole: User does not have role, adding it now.');
             user.roles.push(vendorRole as any);
             await this.connection.getRepository(ctx, User).save(user);
+            console.log('assignVendorRole: Role assigned successfully.');
+        } else {
+            console.log('assignVendorRole: User already has role.');
         }
+    }
+
+    private async getSuperAdminContext(ctx: RequestContext): Promise<RequestContext> {
+        const superAdminUser = await this.connection.getRepository(ctx, User).findOne({
+            where: {
+                identifier: process.env.SUPERADMIN_USERNAME || 'superadmin',
+            },
+            relations: ['roles', 'roles.channels']
+        });
+
+        if (!superAdminUser) {
+            console.error('getSuperAdminContext: SUPER ADMIN USER NOT FOUND! Permissions will likely fail.');
+        } else {
+            console.log('getSuperAdminContext: Found SuperAdmin user:', superAdminUser.identifier);
+        }
+
+        // Mock a session with the superadmin user
+        const session = {
+            id: 'superadmin-session',
+            expires: new Date(Date.now() + 1000 * 60 * 60),
+            activeOrder: null,
+            activeChannelId: ctx.channel.id,
+            user: superAdminUser,
+            isAuthenticated: true,
+        } as any;
+
+        return new RequestContext({
+            apiType: 'admin',
+            isAuthorized: true,
+            authorizedAsOwnerOnly: false,
+            channel: ctx.channel,
+            languageCode: ctx.languageCode,
+            session: session,
+        });
+    }
+
+    async onApplicationBootstrap() {
+        console.log('VendorService: Bootstrapping... Checking for Vendor role to ensure it exists.');
+        try {
+            const ctx = await this.createBootstrapContext();
+            await this.getOrCreateVendorRole(ctx);
+            console.log('VendorService: Bootstrapping complete. Vendor role ready.');
+        } catch (e) {
+            console.error('VendorService: Failed to bootstrap vendor role:', e);
+        }
+    }
+
+    private async createBootstrapContext(): Promise<RequestContext> {
+        const channel = await this.connection.rawConnection.getRepository(Channel).findOne({
+            where: { code: '__default_channel__' },
+            relations: ['defaultTaxZone', 'defaultShippingZone']
+        });
+
+        if (!channel) {
+            throw new Error('Default channel not found during bootstrap');
+        }
+
+        const superAdminUser = await this.connection.rawConnection.getRepository(User).findOne({
+            where: {
+                identifier: process.env.SUPERADMIN_USERNAME || 'superadmin',
+            },
+            relations: ['roles', 'roles.channels']
+        });
+
+        if (!superAdminUser) {
+            console.error('createBootstrapContext: SuperAdmin user not found');
+        }
+
+        // Mock a session
+        const session = {
+            id: 'bootstrap-session',
+            expires: new Date(Date.now() + 1000 * 60 * 60),
+            activeOrder: null,
+            activeChannelId: channel.id,
+            user: superAdminUser,
+            isAuthenticated: true,
+        } as any;
+
+        return new RequestContext({
+            apiType: 'admin',
+            isAuthorized: true,
+            authorizedAsOwnerOnly: false,
+            channel,
+            languageCode: channel.defaultLanguageCode,
+            session,
+        });
     }
 }

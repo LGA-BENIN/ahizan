@@ -1,4 +1,4 @@
-import {NextConfig} from 'next';
+import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
     cacheComponents: true,
@@ -18,8 +18,11 @@ const nextConfig: NextConfig = {
         ],
     },
     experimental: {
-        rootParams: true
-    }
+        rootParams: true,
+        serverActions: {
+            bodySizeLimit: '50mb',
+        },
+    },
 };
 
 export default nextConfig;

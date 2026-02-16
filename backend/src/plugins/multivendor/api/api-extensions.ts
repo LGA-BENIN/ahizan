@@ -24,11 +24,13 @@ export const commonApiExtensions = `
         rejectionReason: String
         products: [Product!]
         user: User
+        
+        dynamicDetails: JSON
     }
 
     input CreateVendorInput {
-        name: String!
-        email: String!
+        name: String
+        email: String
         password: String
         phoneNumber: String
         address: String
@@ -41,6 +43,19 @@ export const commonApiExtensions = `
         rating: Float
         ratingCount: Int
         type: String
+
+        # New Fields
+        rccmNumber: String
+        rccmFile: Upload
+        ifuNumber: String
+        ifuFile: Upload
+        idCardNumber: String
+        idCardFile: Upload
+        website: String
+        facebook: String
+        instagram: String
+        
+        dynamicDetails: JSON
     }
 
     input UpdateVendorInput {
@@ -60,6 +75,19 @@ export const commonApiExtensions = `
         commissionRate: Float
         status: String
         rejectionReason: String
+
+        # New Fields
+        rccmNumber: String
+        rccmFile: Upload
+        ifuNumber: String
+        ifuFile: Upload
+        idCardNumber: String
+        idCardFile: Upload
+        website: String
+        facebook: String
+        instagram: String
+        
+        dynamicDetails: JSON
     }
 
     input VendorListOptions {
@@ -103,9 +131,11 @@ export const shopApiExtensions = `
     }
 
     extend type Mutation {
+        testPublicAccess: Boolean!
         applyToBecomeVendor(input: CreateVendorInput!): Vendor!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
+        uploadVendorFile(file: Upload!): Asset!
     }
 `;
 
@@ -119,12 +149,20 @@ export const adminApiExtensions = `
         myVendorOrders(options: OrderListOptions): OrderList!
     }
 
+
+    input CreateVendorProductInput {
+        name: String!
+        description: String!
+        price: Int!
+        stock: Int!
+    }
+
     extend type Mutation {
         updateVendorStatus(id: ID!, status: String!, reason: String): Vendor!
         createVendor(input: CreateVendorInput!): Vendor!
         updateVendor(id: ID!, input: UpdateVendorInput!): Vendor!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
-        createMyProduct(input: CreateProductInput!): Product!
+        createMyProduct(input: CreateVendorProductInput!): Product!
         updateMyProduct(id: ID!, input: UpdateProductInput!): Product!
         deleteMyProduct(id: ID!): DeletionResponse!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!

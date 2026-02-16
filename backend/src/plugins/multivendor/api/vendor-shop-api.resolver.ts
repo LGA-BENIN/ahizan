@@ -63,6 +63,18 @@ export class VendorShopApiResolver {
     }
 
     /**
+     * Apply to become a vendor
+     */
+    @Mutation()
+    @Allow(Permission.Public)
+    async applyToBecomeVendor(
+        @Ctx() ctx: RequestContext,
+        @Args('input') input: any
+    ): Promise<Vendor> {
+        return this.vendorService.create(ctx, input);
+    }
+
+    /**
      * Update order status for vendor's orders
      */
     @Mutation()

@@ -1,10 +1,10 @@
 'use server';
 
-import {mutate} from '@/lib/vendure/api';
-import {LoginMutation, LogoutMutation} from '@/lib/vendure/mutations';
-import {removeAuthToken, setAuthToken} from '@/lib/auth';
-import {redirect} from "next/navigation";
-import {revalidatePath} from "next/cache";
+import { mutate } from '@/lib/vendure/api';
+import { LoginMutation, LogoutMutation } from '@/lib/vendure/mutations';
+import { removeAuthToken, setAuthToken } from '@/lib/auth';
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 export async function loginAction(prevState: { error?: string } | undefined, formData: FormData) {
     const username = formData.get('username') as string;
@@ -17,8 +17,10 @@ export async function loginAction(prevState: { error?: string } | undefined, for
     }, { useAuthToken: true });
 
     const loginResult = result.data.login;
+    console.log('Login result type:', loginResult.__typename);
 
     if (loginResult.__typename !== 'CurrentUser') {
+        console.log('Login failed with result:', JSON.stringify(loginResult));
         if (loginResult.__typename === 'NotVerifiedError') {
             return { error: 'Please verify your email address before signing in.' };
         }
@@ -27,7 +29,10 @@ export async function loginAction(prevState: { error?: string } | undefined, for
 
     // Store the token in a cookie if returned
     if (result.token) {
+        console.log('Login mutation success, received token:', result.token.substring(0, 10));
         await setAuthToken(result.token);
+    } else {
+        console.warn('Login mutation success, but NO token received!');
     }
 
     revalidatePath('/', 'layout');
@@ -37,7 +42,8 @@ export async function loginAction(prevState: { error?: string } | undefined, for
         ? redirectTo
         : '/';
 
-    redirect(safeRedirect);
+    console.log(`Login successful. Returning redirect path to client: ${safeRedirect}`);
+    return { success: true, redirectTo: safeRedirect };
 
 }
 

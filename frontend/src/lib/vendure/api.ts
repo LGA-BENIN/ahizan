@@ -1,6 +1,6 @@
-import type {TadaDocumentNode} from 'gql.tada';
-import {print} from 'graphql';
-import {getAuthToken} from '@/lib/auth';
+import type { TadaDocumentNode } from 'gql.tada';
+import { print } from 'graphql';
+import { getAuthToken } from '@/lib/auth';
 
 const VENDURE_API_URL = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL;
 const VENDURE_CHANNEL_TOKEN = process.env.VENDURE_CHANNEL_TOKEN || process.env.NEXT_PUBLIC_VENDURE_CHANNEL_TOKEN || '__default_channel__';
@@ -21,14 +21,18 @@ interface VendureRequestOptions {
 
 interface VendureResponse<T> {
     data?: T;
-    errors?: Array<{ message: string; [key: string]: unknown }>;
+    errors?: Array<{ message: string;[key: string]: unknown }>;
 }
 
 /**
  * Extract the Vendure auth token from response headers
  */
 function extractAuthToken(headers: Headers): string | null {
-    return headers.get(VENDURE_AUTH_TOKEN_HEADER);
+    const token = headers.get(VENDURE_AUTH_TOKEN_HEADER);
+    if (token) {
+        console.log(`Extracted auth token from response header: ${token.substring(0, 10)}...`);
+    }
+    return token;
 }
 
 
@@ -67,18 +71,76 @@ export async function query<TResult, TVariables>(
     // Set the channel token header (use provided channelToken or default)
     headers[VENDURE_CHANNEL_TOKEN_HEADER] = channelToken || VENDURE_CHANNEL_TOKEN;
 
+    // Check for files in variables to determine if we need multipart/form-data
+    const files: { file: File, variablePath: string }[] = [];
+
+    const extractFiles = (obj: any, path: string = 'variables') => {
+        if (!obj) return;
+        if (typeof obj === 'object') {
+            for (const key in obj) {
+                const value = obj[key];
+                const newPath = path ? `${path}.${key}` : key;
+                if (value instanceof File) {
+                    files.push({ file: value, variablePath: newPath });
+                } else if (typeof value === 'object' && value !== null) {
+                    extractFiles(value, newPath);
+                }
+            }
+        }
+    };
+
+    if (variables) {
+        extractFiles(variables);
+    }
+
+    let body: any;
+
+    if (files.length > 0) {
+        const formData = new FormData();
+        const operations = {
+            query: print(document),
+            variables: variables || {}
+        };
+
+        // We need to nullify the file fields in the operations object strictly for the map to work correctly
+        // But for simplicity, we keep variables as is, server should handle it.
+        // However, standard spec says null.
+        // Let's rely on map.
+
+        formData.append('operations', JSON.stringify(operations));
+
+        const map: Record<string, string[]> = {};
+        files.forEach((f, index) => {
+            map[index.toString()] = [f.variablePath];
+        });
+        formData.append('map', JSON.stringify(map));
+
+        files.forEach((f, index) => {
+            formData.append(index.toString(), f.file);
+        });
+
+        body = formData;
+        delete headers['Content-Type']; // Let browser set boundary
+    } else {
+        body = JSON.stringify({
+            query: print(document),
+            variables: variables || {},
+        });
+    }
+
     const response = await fetch(VENDURE_API_URL!, {
         ...fetchOptions,
         method: 'POST',
         headers,
-        body: JSON.stringify({
+        body: files.length > 0 ? body : JSON.stringify({
             query: print(document),
             variables: variables || {},
         }),
-        ...(tags && {next: {tags}}),
+        ...(tags && { next: { tags } }),
     });
 
     if (!response.ok) {
+        console.error(`Fetch failed for URL: ${VENDURE_API_URL}`);
         throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -96,7 +158,7 @@ export async function query<TResult, TVariables>(
 
     return {
         data: result.data,
-        ...(newToken && {token: newToken}),
+        ...(newToken && { token: newToken }),
     };
 }
 

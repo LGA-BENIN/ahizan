@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode } from '@vendure/core';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -12,6 +12,7 @@ export class VendorShopResolver {
     constructor(
         private vendorService: VendorService,
         private productService: ProductService,
+        private productVariantService: ProductVariantService,
         private orderService: OrderService
     ) { }
 
@@ -22,10 +23,19 @@ export class VendorShopResolver {
     @Allow(Permission.Authenticated)
     async myVendorProfile(@Ctx() ctx: RequestContext): Promise<Vendor | null> {
         if (!ctx.activeUserId) {
+            console.warn('VendorShopResolver.myVendorProfile: No active user ID in context');
             throw new Error('Not authenticated');
         }
 
+        console.log(`VendorShopResolver.myVendorProfile: Fetching profile for user ${ctx.activeUserId}`);
         const vendor = await this.vendorService.findByUserId(ctx, ctx.activeUserId.toString());
+
+        if (!vendor) {
+            console.warn(`VendorShopResolver.myVendorProfile: Vendor profile NOT FOUND for user ${ctx.activeUserId}`);
+        } else {
+            console.log(`VendorShopResolver.myVendorProfile: Found vendor ${vendor.id} (${vendor.name})`);
+        }
+
         return vendor;
     }
 
@@ -80,22 +90,40 @@ export class VendorShopResolver {
     @Allow(Permission.Authenticated)
     async createMyProduct(
         @Ctx() ctx: RequestContext,
-        @Args('input') input: any
+        @Args('input') input: { name: string, description: string, price: number, stock: number }
     ): Promise<Product> {
         const vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
             throw new Error('No vendor profile found for this user');
         }
 
-        // Create product with vendor link
+        // 1. Create Product
         const product = await this.productService.create(ctx, {
-            ...input,
+            translations: [{
+                languageCode: ctx.languageCode,
+                name: input.name,
+                slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+                description: input.description,
+            }],
+            enabled: true,
             customFields: {
                 vendor: { id: vendor.id }
             }
         });
 
-        return product;
+        // 2. Create Default Variant with Price & Stock
+        await this.productVariantService.create(ctx, [{
+            productId: product.id,
+            sku: `${vendor.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
+            price: input.price,
+            stockOnHand: input.stock,
+            translations: [{
+                languageCode: ctx.languageCode,
+                name: input.name,
+            }]
+        }]);
+
+        return this.productService.findOne(ctx, product.id) as Promise<Product>;
     }
 
     /**

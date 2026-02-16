@@ -17,6 +17,8 @@ import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
+import { CmsPlugin } from './plugins/cms/cms.plugin';
+import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
 
 // Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
@@ -37,16 +39,31 @@ export const config: VendureConfig = {
             adminApiDebug: true,
             shopApiDebug: true,
         } : {}),
+        /*
+        middleware: [{
+            handler: (req: any, res: any, next: any) => {
+                const body_parser = require('body-parser');
+                const jsonParser = body_parser.json({ limit: '50mb' });
+                const urlencodedParser = body_parser.urlencoded({ limit: '50mb', extended: true });
+                jsonParser(req, res, (err: any) => {
+                    if (err) return next(err);
+                    urlencodedParser(req, res, next);
+                });
+            },
+            route: '/'
+        }],
+        */
         cors: {
             origin: [
-                'http://localhost:5173', 'http://localhost:4200', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:3001',
-                'http://127.0.0.1:5173', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:5174', 'http://127.0.0.1:3001'
+                'http://localhost:5173', 'http://localhost:4200', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:3001', 'http://localhost:5176',
+                'http://127.0.0.1:5173', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:5174', 'http://127.0.0.1:3001', 'http://127.0.0.1:5176'
             ],
             credentials: true,
         },
     },
     authOptions: {
         tokenMethod: ['bearer', 'cookie'],
+        requireVerification: false, // Disable email verification globally for MVP
         superadminCredentials: {
             identifier: process.env.SUPERADMIN_USERNAME,
             password: process.env.SUPERADMIN_PASSWORD,
@@ -110,5 +127,7 @@ export const config: VendureConfig = {
         }),
         MultivendorPlugin,
         TaxEnforcementPlugin,
+        CmsPlugin,
+        PageInscriptionPlugin,
     ],
 };

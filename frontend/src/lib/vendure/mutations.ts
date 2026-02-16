@@ -29,6 +29,13 @@ export const AddToCartMutation = graphql(`
                     productVariant {
                         id
                         name
+                        product {
+                            customFields {
+                                vendor {
+                                    id
+                                }
+                            }
+                        }
                     }
                     quantity
                 }
@@ -419,6 +426,7 @@ export const UpdateCustomerEmailAddressMutation = graphql(`
     }
 `);
 
+
 export const SetCustomerForOrderMutation = graphql(`
     mutation SetCustomerForOrder($input: CreateCustomerInput!) {
         setCustomerForOrder(input: $input) {
@@ -453,3 +461,25 @@ export const SetCustomerForOrderMutation = graphql(`
         }
     }
 `);
+
+export const ApplyToBecomeVendorMutation = graphql(`
+    mutation ApplyToBecomeVendor($input: CreateVendorInput!) {
+        applyToBecomeVendor(input: $input) {
+            id
+            name
+            status
+        }
+    }
+`);
+
+export const UpdateMyVendorProfileMutation = graphql(`
+    mutation UpdateMyVendorProfile($input: UpdateVendorInput!) {
+        updateMyVendorProfile(input: $input) {
+            id
+            name
+            status
+            rejectionReason
+        }
+    }
+`);
+

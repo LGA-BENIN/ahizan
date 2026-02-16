@@ -1,4 +1,4 @@
-import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError } from '@vendure/core';
+import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset } from '@vendure/core';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
@@ -7,25 +7,33 @@ import { Vendor, VendorStatus } from '../entities/vendor.entity';
 export class VendorResolver {
     constructor(
         private vendorService: VendorService,
-        private orderService: OrderService
+        private orderService: OrderService,
+        private assetService: AssetService
     ) { }
 
     @Mutation()
     @Allow(Permission.Public)
     async applyToBecomeVendor(
         @Ctx() ctx: RequestContext,
-        @Args('input') input: { name: string; email: string; password?: string; phoneNumber?: string; address?: string }
+        @Args('input') input: any
     ): Promise<Vendor> {
-        // If user is authenticated, link vendor to their account
-        const userId = ctx.activeUserId;
+        console.log('VendorResolver.applyToBecomeVendor called!');
 
-        if (userId) {
-            return this.vendorService.create(ctx, { ...input, userId: userId.toString() });
-        } else if (input.password) {
-            // Create new user account with vendor application
-            return this.vendorService.create(ctx, input);
-        } else {
-            throw new Error('Either authenticate or provide a password to create vendor account');
+        try {
+            // If user is authenticated, link vendor to their account
+            const userId = ctx.activeUserId;
+
+            if (userId) {
+                return await this.vendorService.create(ctx, { ...input, userId: userId.toString() });
+            } else if (input.password) {
+                // Create new user account with vendor application
+                return await this.vendorService.create(ctx, input);
+            } else {
+                throw new Error('Either authenticate or provide a password to create vendor account');
+            }
+        } catch (error: any) {
+            console.error('Error in VendorResolver.applyToBecomeVendor:', error);
+            throw error; // Re-throw to GraphQL
         }
     }
 
@@ -100,6 +108,26 @@ export class VendorResolver {
         const products = await this.vendorService.findAllProductsForVendor(ctx, vendor.id.toString());
         return products || [];
     }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async uploadVendorFile(
+        @Ctx() ctx: RequestContext,
+        @Args('file') file: any
+    ): Promise<Asset | undefined> {
+        const asset = await this.assetService.create(ctx, {
+            file,
+            tags: ['vendor-docs'],
+        });
+        if (isErrorResult(asset)) {
+            throw new Error(asset.message);
+        }
+        return asset as any;
+    }
+}
+
+function isErrorResult(result: any): result is { message: string; errorCode: string } {
+    return !!result.errorCode;
 }
 
 @Resolver('Vendor')

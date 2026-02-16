@@ -20,11 +20,11 @@ export class Vendor extends VendureEntity {
     @Column({ type: 'text', nullable: true })
     description: string;
 
-    @OneToOne(type => Asset)
+    @OneToOne(type => Asset, { nullable: true })
     @JoinColumn()
     logo: Asset;
 
-    @OneToOne(type => Asset)
+    @OneToOne(type => Asset, { nullable: true })
     @JoinColumn()
     coverImage: Asset;
 
@@ -35,8 +35,7 @@ export class Vendor extends VendureEntity {
     @Column({ type: 'varchar', default: VendorStatus.PENDING })
     status: VendorStatus;
 
-    @Column({ type: 'varchar', default: 'INDIVIDUAL' })
-    type: 'INDIVIDUAL' | 'BUSINESS';
+
 
     @Column({ nullable: true })
     phoneNumber: string;
@@ -70,4 +69,46 @@ export class Vendor extends VendureEntity {
 
     @Column({ type: 'float', default: 0 })
     commissionRate: number;
+
+    // --- New Business Fields ---
+
+    @Column({ type: 'varchar', default: 'INDIVIDUAL' })
+    type: 'INDIVIDUAL' | 'ONLINE' | 'SHOP' | 'ENTERPRISE';
+
+    @Column({ type: 'simple-json', nullable: true })
+    dynamicDetails: any;
+
+    // --- Legal & Identity Fields ---
+
+    @Column({ nullable: true })
+    rccmNumber: string;
+
+    @OneToOne(type => Asset, { nullable: true })
+    @JoinColumn()
+    rccmFile: Asset;
+
+    @Column({ nullable: true })
+    ifuNumber: string;
+
+    @OneToOne(type => Asset, { nullable: true })
+    @JoinColumn()
+    ifuFile: Asset;
+
+    @Column({ nullable: true })
+    idCardNumber: string; // Carte d'identité / CIP
+
+    @OneToOne(type => Asset, { nullable: true })
+    @JoinColumn()
+    idCardFile: Asset;
+
+    // --- Social Media Fields ---
+
+    @Column({ nullable: true })
+    website: string;
+
+    @Column({ nullable: true })
+    facebook: string;
+
+    @Column({ nullable: true })
+    instagram: string;
 }

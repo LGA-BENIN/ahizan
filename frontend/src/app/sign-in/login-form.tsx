@@ -1,13 +1,13 @@
 'use client';
 
-import {useState, useTransition} from 'react';
-import {useForm} from 'react-hook-form';
-import {zodResolver} from '@hookform/resolvers/zod';
+import { useState, useTransition } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import {loginAction} from './actions';
-import {Button} from '@/components/ui/button';
-import {Input} from '@/components/ui/input';
-import {Card, CardContent, CardFooter} from '@/components/ui/card';
+import { loginAction } from './actions';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import {
     Form,
     FormControl,
@@ -29,7 +29,7 @@ interface LoginFormProps {
     redirectTo?: string;
 }
 
-export function LoginForm({redirectTo}: LoginFormProps) {
+export function LoginForm({ redirectTo }: LoginFormProps) {
     const [isPending, startTransition] = useTransition();
     const [serverError, setServerError] = useState<string | null>(null);
 
@@ -42,9 +42,11 @@ export function LoginForm({redirectTo}: LoginFormProps) {
     });
 
     const onSubmit = (data: LoginFormData) => {
+        console.log('LoginForm submitted', data);
         setServerError(null);
 
         startTransition(async () => {
+            console.log('Calling loginAction...');
             const formData = new FormData();
             formData.append('username', data.username);
             formData.append('password', data.password);
@@ -53,8 +55,14 @@ export function LoginForm({redirectTo}: LoginFormProps) {
             }
 
             const result = await loginAction(undefined, formData);
+            console.log('loginAction result:', result);
+
             if (result?.error) {
                 setServerError(result.error);
+            } else if (result?.success && result?.redirectTo) {
+                console.log('Login success, redirecting to:', result.redirectTo);
+                // Force a hard refresh to ensure cookies are picked up strictly
+                window.location.href = result.redirectTo;
             }
         });
     };
@@ -71,7 +79,7 @@ export function LoginForm({redirectTo}: LoginFormProps) {
                         <FormField
                             control={form.control}
                             name="username"
-                            render={({field}) => (
+                            render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
@@ -82,7 +90,7 @@ export function LoginForm({redirectTo}: LoginFormProps) {
                                             {...field}
                                         />
                                     </FormControl>
-                                    <FormMessage/>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -90,7 +98,7 @@ export function LoginForm({redirectTo}: LoginFormProps) {
                         <FormField
                             control={form.control}
                             name="password"
-                            render={({field}) => (
+                            render={({ field }) => (
                                 <FormItem>
                                     <div className="flex items-center justify-between">
                                         <FormLabel>Password</FormLabel>
@@ -110,7 +118,7 @@ export function LoginForm({redirectTo}: LoginFormProps) {
                                             {...field}
                                         />
                                     </FormControl>
-                                    <FormMessage/>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />

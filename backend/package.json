@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:server": "ts-node ./src/index.ts",
-    "dev:worker": "ts-node ./src/index-worker.ts",
+    "dev:server": "nodemon --watch \"src/**/*.ts\" --exec \"ts-node\" src/index.ts",
+    "dev:worker": "ts-node --transpileOnly ./src/index-worker.ts",
     "dev:dashboard": "vite --clearScreen false",
     "dev": "concurrently --kill-others npm:dev:*",
     "build": "tsc",
@@ -23,6 +23,7 @@
     "@vendure/dashboard": "3.5.2",
     "@vendure/email-plugin": "3.5.2",
     "@vendure/graphiql-plugin": "3.5.2",
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "12.6.2",
     "dotenv": "17.2.3",
     "graphql-tag": "^2.12.6",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@vendure/cli": "3.5.2",
     "concurrently": "9.2.1",
+    "nodemon": "^3.1.11",
     "typescript": "5.8.2"
   }
 }

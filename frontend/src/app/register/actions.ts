@@ -11,7 +11,9 @@ export async function registerVendor(prevState: any, formData: FormData) {
     const email = formData.get('email') as string;
     const phoneNumber = formData.get('phoneNumber') as string;
     const password = formData.get('password') as string;
-    const description = formData.get('description') as string;
+    const firstName = formData.get('firstName') as string;
+    const lastName = formData.get('lastName') as string;
+    const description = (formData.get('description') || formData.get('shopDescription')) as string;
     const address = formData.get('address') as string;
 
     // Additional Fields
@@ -40,7 +42,7 @@ export async function registerVendor(prevState: any, formData: FormData) {
     // Debug logging
     console.log('FormData Keys:', Array.from(formData.keys()));
     console.log('Registering vendor with data:', {
-        shopName, email, phoneNumber, type,
+        shopName, email, phoneNumber, type, firstName, lastName,
         rccmFileSize: rccmFile?.size,
         ifuFileSize: ifuFile?.size,
         idCardFileSize: idCardFile?.size
@@ -50,6 +52,8 @@ export async function registerVendor(prevState: any, formData: FormData) {
         const { data } = await mutate(ApplyToBecomeVendorMutation, {
             input: {
                 name: shopName,
+                firstName,
+                lastName,
                 email,
                 phoneNumber,
                 password,

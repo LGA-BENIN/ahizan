@@ -38,6 +38,7 @@ export const UPDATE_REGISTRATION_FIELD = gql`
             name
             label
             enabled
+            required
         }
     }
 `;

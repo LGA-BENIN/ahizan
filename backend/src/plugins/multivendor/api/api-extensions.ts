@@ -30,6 +30,8 @@ export const commonApiExtensions = `
 
     input CreateVendorInput {
         name: String
+        firstName: String
+        lastName: String
         email: String
         password: String
         phoneNumber: String
@@ -60,6 +62,8 @@ export const commonApiExtensions = `
 
     input UpdateVendorInput {
         name: String
+        firstName: String
+        lastName: String
         email: String
         phoneNumber: String
         address: String

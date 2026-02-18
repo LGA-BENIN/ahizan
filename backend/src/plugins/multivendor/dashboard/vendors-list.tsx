@@ -82,11 +82,12 @@ function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: bo
     }, [data]);
 
     const updateStatusMutation = useMutation({
-        mutationFn: (status: string) => fetchGraphQL(UPDATE_VENDOR_STATUS, { id: vendorId, status }),
-        onSuccess: (_, status) => {
+        mutationFn: ({ status, reason }: { status: string; reason?: string }) =>
+            fetchGraphQL(UPDATE_VENDOR_STATUS, { id: vendorId, status, reason }),
+        onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['vendor', vendorId] });
             queryClient.invalidateQueries({ queryKey: ['vendors'] });
-            addToast(`Vendor status updated to ${status}`, 'success');
+            addToast(`Vendor status updated to ${variables.status}`, 'success');
         },
         onError: () => addToast('Failed to update status', 'error')
     });
@@ -138,10 +139,21 @@ function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: bo
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '12px', marginBottom: '8px', color: '#64748b' }}>Action</label>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            {vendor.status === 'PENDING' && <button onClick={() => updateStatusMutation.mutate('APPROVED')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Approve</button>}
-                                            {vendor.status === 'APPROVED' && <button onClick={() => updateStatusMutation.mutate('SUSPENDED')} style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Suspend</button>}
-                                            {vendor.status === 'SUSPENDED' && <button onClick={() => updateStatusMutation.mutate('APPROVED')} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reactivate</button>}
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                            {vendor.status === 'PENDING' && (
+                                                <>
+                                                    <button onClick={() => updateStatusMutation.mutate({ status: 'APPROVED' })} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Approve</button>
+                                                    <button onClick={() => {
+                                                        const reason = prompt("Enter rejection reason:");
+                                                        if (reason) updateStatusMutation.mutate({ status: 'REJECTED', reason });
+                                                    }} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reject</button>
+                                                </>
+                                            )}
+                                            {vendor.status === 'APPROVED' && <button onClick={() => updateStatusMutation.mutate({ status: 'SUSPENDED' })} style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Suspend</button>}
+                                            {vendor.status === 'SUSPENDED' && <button onClick={() => updateStatusMutation.mutate({ status: 'APPROVED' })} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reactivate</button>}
+                                            {vendor.status === 'REJECTED' && (
+                                                <button onClick={() => updateStatusMutation.mutate({ status: 'PENDING' })} style={{ background: '#eab308', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Re-evaluate</button>
+                                            )}
                                         </div>
                                     </div>
                                     <div>

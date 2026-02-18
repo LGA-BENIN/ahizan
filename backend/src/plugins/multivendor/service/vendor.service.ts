@@ -18,10 +18,12 @@ import {
     Role,
     Channel,
     Administrator,
-    Customer
+    Customer,
+    UserInputError
 } from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { VendorEvent } from '../events/vendor-event';
+import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
 
 @Injectable()
 export class VendorService implements OnApplicationBootstrap {
@@ -92,6 +94,8 @@ export class VendorService implements OnApplicationBootstrap {
 
     async create(ctx: RequestContext, input: {
         name?: string;
+        firstName?: string;
+        lastName?: string;
         email?: string;
         phoneNumber?: string;
         address?: string;
@@ -128,6 +132,65 @@ export class VendorService implements OnApplicationBootstrap {
         // Create SuperAdmin Context for the entire operation
         const adminCtx = await this.getSuperAdminContext(ctx);
         console.log('VendorService.create: Starting with SuperAdmin context');
+
+        // Ensure dynamicDetails is initialized
+        if (!input.dynamicDetails) {
+            input.dynamicDetails = {};
+        }
+
+        // Map firstName and lastName to dynamicDetails if present (so they are saved)
+        if (input.firstName) input.dynamicDetails['firstName'] = input.firstName;
+        if (input.lastName) input.dynamicDetails['lastName'] = input.lastName;
+        // Also map implicitly if they are passed as top-level args but validation expects them
+        // (This step handles the mapping before validation loop)
+
+        // --- VALIDATION OF DYNAMIC FIELDS (Server-Side) ---
+        const registrationFields = await this.connection.getRepository(ctx, RegistrationField).find({
+            where: { enabled: true }
+        });
+
+        for (const field of registrationFields) {
+            if (field.required) {
+                let isPresent = false;
+                const fieldName = field.name;
+
+                // Check standard fields mapped in input
+                if (fieldName === 'name') isPresent = !!input.name;
+                else if (fieldName === 'firstName') isPresent = !!input.firstName || !!input.dynamicDetails['firstName'];
+                else if (fieldName === 'lastName') isPresent = !!input.lastName || !!input.dynamicDetails['lastName'];
+                else if (fieldName === 'email') isPresent = !!input.email;
+                else if (fieldName === 'phoneNumber') isPresent = !!input.phoneNumber;
+                else if (fieldName === 'address') isPresent = !!input.address;
+                else if (fieldName === 'description') isPresent = !!input.description;
+                else if (fieldName === 'zone') isPresent = !!input.zone;
+                else if (fieldName === 'deliveryInfo') isPresent = !!input.deliveryInfo;
+                else if (fieldName === 'returnPolicy') isPresent = !!input.returnPolicy;
+                else if (fieldName === 'type') isPresent = !!input.type;
+                else if (fieldName === 'website') isPresent = !!input.website;
+                else if (fieldName === 'facebook') isPresent = !!input.facebook;
+                else if (fieldName === 'instagram') isPresent = !!input.instagram;
+                else if (fieldName === 'rccmNumber') isPresent = !!input.rccmNumber;
+                else if (fieldName === 'ifuNumber') isPresent = !!input.ifuNumber;
+                else if (fieldName === 'idCardNumber') isPresent = !!input.idCardNumber;
+
+                // Check file fields
+                else if (fieldName === 'rccmFile') isPresent = !!input.rccmFile && input.rccmFile.size > 0;
+                else if (fieldName === 'ifuFile') isPresent = !!input.ifuFile && input.ifuFile.size > 0;
+                else if (fieldName === 'idCardFile') isPresent = !!input.idCardFile && input.idCardFile.size > 0;
+                else if (fieldName === 'logo') isPresent = !!input.logoId; // Or check input.logo if handled differently
+                else if (fieldName === 'coverImage') isPresent = !!input.coverImageId;
+
+                // Check dynamicDetails for other fields
+                else {
+                    isPresent = input.dynamicDetails && input.dynamicDetails[fieldName] !== undefined && input.dynamicDetails[fieldName] !== null && input.dynamicDetails[fieldName] !== '';
+                }
+
+                if (!isPresent) {
+                    throw new UserInputError(`Le champ "${field.label}" est obligatoire.`);
+                }
+            }
+        }
+        // --------------------------------------------------
 
         const vendor = new Vendor({
             name: finalName,

@@ -35,12 +35,12 @@ export function RegistrationFieldsListComponent() {
         queryFn: () => fetchGraphQL(GET_REGISTRATION_FIELDS),
     });
 
-    const toggleMutation = useMutation({
-        mutationFn: (variables: { id: string, enabled: boolean }) =>
-            fetchGraphQL(UPDATE_REGISTRATION_FIELD, { input: { id: variables.id, enabled: variables.enabled } }),
+    const updateFieldMutation = useMutation({
+        mutationFn: (variables: { id: string, input: any }) =>
+            fetchGraphQL(UPDATE_REGISTRATION_FIELD, { input: { id: variables.id, ...variables.input } }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['registrationFields'] });
-            addToast('Field status updated', 'success');
+            addToast('Field updated', 'success');
         },
         onError: (err: any) => addToast(err.message, 'error')
     });
@@ -82,6 +82,7 @@ export function RegistrationFieldsListComponent() {
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Label</th>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Type</th>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Name (Key)</th>
+                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Required</th>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: '12px', color: '#6b7280', textTransform: 'uppercase' }}>Status</th>
                             </tr>
                         </thead>
@@ -101,9 +102,31 @@ export function RegistrationFieldsListComponent() {
                                             <input
                                                 type="checkbox"
                                                 style={{ opacity: 0, width: 0, height: 0 }}
+                                                checked={field.required}
+                                                onChange={(e) => {
+                                                    updateFieldMutation.mutate({ id: field.id, input: { required: e.target.checked } });
+                                                }}
+                                            />
+                                            <span style={{
+                                                position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                                                backgroundColor: field.required ? '#10b981' : '#ccc',
+                                                transition: '.4s', borderRadius: '34px'
+                                            }}></span>
+                                            <span style={{
+                                                position: 'absolute', content: '""', height: '16px', width: '16px', left: '4px', bottom: '4px',
+                                                backgroundColor: 'white', transition: '.4s', borderRadius: '50%',
+                                                transform: field.required ? 'translateX(16px)' : 'translateX(0)'
+                                            }}></span>
+                                        </label>
+                                    </td>
+                                    <td style={{ padding: '12px 24px' }}>
+                                        <label style={{ position: 'relative', display: 'inline-block', width: '40px', height: '24px', cursor: 'pointer' }}>
+                                            <input
+                                                type="checkbox"
+                                                style={{ opacity: 0, width: 0, height: 0 }}
                                                 checked={field.enabled}
                                                 onChange={(e) => {
-                                                    toggleMutation.mutate({ id: field.id, enabled: e.target.checked });
+                                                    updateFieldMutation.mutate({ id: field.id, input: { enabled: e.target.checked } });
                                                 }}
                                             />
                                             <span style={{

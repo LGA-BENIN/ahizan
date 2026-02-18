@@ -48,7 +48,19 @@ const DELETE_REGISTRATION_FIELD = gql`
     }
 `;
 
+const UPDATE_REGISTRATION_FIELD = gql`
+    mutation UpdateRegistrationField($input: UpdateRegistrationFieldInput!) {
+        updateRegistrationField(input: $input) {
+            id
+            name
+            required
+            enabled
+        }
+    }
+`;
+
 export async function getRegistrationFields() {
+    console.log('Fetching registration fields from admin API...');
     const { registrationFieldsAdmin } = await query(GET_REGISTRATION_FIELDS_ADMIN);
     return registrationFieldsAdmin;
 }
@@ -96,6 +108,21 @@ export async function createFieldAction(formData: FormData) {
                 order,
                 options: options.length > 0 ? options : undefined,
                 config,
+            }
+        });
+        revalidatePath('/dashboard/page-inscription');
+        return { success: true };
+    } catch (error: any) {
+        return { error: error.message };
+    }
+}
+
+export async function updateFieldAction(id: string, data: any) {
+    try {
+        await mutate(UPDATE_REGISTRATION_FIELD, {
+            input: {
+                id,
+                ...data
             }
         });
         revalidatePath('/dashboard/page-inscription');

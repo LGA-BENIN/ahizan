@@ -48,19 +48,64 @@ export default function RegisterPage() {
     const [fields, setFields] = useState<any[]>([]);
     const [loadingFields, setLoadingFields] = useState(true);
 
+    const [searchParams, setSearchParams] = useState<any>(null);
+
     useEffect(() => {
-        const fetchFields = async () => {
+        // Simple client-side search params handling to avoid Suspense issues
+        const params = new URLSearchParams(window.location.search);
+        setSearchParams(params);
+    }, []);
+
+    const isResubmit = searchParams?.get('resubmit') === 'true';
+
+    useEffect(() => {
+        const fetchFieldsAndProfile = async () => {
             try {
                 const { data } = await query(GET_REGISTRATION_FIELDS);
                 setFields(data.registrationFields || []);
+
+                if (isResubmit) {
+                    const { data: profileData } = await query(gql`
+                        query GetMyVendorProfileForResubmit {
+                            myVendorProfile {
+                                name
+                                description
+                                phoneNumber
+                                address
+                                zone
+                                deliveryInfo
+                                returnPolicy
+                                type
+                                website
+                                facebook
+                                instagram
+                                rccmNumber
+                                ifuNumber
+                                idCardNumber
+                                dynamicDetails
+                            }
+                        }
+                    `, {}, { useAuthToken: true });
+
+                    if (profileData.myVendorProfile) {
+                        // Pre-fill logic will rely on defaultValues if using react-hook-form, 
+                        // but here we are using standard form submission.
+                        // We will set state to control input values or use defaultValue props.
+                        // For simplicity in this server action setup, we might need to populate input defaultValues via JS or state.
+                        // Let's store profile in state to access in render.
+                        setPreFilledProfile(profileData.myVendorProfile);
+                    }
+                }
             } catch (error) {
-                console.error("Failed to fetch registration fields", error);
+                console.error("Failed to fetch data", error);
             } finally {
                 setLoadingFields(false);
             }
         };
-        fetchFields();
-    }, []);
+        fetchFieldsAndProfile();
+    }, [isResubmit]);
+
+    const [preFilledProfile, setPreFilledProfile] = useState<any>(null);
 
     // Sort fields by order
     const sortedFields = [...fields].sort((a, b) => a.order - b.order);
@@ -129,17 +174,20 @@ export default function RegisterPage() {
                                             </label>
                                         </div>
                                     ) : field.type === 'file' ? (
-                                        <div className="mt-2">
+                                        <div className="mt-2 text-sm">
+                                            {preFilledProfile && (field.name === 'rccmFile' || field.name === 'ifuFile' || field.name === 'idCardFile') && (
+                                                <p className="text-gray-500 mb-1">Fichier précédent existant (téléchargez pour remplacer)</p>
+                                            )}
                                             <Input
                                                 id={field.name}
                                                 name={field.name}
                                                 type="file"
                                                 accept="image/*,application/pdf"
-                                                required={field.required}
+                                                required={field.required && !isResubmit} // Allow skipping if resubmitting and file exists? Complex to detect, keeping required for now unless handled backend
                                                 className="block w-full"
                                             />
                                         </div>
-                                    ) : field.name === 'description' || field.name === 'address' || field.name === 'deliveryInfo' || field.name === 'returnPolicy' ? (
+                                    ) : field.name === 'description' || field.name === 'shopDescription' || field.name === 'address' || field.name === 'deliveryInfo' || field.name === 'returnPolicy' ? (
                                         <div className="mt-2">
                                             <Textarea
                                                 id={field.name}
@@ -148,6 +196,7 @@ export default function RegisterPage() {
                                                 placeholder={field.placeholder}
                                                 className="block w-full"
                                                 rows={3}
+                                                defaultValue={preFilledProfile ? (preFilledProfile[field.name] || (preFilledProfile.dynamicDetails && preFilledProfile.dynamicDetails[field.name])) : ''}
                                             />
                                         </div>
                                     ) : (
@@ -159,6 +208,7 @@ export default function RegisterPage() {
                                                 required={field.required}
                                                 placeholder={field.placeholder}
                                                 className="block w-full"
+                                                defaultValue={preFilledProfile ? (preFilledProfile[field.name] || (preFilledProfile.dynamicDetails && preFilledProfile.dynamicDetails[field.name])) : ''}
                                             />
                                         </div>
                                     )}

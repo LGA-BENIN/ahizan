@@ -63,8 +63,8 @@ export const UPDATE_VENDOR = gql`
 `;
 
 export const UPDATE_VENDOR_STATUS = gql`
-    mutation UpdateVendorStatus($id: ID!, $status: String!) {
-        updateVendorStatus(id: $id, status: $status) {
+    mutation UpdateVendorStatus($id: ID!, $status: String!, $reason: String) {
+        updateVendorStatus(id: $id, status: $status, reason: $reason) {
             id
             status
         }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { getRegistrationFields, createFieldAction, deleteFieldAction } from './actions';
+import { getRegistrationFields, createFieldAction, deleteFieldAction, updateFieldAction } from './actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Trash2 } from 'lucide-react';
 
 export default function PageInscription() {
@@ -38,6 +39,7 @@ export default function PageInscription() {
     return (
         <div className="container mx-auto py-10">
             <h1 className="text-3xl font-bold mb-8">Page Inscription Management</h1>
+            <h2 className="text-xl text-red-500 font-bold mb-4">DEBUG: PAGE UPDATED</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <Card>
@@ -138,9 +140,30 @@ export default function PageInscription() {
                                             {field.name} ({field.type}) - Order: {field.order}
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(field.id)}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
+                                    <div className="flex items-center space-x-4">
+                                        <div className="flex items-center space-x-2">
+                                            <Switch
+                                                checked={field.required}
+                                                onCheckedChange={async (checked) => {
+                                                    // Optimistic update (optional, but good for UX)
+                                                    const updatedFields = fields.map(f => f.id === field.id ? { ...f, required: checked } : f);
+                                                    setFields(updatedFields);
+
+                                                    await updateFieldAction(field.id, { required: checked });
+                                                    // Re-fetch to ensure sync
+                                                    const data = await getRegistrationFields();
+                                                    setFields(data);
+                                                }}
+                                                id={`required-${field.id}`}
+                                            />
+                                            <Label htmlFor={`required-${field.id}`} className="text-sm text-muted-foreground">
+                                                {field.required ? 'Required' : 'Optional'}
+                                            </Label>
+                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(field.id)}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                             {fields.length === 0 && (

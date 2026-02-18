@@ -50,6 +50,7 @@ export const GetMyVendorProfileQuery = graphql(`
             name
             status
             description
+            rejectionReason
             logo {
                 preview
             }

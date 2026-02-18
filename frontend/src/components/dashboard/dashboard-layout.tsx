@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     LayoutDashboard,
@@ -12,14 +12,10 @@ import {
     Menu,
     X,
     LogOut,
-    User,
     Store,
-    FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logoutAction } from '@/app/sign-in/actions';
-import { query } from '@/lib/vendure/api';
-import { GetMyVendorProfileQuery } from '@/lib/vendure/queries';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -27,49 +23,17 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [vendorStatus, setVendorStatus] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
     const pathname = usePathname();
-    const router = useRouter();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
-    useEffect(() => {
-        const checkStatus = async () => {
-            try {
-                const { data } = await query(GetMyVendorProfileQuery, {}, { useAuthToken: true });
-                const status = data.myVendorProfile?.status;
-                setVendorStatus(status || null);
-
-                if (status === 'PENDING' && pathname !== '/pending') {
-                    router.push('/pending');
-                } else if (status === 'REJECTED' && pathname !== '/rejected') {
-                    router.push('/rejected');
-                } else if (status === 'APPROVED' && (pathname === '/pending' || pathname === '/rejected')) {
-                    router.push('/dashboard');
-                }
-            } catch (error) {
-                console.error("Failed to check vendor status", error);
-                // On error (e.g. not logged in), might want to redirect to login, but let middleware handle that usually
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        checkStatus();
-    }, [pathname, router]);
 
     const navItems = [
         { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
         { href: '/dashboard/products', label: 'Products', icon: Package },
         { href: '/dashboard/orders', label: 'Orders', icon: ShoppingBag },
         { href: '/dashboard/profile', label: 'Store Profile', icon: Store },
-        { href: '/dashboard/page-inscription', label: 'Page Inscription Settings', icon: FileText },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
     ];
-
-    if (isLoading) {
-        return <div className="flex h-screen items-center justify-center">Loading...</div>;
-    }
 
     return (
         <div className="min-h-screen bg-gray-50 flex">

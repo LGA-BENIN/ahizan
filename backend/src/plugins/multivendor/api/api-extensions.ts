@@ -24,7 +24,17 @@ export const commonApiExtensions = `
         rejectionReason: String
         products: [Product!]
         user: User
-        
+
+        # Legal & Identity
+        rccmNumber: String
+        ifuNumber: String
+        idCardNumber: String
+
+        # Social & Web
+        website: String
+        facebook: String
+        instagram: String
+
         dynamicDetails: JSON
     }
 

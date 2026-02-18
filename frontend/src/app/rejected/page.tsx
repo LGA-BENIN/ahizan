@@ -1,6 +1,3 @@
-'use client';
-
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { XCircle } from "lucide-react";
 import Link from "next/link";
@@ -8,20 +5,15 @@ import { logoutAction } from "@/app/sign-in/actions";
 import { query } from "@/lib/vendure/api";
 import { GetMyVendorProfileQuery } from "@/lib/vendure/queries";
 
-export default function RejectedPage() {
-    const [rejectionReason, setRejectionReason] = useState<string | null>(null);
-
-    useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const { data } = await query(GetMyVendorProfileQuery, {}, { useAuthToken: true });
-                setRejectionReason(data.myVendorProfile?.rejectionReason || null);
-            } catch (e) {
-                console.error("Failed to fetch vendor profile", e);
-            }
-        };
-        fetchProfile();
-    }, []);
+export default async function RejectedPage() {
+    // Fetch rejection reason server-side (auth token is available server-side)
+    let rejectionReason: string | null = null;
+    try {
+        const { data } = await query(GetMyVendorProfileQuery, {}, { useAuthToken: true });
+        rejectionReason = data.myVendorProfile?.rejectionReason || null;
+    } catch (e) {
+        console.error("Failed to fetch vendor profile", e);
+    }
 
     return (
         <div className="min-h-screen flex flex-col bg-gradient-to-br from-red-50 to-orange-50">
@@ -64,7 +56,7 @@ export default function RejectedPage() {
                     </p>
 
                     <div className="flex flex-col gap-3">
-                        <Link href="/register?resubmit=true">
+                        <Link href="/resubmit">
                             <Button className="w-full bg-red-600 hover:bg-red-700 text-white">
                                 Corriger et renvoyer la demande
                             </Button>

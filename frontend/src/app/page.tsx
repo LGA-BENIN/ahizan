@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { SITE_NAME, SITE_URL, buildCanonicalUrl } from "@/lib/metadata";
 import { getPage } from '@/lib/cms';
 import { sectionRegistry } from '@/components/sections/section-registry';
-import { notFound, redirect } from "next/navigation";
-import { getAuthToken } from "@/lib/auth";
+import { notFound } from "next/navigation";
 
 export const metadata: Metadata = {
     title: {
@@ -24,13 +23,6 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-    // If user is authenticated (has a vendor auth token), redirect them to dashboard
-    // The dashboard layout will then redirect to pending/rejected/approved as appropriate
-    const authToken = await getAuthToken();
-    if (authToken) {
-        redirect('/dashboard');
-    }
-
     // Fetch the 'home' page from the CMS
     const page = await getPage('home').catch(() => null);
 

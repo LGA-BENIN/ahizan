@@ -27,7 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { query } from '@/lib/vendure/api';
 import { gql } from 'graphql-tag';
-import { useToast } from "@/components/ui/use-toast";
+
 
 const GET_REGISTRATION_FIELDS = gql`
     query GetRegistrationFields {
@@ -58,7 +58,7 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 export function ProfileForm({ vendor }: { vendor: any }) {
     const [isPending, startTransition] = useTransition();
     const [dynamicFields, setDynamicFields] = useState<any[]>([]);
-    const { toast } = useToast();
+    const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     // Initial values from vendor profile
     const initialDynamicDetails = vendor?.dynamicDetails || {};
@@ -73,10 +73,11 @@ export function ProfileForm({ vendor }: { vendor: any }) {
     useEffect(() => {
         const fetchFields = async () => {
             try {
-                const { registrationFields } = await query(GET_REGISTRATION_FIELDS);
-                setDynamicFields(registrationFields);
+                const { data } = await (query as any)(GET_REGISTRATION_FIELDS);
+                setDynamicFields((data as any).registrationFields || []);
             } catch (error) {
                 console.error("Failed to fetch dynamic fields", error);
+                setDynamicFields([]);
             }
         };
         fetchFields();
@@ -94,16 +95,9 @@ export function ProfileForm({ vendor }: { vendor: any }) {
             const result = await updateProfileAction(formData);
 
             if (result?.error) {
-                toast({
-                    variant: "destructive",
-                    title: "Error",
-                    description: result.error,
-                });
+                setFeedback({ type: 'error', message: result.error });
             } else {
-                toast({
-                    title: "Success",
-                    description: "Profile updated successfully.",
-                });
+                setFeedback({ type: 'success', message: 'Profile updated successfully.' });
             }
         });
     };
@@ -133,7 +127,7 @@ export function ProfileForm({ vendor }: { vendor: any }) {
                                                 </FormLabel>
                                                 <FormControl>
                                                     {field.type === 'select' ? (
-                                                        <Select onValueChange={formField.onChange} defaultValue={formField.value}>
+                                                        <Select onValueChange={formField.onChange} defaultValue={formField.value as any}>
                                                             <SelectTrigger>
                                                                 <SelectValue placeholder={field.placeholder || "Select option"} />
                                                             </SelectTrigger>
@@ -148,7 +142,7 @@ export function ProfileForm({ vendor }: { vendor: any }) {
                                                     ) : field.type === 'boolean' ? (
                                                         <div className="flex items-center space-x-2">
                                                             <Checkbox
-                                                                checked={formField.value}
+                                                                checked={formField.value as any}
                                                                 onCheckedChange={formField.onChange}
                                                             />
                                                             <label className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -161,7 +155,7 @@ export function ProfileForm({ vendor }: { vendor: any }) {
                                                             placeholder={field.placeholder}
                                                             disabled={isPending}
                                                             {...formField}
-                                                            value={formField.value || ''}
+                                                            value={formField.value as any || ''}
                                                         />
                                                     )}
                                                 </FormControl>
@@ -180,6 +174,14 @@ export function ProfileForm({ vendor }: { vendor: any }) {
                             </div>
                         )}
 
+                        {feedback && (
+                            <div className={`text-sm font-medium p-3 rounded-lg ${feedback.type === 'error'
+                                ? 'text-red-600 bg-red-50'
+                                : 'text-green-600 bg-green-50'
+                                }`}>
+                                {feedback.message}
+                            </div>
+                        )}
                         <Button type="submit" className="w-full" disabled={isPending}>
                             {isPending ? 'Saving...' : 'Save Changes'}
                         </Button>

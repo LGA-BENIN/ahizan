@@ -58,6 +58,30 @@ export const GetMyVendorProfileQuery = graphql(`
     }
 `);
 
+export const GetMyVendorFullProfileQuery = graphql(`
+    query GetMyVendorFullProfile {
+        myVendorProfile {
+            id
+            name
+            status
+            description
+            rejectionReason
+            phoneNumber
+            address
+            zone
+            deliveryInfo
+            returnPolicy
+            type
+            website
+            facebook
+            instagram
+            rccmNumber
+            ifuNumber
+            idCardNumber
+        }
+    }
+`);
+
 export const GetActiveChannelQuery = graphql(`
     query GetActiveChannel {
         activeChannel {

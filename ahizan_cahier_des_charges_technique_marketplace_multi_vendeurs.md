@@ -255,3 +255,4 @@ Il définit :
 
 Toute fonctionnalité future doit respecter ce socle et s’inscrire dans la roadmap définie.
 
+.............................

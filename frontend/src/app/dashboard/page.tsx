@@ -3,8 +3,10 @@ import { Package, ShoppingBag, DollarSign, TrendingUp, AlertCircle } from "lucid
 import { query } from "@/lib/vendure/api";
 import { GetMyVendorProfileQuery } from "@/lib/vendure/queries";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { unstable_noStore as noStore } from 'next/cache';
 
 export default async function DashboardPage() {
+    noStore();
     const { data: vendorData } = await query(GetMyVendorProfileQuery, {}, { useAuthToken: true }).catch(() => ({ data: { myVendorProfile: null } }));
     const vendor = vendorData?.myVendorProfile;
 

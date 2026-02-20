@@ -160,3 +160,44 @@ export const GetCustomerOrdersQuery = graphql(`
         }
     }
 `);
+export const GetFacetsQuery = graphql(`
+    query GetFacets($options: FacetListOptions) {
+        facets(options: $options) {
+            items {
+                id
+                name
+                values {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`);
+
+export const GetVendorProductQuery = graphql(`
+    query GetVendorProduct($id: ID!) {
+        product(id: $id) {
+            id
+            name
+            description
+            facetValues {
+                id
+                name
+            }
+            variants {
+                id
+                price
+                stockLevel
+            }
+            assets {
+                id
+                preview
+            }
+            featuredAsset {
+                id
+                preview
+            }
+        }
+    }
+`);

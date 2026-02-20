@@ -140,8 +140,8 @@ export class VendorAdminResolver {
     }
 
     @Query()
-    @Allow(Permission.Public)
-    async publicProducts(@Ctx() ctx: RequestContext, @Args('options') options: any): Promise<PaginatedList<Product>> {
+    @Allow(Permission.Authenticated)
+    async adminVendorProducts(@Ctx() ctx: RequestContext, @Args('options') options: any): Promise<PaginatedList<Product>> {
         return this.productService.findAll(ctx, options);
     }
 

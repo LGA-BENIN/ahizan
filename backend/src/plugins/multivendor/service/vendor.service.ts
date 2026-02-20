@@ -24,6 +24,7 @@ import {
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { VendorEvent } from '../events/vendor-event';
 import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
+import { IsNull } from 'typeorm';
 
 @Injectable()
 export class VendorService implements OnApplicationBootstrap {
@@ -82,14 +83,16 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     async findAllProductsForVendor(ctx: RequestContext, vendorId: string): Promise<Product[]> {
-        return this.connection.getRepository(ctx, Product).find({
-            where: {
-                customFields: {
-                    vendor: { id: vendorId }
-                }
-            },
-            relations: ['featuredAsset', 'assets', 'variants', 'variants.options', 'variants.options.group'],
-        });
+        return this.connection.getRepository(ctx, Product)
+            .createQueryBuilder('product')
+            .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
+            .leftJoinAndSelect('product.assets', 'assets')
+            .leftJoinAndSelect('product.variants', 'variants')
+            .leftJoinAndSelect('variants.options', 'options')
+            .leftJoinAndSelect('options.group', 'group')
+            .where('product.customFieldsVendorId = :vendorId', { vendorId })
+            .andWhere('product.deletedAt IS NULL')
+            .getMany();
     }
 
     async create(ctx: RequestContext, input: {

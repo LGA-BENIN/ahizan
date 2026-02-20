@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, FacetValueService, FacetValue, AssetService, Asset } from '@vendure/core';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -13,7 +13,9 @@ export class VendorShopResolver {
         private vendorService: VendorService,
         private productService: ProductService,
         private productVariantService: ProductVariantService,
-        private orderService: OrderService
+        private orderService: OrderService,
+        private facetValueService: FacetValueService,
+        private assetService: AssetService
     ) { }
 
     /**
@@ -66,6 +68,31 @@ export class VendorShopResolver {
         };
     }
 
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myVendorProduct(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<Product | null> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        const product = await this.productService.findOne(ctx, id);
+        if (!product) {
+            return null;
+        }
+
+        // Verify ownership
+        const productVendor = await this.vendorService.getVendorByProductId(ctx, id);
+        if (!productVendor || productVendor.id !== vendor.id) {
+            throw new Error('You do not have permission to view this product');
+        }
+
+        return product;
+    }
+
     /**
      * Get all orders for the authenticated vendor
      */
@@ -90,14 +117,14 @@ export class VendorShopResolver {
     @Allow(Permission.Authenticated)
     async createMyProduct(
         @Ctx() ctx: RequestContext,
-        @Args('input') input: { name: string, description: string, price: number, stock: number }
+        @Args('input') input: { name: string, description: string, price: number, stock: number, facetValueIds?: string[], assetIds?: string[], featuredAssetId?: string }
     ): Promise<Product> {
         const vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
             throw new Error('No vendor profile found for this user');
         }
 
-        // 1. Create Product
+        // 1. Create Product with Facets and Assets
         const product = await this.productService.create(ctx, {
             translations: [{
                 languageCode: ctx.languageCode,
@@ -106,6 +133,9 @@ export class VendorShopResolver {
                 description: input.description,
             }],
             enabled: true,
+            assetIds: input.assetIds,
+            featuredAssetId: input.featuredAssetId,
+            facetValueIds: input.facetValueIds,
             customFields: {
                 vendor: { id: vendor.id }
             }
@@ -151,6 +181,42 @@ export class VendorShopResolver {
     }
 
     /**
+     * Update a product variant (Price & Stock) owned by the authenticated vendor
+     */
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async updateMyProductVariant(
+        @Ctx() ctx: RequestContext,
+        @Args('input') input: { id: string, price?: number, stock?: number }
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        // Verify ownership via Product
+        // We need to find the product associated with this variant
+        const variant = await this.productVariantService.findOne(ctx, input.id);
+        if (!variant) {
+            throw new Error('Product variant not found');
+        }
+
+        const productVendor = await this.vendorService.getVendorByProductId(ctx, variant.productId.toString());
+        if (!productVendor || productVendor.id !== vendor.id) {
+            throw new Error('You do not have permission to update this product variant');
+        }
+
+        // Construct update input
+        const updateInput: any = {
+            id: input.id,
+        };
+        if (input.price !== undefined) updateInput.price = input.price;
+        if (input.stock !== undefined) updateInput.stockOnHand = input.stock;
+
+        return this.productVariantService.update(ctx, [updateInput]).then(result => result[0]);
+    }
+
+    /**
      * Delete a product owned by the authenticated vendor
      */
     @Mutation()
@@ -172,6 +238,25 @@ export class VendorShopResolver {
 
         await this.productService.softDelete(ctx, id);
         return { result: 'DELETED', message: 'Product deleted successfully' };
+    }
+
+    /**
+     * Upload a file for the vendor
+     */
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async uploadVendorFile(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { file: any }
+    ): Promise<Asset> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+        return this.assetService.create(ctx, {
+            file: args.file,
+            tags: ['vendor', `vendorId:${vendor.id}`]
+        }) as Promise<Asset>;
     }
 
     /**
@@ -221,3 +306,4 @@ export class VendorShopResolver {
         return this.vendorService.update(ctx, vendor.id.toString(), input);
     }
 }
+

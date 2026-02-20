@@ -97,6 +97,7 @@ export function VendorDetailComponent() {
         zone: '',
         deliveryInfo: '',
         returnPolicy: '',
+        commissionRate: 0,
         rating: 0,
         ratingCount: 0,
         logoId: null,
@@ -111,6 +112,7 @@ export function VendorDetailComponent() {
                 zone: v.zone || '',
                 deliveryInfo: v.deliveryInfo || '',
                 returnPolicy: v.returnPolicy || '',
+                commissionRate: v.commissionRate || 0,
                 rating: v.rating || 0,
                 ratingCount: v.ratingCount || 0,
                 logoId: v.logo?.id || null,
@@ -131,7 +133,8 @@ export function VendorDetailComponent() {
                 zone: formState.zone,
                 deliveryInfo: formState.deliveryInfo,
                 returnPolicy: formState.returnPolicy,
-                rating: parseFloat(formState.rating.toString()),
+                commissionRate: parseFloat(formState.commissionRate.toString()),
+                rating: parseFloat(formState.rating).toString(),
                 ratingCount: parseInt(formState.ratingCount.toString()),
             });
             alert('Saved successfully');
@@ -204,6 +207,18 @@ export function VendorDetailComponent() {
                             </div>
 
                             <div className="columns">
+                                <div className="column">
+                                    <div className="field">
+                                        <label className="label">Commission Rate (%)</label>
+                                        <input
+                                            className="input"
+                                            type="number"
+                                            step="0.1"
+                                            value={formState.commissionRate}
+                                            onChange={e => setFormState({ ...formState, commissionRate: e.target.value as any })}
+                                        />
+                                    </div>
+                                </div>
                                 <div className="column">
                                     <div className="field">
                                         <label className="label">Rating (0-5)</label>

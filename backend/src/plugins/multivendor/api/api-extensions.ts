@@ -199,6 +199,7 @@ export const adminApiExtensions = `
         myVendorProfile: Vendor
         myVendorProducts(options: ProductListOptions): ProductList!
         myVendorOrders(options: OrderListOptions): OrderList!
+        myVendorProduct(id: ID!): Product
     }
 
     extend type Mutation {

@@ -90,7 +90,7 @@ export class VendorService implements OnApplicationBootstrap {
             .leftJoinAndSelect('product.variants', 'variants')
             .leftJoinAndSelect('variants.options', 'options')
             .leftJoinAndSelect('options.group', 'group')
-            .where('product.customFieldsVendorId = :vendorId', { vendorId })
+            .where('product."customFieldsVendorid" = :vendorId', { vendorId })
             .andWhere('product.deletedAt IS NULL')
             .getMany();
     }

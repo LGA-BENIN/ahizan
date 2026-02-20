@@ -30,6 +30,56 @@ export const GetMyVendorOrdersQuery = graphql(`
     }
 `);
 
+export const GetMyVendorOrderDetailQuery = graphql(`
+    query GetMyVendorOrderDetail($options: OrderListOptions) {
+        myVendorOrders(options: $options) {
+            items {
+                id
+                code
+                state
+                createdAt
+                updatedAt
+                totalWithTax
+                subTotalWithTax
+                shippingWithTax
+                currencyCode
+                customer {
+                    id
+                    firstName
+                    lastName
+                    emailAddress
+                    phoneNumber
+                }
+                shippingAddress {
+                    fullName
+                    streetLine1
+                    streetLine2
+                    city
+                    province
+                    postalCode
+                    country
+                    phoneNumber
+                }
+                lines {
+                    id
+                    quantity
+                    unitPriceWithTax
+                    linePriceWithTax
+                    productVariant {
+                        id
+                        name
+                        sku
+                        featuredAsset {
+                            preview
+                        }
+                    }
+                }
+            }
+            totalItems
+        }
+    }
+`);
+
 export const UpdateMyOrderStatusMutation = graphql(`
     mutation UpdateMyOrderStatus($orderId: ID!, $status: String!) {
         updateMyOrderStatus(orderId: $orderId, status: $status) {

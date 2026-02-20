@@ -32,6 +32,7 @@ export const GET_VENDOR_DETAIL = gql`
             zone
             deliveryInfo
             returnPolicy
+            commissionRate
             rating
             ratingCount
             type
@@ -41,7 +42,6 @@ export const GET_VENDOR_DETAIL = gql`
                 preview
                 source
             }
-            commissionRate
             coverImage {
                 id
                 preview

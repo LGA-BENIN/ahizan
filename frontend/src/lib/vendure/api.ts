@@ -132,10 +132,7 @@ export async function query<TResult, TVariables>(
         ...fetchOptions,
         method: 'POST',
         headers,
-        body: files.length > 0 ? body : JSON.stringify({
-            query: print(document),
-            variables: variables || {},
-        }),
+        body,
         ...(tags && { next: { tags } }),
     });
 

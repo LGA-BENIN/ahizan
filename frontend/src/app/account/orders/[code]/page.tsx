@@ -1,23 +1,23 @@
-import type {Metadata} from 'next';
-import {ChevronLeft} from 'lucide-react';
-import {query} from '@/lib/vendure/api';
-import {GetOrderDetailQuery} from '@/lib/vendure/queries';
-import {Badge} from '@/components/ui/badge';
-import {Button} from '@/components/ui/button';
-import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {Separator} from '@/components/ui/separator';
+import type { Metadata } from 'next';
+import { ChevronLeft, Store, MapPin, Phone } from 'lucide-react';
+import { query } from '@/lib/vendure/api';
+import { GetOrderDetailQuery } from '@/lib/vendure/queries';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import Image from 'next/image';
-import {getActiveCustomer} from "@/lib/vendure/actions";
-import {notFound, redirect} from "next/navigation";
-import {Price} from '@/components/commerce/price';
-import {OrderStatusBadge} from '@/components/commerce/order-status-badge';
-import {formatDate} from '@/lib/format';
+import { getActiveCustomer } from "@/lib/vendure/actions";
+import { notFound, redirect } from "next/navigation";
+import { Price } from '@/components/commerce/price';
+import { OrderStatusBadge } from '@/components/commerce/order-status-badge';
+import { formatDate } from '@/lib/format';
 import Link from "next/link";
 
 type OrderDetailPageProps = PageProps<'/account/orders/[code]'>;
 
-export async function generateMetadata({params}: OrderDetailPageProps): Promise<Metadata> {
-    const {code} = await params;
+export async function generateMetadata({ params }: OrderDetailPageProps): Promise<Metadata> {
+    const { code } = await params;
     return {
         title: `Order ${code}`,
     };
@@ -25,13 +25,13 @@ export async function generateMetadata({params}: OrderDetailPageProps): Promise<
 
 export default async function OrderDetailPage(props: PageProps<'/account/orders/[code]'>) {
     const params = await props.params;
-    const {code} = params;
+    const { code } = params;
     const activeCustomer = await getActiveCustomer();
 
-    const {data} = await query(
+    const { data } = await query(
         GetOrderDetailQuery,
-        {code},
-        {useAuthToken: true, fetch: {}}
+        { code },
+        { useAuthToken: true, fetch: {} }
     );
 
     if (!data.orderByCode) {
@@ -49,7 +49,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
             <div className="mb-6">
                 <Button variant="ghost" size="sm" asChild className="mb-4">
                     <Link href="/account/orders">
-                        <ChevronLeft className="h-4 w-4 mr-2"/>
+                        <ChevronLeft className="h-4 w-4 mr-2" />
                         Back to Orders
                     </Link>
                 </Button>
@@ -60,7 +60,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                             Placed on {formatDate(order.createdAt, 'long')}
                         </p>
                     </div>
-                    <OrderStatusBadge state={order.state}/>
+                    <OrderStatusBadge state={order.state} />
                 </div>
             </div>
 
@@ -103,11 +103,11 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                         </div>
                                         <div className="text-right">
                                             <p className="font-medium">
-                                                <Price value={line.linePriceWithTax} currencyCode={order.currencyCode}/>
+                                                <Price value={line.linePriceWithTax} currencyCode={order.currencyCode} />
                                             </p>
                                             <p className="text-sm text-muted-foreground">
                                                 Qty: {line.quantity} × <Price value={line.unitPriceWithTax}
-                                                                              currencyCode={order.currencyCode}/>
+                                                    currencyCode={order.currencyCode} />
                                             </p>
                                         </div>
                                     </div>
@@ -126,12 +126,12 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Subtotal</span>
                                     <span><Price value={order.subTotalWithTax}
-                                                 currencyCode={order.currencyCode}/></span>
+                                        currencyCode={order.currencyCode} /></span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Shipping</span>
                                     <span><Price value={order.shippingWithTax}
-                                                 currencyCode={order.currencyCode}/></span>
+                                        currencyCode={order.currencyCode} /></span>
                                 </div>
                                 {order.discounts.length > 0 && (
                                     <>
@@ -142,16 +142,16 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                                 </span>
                                                 <span className="text-green-600">
                                                     -<Price value={discount.amountWithTax}
-                                                            currencyCode={order.currencyCode}/>
+                                                        currencyCode={order.currencyCode} />
                                                 </span>
                                             </div>
                                         ))}
                                     </>
                                 )}
-                                <Separator className="my-2"/>
+                                <Separator className="my-2" />
                                 <div className="flex justify-between font-bold text-lg">
                                     <span>Total</span>
-                                    <span><Price value={order.totalWithTax} currencyCode={order.currencyCode}/></span>
+                                    <span><Price value={order.totalWithTax} currencyCode={order.currencyCode} /></span>
                                 </div>
                             </div>
                         </CardContent>
@@ -230,7 +230,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Amount</span>
                                             <span><Price value={payment.amount}
-                                                         currencyCode={order.currencyCode}/></span>
+                                                currencyCode={order.currencyCode} /></span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Status</span>
@@ -268,13 +268,53 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                             </p>
                                         )}
                                         <p className="font-medium">
-                                            <Price value={line.priceWithTax} currencyCode={order.currencyCode}/>
+                                            <Price value={line.priceWithTax} currencyCode={order.currencyCode} />
                                         </p>
                                     </div>
                                 ))}
                             </CardContent>
                         </Card>
                     )}
+
+                    {/* Vendor Contact Information */}
+                    {(() => {
+                        const vendor = order.lines[0]?.productVariant?.product?.customFields?.vendor;
+                        if (!vendor) return null;
+                        return (
+                            <Card className="border-orange-100 bg-orange-50/30">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <Store className="h-4 w-4 text-orange-600" />
+                                        Vendeur Information
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="text-sm space-y-3">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground mb-0.5">Vendu par</p>
+                                        <p className="font-semibold text-orange-700">{vendor.name}</p>
+                                    </div>
+                                    {vendor.phoneNumber && (
+                                        <div className="flex items-start gap-2">
+                                            <Phone className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">Téléphone</p>
+                                                <p className="font-medium">{vendor.phoneNumber}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {vendor.zone && (
+                                        <div className="flex items-start gap-2">
+                                            <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">Zone / Ville</p>
+                                                <p className="font-medium">{vendor.zone}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        );
+                    })()}
                 </div>
             </div>
         </div>

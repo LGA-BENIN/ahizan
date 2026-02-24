@@ -2,13 +2,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, ShoppingBag, DollarSign, TrendingUp, AlertCircle } from "lucide-react";
 import { query } from "@/lib/vendure/api";
 import { GetMyVendorProfileQuery } from "@/lib/vendure/queries";
+import { GetMyVendorProductsQuery } from "@/lib/vendure/vendor-product-mutations";
+import { GetMyVendorOrdersQuery } from "@/lib/vendure/vendor-order-mutations";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { unstable_noStore as noStore } from 'next/cache';
+import { formatPrice } from "@/lib/format";
+import Link from "next/link";
 
 export default async function DashboardPage() {
     noStore();
-    const { data: vendorData } = await query(GetMyVendorProfileQuery, {}, { useAuthToken: true }).catch(() => ({ data: { myVendorProfile: null } }));
-    const vendor = vendorData?.myVendorProfile;
+
+    const token = null; // query helper uses useAuthToken: true or getAuthToken internally if not provided
+
+    const [{ data: vendorData }, { data: productsData }, { data: ordersData }] = await Promise.all([
+        query(GetMyVendorProfileQuery, {}, { useAuthToken: true }).catch(() => ({ data: { myVendorProfile: null } })),
+        query(GetMyVendorProductsQuery, { options: { take: 100 } }, { useAuthToken: true }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
+        query(GetMyVendorOrdersQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { useAuthToken: true }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } }))
+    ]);
+
+    const vendor = (vendorData as any)?.myVendorProfile;
+    const products = (productsData as any)?.myVendorProducts?.items || [];
+    const orders = (ordersData as any)?.myVendorOrders?.items || [];
+    const totalProducts = (productsData as any)?.myVendorProducts?.totalItems || 0;
+    const totalOrdersCount = (ordersData as any)?.myVendorOrders?.totalItems || 0;
+
+    // Calculate total revenue from settled orders
+    const settledOrders = orders.filter((o: any) => o.state === 'PaymentSettled' || o.state === 'Shipped' || o.state === 'Delivered');
+    const totalRevenue = settledOrders.reduce((sum: number, order: any) => sum + order.totalWithTax, 0);
+    const currencyCode = orders[0]?.currencyCode || 'XOF';
 
     const isPending = vendor?.status === 'PENDING';
 
@@ -34,8 +55,8 @@ export default async function DashboardPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">XOF 0</div>
-                        <p className="text-xs text-muted-foreground">+0% from last month</p>
+                        <div className="text-2xl font-bold">{formatPrice(totalRevenue, currencyCode)}</div>
+                        <p className="text-xs text-muted-foreground">From settled orders</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -44,8 +65,8 @@ export default async function DashboardPage() {
                         <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">0</div>
-                        <p className="text-xs text-muted-foreground">+0% from last month</p>
+                        <div className="text-2xl font-bold">{totalOrdersCount}</div>
+                        <p className="text-xs text-muted-foreground">Lifetime orders</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -54,18 +75,18 @@ export default async function DashboardPage() {
                         <Package className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">0</div>
-                        <p className="text-xs text-muted-foreground">+0 active products</p>
+                        <div className="text-2xl font-bold">{totalProducts}</div>
+                        <p className="text-xs text-muted-foreground">Active products in catalog</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active Now</CardTitle>
+                        <CardTitle className="text-sm font-medium">Status</CardTitle>
                         <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">0</div>
-                        <p className="text-xs text-muted-foreground">Since last hour</p>
+                        <div className="text-2xl font-bold capitalize">{vendor?.status?.toLowerCase() || 'Offline'}</div>
+                        <p className="text-xs text-muted-foreground">Current account status</p>
                     </CardContent>
                 </Card>
             </div>
@@ -76,22 +97,39 @@ export default async function DashboardPage() {
                         <CardTitle>Overview</CardTitle>
                     </CardHeader>
                     <CardContent className="pl-2">
-                        {/* Chart would go here */}
                         <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                            No data available
+                            Chart visualization coming soon
                         </div>
                     </CardContent>
                 </Card>
                 <Card className="col-span-3">
-                    <CardHeader>
-                        <CardTitle>Recent Sales</CardTitle>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>Recent Orders</CardTitle>
+                        <Link href="/dashboard/orders" className="text-xs text-orange-600 hover:underline">View all</Link>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-8">
-                            {/* Recent sales list would go here */}
-                            <div className="text-sm text-center text-muted-foreground py-8">
-                                No recent sales
-                            </div>
+                        <div className="space-y-4">
+                            {orders.slice(0, 5).map((order: any) => (
+                                <div key={order.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium leading-none">{order.code}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {order.customer?.firstName} {order.customer?.lastName}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-medium">{formatPrice(order.totalWithTax, order.currencyCode)}</p>
+                                        <p className={`text-[10px] font-semibold ${order.state === 'PaymentSettled' ? 'text-green-600' : 'text-gray-500'}`}>
+                                            {order.state}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                            {orders.length === 0 && (
+                                <div className="text-sm text-center text-muted-foreground py-8">
+                                    No recent orders
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

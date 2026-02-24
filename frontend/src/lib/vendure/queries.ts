@@ -160,3 +160,195 @@ export const GetCustomerOrdersQuery = graphql(`
         }
     }
 `);
+export const GetFacetsQuery = graphql(`
+    query GetFacets($options: FacetListOptions) {
+        facets(options: $options) {
+            items {
+                id
+                name
+                values {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`);
+
+export const GetVendorProductQuery = graphql(`
+    query GetVendorProduct($id: ID!) {
+        product(id: $id) {
+            id
+            name
+            description
+            facetValues {
+                id
+                name
+            }
+            variants {
+                id
+                price
+                stockLevel
+            }
+            assets {
+                id
+                preview
+            }
+            featuredAsset {
+                id
+                preview
+            }
+        }
+    }
+`);
+
+export const GetProductDetailQuery = graphql(`
+    query GetProductDetail($slug: String!) {
+        product(slug: $slug) {
+            id
+            name
+            description
+            slug
+            collections {
+                id
+                slug
+                parent {
+                    id
+                }
+            }
+            featuredAsset {
+                id
+                preview
+            }
+            assets {
+                id
+                preview
+            }
+            variants {
+                id
+                name
+                sku
+                priceWithTax
+                stockLevel
+                options {
+                    id
+                    code
+                    name
+                    groupId
+                    group {
+                        id
+                        code
+                        name
+                    }
+                }
+            }
+            optionGroups {
+                id
+                code
+                name
+                options {
+                    id
+                    code
+                    name
+                }
+            }
+            customFields {
+                vendor {
+                    id
+                    name
+                    status
+                    zone
+                    logo {
+                        preview
+                    }
+                }
+            }
+        }
+    }
+`);
+
+export const GetOrderDetailQuery = graphql(`
+    query GetOrderDetail($code: String!) {
+        orderByCode(code: $code) {
+            id
+            code
+            state
+            createdAt
+            totalWithTax
+            currencyCode
+            subTotalWithTax
+            shippingWithTax
+            customer {
+                id
+            }
+            shippingAddress {
+                fullName
+                company
+                streetLine1
+                streetLine2
+                city
+                province
+                postalCode
+                country
+                phoneNumber
+            }
+            billingAddress {
+                fullName
+                company
+                streetLine1
+                streetLine2
+                city
+                province
+                postalCode
+                country
+                phoneNumber
+            }
+            payments {
+                id
+                method
+                amount
+                state
+                transactionId
+            }
+            shippingLines {
+                shippingMethod {
+                    id
+                    name
+                    description
+                }
+                priceWithTax
+            }
+            discounts {
+                description
+                amountWithTax
+            }
+            lines {
+                id
+                quantity
+                linePriceWithTax
+                unitPriceWithTax
+                productVariant {
+                    id
+                    name
+                    sku
+                    product {
+                        id
+                        name
+                        slug
+                        featuredAsset {
+                            preview
+                        }
+                        customFields {
+                            vendor {
+                                id
+                                name
+                                phoneNumber
+                                zone
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+`);

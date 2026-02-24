@@ -34,7 +34,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver],
+        resolvers: [VendorResolver, VendorShopResolver],
     },
 
     configuration: (config: any) => {

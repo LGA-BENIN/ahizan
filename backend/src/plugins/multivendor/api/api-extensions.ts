@@ -134,6 +134,36 @@ export const commonApiExtensions = `
         items: [Vendor!]!
         totalItems: Int!
     }
+
+    input CreateVendorProductInput {
+        name: String!
+        description: String!
+        price: Int!
+        stock: Int!
+        facetValueIds: [ID!]
+        assetIds: [ID!]
+        featuredAssetId: ID
+    }
+
+    input UpdateVendorProductInput {
+        name: String
+        description: String
+        facetValueIds: [ID!]
+        assetIds: [ID!]
+        featuredAssetId: ID
+        enabled: Boolean
+    }
+
+    input UpdateVendorProductVariantInput {
+        id: ID!
+        price: Int
+        stock: Int
+    }
+
+    input CreateVendorFacetValueInput {
+        name: String!
+        facetId: ID!
+    }
 `;
 
 export const shopApiExtensions = `
@@ -142,6 +172,8 @@ export const shopApiExtensions = `
         vendors(options: VendorListOptions): VendorList!
         myVendorProfile: Vendor
         myVendorOrders(options: OrderListOptions): OrderList!
+        myVendorProducts(options: ProductListOptions): ProductList!
+        myVendorProduct(id: ID!): Product
     }
 
     extend type Mutation {
@@ -150,6 +182,12 @@ export const shopApiExtensions = `
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
         uploadVendorFile(file: Upload!): Asset!
+        
+        createMyProduct(input: CreateVendorProductInput!): Product!
+        updateMyProduct(id: ID!, input: UpdateVendorProductInput!): Product!
+        updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
+        createVendorFacetValue(input: CreateVendorFacetValueInput!): FacetValue!
+        deleteMyProduct(id: ID!): DeletionResponse!
     }
 `;
 
@@ -157,18 +195,11 @@ export const adminApiExtensions = `
     extend type Query {
         vendors(options: VendorListOptions): VendorList!
         vendor(id: ID!): Vendor
-        publicProducts(options: ProductListOptions): ProductList!
+        adminVendorProducts(options: ProductListOptions): ProductList!
         myVendorProfile: Vendor
         myVendorProducts(options: ProductListOptions): ProductList!
         myVendorOrders(options: OrderListOptions): OrderList!
-    }
-
-
-    input CreateVendorProductInput {
-        name: String!
-        description: String!
-        price: Int!
-        stock: Int!
+        myVendorProduct(id: ID!): Product
     }
 
     extend type Mutation {
@@ -176,9 +207,14 @@ export const adminApiExtensions = `
         createVendor(input: CreateVendorInput!): Vendor!
         updateVendor(id: ID!, input: UpdateVendorInput!): Vendor!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
-        createMyProduct(input: CreateVendorProductInput!): Product!
-        updateMyProduct(id: ID!, input: UpdateProductInput!): Product!
-        deleteMyProduct(id: ID!): DeletionResponse!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
+        
+        # Product Management (Required by VendorShopResolver)
+        createMyProduct(input: CreateVendorProductInput!): Product!
+        updateMyProduct(id: ID!, input: UpdateVendorProductInput!): Product!
+        updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
+        createVendorFacetValue(input: CreateVendorFacetValueInput!): FacetValue!
+        deleteMyProduct(id: ID!): DeletionResponse!
+        uploadVendorFile(file: Upload!): Asset!
     }
 `;

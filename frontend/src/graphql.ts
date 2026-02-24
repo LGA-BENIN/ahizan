@@ -6,7 +6,8 @@ export const graphql = initGraphQLTada<{
     scalars: {
         DateTime: string,
         JSON: Record<string, unknown>,
-        Money: number
+        Money: number,
+        Upload: File
     }
 }>();
 

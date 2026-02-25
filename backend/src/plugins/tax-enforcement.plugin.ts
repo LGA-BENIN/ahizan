@@ -10,7 +10,9 @@ import {
     TaxCategory,
     TaxRate,
     ZoneService,
-    ChannelService
+    ChannelService,
+    Channel,
+    CurrencyCode,
 } from '@vendure/core';
 import { OnApplicationBootstrap } from '@nestjs/common';
 
@@ -28,10 +30,9 @@ export class TaxEnforcementPlugin implements OnApplicationBootstrap {
     ) { }
 
     async onApplicationBootstrap() {
-        // Ensure standard tax category and rate exist on startup
-        // We use a superadmin context for these operations
         const ctx = await this.createSuperAdminContext();
         await this.ensureTaxConfiguration(ctx);
+        await this.ensureChannelCurrency(ctx);
 
         // Subscribe to product variant events to enforce tax category
         this.eventBus.ofType(ProductVariantEvent).subscribe(async (event) => {
@@ -101,6 +102,45 @@ export class TaxEnforcementPlugin implements OnApplicationBootstrap {
         console.log('[TaxEnforcementPlugin] Tax Configuration Ensured.');
     }
 
+    private async ensureChannelCurrency(ctx: RequestContext) {
+        console.log('[TaxEnforcementPlugin] Checking Channel Currency...');
+
+        const defaultChannel = await this.channelService.getDefaultChannel();
+
+        // Check if currency needs to be changed to XOF
+        const needsCurrencyUpdate = defaultChannel.defaultCurrencyCode !== CurrencyCode.XOF;
+
+        // Check if default tax zone is missing
+        const zones = await this.zoneService.findAll(ctx);
+        const globalZone = zones.items.find(z => z.name === 'Global') || zones.items[0];
+
+        if (needsCurrencyUpdate || !defaultChannel.defaultTaxZone) {
+            console.log(`[TaxEnforcementPlugin] Updating default channel: currency=${needsCurrencyUpdate ? 'USD→XOF' : 'OK'}, taxZone=${!defaultChannel.defaultTaxZone ? 'MISSING' : 'OK'}`);
+
+            const updateInput: any = {
+                id: defaultChannel.id,
+            };
+
+            if (needsCurrencyUpdate) {
+                updateInput.defaultCurrencyCode = CurrencyCode.XOF;
+                updateInput.availableCurrencyCodes = [CurrencyCode.XOF];
+            }
+
+            if (!defaultChannel.defaultTaxZone && globalZone) {
+                updateInput.defaultTaxZoneId = globalZone.id;
+            }
+
+            if (!defaultChannel.defaultShippingZone && globalZone) {
+                updateInput.defaultShippingZoneId = globalZone.id;
+            }
+
+            await this.channelService.update(ctx, updateInput);
+            console.log('[TaxEnforcementPlugin] Channel updated successfully.');
+        } else {
+            console.log('[TaxEnforcementPlugin] Channel currency is already XOF.');
+        }
+    }
+
     private async enforceTaxCategory(ctx: RequestContext, variants: any | any[]) {
         const variantsArray = Array.isArray(variants) ? variants : [variants];
 
@@ -115,7 +155,6 @@ export class TaxEnforcementPlugin implements OnApplicationBootstrap {
 
         if (variantsToFix.length > 0) {
             console.log(`[TaxEnforcementPlugin] Enforcing 0% Tax on ${variantsToFix.length} variants...`);
-            // We use direct DB update to avoid infinite loops with event listeners if we used the service
             await this.connection.getRepository(ctx, 'ProductVariant')
                 .update(
                     variantsToFix.map((v: any) => v.id),
@@ -124,3 +163,4 @@ export class TaxEnforcementPlugin implements OnApplicationBootstrap {
         }
     }
 }
+

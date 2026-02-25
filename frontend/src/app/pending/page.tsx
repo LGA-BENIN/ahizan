@@ -1,49 +1,38 @@
-'use client';
+import { redirect } from "next/navigation";
+import { getMyVendorProfile } from "@/lib/vendure/actions";
+import PendingContent from "./PendingContent";
+import { unstable_noStore as noStore } from 'next/cache';
 
-import { Button } from "@/components/ui/button";
-import { Clock } from "lucide-react";
-import Link from "next/link";
-import { logoutAction } from "@/app/sign-in/actions";
+export default async function PendingPage() {
+    noStore();
+    let profile: any = null;
+    let redirectPath: string | null = null;
 
-export default function PendingPage() {
-    return (
-        <div className="min-h-screen flex flex-col bg-gradient-to-br from-yellow-50 to-orange-50">
-            {/* Minimal header */}
-            <header className="h-16 flex items-center justify-between px-6 bg-white border-b shadow-sm">
-                <span className="text-xl font-bold bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent">
-                    AHIZAN
-                </span>
-                <form action={logoutAction}>
-                    <Button variant="ghost" size="sm" type="submit" className="text-gray-500 hover:text-red-600">
-                        Se déconnecter
-                    </Button>
-                </form>
-            </header>
+    try {
+        const token = await import('@/lib/auth').then(m => m.getAuthToken());
+        if (!token) {
+            console.log("No token found on Pending page, redirecting to sign-in.");
+            redirectPath = '/sign-in';
+        } else {
+            profile = await getMyVendorProfile();
+            const status = profile?.status;
 
-            {/* Content */}
-            <div className="flex-1 flex items-center justify-center p-6">
-                <div className="max-w-md w-full text-center">
-                    <div className="mx-auto bg-yellow-100 p-5 rounded-full w-fit mb-6 shadow-inner">
-                        <Clock className="w-12 h-12 text-yellow-600" />
-                    </div>
+            if (status === 'APPROVED') {
+                redirectPath = '/dashboard';
+            } else if (status === 'REJECTED') {
+                redirectPath = '/rejected';
+            }
+        }
+    } catch (e: any) {
+        console.error("Pending page check failed:", e.message);
+        // If unauthorized or error, we might want to redirect to sign-in
+        // but let's be careful not to loop if it's just a temporary failure.
+        redirectPath = '/sign-in';
+    }
 
-                    <h1 className="text-2xl font-bold text-gray-900 mb-3">
-                        Demande en cours de traitement
-                    </h1>
+    if (redirectPath) {
+        redirect(redirectPath);
+    }
 
-                    <p className="text-gray-600 mb-2">
-                        Votre demande d'inscription est actuellement en cours d'examen par nos administrateurs.
-                    </p>
-                    <p className="text-sm text-gray-500 mb-8">
-                        Vous serez notifié par email dès que votre compte sera validé.
-                        Cette procédure prend généralement <strong>24 à 48 heures</strong>.
-                    </p>
-
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-                        💡 Assurez-vous que votre boîte email est accessible pour recevoir la notification.
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+    return <PendingContent />;
 }

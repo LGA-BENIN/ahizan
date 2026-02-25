@@ -1,13 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
-import {NavbarCollections} from '@/components/layout/navbar/navbar-collections';
-import {NavbarCart} from '@/components/layout/navbar/navbar-cart';
-import {NavbarUser} from '@/components/layout/navbar/navbar-user';
-import {ThemeSwitcher} from '@/components/layout/navbar/theme-switcher';
-import {Suspense} from "react";
-import {SearchInput} from '@/components/layout/search-input';
-import {NavbarUserSkeleton} from '@/components/shared/skeletons/navbar-user-skeleton';
-import {SearchInputSkeleton} from '@/components/shared/skeletons/search-input-skeleton';
+import { NavbarUser } from '@/components/layout/navbar/navbar-user';
+import { ThemeSwitcher } from '@/components/layout/navbar/theme-switcher';
+import { Suspense } from "react";
+import { NavbarUserSkeleton } from '@/components/shared/skeletons/navbar-user-skeleton';
 
 export function Navbar() {
     return (
@@ -15,27 +10,14 @@ export function Navbar() {
             <div className="container mx-auto px-4">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center gap-8">
-                        <Link href="/" className="text-xl font-bold">
-                            <Image src="/vendure.svg" alt="Vendure" width={40} height={27} className="h-6 w-auto dark:invert" />
+                        <Link href="/" className="text-xl font-bold bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent">
+                            AHIZAN
                         </Link>
-                        <nav className="hidden md:flex items-center gap-6">
-                            <Suspense>
-                                <NavbarCollections/>
-                            </Suspense>
-                        </nav>
                     </div>
                     <div className="flex items-center gap-4">
-                        <div className="hidden lg:flex">
-                            <Suspense fallback={<SearchInputSkeleton />}>
-                                <SearchInput/>
-                            </Suspense>
-                        </div>
                         <ThemeSwitcher />
-                        <Suspense>
-                            <NavbarCart/>
-                        </Suspense>
                         <Suspense fallback={<NavbarUserSkeleton />}>
-                            <NavbarUser/>
+                            <NavbarUser />
                         </Suspense>
                     </div>
                 </div>

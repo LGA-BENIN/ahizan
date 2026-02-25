@@ -74,11 +74,13 @@ export default function DeliveryStep({ onComplete }: DeliveryStepProps) {
                 <div className="text-right flex-shrink-0">
                   <p className="font-semibold">
                     {method.priceWithTax === 0
-                      ? 'FREE'
-                      : (method.priceWithTax / 100).toLocaleString('en-US', {
-                          style: 'currency',
-                          currency: 'USD',
-                        })}
+                      ? 'GRATUIT'
+                      : (method.priceWithTax / 100).toLocaleString('fr-FR', {
+                        style: 'currency',
+                        currency: 'XOF',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      })}
                   </p>
                 </div>
               </div>

@@ -36,7 +36,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     ];
 
     return (
-        <div className="min-h-screen bg-gray-50 flex">
+        <div className="h-screen bg-gray-50 flex overflow-hidden">
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
                 <div
@@ -48,13 +48,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Sidebar */}
             <aside
                 className={cn(
-                    "fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static",
+                    "fixed top-0 left-0 z-50 h-full w-64 bg-white border-r transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static",
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                 )}
             >
                 <div className="h-full flex flex-col">
                     {/* Header */}
-                    <div className="h-16 flex items-center px-6 border-b">
+                    <div className="h-16 flex items-center px-6 border-b shrink-0">
                         <span className="text-xl font-bold bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent">AHIZAN</span>
                         <button
                             className="ml-auto lg:hidden"
@@ -65,7 +65,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     </div>
 
                     {/* Navigation */}
-                    <nav className="flex-1 py-6 px-3 space-y-1">
+                    <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
                         {navItems.map((item) => {
                             const Icon = item.icon;
                             const isActive = pathname === item.href;
@@ -90,7 +90,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     </nav>
 
                     {/* Footer */}
-                    <div className="p-4 border-t space-y-2">
+                    <div className="p-4 border-t space-y-2 shrink-0">
                         <form action={logoutAction}>
                             <Button variant="ghost" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50" type="submit">
                                 <LogOut className="mr-2 h-4 w-4" />
@@ -104,15 +104,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Mobile Header */}
-                <header className="bg-white border-b h-16 flex items-center px-4 lg:hidden sticky top-0 z-30">
+                <header className="bg-white border-b h-16 flex items-center px-4 lg:hidden shrink-0">
                     <Button variant="ghost" size="icon" onClick={toggleSidebar}>
                         <Menu className="h-6 w-6" />
                     </Button>
                     <span className="ml-4 font-semibold">Dashboard</span>
                 </header>
 
-                <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
-                    <div className="max-w-7xl mx-auto">
+                <main className="flex-1 overflow-y-auto">
+                    <div className="p-4 lg:p-8 max-w-7xl mx-auto">
                         {children}
                     </div>
                 </main>

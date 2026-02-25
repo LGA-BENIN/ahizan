@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { SITE_NAME, SITE_URL, buildCanonicalUrl } from "@/lib/metadata";
 import { getPage } from '@/lib/cms';
 import { sectionRegistry } from '@/components/sections/section-registry';
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getAuthToken } from "@/lib/auth";
+import { query } from "@/lib/vendure/api";
+import { GetMyVendorProfileQuery } from "@/lib/vendure/queries";
 
 export const metadata: Metadata = {
     title: {
@@ -22,7 +25,41 @@ export const metadata: Metadata = {
     },
 };
 
+import { unstable_noStore as noStore } from 'next/cache';
+
 export default async function Home() {
+    noStore();
+    const token = await getAuthToken();
+    let redirectPath: string | null = null;
+    if (token) {
+        try {
+            const { data } = await query(GetMyVendorProfileQuery, {}, { useAuthToken: true }) as any;
+
+            // If query result is empty or not authorized, don't redirect
+            if (!data?.myVendorProfile) {
+                console.log("No vendor profile found for active session.");
+            } else {
+                const status = data.myVendorProfile.status;
+                if (status === 'APPROVED') {
+                    redirectPath = '/dashboard';
+                } else if (status === 'PENDING') {
+                    redirectPath = '/pending';
+                } else if (status === 'REJECTED') {
+                    redirectPath = '/rejected';
+                } else {
+                    redirectPath = '/dashboard';
+                }
+            }
+        } catch (e) {
+            // This is expected if the user just logged out or token is invalid.
+            // No need to log a full error.
+        }
+    }
+
+    if (redirectPath) {
+        redirect(redirectPath);
+    }
+
     // Fetch the 'home' page from the CMS
     const page = await getPage('home').catch(() => null);
 
@@ -42,11 +79,11 @@ export default async function Home() {
 
     return (
         <div className="min-h-screen">
-            {page.sections
-                .filter(s => s.isActive)
-                .sort((a, b) => a.order - b.order)
-                .map(section => {
-                    const SectionComponent = sectionRegistry[section.type];
+            {(page as any).sections
+                .filter((s: any) => s.isActive)
+                .sort((a: any, b: any) => a.order - b.order)
+                .map((section: any) => {
+                    const SectionComponent = sectionRegistry[section.type] as any;
                     if (!SectionComponent) {
                         console.warn(`Unknown section type: ${section.type}`);
                         return null;

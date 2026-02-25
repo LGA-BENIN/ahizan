@@ -1,14 +1,15 @@
 'use server';
 
 import { mutate } from '@/lib/vendure/api';
-import { ApplyToBecomeVendorMutation, UpdateMyVendorProfileMutation } from '@/lib/vendure/mutations';
+import { ApplyToBecomeVendorMutation, UpdateMyVendorProfileMutation, LoginMutation } from '@/lib/vendure/mutations';
 import { redirect } from 'next/navigation';
+import { setAuthToken } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 
 export async function registerVendor(prevState: any, formData: FormData) {
-    try { require('fs').appendFileSync('frontend-debug.log', `[${new Date().toISOString()}] registerVendor called\n`); } catch { }
-
-    const shopName = formData.get('name') as string;
-    const email = formData.get('email') as string;
+    // Support both 'email' and 'emailAddress' field names
+    const email = (formData.get('email') || formData.get('emailAddress')) as string;
+    const shopName = (formData.get('name') || formData.get('shopName')) as string;
     const phoneNumber = formData.get('phoneNumber') as string;
     const password = formData.get('password') as string;
     const firstName = formData.get('firstName') as string;
@@ -16,7 +17,7 @@ export async function registerVendor(prevState: any, formData: FormData) {
     const description = (formData.get('description') || formData.get('shopDescription')) as string;
     const address = formData.get('address') as string;
 
-    const type = formData.get('type') as string || 'INDIVIDUAL';
+    const type = (formData.get('type') || formData.get('sellerType')) as string || 'INDIVIDUAL';
     const deliveryInfo = formData.get('deliveryInfo') as string;
     const returnPolicy = formData.get('returnPolicy') as string;
     const zone = formData.get('zone') as string;
@@ -35,7 +36,10 @@ export async function registerVendor(prevState: any, formData: FormData) {
     const logo = formData.get('logo') as File;
     const coverImage = formData.get('coverImage') as File;
 
-    console.log('FormData Keys:', Array.from(formData.keys()));
+    let redirectPath: string | null = null;
+    let error: string | null = null;
+
+    console.log('[registerVendor] Starting registration for:', email);
 
     try {
         const { data } = await mutate(ApplyToBecomeVendorMutation, {
@@ -53,31 +57,73 @@ export async function registerVendor(prevState: any, formData: FormData) {
                 returnPolicy,
                 zone,
                 rccmNumber,
-                rccmFile: rccmFile?.size > 0 ? rccmFile : undefined,
+                rccmFile: (rccmFile?.size > 0 ? rccmFile : undefined) as any,
                 ifuNumber,
-                ifuFile: ifuFile?.size > 0 ? ifuFile : undefined,
+                ifuFile: (ifuFile?.size > 0 ? ifuFile : undefined) as any,
                 idCardNumber,
-                idCardFile: idCardFile?.size > 0 ? idCardFile : undefined,
+                idCardFile: (idCardFile?.size > 0 ? idCardFile : undefined) as any,
                 website,
                 facebook,
                 instagram,
+                logo: (logo?.size > 0 ? logo : undefined) as any,
+                coverImage: (coverImage?.size > 0 ? coverImage : undefined) as any,
             },
-        });
+        } as any);
+
+        console.log('[registerVendor] Registration mutation result:', JSON.stringify(data.applyToBecomeVendor));
 
         if (data.applyToBecomeVendor) {
-            return { message: 'Inscription réussie ! Veuillez vous connecter.', error: '' };
+            // Auto-login after successful registration
+            try {
+                console.log('[registerVendor] Attempting auto-login for:', email);
+                const loginResult = await mutate(LoginMutation, {
+                    username: email,
+                    password: password,
+                }, { useAuthToken: true });
+
+                console.log('[registerVendor] Login result - token present:', !!loginResult.token, 'data:', JSON.stringify(loginResult.data));
+
+                // Check if login returned an error result
+                const loginData = loginResult.data as any;
+                if (loginData?.login?.__typename === 'CurrentUser') {
+                    if (loginResult.token) {
+                        await setAuthToken(loginResult.token);
+                        console.log('[registerVendor] Auto-login successful, token saved for:', email);
+                        redirectPath = '/pending';
+                    } else {
+                        console.warn('[registerVendor] Login succeeded (CurrentUser) but no token in response headers for:', email);
+                        // Still redirect to pending - the login itself succeeded
+                        redirectPath = '/sign-in';
+                    }
+                } else {
+                    const errorMsg = loginData?.login?.message || 'Unknown login error';
+                    console.error('[registerVendor] Login returned error:', errorMsg);
+                    redirectPath = '/sign-in';
+                }
+            } catch (loginError: any) {
+                console.error('[registerVendor] Auto-login failed after registration:', loginError.message);
+                redirectPath = '/sign-in';
+            }
         }
     } catch (e: any) {
-        try { require('fs').appendFileSync('frontend-error.log', `[${new Date().toISOString()}] Error: ${JSON.stringify(e, Object.getOwnPropertyNames(e))}\n`); } catch { }
-        console.error('Registration failed:', e);
-        return {
-            message: '',
-            error: e.message || "Une erreur s'est produite lors de l'inscription.",
-        };
+        console.error('[registerVendor] Registration failed:', e);
+        error = e.message || "Une erreur s'est produite lors de l'inscription.";
     }
 
-    return { message: 'Inscription réussie ! Veuillez vous connecter.', error: '' };
+    if (error) {
+        return { message: '', error };
+    }
+
+    if (redirectPath) {
+        revalidatePath('/', 'layout');
+        redirect(redirectPath);
+    }
+
+    return { message: 'Inscription réussie !', error: '' };
 }
+
+// Alias for components that import registerAction
+export const registerAction = registerVendor;
 
 export async function resubmitVendor(prevState: any, formData: FormData) {
     const shopName = formData.get('name') as string;
@@ -112,18 +158,18 @@ export async function resubmitVendor(prevState: any, formData: FormData) {
                 returnPolicy: returnPolicy || undefined,
                 zone: zone || undefined,
                 rccmNumber: rccmNumber || undefined,
-                rccmFile: rccmFile?.size > 0 ? rccmFile : undefined,
+                rccmFile: (rccmFile?.size > 0 ? rccmFile : undefined) as any,
                 ifuNumber: ifuNumber || undefined,
-                ifuFile: ifuFile?.size > 0 ? ifuFile : undefined,
+                ifuFile: (ifuFile?.size > 0 ? ifuFile : undefined) as any,
                 idCardNumber: idCardNumber || undefined,
-                idCardFile: idCardFile?.size > 0 ? idCardFile : undefined,
+                idCardFile: (idCardFile?.size > 0 ? idCardFile : undefined) as any,
                 website: website || undefined,
                 facebook: facebook || undefined,
                 instagram: instagram || undefined,
-                logo: logo?.size > 0 ? logo : undefined,
-                coverImage: coverImage?.size > 0 ? coverImage : undefined,
+                logo: (logo?.size > 0 ? logo : undefined) as any,
+                coverImage: (coverImage?.size > 0 ? coverImage : undefined) as any,
             },
-        }, { useAuthToken: true });
+        } as any, { useAuthToken: true });
     } catch (e: any) {
         console.error('Resubmission failed:', e);
         return {

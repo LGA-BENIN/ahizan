@@ -28,9 +28,23 @@ interface VendureResponse<T> {
  * Extract the Vendure auth token from response headers
  */
 function extractAuthToken(headers: Headers): string | null {
-    const token = headers.get(VENDURE_AUTH_TOKEN_HEADER);
+    // 1. Check for the direct auth token header
+    let token = headers.get(VENDURE_AUTH_TOKEN_HEADER);
+
+    // 2. If not found, check the set-cookie header for the auth token
+    if (!token) {
+        const setCookie = headers.get('set-cookie');
+        if (setCookie) {
+            // Looking for something like "vendure-auth-token=...;"
+            const match = setCookie.match(new RegExp(`${VENDURE_AUTH_TOKEN_HEADER}=([^;]+)`));
+            if (match) {
+                token = match[1];
+            }
+        }
+    }
+
     if (token) {
-        console.log(`Extracted auth token from response header: ${token.substring(0, 10)}...`);
+        console.log(`Extracted auth token from response: ${token.substring(0, 10)}...`);
     }
     return token;
 }

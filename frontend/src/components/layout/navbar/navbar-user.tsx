@@ -1,5 +1,5 @@
-import {User} from 'lucide-react';
-import {Button} from '@/components/ui/button';
+import { User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -8,8 +8,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Link from "next/link";
-import {LoginButton} from "@/components/layout/navbar/login-button";
-import {getActiveCustomer} from "@/lib/vendure/actions";
+import { LoginButton } from "@/components/layout/navbar/login-button";
+import { getActiveCustomer } from "@/lib/vendure/actions";
 
 
 export async function NavbarUser() {
@@ -18,7 +18,7 @@ export async function NavbarUser() {
     if (!customer) {
         return (
             <Button variant="ghost" asChild>
-                <LoginButton isLoggedIn={false}/>
+                <LoginButton isLoggedIn={false} />
             </Button>
         );
     }
@@ -27,20 +27,17 @@ export async function NavbarUser() {
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost">
-                    <User className="h-5 w-5"/>
+                    <User className="h-5 w-5" />
                     Hi, {customer.firstName}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
                 <DropdownMenuItem asChild>
-                    <Link href="/account/profile">Profile</Link>
+                    <Link href="/dashboard" className="cursor-pointer">Tableau de bord</Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                    <Link href="/account/orders">Orders</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator/>
-                <DropdownMenuItem asChild>
-                    <LoginButton isLoggedIn={true}/>
+                    <LoginButton isLoggedIn={true} />
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

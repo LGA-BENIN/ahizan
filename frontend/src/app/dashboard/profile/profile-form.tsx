@@ -1,193 +1,198 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { updateProfileAction } from './actions';
+import { useActionState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-    FormDescription,
-} from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { query } from '@/lib/vendure/api';
-import { gql } from 'graphql-tag';
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { updateProfileAction } from './actions';
+import { Save } from 'lucide-react';
 
+const initialState: { error?: string; success?: boolean } = {};
 
-const GET_REGISTRATION_FIELDS = gql`
-    query GetRegistrationFields {
-        registrationFields {
-            id
-            name
-            label
-            type
-            options {
-                label
-                value
-            }
-            required
-            order
-            enabled
-            description
-            placeholder
+interface FieldOption {
+    label: string;
+    value: string;
+}
+
+interface RegistrationField {
+    id: string;
+    name: string;
+    label: string;
+    type: string;
+    options?: FieldOption[];
+    required: boolean;
+    order: number;
+    enabled: boolean;
+    description?: string;
+    placeholder?: string;
+}
+
+interface ProfileFormProps {
+    profile: Record<string, any>;
+    fields: RegistrationField[];
+}
+
+export function ProfileForm({ profile, fields }: ProfileFormProps) {
+    const [state, formAction, isPending] = useActionState(updateProfileAction, initialState);
+
+    // Helper to get pre-filled value from profile or dynamicDetails
+    const getPrefilledValue = (fieldName: string): string => {
+        if (profile[fieldName] !== undefined && profile[fieldName] !== null) {
+            return String(profile[fieldName]);
         }
-    }
-`;
-
-const profileSchema = z.object({
-    dynamicDetails: z.record(z.any()).optional(),
-});
-
-type ProfileFormData = z.infer<typeof profileSchema>;
-
-export function ProfileForm({ vendor }: { vendor: any }) {
-    const [isPending, startTransition] = useTransition();
-    const [dynamicFields, setDynamicFields] = useState<any[]>([]);
-    const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-    // Initial values from vendor profile
-    const initialDynamicDetails = vendor?.dynamicDetails || {};
-
-    const form = useForm<ProfileFormData>({
-        resolver: zodResolver(profileSchema),
-        defaultValues: {
-            dynamicDetails: initialDynamicDetails,
-        },
-    });
-
-    useEffect(() => {
-        const fetchFields = async () => {
-            try {
-                const { data } = await (query as any)(GET_REGISTRATION_FIELDS);
-                setDynamicFields((data as any).registrationFields || []);
-            } catch (error) {
-                console.error("Failed to fetch dynamic fields", error);
-                setDynamicFields([]);
-            }
-        };
-        fetchFields();
-    }, []);
-
-    const onSubmit = (data: ProfileFormData) => {
-        startTransition(async () => {
-            const formData = new FormData();
-
-            // Handle Dynamic Fields
-            if (data.dynamicDetails) {
-                formData.append('dynamicDetails', JSON.stringify(data.dynamicDetails));
-            }
-
-            const result = await updateProfileAction(formData);
-
-            if (result?.error) {
-                setFeedback({ type: 'error', message: result.error });
-            } else {
-                setFeedback({ type: 'success', message: 'Profile updated successfully.' });
-            }
-        });
+        if (profile.dynamicDetails && profile.dynamicDetails[fieldName] !== undefined) {
+            return String(profile.dynamicDetails[fieldName]);
+        }
+        return '';
     };
 
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Edit Profile</CardTitle>
-            </CardHeader>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)}>
-                    <CardContent className="space-y-4">
-                        {/* Dynamic Fields Section */}
-                        {dynamicFields.length > 0 ? (
-                            <div className="space-y-4">
-                                {dynamicFields.map((field) => (
-                                    <FormField
-                                        key={field.name}
-                                        control={form.control}
-                                        rules={{ required: field.required }}
-                                        name={`dynamicDetails.${field.name}`}
-                                        render={({ field: formField }) => (
-                                            <FormItem>
-                                                <FormLabel>
-                                                    {field.label}
-                                                    {field.required && <span className="text-red-500 ml-1">*</span>}
-                                                </FormLabel>
-                                                <FormControl>
-                                                    {field.type === 'select' ? (
-                                                        <Select onValueChange={formField.onChange} defaultValue={formField.value as any}>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder={field.placeholder || "Select option"} />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {field.options?.map((opt: any) => (
-                                                                    <SelectItem key={opt.value} value={opt.value}>
-                                                                        {opt.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : field.type === 'boolean' ? (
-                                                        <div className="flex items-center space-x-2">
-                                                            <Checkbox
-                                                                checked={formField.value as any}
-                                                                onCheckedChange={formField.onChange}
-                                                            />
-                                                            <label className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                                {field.placeholder || "Yes"}
-                                                            </label>
-                                                        </div>
-                                                    ) : (
-                                                        <Input
-                                                            type={field.type}
-                                                            placeholder={field.placeholder}
-                                                            disabled={isPending}
-                                                            {...formField}
-                                                            value={formField.value as any || ''}
-                                                        />
-                                                    )}
-                                                </FormControl>
-                                                {field.description && (
-                                                    <FormDescription>{field.description}</FormDescription>
-                                                )}
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-4 text-muted-foreground">
-                                No profile fields configured.
-                            </div>
-                        )}
+    // Filter out password and email fields — those are not editable here
+    const editableFields = fields.filter(
+        (f) => f.name !== 'password' && f.name !== 'confirmPassword'
+    );
 
-                        {feedback && (
-                            <div className={`text-sm font-medium p-3 rounded-lg ${feedback.type === 'error'
-                                ? 'text-red-600 bg-red-50'
-                                : 'text-green-600 bg-green-50'
-                                }`}>
-                                {feedback.message}
-                            </div>
-                        )}
-                        <Button type="submit" className="w-full" disabled={isPending}>
-                            {isPending ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </CardContent>
+    return (
+        <div className="bg-white rounded-xl shadow-sm border p-8">
+            <div className="flex items-center gap-3 mb-6">
+                <div className="bg-orange-100 p-2 rounded-full">
+                    <Save className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900">Informations de la boutique</h2>
+                    <p className="text-sm text-gray-500">Modifiez vos informations et enregistrez.</p>
+                </div>
+            </div>
+
+            {editableFields.length === 0 ? (
+                <div className="text-center py-4 text-amber-600 bg-amber-50 rounded-md">
+                    Aucun champ de profil n&apos;est configuré. Veuillez contacter l&apos;administrateur.
+                </div>
+            ) : (
+                <form action={formAction} className="space-y-5">
+                    {editableFields.map((field) => (
+                        <div key={field.name} className="space-y-1">
+                            <Label htmlFor={field.name}>
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </Label>
+
+                            {field.type === 'select' ? (
+                                <div>
+                                    <input
+                                        type="hidden"
+                                        name={field.name}
+                                        id={`${field.name}-hidden`}
+                                        defaultValue={getPrefilledValue(field.name)}
+                                    />
+                                    <Select
+                                        defaultValue={getPrefilledValue(field.name)}
+                                        onValueChange={(val) => {
+                                            const hidden = document.getElementById(`${field.name}-hidden`) as HTMLInputElement;
+                                            if (hidden) hidden.value = val;
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={field.placeholder || 'Sélectionner...'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {field.options?.map((opt) => (
+                                                <SelectItem key={opt.value} value={opt.value}>
+                                                    {opt.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            ) : field.type === 'boolean' ? (
+                                <div className="flex items-center space-x-2 mt-1">
+                                    <Checkbox
+                                        name={field.name}
+                                        id={field.name}
+                                        defaultChecked={getPrefilledValue(field.name) === 'true'}
+                                    />
+                                    <label htmlFor={field.name} className="text-sm leading-none">
+                                        {field.placeholder || 'Oui'}
+                                    </label>
+                                </div>
+                            ) : field.type === 'file' ? (
+                                <div className="text-sm">
+                                    {getPrefilledValue(field.name) && (
+                                        <p className="text-gray-500 mb-1 text-xs">
+                                            Fichier existant — téléchargez un nouveau fichier pour le remplacer (optionnel)
+                                        </p>
+                                    )}
+                                    <Input
+                                        id={field.name}
+                                        name={field.name}
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        required={false}
+                                        className="block w-full"
+                                    />
+                                </div>
+                            ) : field.name === 'description' ||
+                                field.name === 'shopDescription' ||
+                                field.name === 'address' ||
+                                field.name === 'deliveryInfo' ||
+                                field.name === 'returnPolicy' ? (
+                                <Textarea
+                                    id={field.name}
+                                    name={field.name}
+                                    required={field.required}
+                                    placeholder={field.placeholder}
+                                    className="block w-full"
+                                    rows={3}
+                                    defaultValue={getPrefilledValue(field.name)}
+                                    disabled={isPending}
+                                />
+                            ) : (
+                                <Input
+                                    id={field.name}
+                                    name={field.name}
+                                    type={field.name === 'email' ? 'email' : 'text'}
+                                    required={field.required}
+                                    placeholder={field.placeholder}
+                                    className="block w-full"
+                                    defaultValue={getPrefilledValue(field.name)}
+                                    disabled={field.name === 'email' || isPending}
+                                />
+                            )}
+
+                            {field.description && (
+                                <p className="text-xs text-gray-500">{field.description}</p>
+                            )}
+                        </div>
+                    ))}
+
+                    {state?.error && (
+                        <div className="text-red-600 text-sm font-medium bg-red-50 p-3 rounded-lg">
+                            {state.error}
+                        </div>
+                    )}
+                    {state?.success && (
+                        <div className="text-green-600 text-sm font-medium bg-green-50 p-3 rounded-lg">
+                            Profil mis à jour avec succès !
+                        </div>
+                    )}
+
+                    <Button
+                        type="submit"
+                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                        disabled={isPending}
+                    >
+                        {isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                    </Button>
                 </form>
-            </Form>
-        </Card>
+            )}
+        </div>
     );
 }

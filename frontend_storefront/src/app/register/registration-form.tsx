@@ -146,15 +146,16 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
                             name="phoneNumber"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Phone Number (Optional)</FormLabel>
+                                    <FormLabel>Téléphone (Optionnel)</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="tel"
-                                            placeholder="+1 (555) 000-0000"
+                                            placeholder="ex: 97123456 ou +22997123456"
                                             disabled={isPending}
                                             {...field}
                                         />
                                     </FormControl>
+                                    <p className="text-xs text-muted-foreground">L'indicatif +229 sera ajouté automatiquement si absent.</p>
                                     <FormMessage />
                                 </FormItem>
                             )}

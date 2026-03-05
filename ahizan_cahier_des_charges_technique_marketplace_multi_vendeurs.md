@@ -235,7 +235,24 @@ Le MVP est une marketplace locale fonctionnelle.
 
 ---
 
-## 7. Principe de développement
+## 7. Intégration Brevo (Email & SMS)
+
+Dans le prolongement de cette architecture, **toutes** les intégrations Brevo seront pilotées par le backend **Vendure** (aucune logique côté frontend).
+
+**Architecture et Configuration :**
+- **E-mails (SMTP) :** Configuré au démarrage via le plugin `@vendure/email-plugin` avec les clés SMTP dans le `.env`.
+- **SMS & Alertes (API) :** Création d'un plugin personnalisé `AhizanSmsNotificationPlugin`.
+- **Configuration Dynamique (Admin UI) :** La clé API Brevo, l'activation des alertes, l'indicatif téléphonique par défaut (ex: `+229`) et les templates de SMS seront gérés de façon dynamique **depuis le Back-office Vendure**, pour éviter la dépendance aux fichiers `.env`. 
+
+**Mapping des événements majeurs :**
+- Inscriptions (Acheteur et Vendeur) : Email de bienvenue / validation.
+- Commandes (Acheteur et Vendeur) : Email & SMS lors de la création, expédition et annulation (`OrderStateTransitionEvent`, `FulfillmentStateTransitionEvent`).
+- Paiements (Acheteur) : SMS en cas d'échec (`PaymentStateTransitionEvent`).
+- Stock (Vendeur) : Alerte SMS/Email pour stock bas ou produit épuisé (`StockMovementEvent`, `ProductVariantEvent`).
+
+---
+
+## 8. Principe de développement
 
 - backend en priorité
 - logique métier centralisée
@@ -244,7 +261,7 @@ Le MVP est une marketplace locale fonctionnelle.
 
 ---
 
-## 8. Conclusion
+## 9. Conclusion
 
 Ce cahier des charges sert de **référence unique** pour le développement de AHIZAN.
 

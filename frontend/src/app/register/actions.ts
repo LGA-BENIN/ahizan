@@ -5,6 +5,7 @@ import { ApplyToBecomeVendorMutation, UpdateMyVendorProfileMutation, LoginMutati
 import { redirect } from 'next/navigation';
 import { setAuthToken } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { formatPhoneE164 } from '@/lib/format-phone';
 
 export async function registerVendor(prevState: any, formData: FormData) {
     // Support both 'email' and 'emailAddress' field names
@@ -48,7 +49,7 @@ export async function registerVendor(prevState: any, formData: FormData) {
                 firstName,
                 lastName,
                 email,
-                phoneNumber,
+                phoneNumber: formatPhoneE164(phoneNumber),
                 password,
                 description,
                 address,
@@ -150,7 +151,7 @@ export async function resubmitVendor(prevState: any, formData: FormData) {
         await mutate(UpdateMyVendorProfileMutation, {
             input: {
                 name: shopName || undefined,
-                phoneNumber: phoneNumber || undefined,
+                phoneNumber: formatPhoneE164(phoneNumber),
                 description: description || undefined,
                 address: address || undefined,
                 type: type || undefined,

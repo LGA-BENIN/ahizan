@@ -19,6 +19,7 @@ import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-del
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
 import { CmsPlugin } from './plugins/cms/cms.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
+import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifications.plugin';
 
 // Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
@@ -106,21 +107,44 @@ export const config: VendureConfig = {
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
         DefaultSearchPlugin.init({ bufferUpdates: false, indexStockStatus: true }),
-        EmailPlugin.init({
-            devMode: true,
-            outputPath: path.join(__dirname, '../static/email/test-emails'),
-            route: 'mailbox',
-            handlers: defaultEmailHandlers,
-            templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
-            globalTemplateVars: {
-                // The following variables will change depending on your storefront implementation.
-                // Here we are assuming a storefront running at http://localhost:8080.
-                fromAddress: '"example" <noreply@example.com>',
-                verifyEmailAddressUrl: 'http://localhost:8080/verify',
-                passwordResetUrl: 'http://localhost:8080/password-reset',
-                changeEmailAddressUrl: 'http://localhost:8080/verify-email-address-change'
-            },
-        }),
+        ...(IS_DEV
+            ? [
+                EmailPlugin.init({
+                    devMode: true,
+                    outputPath: path.join(__dirname, '../static/email/test-emails'),
+                    route: 'mailbox',
+                    handlers: defaultEmailHandlers,
+                    templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
+                    globalTemplateVars: {
+                        fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
+                        verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify`,
+                        passwordResetUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/password-reset`,
+                        changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify-email-address-change`,
+                    },
+                }),
+            ]
+            : [
+                EmailPlugin.init({
+                    handlers: defaultEmailHandlers,
+                    templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
+                    globalTemplateVars: {
+                        fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
+                        verifyEmailAddressUrl: `${process.env.STOREFRONT_URL}/verify`,
+                        passwordResetUrl: `${process.env.STOREFRONT_URL}/password-reset`,
+                        changeEmailAddressUrl: `${process.env.STOREFRONT_URL}/verify-email-address-change`,
+                    },
+                    transport: {
+                        type: 'smtp' as const,
+                        host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
+                        port: +(process.env.BREVO_SMTP_PORT || 587),
+                        auth: {
+                            user: process.env.BREVO_SMTP_USER,
+                            pass: process.env.BREVO_SMTP_PASSWORD,
+                        },
+                    },
+                }),
+            ]
+        ),
         DashboardPlugin.init({
             route: 'admin',
             appDir: path.join(__dirname, '../dist/dashboard'),
@@ -129,5 +153,6 @@ export const config: VendureConfig = {
         TaxEnforcementPlugin,
         CmsPlugin,
         PageInscriptionPlugin,
+        AhizanNotificationsPlugin,
     ],
 };

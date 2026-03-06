@@ -10,6 +10,7 @@ import { adminApiExtensions, shopApiExtensions } from './api/api-extensions';
     imports: [PluginCommonModule],
     entities: [Page, PageSection],
     providers: [CmsService],
+    dashboard: './dashboard',
     adminApiExtensions: {
         schema: adminApiExtensions,
         resolvers: [CmsAdminResolver],

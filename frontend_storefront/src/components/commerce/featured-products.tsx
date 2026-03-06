@@ -1,19 +1,19 @@
-import {ProductCarousel} from "@/components/commerce/product-carousel";
-import {cacheLife} from "next/cache";
-import {query} from "@/lib/vendure/api";
-import {GetCollectionProductsQuery} from "@/lib/vendure/queries";
+import { ProductCarousel } from "@/components/commerce/product-carousel";
+import { cacheLife } from "next/cache";
+import { query } from "@/lib/vendure/api";
+import { GetCollectionProductsQuery } from "@/lib/vendure/queries";
+import { ProductListData } from "@/lib/vendure/cms-queries";
 
-async function getFeaturedCollectionProducts() {
+async function getFeaturedCollectionProducts(collectionSlug: string, take: number) {
     'use cache'
     cacheLife('days')
 
     // Fetch featured products from a specific collection
-    // Replace 'featured' with your actual collection slug
     const result = await query(GetCollectionProductsQuery, {
-        slug: "electronics",
+        slug: collectionSlug,
         input: {
-            collectionSlug: "electronics",
-            take: 12,
+            collectionSlug,
+            take,
             skip: 0,
             groupByProduct: true
         }
@@ -23,12 +23,16 @@ async function getFeaturedCollectionProducts() {
 }
 
 
-export async function FeaturedProducts() {
-    const products = await getFeaturedCollectionProducts();
+export async function FeaturedProducts({
+    collectionSlug = "electronics",
+    title = "Featured Products",
+    take = 12
+}: ProductListData) {
+    const products = await getFeaturedCollectionProducts(collectionSlug, take);
 
     return (
         <ProductCarousel
-            title="Featured Products"
+            title={title}
             products={products}
         />
     )

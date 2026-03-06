@@ -107,44 +107,31 @@ export const config: VendureConfig = {
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
         DefaultSearchPlugin.init({ bufferUpdates: false, indexStockStatus: true }),
-        ...(IS_DEV
-            ? [
-                EmailPlugin.init({
-                    devMode: true,
-                    outputPath: path.join(__dirname, '../static/email/test-emails'),
-                    route: 'mailbox',
-                    handlers: defaultEmailHandlers,
-                    templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
-                    globalTemplateVars: {
-                        fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
-                        verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify`,
-                        passwordResetUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/password-reset`,
-                        changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify-email-address-change`,
+        EmailPlugin.init({
+            ...(IS_DEV ? {
+                devMode: true,
+                outputPath: path.join(__dirname, '../static/email/test-emails'),
+            } : {
+                transport: {
+                    type: 'smtp' as const,
+                    host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
+                    port: +(process.env.BREVO_SMTP_PORT || 587),
+                    auth: {
+                        user: process.env.BREVO_SMTP_USER,
+                        pass: process.env.BREVO_SMTP_PASSWORD,
                     },
-                }),
-            ]
-            : [
-                EmailPlugin.init({
-                    handlers: defaultEmailHandlers,
-                    templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
-                    globalTemplateVars: {
-                        fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
-                        verifyEmailAddressUrl: `${process.env.STOREFRONT_URL}/verify`,
-                        passwordResetUrl: `${process.env.STOREFRONT_URL}/password-reset`,
-                        changeEmailAddressUrl: `${process.env.STOREFRONT_URL}/verify-email-address-change`,
-                    },
-                    transport: {
-                        type: 'smtp' as const,
-                        host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
-                        port: +(process.env.BREVO_SMTP_PORT || 587),
-                        auth: {
-                            user: process.env.BREVO_SMTP_USER,
-                            pass: process.env.BREVO_SMTP_PASSWORD,
-                        },
-                    },
-                }),
-            ]
-        ),
+                }
+            }),
+            route: 'mailbox',
+            handlers: defaultEmailHandlers,
+            templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
+            globalTemplateVars: {
+                fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
+                verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify`,
+                passwordResetUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/password-reset`,
+                changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify-email-address-change`,
+            },
+        } as any),
         DashboardPlugin.init({
             route: 'admin',
             appDir: path.join(__dirname, '../dist/dashboard'),

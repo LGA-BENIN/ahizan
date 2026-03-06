@@ -21,7 +21,7 @@ export class CmsAdminResolver {
     }
 
     @Mutation()
-    @Allow(Permission.Authenticated) // Should restrict to SuperAdmin or specific permission later
+    @Allow(Permission.Authenticated)
     async createPage(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<Page> {
         return this.cmsService.createPage(ctx, input);
     }

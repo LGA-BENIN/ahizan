@@ -1,11 +1,12 @@
-import type {Metadata, Viewport} from "next";
-import {Geist, Geist_Mono} from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import {Toaster} from "@/components/ui/sonner";
-import {Navbar} from "@/components/layout/navbar";
-import {Footer} from "@/components/layout/footer";
-import {ThemeProvider} from "@/components/providers/theme-provider";
-import {SITE_NAME, SITE_URL} from "@/lib/metadata";
+import { Toaster } from "@/components/ui/sonner";
+import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { SITE_NAME, SITE_URL } from "@/lib/metadata";
+import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -51,12 +52,12 @@ export const viewport: Viewport = {
     initialScale: 1,
     maximumScale: 5,
     themeColor: [
-        {media: "(prefers-color-scheme: light)", color: "#ffffff"},
-        {media: "(prefers-color-scheme: dark)", color: "#000000"},
+        { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+        { media: "(prefers-color-scheme: dark)", color: "#000000" },
     ],
 };
 
-export default function RootLayout({children}: LayoutProps<'/'>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="en" suppressHydrationWarning>
             <body
@@ -67,6 +68,7 @@ export default function RootLayout({children}: LayoutProps<'/'>) {
                     {children}
                     <Footer />
                     <Toaster />
+                    <GlobalPopupProvider />
                 </ThemeProvider>
             </body>
         </html>

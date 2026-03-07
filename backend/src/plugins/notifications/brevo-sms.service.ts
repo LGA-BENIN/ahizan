@@ -98,4 +98,47 @@ export class BrevoSmsService {
             this.logger.error(`Error sending SMS to ${formattedRecipient}: ${err.message}`);
         }
     }
+
+    /**
+     * Send a transactional Email via the Brevo API.
+     * @param recipientEmail - Email address of the recipient
+     * @param subject - Email subject
+     * @param htmlContent - Email HTML/Text content
+     * @param settings - Pre-loaded BrevoSettings
+     */
+    async sendTransactionalEmail(recipientEmail: string, subject: string, htmlContent: string, settings: BrevoSettings): Promise<void> {
+        if (!settings?.brevoApiKey) {
+            this.logger.warn('Brevo API key not configured. Skipping Email send.');
+            return;
+        }
+
+        const senderEmail = process.env.BREVO_FROM_EMAIL?.match(/<([^>]+)>/)?.[1] || 'noreply@ahizan.com';
+        const senderName = process.env.BREVO_FROM_EMAIL?.match(/"([^"]+)"/)?.[1] || 'AHIZAN';
+
+        try {
+            const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'api-key': settings.brevoApiKey,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sender: { name: senderName, email: senderEmail },
+                    to: [{ email: recipientEmail }],
+                    subject,
+                    htmlContent: `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                this.logger.error(`Failed to send Email to ${recipientEmail}: ${error}`);
+            } else {
+                this.logger.log(`Email sent successfully to ${recipientEmail}`);
+            }
+        } catch (err: any) {
+            this.logger.error(`Error sending Email to ${recipientEmail}: ${err.message}`);
+        }
+    }
 }

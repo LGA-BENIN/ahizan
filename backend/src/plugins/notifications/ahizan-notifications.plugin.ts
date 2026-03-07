@@ -17,6 +17,7 @@ import { NotificationsAdminResolver, notificationsAdminApiExtensions } from './n
 @VendurePlugin({
     imports: [PluginCommonModule],
     entities: [BrevoSettings],
+    dashboard: './dashboard',
     adminApiExtensions: {
         schema: notificationsAdminApiExtensions,
         resolvers: [NotificationsAdminResolver],

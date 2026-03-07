@@ -34,21 +34,27 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
     private subscribeToOrderEvents() {
         this.eventBus.ofType(OrderStateTransitionEvent).subscribe(async (event) => {
             const settings = await this.smsService.getSettings();
-            if (!settings?.brevoApiKey) return;
+            if (!settings?.brevoApiKey || !settings.channelsConfig) return;
 
             const { order, toState } = event;
 
             // ── Acheteur : Commande Confirmée ──
-            if (
-                settings.enableOrderConfirmedSms &&
-                (toState === 'PaymentAuthorized' || toState === 'PaymentSettled')
-            ) {
-                const phone = order.customer?.phoneNumber;
-                if (phone && settings.templateOrderConfirmed) {
-                    const content = this.smsService.interpolate(settings.templateOrderConfirmed, {
-                        orderCode: order.code,
-                    });
-                    await this.smsService.sendSms(phone, content, settings);
+            if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
+                const config = settings.channelsConfig?.OrderConfirmed;
+                if (config?.enabled) {
+                    const phone = order.customer?.phoneNumber;
+                    const email = order.customer?.emailAddress;
+                    const vars = { orderCode: order.code, firstName: order.customer?.firstName || '' };
+
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(phone, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Commande Confirmée', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    }
                 }
             }
 
@@ -69,15 +75,24 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
     private subscribeToPaymentEvents() {
         this.eventBus.ofType(PaymentStateTransitionEvent).subscribe(async (event) => {
             const settings = await this.smsService.getSettings();
-            if (!settings?.brevoApiKey || !settings.enablePaymentFailedSms) return;
+            if (!settings?.brevoApiKey || !settings.channelsConfig) return;
 
             if (event.toState === 'Declined' || event.toState === 'Error') {
-                const phone = event.order.customer?.phoneNumber;
-                if (phone && settings.templatePaymentFailed) {
-                    const content = this.smsService.interpolate(settings.templatePaymentFailed, {
-                        orderCode: event.order.code,
-                    });
-                    await this.smsService.sendSms(phone, content, settings);
+                const config = settings.channelsConfig?.PaymentFailed;
+                if (config?.enabled) {
+                    const phone = event.order.customer?.phoneNumber;
+                    const email = event.order.customer?.emailAddress;
+                    const vars = { orderCode: event.order.code };
+
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(phone, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Échec du Paiement', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    }
                 }
             }
         });
@@ -89,20 +104,30 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
     private subscribeToFulfillmentEvents() {
         this.eventBus.ofType(FulfillmentStateTransitionEvent).subscribe(async (event) => {
             const settings = await this.smsService.getSettings();
-            if (!settings?.brevoApiKey || !settings.enableShippingUpdateSms) return;
+            if (!settings?.brevoApiKey || !settings.channelsConfig) return;
 
             const { toState, fulfillment } = event;
 
             if (toState === 'Shipped' || toState === 'Delivered') {
-                // Find the first order linked to this fulfillment
-                const order = fulfillment.orders?.[0];
-                const phone = order?.customer?.phoneNumber;
-                if (phone && settings.templateShippingUpdate) {
-                    const content = this.smsService.interpolate(settings.templateShippingUpdate, {
+                const config = settings.channelsConfig?.ShippingUpdate;
+                if (config?.enabled) {
+                    const order = fulfillment.orders?.[0];
+                    const phone = order?.customer?.phoneNumber;
+                    const email = order?.customer?.emailAddress;
+                    const vars = {
                         status: toState === 'Shipped' ? 'expédiée' : 'livrée',
                         orderCode: order?.code || '',
-                    });
-                    await this.smsService.sendSms(phone, content, settings);
+                    };
+
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(phone, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Mise à jour Livraison', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    }
                 }
             }
         });
@@ -114,7 +139,10 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
     private subscribeToStockEvents() {
         this.eventBus.ofType(StockMovementEvent).subscribe(async (event) => {
             const settings = await this.smsService.getSettings();
-            if (!settings?.brevoApiKey || !settings.enableStockAlertEmail) return;
+            if (!settings?.brevoApiKey || !settings.channelsConfig) return;
+
+            const config = settings.channelsConfig?.StockAlert;
+            if (!config?.enabled) return;
 
             for (const movement of event.stockMovements) {
                 try {
@@ -125,20 +153,12 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     );
                     if (!variant) continue;
 
-                    // Use the stock movement data itself to determine the new stock on hand
                     const storedStockOnHand = (movement as any).stockOnHand ?? 0;
                     const productName = variant.name || (variant as any).product?.name || 'Produit inconnu';
 
-                    if (storedStockOnHand === 0) {
-                        this.logger.warn(
-                            `[StockAlert] Rupture de stock: "${productName}" (variantId: ${variant.id}). Notification vendeur à implémenter.`,
-                        );
-                        // TODO: Look up the seller owning this product and send email/SMS via BrevoSmsService
-                    } else if (storedStockOnHand <= 5 && storedStockOnHand > 0) {
-                        this.logger.warn(
-                            `[StockAlert] Stock bas (${storedStockOnHand}): "${productName}" (variantId: ${variant.id}). Notification vendeur à implémenter.`,
-                        );
-                        // TODO: Look up the seller owning this product and send email/SMS via BrevoSmsService
+                    if (storedStockOnHand === 0 || (storedStockOnHand <= 5 && storedStockOnHand > 0)) {
+                        this.logger.warn(`[StockAlert] Triggered config for "${productName}". Notifications will be routed via vendor lookup in future implementation.`);
+                        // In a full implementation, we lookup the vendor email here and route via SendTransactionalEmail.
                     }
                 } catch (err: any) {
                     this.logger.error(`Error checking stock for movement: ${err.message}`);

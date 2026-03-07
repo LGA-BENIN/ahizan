@@ -11,37 +11,13 @@ export const notificationsAdminApiExtensions = gql`
         id: ID!
         brevoApiKey: String
         defaultPhonePrefix: String!
-        enableOrderConfirmedSms: Boolean!
-        enableNewOrderVendorSms: Boolean!
-        enableVendorApprovedSms: Boolean!
-        enableVendorRegistrationSms: Boolean!
-        enablePaymentFailedSms: Boolean!
-        enableShippingUpdateSms: Boolean!
-        enableStockAlertEmail: Boolean!
-        templateOrderConfirmed: String
-        templateNewOrderVendor: String
-        templateVendorApproved: String
-        templateVendorRegistration: String
-        templatePaymentFailed: String
-        templateShippingUpdate: String
+        channelsConfig: JSON
     }
 
     input UpdateBrevoSettingsInput {
         brevoApiKey: String
         defaultPhonePrefix: String
-        enableOrderConfirmedSms: Boolean
-        enableNewOrderVendorSms: Boolean
-        enableVendorApprovedSms: Boolean
-        enableVendorRegistrationSms: Boolean
-        enablePaymentFailedSms: Boolean
-        enableShippingUpdateSms: Boolean
-        enableStockAlertEmail: Boolean
-        templateOrderConfirmed: String
-        templateNewOrderVendor: String
-        templateVendorApproved: String
-        templateVendorRegistration: String
-        templatePaymentFailed: String
-        templateShippingUpdate: String
+        channelsConfig: JSON
     }
 
     extend type Query {

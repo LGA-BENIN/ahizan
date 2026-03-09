@@ -23,6 +23,27 @@ export class BrevoSettings extends VendureEntity {
     @Column({ default: '+229' })
     defaultPhonePrefix: string;
 
+    @Column({ default: 'smtp' }) // 'smtp' or 'api'
+    emailMethod: string;
+
+    @Column({ nullable: true })
+    smtpHost: string;
+
+    @Column({ nullable: true })
+    smtpPort: number;
+
+    @Column({ nullable: true })
+    smtpUser: string;
+
+    @Column({ nullable: true })
+    smtpPassword: string;
+
+    @Column({ nullable: true })
+    fromEmail: string;
+
+    @Column({ nullable: true })
+    fromName: string;
+
     @Column('simple-json', { nullable: true })
     channelsConfig: any;
 }

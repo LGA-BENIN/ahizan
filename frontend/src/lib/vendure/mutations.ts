@@ -483,3 +483,9 @@ export const UpdateMyVendorProfileMutation = graphql(`
     }
 `);
 
+export const VerifyPasswordResetCodeMutation = graphql(`
+    mutation VerifyPasswordResetCode($email: String!, $code: String!) {
+        verifyPasswordResetCode(email: $email, code: $code)
+    }
+`);
+

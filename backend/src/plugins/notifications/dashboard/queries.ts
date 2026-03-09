@@ -6,6 +6,13 @@ export const GET_BREVO_SETTINGS = gql`
             id
             brevoApiKey
             defaultPhonePrefix
+            emailMethod
+            smtpHost
+            smtpPort
+            smtpUser
+            smtpPassword
+            fromEmail
+            fromName
             channelsConfig
         }
     }
@@ -17,6 +24,13 @@ export const UPDATE_BREVO_SETTINGS = gql`
             id
             brevoApiKey
             defaultPhonePrefix
+            emailMethod
+            smtpHost
+            smtpPort
+            smtpUser
+            smtpPassword
+            fromEmail
+            fromName
             channelsConfig
         }
     }

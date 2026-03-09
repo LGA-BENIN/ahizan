@@ -14,7 +14,9 @@ function getAuthToken(): string | null {
 }
 
 async function fetchGraphQL(query: any, variables?: any) {
-    const apiUrl = '/admin-api';
+    const isDevNode = window.location.port === '5173' || window.location.port === '5174';
+    const apiUrl = isDevNode ? 'http://localhost:3000/admin-api' : '/admin-api';
+
     const token = getAuthToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -23,9 +25,17 @@ async function fetchGraphQL(query: any, variables?: any) {
         method: 'POST',
         headers,
         credentials: 'include',
-        body: JSON.stringify({ query: query.loc.source.body, variables }),
+        body: JSON.stringify({ query: query?.loc?.source?.body || query, variables }),
     });
-    const json = await response.json();
+
+    const text = await response.text();
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch (err) {
+        throw new Error(`Erreur Serveur (HTTP ${response.status}): La réponse n'est pas au format attendu. Détail: ${text.substring(0, 150)}...`);
+    }
+
     if (json.errors) throw new Error(json.errors[0].message);
     return json.data;
 }
@@ -45,6 +55,13 @@ export function NotificationsSettingsComponent() {
     const [formData, setFormData] = useState<any>({
         brevoApiKey: '',
         defaultPhonePrefix: '+229',
+        emailMethod: 'smtp',
+        smtpHost: '',
+        smtpPort: 587,
+        smtpUser: '',
+        smtpPassword: '',
+        fromEmail: '',
+        fromName: '',
         channelsConfig: {
             OrderConfirmed: { ...defaultChannelConfig },
             PaymentFailed: { ...defaultChannelConfig },
@@ -52,6 +69,8 @@ export function NotificationsSettingsComponent() {
             NewOrderVendor: { ...defaultChannelConfig },
             VendorRegistration: { ...defaultChannelConfig },
             VendorApproved: { ...defaultChannelConfig },
+            VendorRejected: { ...defaultChannelConfig },
+            PasswordReset: { ...defaultChannelConfig },
             StockAlert: { ...defaultChannelConfig },
         }
     });
@@ -73,6 +92,13 @@ export function NotificationsSettingsComponent() {
                 ...prev,
                 brevoApiKey: data.brevoSettings.brevoApiKey || '',
                 defaultPhonePrefix: data.brevoSettings.defaultPhonePrefix || '+229',
+                emailMethod: data.brevoSettings.emailMethod || 'smtp',
+                smtpHost: data.brevoSettings.smtpHost || '',
+                smtpPort: data.brevoSettings.smtpPort || 587,
+                smtpUser: data.brevoSettings.smtpUser || '',
+                smtpPassword: data.brevoSettings.smtpPassword || '',
+                fromEmail: data.brevoSettings.fromEmail || '',
+                fromName: data.brevoSettings.fromName || '',
                 channelsConfig: {
                     ...prev.channelsConfig,
                     ...(data.brevoSettings.channelsConfig || {})
@@ -94,6 +120,13 @@ export function NotificationsSettingsComponent() {
         const payload = {
             brevoApiKey: formData.brevoApiKey,
             defaultPhonePrefix: formData.defaultPhonePrefix,
+            emailMethod: formData.emailMethod,
+            smtpHost: formData.smtpHost,
+            smtpPort: parseInt(formData.smtpPort) || 587,
+            smtpUser: formData.smtpUser,
+            smtpPassword: formData.smtpPassword,
+            fromEmail: formData.fromEmail,
+            fromName: formData.fromName,
             channelsConfig: formData.channelsConfig
         };
         updateSettingsMutation.mutate(payload);
@@ -218,6 +251,95 @@ export function NotificationsSettingsComponent() {
             </div>
 
             <div style={cardStyle}>
+                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Configuration E-mail (Envoi)</h2>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={labelStyle}>Méthode d'envoi des E-mails</label>
+                    <select
+                        value={formData.emailMethod}
+                        onChange={e => handleGlobalChange('emailMethod', e.target.value)}
+                        style={{ ...selectStyle, width: '100%', maxWidth: '300px', display: 'block', marginTop: '4px' }}
+                    >
+                        <option value="smtp">Serveur SMTP Externe (Recommandé)</option>
+                        <option value="api">Brevo REST API (Utilise la clé API Globale)</option>
+                    </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '24px', marginBottom: '20px' }}>
+                    <div>
+                        <label style={labelStyle}>Nom d'Expéditeur</label>
+                        <input
+                            type="text"
+                            placeholder="AHIZAN"
+                            value={formData.fromName}
+                            onChange={e => handleGlobalChange('fromName', e.target.value)}
+                            style={inputStyle}
+                        />
+                    </div>
+                    <div>
+                        <label style={labelStyle}>E-mail d'Expéditeur (From)</label>
+                        <input
+                            type="email"
+                            placeholder="noreply@ahizan.com"
+                            value={formData.fromEmail}
+                            onChange={e => handleGlobalChange('fromEmail', e.target.value)}
+                            style={inputStyle}
+                        />
+                    </div>
+                </div>
+
+                {formData.emailMethod === 'smtp' && (
+                    <div style={{ background: '#f3f4f6', padding: '16px', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+                        <h3 style={{ fontSize: '14px', margin: '0 0 16px 0', color: '#374151' }}>Paramètres du Serveur SMTP</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: '16px', marginBottom: '16px' }}>
+                            <div>
+                                <label style={labelStyle}>Hôte SMTP (Host)</label>
+                                <input
+                                    type="text"
+                                    placeholder="smtp-relay.brevo.com"
+                                    value={formData.smtpHost}
+                                    onChange={e => handleGlobalChange('smtpHost', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Port (ex: 587)</label>
+                                <input
+                                    type="number"
+                                    placeholder="587"
+                                    value={formData.smtpPort}
+                                    onChange={e => handleGlobalChange('smtpPort', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+                            <div>
+                                <label style={labelStyle}>Utilisateur SMTP (Login)</label>
+                                <input
+                                    type="text"
+                                    placeholder="votre-email@domaine.com"
+                                    value={formData.smtpUser}
+                                    onChange={e => handleGlobalChange('smtpUser', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                            <div>
+                                <label style={labelStyle}>Mot de passe SMTP</label>
+                                <input
+                                    type="password"
+                                    placeholder="Mot de passe ou Clé SMTP master"
+                                    value={formData.smtpPassword}
+                                    onChange={e => handleGlobalChange('smtpPassword', e.target.value)}
+                                    style={inputStyle}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div style={cardStyle}>
                 <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Acheteurs : Parcours Commande</h2>
                 <EventConfigBlock title="Confirmation de Commande" eventName="OrderConfirmed" variables="{{ orderCode }}, {{ firstName }}" />
                 <EventConfigBlock title="Mise à jour Livraison (Expédiée / Livrée)" eventName="ShippingUpdate" variables="{{ orderCode }}, {{ status }}" />
@@ -228,8 +350,10 @@ export function NotificationsSettingsComponent() {
                 <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Vendeurs : Événements Boutique</h2>
                 <EventConfigBlock title="Nouvelle Commande (Notification de Vente)" eventName="NewOrderVendor" variables="{{ orderCode }}" />
                 <EventConfigBlock title="Inscription Vendeur Reçue" eventName="VendorRegistration" variables="" />
-                <EventConfigBlock title="Boutique Approuvée / Activée" eventName="VendorApproved" variables="" />
+                <EventConfigBlock title="Boutique Approuvée / Activée" eventName="VendorApproved" variables="{{ businessName }}" />
+                <EventConfigBlock title="Boutique Rejetée" eventName="VendorRejected" variables="{{ businessName }}, {{ rejectionReason }}" />
                 <EventConfigBlock title="Alerte de Stock Faible (&lt;5 pièces)" eventName="StockAlert" variables="{{ productName }}, {{ stockOnHand }}" />
+                <EventConfigBlock title="Réinitialisation de Mot de Passe" eventName="PasswordReset" variables="{{ passwordResetToken }}, {{ identifier }}" />
             </div>
 
         </div>

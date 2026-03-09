@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { TransactionalConnection } from '@vendure/core';
 import { BrevoSettings } from './entities/brevo-settings.entity';
+import nodemailer from 'nodemailer';
 
 @Injectable()
 export class BrevoSmsService {
@@ -107,24 +108,46 @@ export class BrevoSmsService {
      * @param settings - Pre-loaded BrevoSettings
      */
     async sendTransactionalEmail(recipientEmail: string, subject: string, htmlContent: string, settings: BrevoSettings): Promise<void> {
-        if (!settings?.brevoApiKey) {
-            this.logger.warn('Brevo API key not configured. Skipping Email send.');
-            return;
+        const method = settings.emailMethod || 'smtp';
+        this.logger.log(`Sending transactional email to ${recipientEmail} using ${method} method (Subject: ${subject})`);
+
+        let fromName = settings.fromName || 'AHIZAN';
+        let fromEmail = settings.fromEmail || 'noreply@ahizan.com';
+
+        // Fallback to ENV if not set in DB
+        if (!settings.fromEmail && process.env.BREVO_FROM_EMAIL) {
+            const match = process.env.BREVO_FROM_EMAIL.match(/"?([^"]*)"?\s*<([^>]+)>/);
+            if (match) {
+                fromName = match[1] || fromName;
+                fromEmail = match[2] || fromEmail;
+            }
         }
 
-        const senderEmail = process.env.BREVO_FROM_EMAIL?.match(/<([^>]+)>/)?.[1] || 'noreply@ahizan.com';
-        const senderName = process.env.BREVO_FROM_EMAIL?.match(/"([^"]+)"/)?.[1] || 'AHIZAN';
+        const fromAddress = `"${fromName}" <${fromEmail}>`;
+
+        if (method === 'api') {
+            await this.sendEmailViaApi(recipientEmail, subject, htmlContent, settings, fromName, fromEmail);
+        } else {
+            await this.sendEmailViaSmtp(recipientEmail, subject, htmlContent, settings, fromAddress);
+        }
+    }
+
+    private async sendEmailViaApi(recipientEmail: string, subject: string, htmlContent: string, settings: BrevoSettings, fromName: string, fromEmail: string) {
+        if (!settings?.brevoApiKey) {
+            this.logger.warn('Brevo API key not configured. Skipping API Email send.');
+            return;
+        }
 
         try {
             const response = await fetch('https://api.brevo.com/v3/smtp/email', {
                 method: 'POST',
                 headers: {
                     'accept': 'application/json',
-                    'api-key': settings.brevoApiKey,
+                    'api-key': settings.brevoApiKey.trim(),
                     'content-type': 'application/json',
                 },
                 body: JSON.stringify({
-                    sender: { name: senderName, email: senderEmail },
+                    sender: { name: fromName, email: fromEmail },
                     to: [{ email: recipientEmail }],
                     subject,
                     htmlContent: `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
@@ -133,12 +156,42 @@ export class BrevoSmsService {
 
             if (!response.ok) {
                 const error = await response.text();
-                this.logger.error(`Failed to send Email to ${recipientEmail}: ${error}`);
+                this.logger.error(`Failed to send Email to ${recipientEmail} via API: ${error}`);
             } else {
-                this.logger.log(`Email sent successfully to ${recipientEmail}`);
+                this.logger.log(`Email sent successfully to ${recipientEmail} via API`);
             }
         } catch (err: any) {
-            this.logger.error(`Error sending Email to ${recipientEmail}: ${err.message}`);
+            this.logger.error(`Error sending Email to ${recipientEmail} via API: ${err.message}`);
+        }
+    }
+
+    private async sendEmailViaSmtp(recipientEmail: string, subject: string, htmlContent: string, settings: BrevoSettings, fromAddress: string) {
+        const host = settings.smtpHost || process.env.BREVO_SMTP_HOST;
+        const port = settings.smtpPort || +(process.env.BREVO_SMTP_PORT || 587);
+        const user = settings.smtpUser || process.env.BREVO_SMTP_USER;
+        const pass = settings.smtpPassword || process.env.BREVO_SMTP_PASSWORD;
+
+        if (!host || !user) {
+            this.logger.warn('SMTP settings not configured. Skipping SMTP Email send.');
+            return;
+        }
+
+        const transporter = nodemailer.createTransport({
+            host,
+            port,
+            auth: { user, pass },
+        });
+
+        try {
+            await transporter.sendMail({
+                from: fromAddress,
+                to: recipientEmail,
+                subject,
+                html: `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
+            });
+            this.logger.log(`Email sent successfully to ${recipientEmail} via SMTP`);
+        } catch (err: any) {
+            this.logger.error(`Error sending Email to ${recipientEmail} via SMTP: ${err.message}`);
         }
     }
 }

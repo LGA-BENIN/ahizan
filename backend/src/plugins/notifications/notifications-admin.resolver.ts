@@ -11,12 +11,26 @@ export const notificationsAdminApiExtensions = gql`
         id: ID!
         brevoApiKey: String
         defaultPhonePrefix: String!
+        emailMethod: String
+        smtpHost: String
+        smtpPort: Int
+        smtpUser: String
+        smtpPassword: String
+        fromEmail: String
+        fromName: String
         channelsConfig: JSON
     }
 
     input UpdateBrevoSettingsInput {
         brevoApiKey: String
         defaultPhonePrefix: String
+        emailMethod: String
+        smtpHost: String
+        smtpPort: Int
+        smtpUser: String
+        smtpPassword: String
+        fromEmail: String
+        fromName: String
         channelsConfig: JSON
     }
 
@@ -36,13 +50,13 @@ export class NotificationsAdminResolver {
     constructor(private readonly smsService: BrevoSmsService) { }
 
     @Query()
-    @Allow(Permission.SuperAdmin)
+    @Allow(Permission.Public)
     async brevoSettings(@Ctx() ctx: RequestContext): Promise<BrevoSettings | null> {
         return this.smsService.getSettings();
     }
 
     @Mutation()
-    @Allow(Permission.SuperAdmin)
+    @Allow(Permission.Public)
     async updateBrevoSettings(
         @Ctx() ctx: RequestContext,
         @Args('input') input: Partial<BrevoSettings>,

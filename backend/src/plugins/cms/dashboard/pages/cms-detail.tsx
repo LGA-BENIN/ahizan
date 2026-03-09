@@ -10,32 +10,43 @@ import {
     DELETE_SECTION
 } from '../queries';
 
-// Helper for fetching GraphQL with Vendure auth token
 function getAuthToken(): string | null {
-    // Vendure dashboard stores the auth token in localStorage
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && (key.includes('vendure-auth-token') || key.includes('authToken') || key.includes('token'))) {
-            const val = localStorage.getItem(key);
+            let val = localStorage.getItem(key);
+            if (val && val.startsWith('"') && val.endsWith('"')) {
+                val = val.slice(1, -1);
+            }
             if (val && !val.startsWith('{')) return val;
         }
     }
     return null;
 }
 
+// Helper for fetching GraphQL
 async function fetchGraphQL(query: any, variables?: any) {
-    const apiUrl = 'http://localhost:3000/admin-api';
+    const apiUrl = '/admin-api';
     const token = getAuthToken();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const response = await fetch(apiUrl, {
         method: 'POST',
-        headers,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         credentials: 'include',
-        body: JSON.stringify({ query: query.loc.source.body, variables }),
+        body: JSON.stringify({ query: query.loc ? query.loc.source.body : query, variables }),
     });
-    const json = await response.json();
+
+    const text = await response.text();
+    let json;
+    try {
+        json = JSON.parse(text);
+    } catch (err) {
+        throw new Error(`Erreur Serveur (HTTP ${response.status}): La réponse n'est pas au format attendu. Détail: ${text.substring(0, 150)}...`);
+    }
+
     if (json.errors) throw new Error(json.errors[0].message);
     return json.data;
 }

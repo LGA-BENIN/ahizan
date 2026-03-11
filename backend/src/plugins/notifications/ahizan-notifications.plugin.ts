@@ -76,5 +76,6 @@ export class NotificationsShopResolver {
         BrevoSmsService,
         NotificationEventSubscriber,
     ],
+    compatibility: '^3.0.0',
 })
 export class AhizanNotificationsPlugin { }

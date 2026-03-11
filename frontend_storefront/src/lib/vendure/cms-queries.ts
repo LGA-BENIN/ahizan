@@ -12,6 +12,9 @@ export const GetPageBySlugQuery = graphql(`
       sections {
         id
         type
+        title
+        description
+        layout
         order
         isActive
         dataJson
@@ -23,6 +26,9 @@ export const GetPageBySlugQuery = graphql(`
 export interface CmsSection {
     id: string;
     type: string;
+    title: string;
+    description: string;
+    layout: string;
     order: number;
     isActive: boolean;
     data?: any; // Parsed dataJson
@@ -37,27 +43,78 @@ export interface CmsPage {
     sections: CmsSection[];
 }
 
-// Spécifique Types for Section Data (to be used in React Components)
+export interface ThemeSettingsData {
+    primaryColor?: string;
+    secondaryColor?: string;
+    backgroundColor?: string;
+    fontFamily?: string;
+    borderRadius?: string;
+    layoutMode?: 'boxed' | 'full';
+    backgroundType?: 'color' | 'image' | 'video';
+    backgroundImageUrl?: string;
+    backgroundVideoUrl?: string;
+}
+
+export interface TopBarData {
+    text?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    showSocials?: boolean;
+    adMediaType?: 'image' | 'video';
+    adMediaUrl?: string;
+    adLink?: string;
+}
+
+export interface HeaderColumn {
+    type: 'text' | 'image';
+    content?: string;
+    imageUrl?: string;
+    link?: string;
+}
+
+export interface HeaderConfData {
+    siteName?: string;
+    logoUrl?: string;
+    sticky?: boolean;
+    layoutType?: 'standard' | 'columns';
+    columnCount?: number;
+    columnsData?: HeaderColumn[];
+    menuItems?: Array<{ label: string; link: string }>;
+}
+
+export interface FooterConfData {
+    about?: string;
+    facebook?: string;
+    whatsapp?: string;
+    links?: Array<{ label: string; link: string }>;
+}
+
 export interface HeroData {
     title?: string;
     subtitle?: string;
     ctaText?: string;
     ctaLink?: string;
     backgroundImage?: string;
+    textAlign?: string;
+    overlayColor?: string;
+    height?: string;
 }
 
 export interface ProductListData {
     collectionSlug?: string;
     title?: string;
+    filterType?: 'LATEST' | 'BEST_SELLERS' | 'COLLECTION';
     take?: number;
+    layout?: 'grid' | 'carousel';
 }
 
 export interface PromoBannerData {
     title: string;
-    description?: string;
-    backgroundColor?: string;
+    subtitle?: string;
+    imageUrl?: string;
+    link?: string;
     ctaText?: string;
-    ctaLink?: string;
+    backgroundColor?: string;
 }
 
 export interface CategoryData {
@@ -69,6 +126,7 @@ export interface CategoryData {
 export interface CategoryGridData {
     title?: string;
     categories: CategoryData[];
+    layout?: 'grid' | 'carousel';
 }
 
 export interface PopupData {
@@ -85,10 +143,13 @@ export interface PopupData {
 export async function getPageContent(slug: string): Promise<CmsPage | null> {
     try {
         const result = await query(GetPageBySlugQuery, { slug }) as any;
+        console.log(`[getPageContent] Raw API result for slug "${slug}":`, result);
 
-        const pageResponse = result.data.page;
+        const pageResponse = result?.data?.page;
+        console.log(`[getPageContent] extracted pageResponse:`, pageResponse);
 
         if (!pageResponse) {
+            console.warn(`[getPageContent] NOT FOUND: Slug "${slug}" returned no page.`);
             return null;
         }
 
@@ -106,6 +167,9 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
                 return {
                     id: section.id,
                     type: section.type,
+                    title: section.title,
+                    description: section.description,
+                    layout: section.layout,
                     order: section.order,
                     isActive: section.isActive,
                     data: parsedData

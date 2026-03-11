@@ -1,7 +1,7 @@
 import { gql } from 'graphql-tag';
 
 export const GET_PAGES = gql`
-    query GetCmsPages($options: PageListOptions) {
+    query GetPages($options: PageListOptions) {
         pages(options: $options) {
             items {
                 id
@@ -9,7 +9,6 @@ export const GET_PAGES = gql`
                 title
                 type
                 isActive
-                createdAt
             }
             totalItems
         }
@@ -17,7 +16,7 @@ export const GET_PAGES = gql`
 `;
 
 export const GET_PAGE = gql`
-    query GetCmsPage($id: ID!) {
+    query GetPage($id: ID!) {
         page(id: $id) {
             id
             slug
@@ -27,6 +26,9 @@ export const GET_PAGE = gql`
             sections {
                 id
                 type
+                title
+                description
+                layout
                 order
                 isActive
                 dataJson
@@ -35,45 +37,94 @@ export const GET_PAGE = gql`
     }
 `;
 
-export const UPDATE_PAGE = gql`
-    mutation UpdateCmsPage($input: UpdatePageInput!) {
-        updatePage(input: $input) {
+export const CREATE_PAGE = gql`
+    mutation CreatePage($input: CreatePageInput!) {
+        createPage(input: $input) {
             id
             slug
             title
-            isActive
         }
     }
 `;
 
-export const CREATE_PAGE = gql`
-    mutation CreateCmsPage($input: CreatePageInput!) {
-        createPage(input: $input) {
+export const UPDATE_PAGE = gql`
+    mutation UpdatePage($input: UpdatePageInput!) {
+        updatePage(input: $input) {
             id
+            slug
+            title
+        }
+    }
+`;
+
+export const DELETE_PAGE = gql`
+    mutation DeletePage($id: ID!) {
+        deletePage(id: $id) {
+            result
         }
     }
 `;
 
 export const CREATE_SECTION = gql`
-    mutation CreateCmsSection($input: CreateSectionInput!) {
+    mutation CreateSection($input: CreateSectionInput!) {
         createSection(input: $input) {
             id
+            type
+            order
         }
     }
 `;
 
 export const UPDATE_SECTION = gql`
-    mutation UpdateCmsSection($input: UpdateSectionInput!) {
+    mutation UpdateSection($input: UpdateSectionInput!) {
         updateSection(input: $input) {
             id
+            type
+            order
         }
     }
 `;
 
 export const DELETE_SECTION = gql`
-    mutation DeleteCmsSection($id: ID!) {
+    mutation DeleteSection($id: ID!) {
         deleteSection(id: $id) {
             result
         }
     }
+`;
+
+export const INITIALIZE_HOME_PAGE = gql`
+    mutation InitializeHomePage($pageId: ID!) {
+        initializeHomePage(pageId: $pageId) {
+            id
+            sections {
+                id
+                type
+                order
+            }
+        }
+    }
+`;
+
+export const CREATE_ASSETS = gql`
+    mutation CreateAssets($input: [CreateAssetInput!]!) {
+        createAssets(input: $input) {
+            ... on Asset {
+                id
+                preview
+                source
+            }
+    }
+  }
+`;
+
+export const CREATE_CMS_ASSET = gql`
+  mutation CreateCmsAsset($file: Upload!) {
+    createCmsAsset(file: $file) {
+      id
+      name
+      preview
+      source
+    }
+  }
 `;

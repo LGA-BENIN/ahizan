@@ -42,14 +42,14 @@ async function debugLogin() {
         identifier: user.identifier,
         verified: user.verified,
         deletedAt: user.deletedAt,
-        roles: user.roles.map(r => r.code),
+        roles: user.roles.map((r: any) => r.code),
     });
 
     // 2. Check Auth Methods
     const authMethods = user.authenticationMethods;
     console.log(`User has ${authMethods.length} authentication methods.`);
 
-    const nativeAuth = authMethods.find(m => m instanceof NativeAuthenticationMethod) as NativeAuthenticationMethod;
+    const nativeAuth = authMethods.find((m: any) => m instanceof NativeAuthenticationMethod) as NativeAuthenticationMethod;
 
     if (!nativeAuth) {
         console.error('ERROR: No NativeAuthenticationMethod found for user!');

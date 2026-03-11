@@ -18,6 +18,7 @@ import { OnApplicationBootstrap } from '@nestjs/common';
 
 @VendurePlugin({
     imports: [PluginCommonModule],
+    compatibility: '^3.0.0',
 })
 export class TaxEnforcementPlugin implements OnApplicationBootstrap {
     constructor(

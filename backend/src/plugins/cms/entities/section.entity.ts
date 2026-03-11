@@ -1,5 +1,5 @@
-import { DeepPartial, VendureEntity } from '@vendure/core';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { VendureEntity, DeepPartial } from '@vendure/core';
+import { Entity, Column, ManyToOne } from 'typeorm';
 import { Page } from './page.entity';
 
 @Entity()
@@ -9,16 +9,25 @@ export class PageSection extends VendureEntity {
     }
 
     @Column()
-    type: string; // HERO, PRODUCT_LIST, etc.
+    type: string;
 
-    @Column({ type: 'int', default: 0 })
+    @Column({ default: '' })
+    title: string;
+
+    @Column({ default: '', type: 'text' })
+    description: string;
+
+    @Column({ default: 'grid' })
+    layout: string;
+
+    @Column({ default: 0 })
     order: number;
 
     @Column({ default: true })
     isActive: boolean;
 
     @Column({ type: 'text', nullable: true })
-    dataJson: string; // Stored as stringified JSON
+    dataJson: string;
 
     @ManyToOne(type => Page, page => page.sections)
     page: Page;

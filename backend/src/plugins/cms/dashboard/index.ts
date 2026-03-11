@@ -1,28 +1,24 @@
 import { defineDashboardExtension } from '@vendure/dashboard';
-import { CmsListComponent } from './pages/cms-list';
-import { CmsDetailComponent } from './pages/cms-detail';
+import { LandingPageBuilder } from './landing-page-builder';
 
 export default defineDashboardExtension({
     id: 'cms',
-    navSections: [
-        {
-            id: 'cms',
-            title: 'Content Management',
-        },
-    ],
     routes: [
         {
-            path: 'cms',
-            component: CmsListComponent,
+            path: 'builder',
+            component: LandingPageBuilder,
             navMenuItem: {
-                id: 'cms-pages',
-                title: 'Gestion CMS',
-                sectionId: 'cms',
+                id: 'cms-builder',
+                title: 'Landing Page Builder',
+                sectionId: 'cms-section',
+                routerLink: ['/extensions', 'cms', 'builder'],
             },
         },
+    ],
+    navSections: [
         {
-            path: 'cms/:id',
-            component: CmsDetailComponent,
+            id: 'cms-section',
+            title: 'Gestion CMS',
         },
     ],
 });

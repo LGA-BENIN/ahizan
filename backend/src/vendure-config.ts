@@ -18,11 +18,11 @@ import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
-import { CmsPlugin } from './plugins/cms/cms.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
 import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifications.plugin';
 import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender';
 import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
+import { CMSPlugin } from './plugins/cms/cms.plugin';
 
 // Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
@@ -137,8 +137,8 @@ export const config: VendureConfig = {
         }),
         MultivendorPlugin,
         TaxEnforcementPlugin,
-        CmsPlugin,
         PageInscriptionPlugin,
         AhizanNotificationsPlugin,
+        CMSPlugin,
     ],
 };

@@ -14,7 +14,7 @@ export async function GlobalPopupProvider() {
         }
 
         // Filter sections to only include active POPUP types and extract their data
-        const activePopups: PopupData[] = window ? [] : popupPage.sections
+        const activePopups: PopupData[] = (popupPage.sections || [])
             .filter(section => section.isActive && section.type === 'POPUP' && section.data)
             .map(section => section.data as PopupData);
 

@@ -4,14 +4,36 @@ import { HeroData } from "@/lib/vendure/cms-queries";
 
 export function HeroSection({
     title = "E-Commerce Starter Template",
-    subtitle = "Powered by Vendure and Next.js",
+    subtitle,
+    description,
     ctaText = "Shop Now",
     ctaLink = "/search",
-    backgroundImage = ""
-}: HeroData) {
+    backgroundImage = "",
+    textAlign = "center",
+    height = "md",
+    overlayColor = "rgba(0,0,0,0.4)"
+}: HeroData & { description?: string, textAlign?: string, height?: string, overlayColor?: string }) {
+    const displaySubtitle = subtitle || description;
+
+    const heightMap: Record<string, string> = {
+        sm: 'py-8 md:py-12 min-h-[20vh]',
+        md: 'py-12 md:py-16 min-h-[40vh]',
+        lg: 'py-16 md:py-24 min-h-[60vh]',
+        full: 'min-h-[70vh] flex items-center',
+        screen: 'min-h-screen flex items-center'
+    };
+    const heightClasses = heightMap[height as string] || heightMap.md;
+
+    const alignmentMap: Record<string, string> = {
+        left: 'text-left items-start',
+        center: 'text-center items-center',
+        right: 'text-right items-end'
+    };
+    const alignmentClasses = alignmentMap[textAlign as string] || alignmentMap.center;
+
     return (
         <section
-            className="relative bg-muted overflow-hidden"
+            className={`relative bg-muted overflow-hidden ${heightClasses}`}
             style={backgroundImage ? {
                 backgroundImage: `url(${backgroundImage})`,
                 backgroundSize: 'cover',
@@ -19,17 +41,19 @@ export function HeroSection({
             } : undefined}
         >
             {backgroundImage && (
-                <div className="absolute inset-0 bg-black/40" />
+                <div className="absolute inset-0" style={{ backgroundColor: overlayColor }} />
             )}
-            <div className={`container mx-auto px-4 py-24 md:py-32 relative z-10`}>
-                <div className="max-w-4xl mx-auto text-center space-y-8">
-                    <h1 className={`text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-2 ${backgroundImage ? 'text-white' : ''}`}>
+            <div className={`container mx-auto px-4 relative z-10`}>
+                <div className={`max-w-4xl mx-auto space-y-8 flex flex-col ${alignmentClasses}`}>
+                    <h1 className={`text-3xl md:text-5xl font-black italic tracking-tighter mb-2 uppercase leading-none ${backgroundImage ? 'text-white' : 'text-foreground'}`}>
                         {title}
                     </h1>
-                    <p className={`text-xl md:text-2xl ${backgroundImage ? 'text-gray-200' : 'text-muted-foreground'} max-w-2xl mx-auto`}>
-                        {subtitle}
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+                    {displaySubtitle && (
+                        <p className={`text-lg md:text-xl font-medium ${backgroundImage ? 'text-gray-200' : 'text-muted-foreground'} max-w-2xl leading-relaxed`}>
+                            {displaySubtitle}
+                        </p>
+                    )}
+                    <div className="flex flex-col sm:flex-row gap-4 pt-4">
                         <Button asChild size="lg" className="min-w-[200px]">
                             <Link href={ctaLink}>
                                 {ctaText}

@@ -21,7 +21,8 @@ export function DynamicPageRenderer({ sections, fallback }: DynamicPageRendererP
     const activeSections = [...sections]
         .filter(section => section.isActive)
         // Les sections pour popup ne sont pas affichées de manière linéaire
-        .filter(section => section.type !== 'POPUP')
+        // Les sections de configuration globale sont gérées au niveau du layout
+        .filter(section => !['POPUP', 'THEME_SETTINGS', 'TOP_BAR', 'HEADER_CONF', 'FOOTER_CONF'].includes(section.type))
         .sort((a, b) => a.order - b.order);
 
     if (activeSections.length === 0) {
@@ -38,10 +39,13 @@ export function DynamicPageRenderer({ sections, fallback }: DynamicPageRendererP
                     return null;
                 }
 
-                // On injecte les données extraites du JSON backend dans les props du composant
+                // On injecte les données extraites du JSON backend ainsi que les champs de base dans les props
                 return (
                     <Component
                         key={section.id}
+                        title={section.title}
+                        description={section.description}
+                        layout={section.layout}
                         {...(section.data || {})}
                     />
                 );

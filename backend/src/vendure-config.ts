@@ -5,6 +5,7 @@ import {
     DefaultSchedulerPlugin,
     DefaultSearchPlugin,
     VendureConfig,
+    LanguageCode,
 } from '@vendure/core';
 import { defaultEmailHandlers, EmailPlugin, FileBasedTemplateLoader } from '@vendure/email-plugin';
 import { AssetServerPlugin } from '@vendure/asset-server-plugin';
@@ -17,15 +18,19 @@ import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
-import { CmsPlugin } from './plugins/cms/cms.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
 import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifications.plugin';
+import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender';
+import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
+import { CMSPlugin } from './plugins/cms/cms.plugin';
 
 // Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
 
 const IS_DEV = process.env.APP_ENV === 'dev';
 const serverPort = +process.env.PORT || 3000;
+
+export const emailSenderNode = new DynamicEmailSender();
 
 export const config: VendureConfig = {
     apiOptions: {
@@ -65,6 +70,8 @@ export const config: VendureConfig = {
     authOptions: {
         tokenMethod: ['bearer', 'cookie'],
         requireVerification: false, // Disable email verification globally for MVP
+        verificationTokenStrategy: new ShortCodeVerificationTokenStrategy(),
+        verificationTokenDuration: '15m', // Codes expire after 15 minutes
         superadminCredentials: {
             identifier: process.env.SUPERADMIN_USERNAME,
             password: process.env.SUPERADMIN_PASSWORD,
@@ -93,7 +100,11 @@ export const config: VendureConfig = {
     },
     // When adding or altering custom field definitions, the database will
     // need to be updated. See the "Migrations" section in README.md.
-    customFields: {},
+    customFields: {
+        User: [
+            { name: 'passwordResetCodeExpiresAt', type: 'datetime', public: false, label: [{ languageCode: LanguageCode.fr, value: 'Expiration du code de réinitialisation' }] },
+        ],
+    },
     plugins: [
         GraphiqlPlugin.init(),
         AssetServerPlugin.init({
@@ -107,52 +118,27 @@ export const config: VendureConfig = {
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
         DefaultSearchPlugin.init({ bufferUpdates: false, indexStockStatus: true }),
-        ...(IS_DEV
-            ? [
-                EmailPlugin.init({
-                    devMode: true,
-                    outputPath: path.join(__dirname, '../static/email/test-emails'),
-                    route: 'mailbox',
-                    handlers: defaultEmailHandlers,
-                    templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
-                    globalTemplateVars: {
-                        fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
-                        verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify`,
-                        passwordResetUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/password-reset`,
-                        changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify-email-address-change`,
-                    },
-                }),
-            ]
-            : [
-                EmailPlugin.init({
-                    handlers: defaultEmailHandlers,
-                    templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
-                    globalTemplateVars: {
-                        fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
-                        verifyEmailAddressUrl: `${process.env.STOREFRONT_URL}/verify`,
-                        passwordResetUrl: `${process.env.STOREFRONT_URL}/password-reset`,
-                        changeEmailAddressUrl: `${process.env.STOREFRONT_URL}/verify-email-address-change`,
-                    },
-                    transport: {
-                        type: 'smtp' as const,
-                        host: process.env.BREVO_SMTP_HOST || 'smtp-relay.brevo.com',
-                        port: +(process.env.BREVO_SMTP_PORT || 587),
-                        auth: {
-                            user: process.env.BREVO_SMTP_USER,
-                            pass: process.env.BREVO_SMTP_PASSWORD,
-                        },
-                    },
-                }),
-            ]
-        ),
+        EmailPlugin.init({
+            transport: { type: 'none' }, // Satisfy Vendure checking, we provide our own sender:
+            emailSender: emailSenderNode,
+            route: 'mailbox',
+            handlers: defaultEmailHandlers.filter(h => h.type !== 'password-reset'),
+            templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
+            globalTemplateVars: {
+                fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
+                verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify`,
+                passwordResetUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/password-reset`,
+                changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify-email-address-change`,
+            },
+        } as any),
         DashboardPlugin.init({
             route: 'admin',
             appDir: path.join(__dirname, '../dist/dashboard'),
         }),
         MultivendorPlugin,
         TaxEnforcementPlugin,
-        CmsPlugin,
         PageInscriptionPlugin,
         AhizanNotificationsPlugin,
+        CMSPlugin,
     ],
 };

@@ -18,6 +18,7 @@ import { RegistrationFieldAdminResolver, RegistrationFieldShopResolver } from '.
         resolvers: [RegistrationFieldShopResolver],
     },
     dashboard: './dashboard',
+    compatibility: '^3.0.0',
 })
 export class PageInscriptionPlugin {
     constructor() {

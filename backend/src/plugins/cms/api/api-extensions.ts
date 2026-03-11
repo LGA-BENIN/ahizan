@@ -1,6 +1,19 @@
 import { gql } from 'graphql-tag';
 
-const commonExtensions = gql`
+export const commonApiExtensions = gql`
+    type PageSection implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        type: String!
+        title: String!
+        description: String!
+        layout: String!
+        order: Int!
+        isActive: Boolean!
+        dataJson: String
+    }
+
     type Page implements Node {
         id: ID!
         createdAt: DateTime!
@@ -12,15 +25,34 @@ const commonExtensions = gql`
         sections: [PageSection!]!
     }
 
-    type PageSection implements Node {
-        id: ID!
-        createdAt: DateTime!
-        updatedAt: DateTime!
-        type: String!
-        order: Int!
-        isActive: Boolean!
-        dataJson: String
+    type PageList implements PaginatedList {
+        items: [Page!]!
+        totalItems: Int!
     }
+
+    input PageListOptions {
+        skip: Int
+        take: Int
+        sort: PageSort
+        filter: PageFilter
+    }
+
+    input PageSort {
+        id: SortOrder
+        createdAt: SortOrder
+        updatedAt: SortOrder
+        slug: SortOrder
+        title: SortOrder
+    }
+
+    input PageFilter {
+        slug: StringOperators
+        title: StringOperators
+    }
+`;
+
+export const adminApiExtensions = gql`
+    ${commonApiExtensions}
 
     input CreatePageInput {
         slug: String!
@@ -40,6 +72,9 @@ const commonExtensions = gql`
     input CreateSectionInput {
         pageId: ID!
         type: String!
+        title: String
+        description: String
+        layout: String
         order: Int
         isActive: Boolean
         dataJson: String
@@ -48,14 +83,13 @@ const commonExtensions = gql`
     input UpdateSectionInput {
         id: ID!
         type: String
+        title: String
+        description: String
+        layout: String
         order: Int
         isActive: Boolean
         dataJson: String
     }
-`;
-
-export const adminApiExtensions = gql`
-    ${commonExtensions}
 
     extend type Query {
         pages(options: PageListOptions): PageList!
@@ -66,37 +100,16 @@ export const adminApiExtensions = gql`
         createPage(input: CreatePageInput!): Page!
         updatePage(input: UpdatePageInput!): Page!
         deletePage(id: ID!): DeletionResponse!
-        
         createSection(input: CreateSectionInput!): PageSection!
         updateSection(input: UpdateSectionInput!): PageSection!
         deleteSection(id: ID!): DeletionResponse!
-    }
-
-    input PageListOptions {
-        skip: Int
-        take: Int
-        sort: PageSort
-        filter: PageFilter
-    }
-
-    input PageSort {
-        createdAt: SortOrder
-        slug: SortOrder
-    }
-
-    input PageFilter {
-        slug: StringOperators
-        title: StringOperators
-    }
-
-    type PageList implements PaginatedList {
-        items: [Page!]!
-        totalItems: Int!
+        initializeHomePage(pageId: ID!): Page
+        createCmsAsset(file: Upload!): Asset!
     }
 `;
 
 export const shopApiExtensions = gql`
-    ${commonExtensions}
+    ${commonApiExtensions}
 
     extend type Query {
         page(slug: String!): Page

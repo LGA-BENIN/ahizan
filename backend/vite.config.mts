@@ -8,6 +8,25 @@ export default defineConfig({
     build: {
         outDir: join(__dirname, 'dist/dashboard'),
     },
+    server: {
+        proxy: {
+            '/admin-api': {
+                target: 'http://127.0.0.1:3000',
+                changeOrigin: true,
+            },
+            '/shop-api': {
+                target: 'http://127.0.0.1:3000',
+                changeOrigin: true,
+            },
+            '/assets': {
+                target: 'http://127.0.0.1:3000',
+                changeOrigin: true,
+            },
+        },
+        fs: {
+            allow: ['..'],
+        },
+    },
     plugins: [
         vendureDashboardPlugin({
             // The vendureDashboardPlugin will scan your configuration in order

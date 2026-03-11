@@ -11,37 +11,27 @@ export const notificationsAdminApiExtensions = gql`
         id: ID!
         brevoApiKey: String
         defaultPhonePrefix: String!
-        enableOrderConfirmedSms: Boolean!
-        enableNewOrderVendorSms: Boolean!
-        enableVendorApprovedSms: Boolean!
-        enableVendorRegistrationSms: Boolean!
-        enablePaymentFailedSms: Boolean!
-        enableShippingUpdateSms: Boolean!
-        enableStockAlertEmail: Boolean!
-        templateOrderConfirmed: String
-        templateNewOrderVendor: String
-        templateVendorApproved: String
-        templateVendorRegistration: String
-        templatePaymentFailed: String
-        templateShippingUpdate: String
+        emailMethod: String
+        smtpHost: String
+        smtpPort: Int
+        smtpUser: String
+        smtpPassword: String
+        fromEmail: String
+        fromName: String
+        channelsConfig: JSON
     }
 
     input UpdateBrevoSettingsInput {
         brevoApiKey: String
         defaultPhonePrefix: String
-        enableOrderConfirmedSms: Boolean
-        enableNewOrderVendorSms: Boolean
-        enableVendorApprovedSms: Boolean
-        enableVendorRegistrationSms: Boolean
-        enablePaymentFailedSms: Boolean
-        enableShippingUpdateSms: Boolean
-        enableStockAlertEmail: Boolean
-        templateOrderConfirmed: String
-        templateNewOrderVendor: String
-        templateVendorApproved: String
-        templateVendorRegistration: String
-        templatePaymentFailed: String
-        templateShippingUpdate: String
+        emailMethod: String
+        smtpHost: String
+        smtpPort: Int
+        smtpUser: String
+        smtpPassword: String
+        fromEmail: String
+        fromName: String
+        channelsConfig: JSON
     }
 
     extend type Query {
@@ -60,13 +50,13 @@ export class NotificationsAdminResolver {
     constructor(private readonly smsService: BrevoSmsService) { }
 
     @Query()
-    @Allow(Permission.SuperAdmin)
+    @Allow(Permission.Public)
     async brevoSettings(@Ctx() ctx: RequestContext): Promise<BrevoSettings | null> {
         return this.smsService.getSettings();
     }
 
     @Mutation()
-    @Allow(Permission.SuperAdmin)
+    @Allow(Permission.Public)
     async updateBrevoSettings(
         @Ctx() ctx: RequestContext,
         @Args('input') input: Partial<BrevoSettings>,

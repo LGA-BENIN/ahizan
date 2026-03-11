@@ -1,5 +1,5 @@
-import { DeepPartial, VendureEntity } from '@vendure/core';
-import { Column, Entity, OneToMany } from 'typeorm';
+import { VendureEntity, DeepPartial } from '@vendure/core';
+import { Entity, Column, OneToMany } from 'typeorm';
 import { PageSection } from './section.entity';
 
 @Entity()
@@ -14,12 +14,12 @@ export class Page extends VendureEntity {
     @Column()
     title: string;
 
-    @Column({ default: 'CUSTOM' })
-    type: string; // HOME, CATEGORY, CUSTOM, etc.
+    @Column({ default: 'HOME' })
+    type: string;
 
     @Column({ default: true })
     isActive: boolean;
 
-    @OneToMany(type => PageSection, section => section.page, { cascade: true })
+    @OneToMany(type => PageSection, section => section.page)
     sections: PageSection[];
 }

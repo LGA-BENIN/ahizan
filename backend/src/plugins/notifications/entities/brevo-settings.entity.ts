@@ -23,44 +23,27 @@ export class BrevoSettings extends VendureEntity {
     @Column({ default: '+229' })
     defaultPhonePrefix: string;
 
-    // --- Toggles for each notification type ---
-    @Column({ default: true })
-    enableOrderConfirmedSms: boolean;
-
-    @Column({ default: true })
-    enableNewOrderVendorSms: boolean;
-
-    @Column({ default: true })
-    enableVendorApprovedSms: boolean;
-
-    @Column({ default: true })
-    enableVendorRegistrationSms: boolean;
-
-    @Column({ default: false })
-    enablePaymentFailedSms: boolean;
-
-    @Column({ default: true })
-    enableShippingUpdateSms: boolean;
-
-    @Column({ default: true })
-    enableStockAlertEmail: boolean;
-
-    // --- SMS Templates (use {{ variable }} for dynamic content) ---
-    @Column({ nullable: true })
-    templateOrderConfirmed: string;
+    @Column({ default: 'smtp' }) // 'smtp' or 'api'
+    emailMethod: string;
 
     @Column({ nullable: true })
-    templateNewOrderVendor: string;
+    smtpHost: string;
 
     @Column({ nullable: true })
-    templateVendorApproved: string;
+    smtpPort: number;
 
     @Column({ nullable: true })
-    templateVendorRegistration: string;
+    smtpUser: string;
 
     @Column({ nullable: true })
-    templatePaymentFailed: string;
+    smtpPassword: string;
 
     @Column({ nullable: true })
-    templateShippingUpdate: string;
+    fromEmail: string;
+
+    @Column({ nullable: true })
+    fromName: string;
+
+    @Column('simple-json', { nullable: true })
+    channelsConfig: any;
 }

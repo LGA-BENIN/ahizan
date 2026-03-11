@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:server": "nodemon --watch \"src/**/*.ts\" --exec \"ts-node\" src/index.ts",
+    "dev:server": "nodemon --watch \"src/**/*.ts\" --exec \"ts-node --transpileOnly\" src/index.ts",
     "dev:worker": "ts-node --transpileOnly ./src/index-worker.ts",
     "dev:dashboard": "vite --clearScreen false",
     "dev": "concurrently --kill-others npm:dev:*",

@@ -311,6 +311,8 @@ export class VendorService implements OnApplicationBootstrap {
             throw new Error(`Vendor with id ${id} not found`);
         }
 
+        const oldStatus = vendor.status;
+
         // Logic for Rejection Reason
         if (input.status === VendorStatus.REJECTED && input.rejectionReason) {
             vendor.rejectionReason = input.rejectionReason;
@@ -338,7 +340,7 @@ export class VendorService implements OnApplicationBootstrap {
         this.eventBus.publish(new VendorEvent(ctx, savedVendor, 'updated', input));
 
         // Handle status change
-        if (input.status && input.status !== vendor.status) {
+        if (input.status && input.status !== oldStatus) {
             this.eventBus.publish(new VendorEvent(ctx, savedVendor, 'statusChanged', input));
 
             // Automatically assign Vendor role when approved

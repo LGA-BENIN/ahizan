@@ -1,4 +1,4 @@
-import {NextConfig} from 'next';
+import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
     cacheComponents: true,
@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
             },
             {
                 hostname: 'localhost'
+            },
+            {
+                hostname: 'images.unsplash.com'
             }
         ],
     },

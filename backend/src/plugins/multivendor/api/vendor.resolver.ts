@@ -186,4 +186,38 @@ export class VendorAdminResolver {
     ): Promise<Vendor> {
         return this.vendorService.update(ctx, id, input);
     }
+
+    // ---- Wallet Mutations ----
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async creditVendorWallet(
+        @Ctx() ctx: RequestContext,
+        @Args('vendorId') vendorId: string,
+        @Args('amount') amount: number,
+        @Args('note') _note?: string
+    ): Promise<Vendor> {
+        return this.vendorService.creditWallet(ctx, vendorId, amount);
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async debitVendorWallet(
+        @Ctx() ctx: RequestContext,
+        @Args('vendorId') vendorId: string,
+        @Args('amount') amount: number,
+        @Args('note') _note?: string
+    ): Promise<Vendor> {
+        return this.vendorService.debitWallet(ctx, vendorId, amount);
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async setVendorAllowNegativeBalance(
+        @Ctx() ctx: RequestContext,
+        @Args('vendorId') vendorId: string,
+        @Args('allow') allow: boolean
+    ): Promise<Vendor> {
+        return this.vendorService.setAllowNegativeBalance(ctx, vendorId, allow);
+    }
 }

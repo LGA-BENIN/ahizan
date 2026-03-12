@@ -36,6 +36,10 @@ export const commonApiExtensions = `
         instagram: String
 
         dynamicDetails: JSON
+
+        # Wallet
+        walletBalance: Int
+        allowNegativeBalance: Boolean
     }
 
     input CreateVendorInput {
@@ -208,7 +212,12 @@ export const adminApiExtensions = `
         updateVendor(id: ID!, input: UpdateVendorInput!): Vendor!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
-        
+
+        # Wallet Management (Super-Admin only)
+        creditVendorWallet(vendorId: ID!, amount: Int!, note: String): Vendor!
+        debitVendorWallet(vendorId: ID!, amount: Int!, note: String): Vendor!
+        setVendorAllowNegativeBalance(vendorId: ID!, allow: Boolean!): Vendor!
+
         # Product Management (Required by VendorShopResolver)
         createMyProduct(input: CreateVendorProductInput!): Product!
         updateMyProduct(id: ID!, input: UpdateVendorProductInput!): Product!

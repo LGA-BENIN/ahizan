@@ -1,5 +1,4 @@
 import {
-    dummyPaymentHandler,
     defaultShippingCalculator,
     DefaultJobQueuePlugin,
     DefaultSchedulerPlugin,
@@ -96,7 +95,7 @@ export const config: VendureConfig = {
         shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator],
     },
     paymentOptions: {
-        paymentMethodHandlers: [dummyPaymentHandler, cashOnDeliveryHandler],
+        paymentMethodHandlers: [cashOnDeliveryHandler],
     },
     // When adding or altering custom field definitions, the database will
     // need to be updated. See the "Migrations" section in README.md.

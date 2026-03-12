@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 interface FlexGridItem {
     title: string;
@@ -29,7 +30,7 @@ export function FlexGrid({
         return (
             <div 
                 key={idx} 
-                className={`flex gap-6 p-6 rounded-[2.5rem] bg-white/40 backdrop-blur-xl border border-white/60 shadow-sm hover:shadow-xl transition-all duration-500 group ${
+                className={`flex gap-6 p-6 rounded-[2.5rem] bg-white/40 backdrop-blur-xl border border-white/60 shadow-sm hover:shadow-xl transition-all duration-500 group relative ${
                     isColumn ? 'flex-col items-center text-center' : 'flex-col sm:flex-row items-center sm:items-start'
                 } ${isRight ? 'sm:flex-row-reverse text-right' : 'text-left'}`}
             >
@@ -52,6 +53,7 @@ export function FlexGrid({
                              <div className="inline-block px-6 py-2 bg-primary text-white font-black uppercase italic text-xs tracking-widest rounded-full">En savoir plus</div>
                         </div>
                     )}
+                    {item.link && <Link href={item.link} className="absolute inset-0 z-10" />}
                 </div>
             </div>
         );

@@ -11,6 +11,8 @@ export const GET_VENDORS = gql`
                 status
                 zone
                 rating
+                walletBalance
+                allowNegativeBalance
             }
             totalItems
         }
@@ -37,6 +39,8 @@ export const GET_VENDOR_DETAIL = gql`
             ratingCount
             type
             verificationStatus
+            walletBalance
+            allowNegativeBalance
             logo {
                 id
                 preview
@@ -104,6 +108,33 @@ export const GET_PRODUCTS = gql`
                 }
             }
             totalItems
+        }
+    }
+`;
+
+export const CREDIT_VENDOR_WALLET = gql`
+    mutation CreditVendorWallet($vendorId: ID!, $amount: Int!, $note: String) {
+        creditVendorWallet(vendorId: $vendorId, amount: $amount, note: $note) {
+            id
+            walletBalance
+        }
+    }
+`;
+
+export const DEBIT_VENDOR_WALLET = gql`
+    mutation DebitVendorWallet($vendorId: ID!, $amount: Int!, $note: String) {
+        debitVendorWallet(vendorId: $vendorId, amount: $amount, note: $note) {
+            id
+            walletBalance
+        }
+    }
+`;
+
+export const SET_VENDOR_ALLOW_NEGATIVE_BALANCE = gql`
+    mutation SetVendorAllowNegativeBalance($vendorId: ID!, $allow: Boolean!) {
+        setVendorAllowNegativeBalance(vendorId: $vendorId, allow: $allow) {
+            id
+            allowNegativeBalance
         }
     }
 `;

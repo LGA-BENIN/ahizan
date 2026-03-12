@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_VENDORS, GET_VENDOR_DETAIL, UPDATE_VENDOR_STATUS, UPDATE_VENDOR } from './queries';
+import { GET_VENDORS, GET_VENDOR_DETAIL, UPDATE_VENDOR_STATUS, UPDATE_VENDOR, CREDIT_VENDOR_WALLET, DEBIT_VENDOR_WALLET, SET_VENDOR_ALLOW_NEGATIVE_BALANCE } from './queries';
 
 // --- Types & Interfaces ---
 interface Toast {
@@ -68,6 +68,8 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[], removeToast:
 function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: boolean; onClose: () => void; vendorId: string | null; addToast: (msg: string, type: 'success' | 'error') => void }) {
     const queryClient = useQueryClient();
     const [commissionRate, setCommissionRate] = useState<string>('');
+    const [walletAmount, setWalletAmount] = useState<string>('');
+    const [walletNote, setWalletNote] = useState<string>('');
 
     const { data, isLoading } = useQuery({
         queryKey: ['vendor', vendorId],
@@ -99,6 +101,40 @@ function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: bo
             addToast('Commission rate saved successfully', 'success');
         },
         onError: () => addToast('Failed to save commission', 'error')
+    });
+
+    const creditWalletMutation = useMutation({
+        mutationFn: ({ amount, note }: { amount: number; note: string }) => fetchGraphQL(CREDIT_VENDOR_WALLET, { vendorId, amount, note }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendorId] });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            setWalletAmount('');
+            setWalletNote('');
+            addToast('Wallet credited successfully', 'success');
+        },
+        onError: () => addToast('Failed to credit wallet', 'error')
+    });
+
+    const debitWalletMutation = useMutation({
+        mutationFn: ({ amount, note }: { amount: number; note: string }) => fetchGraphQL(DEBIT_VENDOR_WALLET, { vendorId, amount, note }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendorId] });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            setWalletAmount('');
+            setWalletNote('');
+            addToast('Wallet debited successfully', 'success');
+        },
+        onError: () => addToast('Failed to debit wallet', 'error')
+    });
+
+    const toggleOverdraftMutation = useMutation({
+        mutationFn: (allow: boolean) => fetchGraphQL(SET_VENDOR_ALLOW_NEGATIVE_BALANCE, { vendorId, allow }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendorId] });
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            addToast('Overdraft setting updated', 'success');
+        },
+        onError: () => addToast('Failed to update overdraft setting', 'error')
     });
 
     if (!isOpen) return null;
@@ -166,6 +202,48 @@ function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: bo
                                                 updateVendorMutation.mutate({ commissionRate: rate });
                                             }} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Save</button>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Wallet Management */}
+                            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <h3 style={{ margin: 0, fontSize: '16px' }}>💰 Wallet Management</h3>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: (vendor.walletBalance || 0) < 0 ? '#dc2626' : '#16a34a' }}>
+                                            {(vendor.walletBalance || 0).toLocaleString()} FCFA
+                                        </div>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={!!vendor.allowNegativeBalance} 
+                                                onChange={(e) => toggleOverdraftMutation.mutate(e.target.checked)}
+                                            />
+                                            Allow Overdraft
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#64748b' }}>Amount</label>
+                                        <input type="number" placeholder="0" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', width: '120px' }} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#64748b' }}>Note (Optional)</label>
+                                        <input type="text" placeholder="Reason for transaction" value={walletNote} onChange={e => setWalletNote(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', width: '100%' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button onClick={() => {
+                                            const amt = parseInt(walletAmount);
+                                            if (isNaN(amt) || amt <= 0) return addToast('Invalid amount', 'error');
+                                            creditWalletMutation.mutate({ amount: amt, note: walletNote });
+                                        }} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>+ Credit</button>
+                                        <button onClick={() => {
+                                            const amt = parseInt(walletAmount);
+                                            if (isNaN(amt) || amt <= 0) return addToast('Invalid amount', 'error');
+                                            debitWalletMutation.mutate({ amount: amt, note: walletNote });
+                                        }} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>- Debit</button>
                                     </div>
                                 </div>
                             </div>
@@ -338,6 +416,13 @@ export function VendorListComponent() {
                                 <div style={{ fontSize: '14px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                     <div>📍 {vendor.zone || 'No Zone'}</div>
                                     <div>⭐ {vendor.rating} Rating</div>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <span>💰 Wallet:</span>
+                                        <span style={{ fontWeight: 600, color: (vendor.walletBalance || 0) < 0 ? '#dc2626' : '#16a34a' }}>
+                                            {(vendor.walletBalance || 0).toLocaleString()} FCFA
+                                        </span>
+                                        {vendor.allowNegativeBalance && <span style={{ fontSize: '10px', background: '#e0e7ff', color: '#3730a3', padding: '2px 4px', borderRadius: '4px' }}>Overdraft OK</span>}
+                                    </div>
                                     <div>📅 Joined {new Date(vendor.createdAt).toLocaleDateString()}</div>
                                 </div>
                             </div>

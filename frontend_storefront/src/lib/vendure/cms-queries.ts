@@ -142,7 +142,11 @@ export interface PopupData {
  */
 export async function getPageContent(slug: string): Promise<CmsPage | null> {
     try {
-        const result = await query(GetPageBySlugQuery, { slug }) as any;
+        const result = await query(
+            GetPageBySlugQuery, 
+            { slug }, 
+            { fetch: { next: { revalidate: 60 } } }
+        ) as any;
         console.log(`[getPageContent] Raw API result for slug "${slug}":`, result);
 
         const pageResponse = result?.data?.page;

@@ -24,7 +24,14 @@ export async function getAvailableCountriesCached() {
     cacheTag('countries');
 
     const result = await query(GetAvailableCountriesQuery);
-    return result.data.availableCountries || [];
+    const countries = result.data.availableCountries || [];
+    
+    // Fallback for Benin if the list is empty or doesn't contain it
+    if (countries.length === 0) {
+        return [{ code: 'BJ', name: 'Bénin' }];
+    }
+    
+    return countries;
 }
 
 /**

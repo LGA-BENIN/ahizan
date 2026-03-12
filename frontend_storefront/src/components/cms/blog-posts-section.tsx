@@ -44,27 +44,43 @@ export function BlogPostsSection({
             </div>
 
             <div className={`grid gap-10 ${layout === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'}`}>
-                {displayPosts.map((post, idx) => (
-                    <article key={post.id || idx} className="group cursor-pointer">
-                        <div className="relative aspect-[16/10] rounded-[2rem] overflow-hidden mb-6 shadow-lg border border-muted">
-                            <img
-                                src={post.imageUrl}
-                                alt={post.title}
-                                className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700"
-                            />
-                            <div className="absolute top-6 left-6 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest text-primary shadow-xl">
-                                {post.date}
+                {displayPosts.map((post, idx) => {
+                    const href = post.link || (post.slug ? `/product/${post.slug}` : undefined);
+                    const Content = (
+                        <article key={post.id || idx} className="group cursor-pointer relative bg-white rounded-[2rem] p-4 h-full border border-transparent hover:border-primary/20 transition-all">
+                            <div className="relative aspect-[16/10] rounded-[1.5rem] overflow-hidden mb-6 shadow-md">
+                                <img
+                                    src={post.imageUrl || '/placeholder.png'}
+                                    alt={post.title}
+                                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700"
+                                />
+                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-primary shadow-lg z-20">
+                                    {post.date}
+                                </div>
                             </div>
+                            <h3 className="text-lg font-black mb-3 group-hover:text-primary transition-colors leading-tight line-clamp-2">
+                                {post.title}
+                            </h3>
+                            <p className="text-muted-foreground text-sm line-clamp-3 leading-relaxed font-medium opacity-80">
+                                {post.excerpt}
+                            </p>
+                        </article>
+                    );
+
+                    if (href) {
+                        return (
+                            <Link key={post.id || idx} href={href} className="block no-underline">
+                                {Content}
+                            </Link>
+                        );
+                    }
+
+                    return (
+                        <div key={post.id || idx} className="opacity-50 grayscale cursor-not-allowed">
+                            {Content}
                         </div>
-                        <h3 className="text-xl font-black mb-3 group-hover:text-primary transition-colors leading-tight">
-                            {post.title}
-                        </h3>
-                        <p className="text-muted-foreground text-sm line-clamp-2 leading-relaxed font-medium">
-                            {post.excerpt}
-                        </p>
-                        <Link href={post.link || `/blog/${post.slug}`} className="absolute inset-0 z-10" />
-                    </article>
-                ))}
+                    );
+                })}
             </div>
         </section>
     );

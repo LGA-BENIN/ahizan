@@ -78,7 +78,11 @@ export async function FeaturedProducts({
             {layout === 'grid' ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {products.map((product: any) => (
-                        <div key={product.id} className="group relative bg-white rounded-2xl p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden">
+                        <Link 
+                            key={product.id} 
+                            href={`/product/${product.slug}`}
+                            className="group relative bg-white rounded-2xl p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit"
+                        >
                             <div className="aspect-square relative mb-4 overflow-hidden rounded-xl bg-muted">
                                 <img
                                     src={product.productAsset?.preview || '/placeholder.png'}
@@ -87,13 +91,12 @@ export async function FeaturedProducts({
                                 />
                             </div>
                             <h3 className="font-bold text-sm md:text-base mb-1 truncate">{product.productName}</h3>
-                            <p className="text-primary font-black">
+                            <p className="text-primary font-black mt-auto">
                                 {product.priceWithTax?.__typename === 'SinglePrice' 
                                     ? (product.priceWithTax.value / 100) 
                                     : (product.priceWithTax?.min / 100)} {product.currencyCode}
                             </p>
-                            <Link href={`/product/${product.slug}`} className="absolute inset-0 z-10" />
-                        </div>
+                        </Link>
                     ))}
                 </div>
             ) : (

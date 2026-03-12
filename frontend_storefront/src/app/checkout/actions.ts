@@ -107,23 +107,13 @@ export async function placeOrder(paymentMethodCode: string) {
     // First, transition the order to ArrangingPayment state
     await transitionToArrangingPayment();
 
-    // Prepare metadata based on payment method
-    const metadata: Record<string, unknown> = {};
-
-    // For standard payment, include the required fields
-    if (paymentMethodCode === 'standard-payment') {
-        metadata.shouldDecline = false;
-        metadata.shouldError = false;
-        metadata.shouldErrorOnSettle = false;
-    }
-
-    // Add payment to the order
+    // Add payment to the order (cash-on-delivery requires no special metadata)
     const result = await mutate(
         AddPaymentToOrderMutation,
         {
             input: {
                 method: paymentMethodCode,
-                metadata,
+                metadata: {},
             },
         },
         { useAuthToken: true }

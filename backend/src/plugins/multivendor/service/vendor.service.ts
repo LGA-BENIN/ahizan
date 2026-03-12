@@ -384,6 +384,53 @@ export class VendorService implements OnApplicationBootstrap {
         return true;
     }
 
+    // -----------------------------------------------
+    // WALLET MANAGEMENT
+    // -----------------------------------------------
+
+    /**
+     * Credit (add funds) to a vendor's wallet.
+     * Called by Super-Admin after receiving real payment (Mobile Money, bank transfer, etc.)
+     */
+    async creditWallet(ctx: RequestContext, vendorId: string, amount: number): Promise<Vendor> {
+        const vendor = await this.findOne(ctx, vendorId);
+        if (!vendor) throw new Error(`Vendor ${vendorId} not found`);
+        vendor.walletBalance = (vendor.walletBalance || 0) + amount;
+        return this.connection.getRepository(ctx, Vendor).save(vendor);
+    }
+
+    /**
+     * Debit (remove funds) from a vendor's wallet.
+     * Called internally when a commission is due, or manually by Super-Admin.
+     */
+    async debitWallet(ctx: RequestContext, vendorId: string, amount: number): Promise<Vendor> {
+        const vendor = await this.findOne(ctx, vendorId);
+        if (!vendor) throw new Error(`Vendor ${vendorId} not found`);
+        vendor.walletBalance = (vendor.walletBalance || 0) - amount;
+        return this.connection.getRepository(ctx, Vendor).save(vendor);
+    }
+
+    /**
+     * Toggle whether a vendor is allowed to have a negative wallet balance (i.e. still accept orders).
+     */
+    async setAllowNegativeBalance(ctx: RequestContext, vendorId: string, allow: boolean): Promise<Vendor> {
+        const vendor = await this.findOne(ctx, vendorId);
+        if (!vendor) throw new Error(`Vendor ${vendorId} not found`);
+        vendor.allowNegativeBalance = allow;
+        return this.connection.getRepository(ctx, Vendor).save(vendor);
+    }
+
+    /**
+     * Check if a vendor can accept a new order given a commission amount.
+     * Returns true if:
+     *   - allowNegativeBalance is enabled (no restriction), OR
+     *   - walletBalance >= commission amount
+     */
+    canAcceptOrder(vendor: Vendor, commissionAmount: number): boolean {
+        if (vendor.allowNegativeBalance) return true;
+        return (vendor.walletBalance || 0) >= commissionAmount;
+    }
+
     async setOrderVendor(ctx: RequestContext, orderId: string, vendorId: string) {
         await this.connection.getRepository(ctx, Order).update(orderId, {
             customFields: {

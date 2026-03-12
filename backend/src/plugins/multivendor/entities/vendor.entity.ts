@@ -111,4 +111,12 @@ export class Vendor extends VendureEntity {
 
     @Column({ nullable: true })
     instagram: string;
+
+    // --- Wallet Fields ---
+
+    @Column({ type: 'int', default: 0 })
+    walletBalance: number; // Stored in smallest currency unit (e.g. FCFA)
+
+    @Column({ type: 'boolean', default: false })
+    allowNegativeBalance: boolean; // If true, orders are not blocked when balance is 0
 }

@@ -13,6 +13,7 @@ import {
     X,
     LogOut,
     Store,
+    Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logoutAction } from '@/app/sign-in/actions';
@@ -32,6 +33,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         { href: '/dashboard/products', label: 'Products', icon: Package },
         { href: '/dashboard/orders', label: 'Orders', icon: ShoppingBag },
         { href: '/dashboard/profile', label: 'Store Profile', icon: Store },
+        { href: '/dashboard/wallets', label: 'Portefeuilles', icon: Wallet },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
     ];
 

@@ -14,12 +14,7 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
-        `);
+        const res = await client.query('SELECT id, code, enabled, handler FROM payment_method');
         console.table(res.rows);
 
     } catch (err) {

@@ -14,13 +14,21 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
+        // Check if migration table exists
+        const tableCheck = await client.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'migration'
+            )
         `);
-        console.table(res.rows);
+        
+        if (tableCheck.rows[0].exists) {
+            const res = await client.query('SELECT * FROM migration ORDER BY id DESC LIMIT 10');
+            console.log('Last migrations:');
+            console.table(res.rows);
+        } else {
+            console.log('Migration table does not exist.');
+        }
 
     } catch (err) {
         console.error('DATABASE ERROR:', err);

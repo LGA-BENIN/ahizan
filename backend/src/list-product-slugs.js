@@ -14,19 +14,13 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
-        `);
+        const res = await client.query('SELECT id, slug FROM product LIMIT 10');
         console.table(res.rows);
 
     } catch (err) {
         console.error('DATABASE ERROR:', err);
     } finally {
         await client.end();
-        console.log('Connection closed.');
     }
 }
 

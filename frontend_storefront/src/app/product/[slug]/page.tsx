@@ -1,3 +1,4 @@
+console.log('[ProductPage File] LOADING FILE: src/app/product/[slug]/page.tsx');
 import type { Metadata } from 'next';
 import { query } from '@/lib/vendure/api';
 import { GetProductDetailQuery } from '@/lib/vendure/queries';
@@ -20,11 +21,14 @@ import {
 } from '@/lib/metadata';
 
 async function getProductData(slug: string) {
-    'use cache';
-    cacheLife('hours');
-    cacheTag(`product-${slug}`);
+    // 'use cache';
+    // cacheLife('hours');
+    // cacheTag(`product-${slug}`);
 
-    return await query(GetProductDetailQuery, { slug });
+    console.log(`[getProductData] Fetching for slug: "${slug}"`);
+    const result = await query(GetProductDetailQuery, { slug });
+    console.log(`[getProductData] Result for "${slug}":`, result.data.product ? 'FOUND' : 'NOT FOUND');
+    return result;
 }
 
 export async function generateMetadata({
@@ -69,6 +73,7 @@ export default async function ProductDetailPage({params, searchParams}: PageProp
     const { slug } = await params;
     const searchParamsResolved = await searchParams;
 
+    console.log(`[ProductDetailPage] Rendering for slug: "${slug}"`);
     const result = await getProductData(slug);
 
     const product = result.data.product;

@@ -14,13 +14,8 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
-        `);
-        console.table(res.rows);
+        const res = await client.query(`SELECT COUNT(*) FROM product`);
+        console.log('Total products:', res.rows[0].count);
 
     } catch (err) {
         console.error('DATABASE ERROR:', err);

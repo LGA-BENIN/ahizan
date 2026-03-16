@@ -15,11 +15,16 @@ async function run() {
         console.log('Connected to DB');
 
         const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
+            SELECT 
+                pid, 
+                now() - xact_start AS xact_duration, 
+                query, 
+                state
+            FROM pg_stat_activity 
+            WHERE state = 'idle in transaction'
+            ORDER BY xact_duration DESC
         `);
+        console.log('Idle in transaction sessions:');
         console.table(res.rows);
 
     } catch (err) {

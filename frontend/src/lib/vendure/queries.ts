@@ -1,4 +1,5 @@
 import { graphql } from '@/graphql';
+import { ActiveCustomerFragment, ProductCardFragment } from './fragments';
 
 export const GetVariantVendorQuery = graphql(`
     query GetVariantVendor($variantId: ID!) {
@@ -20,25 +21,171 @@ export const GetActiveOrderQuery = graphql(`
         activeOrder {
             id
             code
+            state
             totalQuantity
+            subTotal
+            subTotalWithTax
+            shipping
+            shippingWithTax
+            total
             totalWithTax
             currencyCode
+            couponCodes
+            discounts {
+                description
+                amountWithTax
+            }
             lines {
                 id
                 productVariant {
                     id
                     name
+                    sku
                     product {
-                        customFields {
-                            vendor {
-                                id
-                            }
+                        id
+                        name
+                        slug
+                        featuredAsset {
+                            id
+                            preview
                         }
                     }
                 }
+                unitPriceWithTax
                 quantity
                 linePriceWithTax
             }
+        }
+    }
+`);
+
+export const GetActiveOrderForCheckoutQuery = graphql(`
+    query GetActiveOrderForCheckout {
+        activeOrder {
+            id
+            code
+            state
+            totalQuantity
+            subTotal
+            subTotalWithTax
+            shipping
+            shippingWithTax
+            total
+            totalWithTax
+            currencyCode
+            couponCodes
+            customer {
+                id
+                firstName
+                lastName
+                emailAddress
+                phoneNumber
+            }
+            shippingAddress {
+                fullName
+                company
+                streetLine1
+                streetLine2
+                city
+                province
+                postalCode
+                country
+                phoneNumber
+            }
+            billingAddress {
+                fullName
+                company
+                streetLine1
+                streetLine2
+                city
+                province
+                postalCode
+                country
+                phoneNumber
+            }
+            shippingLines {
+                shippingMethod {
+                    id
+                    name
+                    description
+                }
+                priceWithTax
+            }
+            discounts {
+                description
+                amountWithTax
+            }
+            lines {
+                id
+                productVariant {
+                    id
+                    name
+                    sku
+                    product {
+                        id
+                        name
+                        slug
+                        featuredAsset {
+                            id
+                            preview
+                        }
+                    }
+                }
+                unitPriceWithTax
+                quantity
+                linePriceWithTax
+            }
+        }
+    }
+`);
+
+export const GetCustomerAddressesQuery = graphql(`
+    query GetCustomerAddresses {
+        activeCustomer {
+            id
+            addresses {
+                id
+                fullName
+                company
+                streetLine1
+                streetLine2
+                city
+                province
+                postalCode
+                country {
+                    id
+                    code
+                    name
+                }
+                phoneNumber
+                defaultShippingAddress
+                defaultBillingAddress
+            }
+        }
+    }
+`);
+
+export const GetEligibleShippingMethodsQuery = graphql(`
+    query GetEligibleShippingMethods {
+        eligibleShippingMethods {
+            id
+            name
+            code
+            description
+            priceWithTax
+        }
+    }
+`);
+
+export const GetEligiblePaymentMethodsQuery = graphql(`
+    query GetEligiblePaymentMethods {
+        eligiblePaymentMethods {
+            id
+            name
+            code
+            description
+            isEligible
+            eligibilityMessage
         }
     }
 `);
@@ -131,14 +278,10 @@ export const GetTopCollectionsQuery = graphql(`
 export const GetActiveCustomerQuery = graphql(`
     query GetActiveCustomer {
         activeCustomer {
-            id
-            firstName
-            lastName
-            emailAddress
-            phoneNumber
+            ...ActiveCustomer
         }
     }
-`);
+`, [ActiveCustomerFragment]);
 export const GetCustomerOrdersQuery = graphql(`
     query GetCustomerOrders($options: OrderListOptions) {
         activeCustomer {

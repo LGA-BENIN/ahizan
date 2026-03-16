@@ -14,13 +14,11 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
-        `);
-        console.table(res.rows);
+        const res = await client.query(`SELECT count(*) FROM pg_stat_activity`);
+        console.log('Active DB connections:', res.rows[0].count);
+
+        const settings = await client.query(`show max_connections`);
+        console.log('Max connections:', settings.rows[0].max_connections);
 
     } catch (err) {
         console.error('DATABASE ERROR:', err);

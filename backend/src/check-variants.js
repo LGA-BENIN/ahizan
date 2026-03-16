@@ -14,13 +14,15 @@ async function run() {
         await client.connect();
         console.log('Connected to DB');
 
-        const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
-        `);
-        console.table(res.rows);
+        const productId = 54;
+
+        // 1. Check variants
+        const vRes = await client.query('SELECT id, enabled FROM product_variant WHERE "productId" = $1', [productId]);
+        console.log('Product variants:', vRes.rows);
+
+        // 2. Check variant channel assignments
+        const vcRes = await client.query('SELECT * FROM product_variant_channels_channel WHERE "productVariantId" IN (SELECT id FROM product_variant WHERE "productId" = $1)', [productId]);
+        console.log('Product variant channel assignments:', vcRes.rows);
 
     } catch (err) {
         console.error('DATABASE ERROR:', err);

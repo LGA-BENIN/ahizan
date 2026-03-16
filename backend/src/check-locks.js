@@ -15,11 +15,19 @@ async function run() {
         console.log('Connected to DB');
 
         const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
+            SELECT 
+                pid, 
+                now() - query_start AS duration, 
+                query, 
+                state,
+                wait_event_type,
+                wait_event
+            FROM pg_stat_activity 
+            WHERE state != 'idle' 
+            AND pid != pg_backend_pid()
+            ORDER BY duration DESC
         `);
+        console.log('Long running queries/locks:');
         console.table(res.rows);
 
     } catch (err) {

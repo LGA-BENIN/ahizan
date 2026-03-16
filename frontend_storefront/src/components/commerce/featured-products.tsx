@@ -79,7 +79,7 @@ export async function FeaturedProducts({
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {products.map((product: any) => (
                         <Link 
-                            key={product.id} 
+                            key={product.productId} 
                             href={`/product/${product.slug}`}
                             className="group relative bg-white rounded-2xl p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit"
                         >

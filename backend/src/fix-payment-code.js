@@ -15,18 +15,16 @@ async function run() {
         console.log('Connected to DB');
 
         const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
+            UPDATE payment_method 
+            SET code = 'cash-on-delivery' 
+            WHERE id = 1
         `);
-        console.table(res.rows);
+        console.log('Update successful:', res.rowCount, 'row(s) affected.');
 
     } catch (err) {
         console.error('DATABASE ERROR:', err);
     } finally {
         await client.end();
-        console.log('Connection closed.');
     }
 }
 

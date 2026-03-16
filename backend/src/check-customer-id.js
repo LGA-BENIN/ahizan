@@ -12,13 +12,10 @@ async function run() {
 
     try {
         await client.connect();
-        console.log('Connected to DB');
-
         const res = await client.query(`
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'order'
-            ORDER BY column_name
+            SELECT id, code, "customerId", "billingAddress"
+            FROM "order"
+            WHERE code = 'ZCDA9USA5WYH15D7'
         `);
         console.table(res.rows);
 
@@ -26,7 +23,6 @@ async function run() {
         console.error('DATABASE ERROR:', err);
     } finally {
         await client.end();
-        console.log('Connection closed.');
     }
 }
 

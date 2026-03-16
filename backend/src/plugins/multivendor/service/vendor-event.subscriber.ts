@@ -22,12 +22,14 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
             });
 
         // Rule: Deduct Commission from Wallet when payment is arranged
+        /*
         this.eventBus
             .ofType(OrderStateTransitionEvent)
             .pipe(filter(event => event.toState === 'ArrangingPayment'))
             .subscribe(async event => {
                 await this.deductCommissionFromWallet(event.ctx, event.order.id.toString());
             });
+        */
 
         // Rule: Calculate & record Commission amount on PaymentSettled
         this.eventBus

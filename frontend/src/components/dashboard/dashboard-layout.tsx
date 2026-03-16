@@ -33,7 +33,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         { href: '/dashboard/products', label: 'Products', icon: Package },
         { href: '/dashboard/orders', label: 'Orders', icon: ShoppingBag },
         { href: '/dashboard/profile', label: 'Store Profile', icon: Store },
-        { href: '/dashboard/wallets', label: 'Portefeuilles', icon: Wallet },
+        { href: '/dashboard/wallet', label: 'Mon Portefeuille', icon: Wallet },
         { href: '/dashboard/settings', label: 'Settings', icon: Settings },
     ];
 

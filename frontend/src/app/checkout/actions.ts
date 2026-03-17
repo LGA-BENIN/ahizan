@@ -1,6 +1,7 @@
 'use server';
 
-import {mutate} from '@/lib/vendure/api';
+import { mutate, query } from '@/lib/vendure/api';
+import { setAuthToken, getAuthToken } from '@/lib/auth';
 import {
     SetOrderShippingAddressMutation,
     SetOrderBillingAddressMutation,
@@ -10,8 +11,33 @@ import {
     TransitionOrderToStateMutation,
     SetCustomerForOrderMutation,
 } from '@/lib/vendure/mutations';
-import {revalidatePath, updateTag} from 'next/cache';
-import {redirect} from "next/navigation";
+import { GetActiveOrderForCheckoutQuery } from '@/lib/vendure/queries';
+import { revalidatePath, updateTag } from 'next/cache';
+import { redirect } from "next/navigation";
+import fs from 'fs';
+
+const LOG_FILE = 'C:/Users/elidja/AppData/Local/Temp/checkout_debug.log';
+
+function log(message: string) {
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(LOG_FILE, `[${timestamp}] ${message}\n`);
+}
+
+async function ensureAddingItems() {
+    log('Ensuring order is in AddingItems state');
+    const orderCheck = await query(GetActiveOrderForCheckoutQuery, {}, { useAuthToken: true });
+    const currentState = orderCheck.data?.activeOrder?.state;
+    log(`Current order state: ${currentState}`);
+    
+    if (currentState === 'ArrangingPayment') {
+        log('Transitioning back to AddingItems to allow modification');
+        await mutate(
+            TransitionOrderToStateMutation,
+            { state: 'AddingItems' },
+            { useAuthToken: true }
+        );
+    }
+}
 
 interface AddressInput {
     fullName: string;
@@ -29,6 +55,8 @@ export async function setShippingAddress(
     shippingAddress: AddressInput,
     useSameForBilling: boolean
 ) {
+    await ensureAddingItems();
+    log(`Setting shipping address for order. Use same for billing: ${useSameForBilling}`);
     const shippingResult = await mutate(
         SetOrderShippingAddressMutation,
         {input: shippingAddress},
@@ -40,17 +68,28 @@ export async function setShippingAddress(
     }
 
     if (useSameForBilling) {
-        await mutate(
+        const billingResult = await mutate(
             SetOrderBillingAddressMutation,
             {input: shippingAddress},
             {useAuthToken: true}
         );
+        if (billingResult.headers) {
+            const token = billingResult.headers.get('vendure-auth-token');
+            if (token) await setAuthToken(token);
+        }
+    } else {
+        if (shippingResult.headers) {
+            const token = shippingResult.headers.get('vendure-auth-token');
+            if (token) await setAuthToken(token);
+        }
     }
 
     revalidatePath('/checkout');
 }
 
 export async function setShippingMethod(shippingMethodId: string) {
+    await ensureAddingItems();
+    log(`Setting shipping method: ${shippingMethodId}`);
     const result = await mutate(
         SetOrderShippingMethodMutation,
         {shippingMethodId: [shippingMethodId]},
@@ -59,6 +98,11 @@ export async function setShippingMethod(shippingMethodId: string) {
 
     if (result.data.setOrderShippingMethod.__typename !== 'Order') {
         throw new Error('Failed to set shipping method');
+    }
+
+    if (result.headers) {
+        const token = result.headers.get('vendure-auth-token');
+        if (token) await setAuthToken(token);
     }
 
     revalidatePath('/checkout');
@@ -80,25 +124,35 @@ export async function createCustomerAddress(address: AddressInput) {
 }
 
 export async function transitionToArrangingPayment() {
+    const currentToken = await getAuthToken();
     const result = await mutate(
         TransitionOrderToStateMutation,
         {state: 'ArrangingPayment'},
-        {useAuthToken: true}
+        {useAuthToken: true, token: currentToken}
     );
 
     if (result.data.transitionOrderToState?.__typename === 'OrderStateTransitionError') {
         const errorResult = result.data.transitionOrderToState;
+        if (errorResult.errorCode === 'ORDER_STATE_TRANSITION_ERROR' && errorResult.message.includes('to "ArrangingPayment"')) {
+            // Already in state, return current or new token
+            return result.token || currentToken;
+        }
         throw new Error(
             `Failed to transition order state: ${errorResult.errorCode} - ${errorResult.message}`
         );
     }
 
+    if (result.token) {
+        await setAuthToken(result.token);
+    }
+
     revalidatePath('/checkout');
+    return result.token || currentToken;
 }
 
 export async function placeOrder(paymentMethodCode: string) {
-    // First, transition the order to ArrangingPayment state
-    await transitionToArrangingPayment();
+    // Get the most up-to-date token from the transition step
+    const activeToken = await transitionToArrangingPayment();
 
     // Add payment to the order (cash-on-delivery requires no special metadata)
     const result = await mutate(
@@ -109,7 +163,10 @@ export async function placeOrder(paymentMethodCode: string) {
                 metadata: {},
             },
         },
-        {useAuthToken: true}
+        {
+            useAuthToken: true,
+            token: activeToken // Ensure we use the exact same session token
+        }
     );
 
     if (result.data.addPaymentToOrder.__typename !== 'Order') {
@@ -119,6 +176,9 @@ export async function placeOrder(paymentMethodCode: string) {
         );
     }
 
+    if (result.token) {
+        await setAuthToken(result.token);
+    }
     const orderCode = result.data.addPaymentToOrder.code;
 
     // Update the cart tag to immediately invalidate cached cart data
@@ -155,6 +215,10 @@ export async function setCustomerForOrder(
 
     switch (response.__typename) {
         case 'Order':
+            if (result.headers) {
+                const token = result.headers.get('vendure-auth-token');
+                if (token) await setAuthToken(token);
+            }
             revalidatePath('/checkout');
             return { success: true };
         case 'AlreadyLoggedInError':

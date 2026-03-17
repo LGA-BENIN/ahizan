@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { updateOrderStatusAction } from '@/app/dashboard/orders/actions';
 
 const STATE_TRANSITIONS: Record<string, { label: string; next: string; color: string }[]> = {
+    'PaymentAuthorized': [
+        { label: 'Marquer comme Expédié', next: 'Shipped', color: 'bg-blue-600 hover:bg-blue-700' },
+    ],
     'PaymentSettled': [
         { label: 'Marquer comme Expédié', next: 'Shipped', color: 'bg-blue-600 hover:bg-blue-700' },
     ],

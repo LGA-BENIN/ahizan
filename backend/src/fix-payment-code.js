@@ -1,0 +1,31 @@
+const { Client } = require('pg');
+require('dotenv').config();
+
+async function run() {
+    const client = new Client({
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: +(process.env.DB_PORT || 5432),
+        user: process.env.DB_USERNAME || 'postgres',
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME || 'vendure',
+    });
+
+    try {
+        await client.connect();
+        console.log('Connected to DB');
+
+        const res = await client.query(`
+            UPDATE payment_method 
+            SET code = 'cash-on-delivery' 
+            WHERE id = 1
+        `);
+        console.log('Update successful:', res.rowCount, 'row(s) affected.');
+
+    } catch (err) {
+        console.error('DATABASE ERROR:', err);
+    } finally {
+        await client.end();
+    }
+}
+
+run();

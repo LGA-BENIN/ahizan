@@ -28,7 +28,28 @@ interface VendureResponse<T> {
  * Extract the Vendure auth token from response headers
  */
 function extractAuthToken(headers: Headers): string | null {
-    return headers.get(VENDURE_AUTH_TOKEN_HEADER);
+    // 1. Check for the direct auth token header
+    let token = headers.get(VENDURE_AUTH_TOKEN_HEADER);
+
+    // 2. If not found, check the set-cookie header for the auth token
+    if (!token) {
+        const setCookies = headers.getSetCookie?.() || [headers.get('set-cookie')].filter(Boolean);
+        if (setCookies.length > 0) {
+            for (const setCookie of setCookies) {
+                // Looking for something like "vendure-auth-token=...;"
+                const match = setCookie.match(new RegExp(`${VENDURE_AUTH_TOKEN_HEADER}=([^;]+)`, 'i'));
+                if (match) {
+                    token = match[1];
+                    break;
+                }
+            }
+        }
+    }
+
+    if (token) {
+        console.log(`Extracted auth token from response: ${token.substring(0, 10)}...`);
+    }
+    return token;
 }
 
 
@@ -62,10 +83,14 @@ export async function query<TResult, TVariables>(
 
     if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
+        headers[VENDURE_AUTH_TOKEN_HEADER] = authToken; // Explicitly add the token header as well
     }
 
     // Set the channel token header (use provided channelToken or default)
     headers[VENDURE_CHANNEL_TOKEN_HEADER] = channelToken || VENDURE_CHANNEL_TOKEN;
+
+    console.log(`[API Query] Requesting: ${VENDURE_API_URL}`);
+    console.log(`[API Query] Variables:`, JSON.stringify(variables, null, 2));
 
     const response = await fetch(VENDURE_API_URL!, {
         ...fetchOptions,
@@ -75,17 +100,25 @@ export async function query<TResult, TVariables>(
             query: print(document),
             variables: variables || {},
         }),
+        cache: 'no-store', // Disable caching for all API requests to Vendure
         ...(tags && {next: {tags}}),
     });
 
     if (!response.ok) {
+        console.error(`[API Query] HTTP Error: ${response.status} ${response.statusText}`);
         throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const result: VendureResponse<TResult> = await response.json();
+    console.log(`[API Query] Result Data Keys:`, result.data ? Object.keys(result.data) : 'NULL');
+    if (result.data && (result.data as any).product === null) {
+        console.warn(`[API Query] PRODUCT WAS NULL for variables:`, variables);
+    }
 
     if (result.errors) {
-        throw new Error(result.errors.map(e => e.message).join(', '));
+        console.error(`[API Query] ERRORS for variables:`, variables);
+        console.error(`[API Query] ERRORS:`, JSON.stringify(result.errors, null, 2));
+        throw new Error(result.errors.map((e: any) => e.message).join(', '));
     }
 
     if (!result.data) {

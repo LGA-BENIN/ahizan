@@ -6,6 +6,9 @@ interface PriceProps {
 }
 
 export function Price({value, currencyCode = 'USD'}: PriceProps) {
+    if (value === undefined || value === null || isNaN(value)) {
+        return <>0.00</>;
+    }
     return (
         <>
             {new Intl.NumberFormat('en-US', {

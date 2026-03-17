@@ -65,14 +65,14 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
         city: order.shippingAddress.city || '',
         province: order.shippingAddress.province || '',
         postalCode: order.shippingAddress.postalCode || '',
-        countryCode: countries.find(c => c.name === order.shippingAddress?.country)?.code || countries[0]?.code || 'US',
+        countryCode: countries.find(c => c.name === order.shippingAddress?.country)?.code || countries.find(c => c.code === 'BJ')?.code || countries[0]?.code || 'BJ',
         phoneNumber: order.shippingAddress.phoneNumber || order.customer?.phoneNumber || '',
         company: order.shippingAddress.company || '',
       };
     }
     return {
       fullName: customerFullName,
-      countryCode: countries[0]?.code || 'US',
+      countryCode: countries.find(c => c.code === 'BJ')?.code || countries[0]?.code || 'BJ',
       phoneNumber: order.customer?.phoneNumber || '',
     };
   };

@@ -27,7 +27,7 @@ export default async function DashboardPage() {
     const totalOrdersCount = (ordersData as any)?.myVendorOrders?.totalItems || 0;
 
     // Calculate total revenue from settled orders
-    const settledOrders = orders.filter((o: any) => o.state === 'PaymentSettled' || o.state === 'Shipped' || o.state === 'Delivered');
+    const settledOrders = orders.filter((o: any) => ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'].includes(o.state));
     const totalRevenue = settledOrders.reduce((sum: number, order: any) => sum + order.totalWithTax, 0);
     const currencyCode = orders[0]?.currencyCode || 'XOF';
 

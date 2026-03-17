@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import type { Metadata, Viewport } from 'next';
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -140,7 +141,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         <Navbar config={header} />
                     </div>
 
-                    <main className={`flex-grow w-full mx-auto ${layoutMode === 'boxed' ? 'max-w-[var(--content-max-width)] px-4' : 'max-w-none'}`}>
+                    <main className={`relative z-10 flex-grow w-full mx-auto ${layoutMode === 'boxed' ? 'max-w-[var(--content-max-width)] px-4' : 'max-w-none'}`}>
                         {children}
                     </main>
 

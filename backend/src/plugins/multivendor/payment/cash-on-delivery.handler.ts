@@ -7,7 +7,7 @@ export const cashOnDeliveryHandler = new PaymentMethodHandler({
     createPayment: (ctx, order, amount, args, metadata) => {
         return {
             amount,
-            state: 'Authorized',
+            state: 'Settled',
             transactionId: Math.random().toString(36).substring(7), // Mock transaction ID
             metadata: {
                 public: {

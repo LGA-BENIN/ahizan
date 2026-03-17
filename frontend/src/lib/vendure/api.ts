@@ -33,12 +33,15 @@ function extractAuthToken(headers: Headers): string | null {
 
     // 2. If not found, check the set-cookie header for the auth token
     if (!token) {
-        const setCookie = headers.get('set-cookie');
-        if (setCookie) {
-            // Looking for something like "vendure-auth-token=...;"
-            const match = setCookie.match(new RegExp(`${VENDURE_AUTH_TOKEN_HEADER}=([^;]+)`));
-            if (match) {
-                token = match[1];
+        const setCookies = headers.getSetCookie?.() || [headers.get('set-cookie')].filter(Boolean);
+        if (setCookies.length > 0) {
+            for (const setCookie of setCookies) {
+                // Looking for something like "vendure-auth-token=...;"
+                const match = setCookie.match(new RegExp(`${VENDURE_AUTH_TOKEN_HEADER}=([^;]+)`, 'i'));
+                if (match) {
+                    token = match[1];
+                    break;
+                }
             }
         }
     }
@@ -80,6 +83,7 @@ export async function query<TResult, TVariables>(
 
     if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
+        headers[VENDURE_AUTH_TOKEN_HEADER] = authToken; // Explicitly add the token header as well
     }
 
     // Set the channel token header (use provided channelToken or default)
@@ -147,6 +151,7 @@ export async function query<TResult, TVariables>(
         method: 'POST',
         headers,
         body,
+        cache: 'no-store', // Disable caching for all API requests to Vendure
         ...(tags && { next: { tags } }),
     });
 

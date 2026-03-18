@@ -112,6 +112,23 @@ export class Vendor extends VendureEntity {
     @Column({ nullable: true })
     instagram: string;
 
+    // --- Payment Reception Fields ---
+
+    @Column({ type: 'varchar', default: 'MOBILE_MONEY' })
+    paymentMethod: 'MOBILE_MONEY' | 'BANK_TRANSFER' | 'CASH';
+
+    @Column({ nullable: true })
+    mobileMoneyProvider: string; // MTN, MOOV, CELTIIS
+
+    @Column({ nullable: true })
+    mobileMoneyNumber: string;
+
+    @Column({ nullable: true })
+    bankName: string;
+
+    @Column({ nullable: true })
+    bankAccountNumber: string;
+
     // --- Wallet Fields ---
 
     @Column({ type: 'int', default: 0 })

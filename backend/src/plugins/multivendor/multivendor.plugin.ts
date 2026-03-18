@@ -1,19 +1,34 @@
 import { PluginCommonModule, VendurePlugin, PermissionDefinition } from '@vendure/core';
 import { Vendor } from './entities/vendor.entity';
+import { PlatformSettings } from './entities/platform-settings.entity';
+import { OrderStatus } from './entities/order-status.entity';
+import { DeliveryZone } from './entities/delivery-zone.entity';
 import { VendorService } from './service/vendor.service';
 import { VendorOrderSubscriber } from './service/vendor-event.subscriber';
+import { PlatformSettingsService } from './service/platform-settings.service';
+import { OrderStatusService } from './service/order-status.service';
+import { DeliveryZoneService } from './service/delivery-zone.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
 import { VendorResolver, VendorAdminResolver } from './api/vendor.resolver';
 import { VendorShopResolver } from './api/vendor-shop.resolver';
+import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './api/platform-settings.resolver';
+import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-status.resolver';
+import { DeliveryZoneAdminResolver, DeliveryZoneShopResolver } from './api/delivery-zone.resolver';
 import { gql } from 'graphql-tag';
 import path from 'path';
 
 @VendurePlugin({
     imports: [PluginCommonModule],
 
-    entities: [Vendor],
+    entities: [Vendor, PlatformSettings, OrderStatus, DeliveryZone],
 
-    providers: [VendorService, VendorOrderSubscriber],
+    providers: [
+        VendorService,
+        VendorOrderSubscriber,
+        PlatformSettingsService,
+        OrderStatusService,
+        DeliveryZoneService,
+    ],
 
     dashboard: './dashboard',
 
@@ -25,7 +40,7 @@ ${commonApiExtensions}
 
 ${adminApiExtensions}
         `,
-        resolvers: [VendorAdminResolver, VendorShopResolver],
+        resolvers: [VendorAdminResolver, VendorShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, DeliveryZoneAdminResolver],
     },
 
     shopApiExtensions: {
@@ -34,7 +49,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver, VendorShopResolver],
+        resolvers: [VendorResolver, VendorShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, DeliveryZoneShopResolver],
     },
 
     configuration: (config: any) => {
@@ -88,6 +103,14 @@ ${shopApiExtensions}
             type: 'int',
             public: false,
             nullable: true,
+        });
+
+        config.customFields.Order.push({
+            name: 'customStatus',
+            type: 'string',
+            public: true,
+            nullable: true,
+            defaultValue: 'pending',
         });
 
         // ---------------------------

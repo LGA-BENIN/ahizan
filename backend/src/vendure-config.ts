@@ -15,6 +15,7 @@ import path from 'path';
 import dns from 'dns';
 import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
+import { zoneBasedShippingCalculator } from './plugins/multivendor/shipping/zone-based-shipping.calculator';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
@@ -59,10 +60,12 @@ export const config: VendureConfig = {
         }],
         */
         cors: {
-            origin: [
-                'http://localhost:5173', 'http://localhost:4200', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:3001', 'http://localhost:5176',
-                'http://127.0.0.1:5173', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:5174', 'http://127.0.0.1:3001', 'http://127.0.0.1:5176'
-            ],
+            origin: process.env.CORS_ORIGINS
+                ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+                : [
+                    'http://localhost:5173', 'http://localhost:4200', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:5176',
+                    'http://127.0.0.1:5173', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:5174', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'http://127.0.0.1:5176'
+                ],
             credentials: true,
         },
     },
@@ -92,7 +95,7 @@ export const config: VendureConfig = {
         migrations: [path.join(__dirname, './migrations/*.+(js|ts)')],
     },
     shippingOptions: {
-        shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator],
+        shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator, zoneBasedShippingCalculator],
     },
     paymentOptions: {
         paymentMethodHandlers: [cashOnDeliveryHandler],
@@ -112,7 +115,7 @@ export const config: VendureConfig = {
             // For local dev, the correct value for assetUrlPrefix should
             // be guessed correctly, but for production it will usually need
             // to be set manually to match your production url.
-            assetUrlPrefix: IS_DEV ? undefined : 'https://www.my-shop.com/assets/',
+            assetUrlPrefix: IS_DEV ? undefined : (process.env.ASSET_URL_PREFIX || undefined),
         }),
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),

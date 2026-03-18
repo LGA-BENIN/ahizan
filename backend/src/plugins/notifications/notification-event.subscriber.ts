@@ -9,6 +9,7 @@ import {
     ProductVariantService,
     TransactionalConnection,
     PasswordResetEvent,
+    AccountRegistrationEvent,
     Order,
     User,
 } from '@vendure/core';
@@ -35,6 +36,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         this.subscribeToStockEvents();
         this.subscribeToVendorEvents();
         this.subscribeToAuthEvents();
+        this.subscribeToBuyerRegistration();
     }
 
     private async ensurePasswordResetConfig() {
@@ -87,9 +89,23 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
 
             // ── Acheteur : Commande Annulée ──
             if (toState === 'Cancelled') {
+                const config = settings.channelsConfig?.OrderCancelled;
                 const phone = order.customer?.phoneNumber;
-                if (phone) {
-                    const content = `Ahizan: Votre commande ${order.code} a été annulée. Contactez-nous pour plus d'informations.`;
+                const email = order.customer?.emailAddress;
+                const vars = { orderCode: order.code, firstName: order.customer?.firstName || '' };
+
+                if (config?.enabled) {
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(phone, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Commande Annulée', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    }
+                } else if (phone) {
+                    const content = `Votre commande ${order.code} a été annulée. Contactez-nous pour plus d'informations.`;
                     await this.smsService.sendSms(phone, content, settings);
                 }
             }
@@ -379,6 +395,41 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 }
             } else {
                 this.logger.warn(`PasswordReset notification is disabled or not configured in Settings > Notifications.`);
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 7. BUYER REGISTRATION — Welcome Email
+    // ─────────────────────────────────────────────────────────────
+    private subscribeToBuyerRegistration() {
+        this.eventBus.ofType(AccountRegistrationEvent).subscribe(async (event) => {
+            const settings = await this.smsService.getSettings();
+            if (!settings?.channelsConfig) return;
+
+            const config = settings.channelsConfig?.BuyerRegistration;
+            if (!config?.enabled) return;
+
+            const { ctx, customer } = event as any;
+            const email = customer?.emailAddress;
+            const phone = customer?.phoneNumber;
+            const vars = {
+                firstName: customer?.firstName || '',
+                lastName: customer?.lastName || '',
+                email: email || '',
+            };
+
+            this.logger.log(`Buyer registration event for ${email}`);
+
+            if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                const content = this.smsService.interpolate(config.smsTemplate, vars);
+                await this.smsService.sendSms(phone, content, settings);
+            }
+
+            if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                const subject = this.smsService.interpolate(config.emailSubject || 'Bienvenue sur Ahizan !', vars);
+                const content = this.smsService.interpolate(config.emailTemplate, vars);
+                await this.smsService.sendTransactionalEmail(email, subject, content, settings);
             }
         });
     }

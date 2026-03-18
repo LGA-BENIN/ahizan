@@ -2,6 +2,7 @@ import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 import { EventBus, OrderLineEvent, RequestContext, OrderService, TransactionalConnection, OrderStateTransitionEvent } from '@vendure/core';
 import { filter } from 'rxjs/operators';
 import { VendorService } from './vendor.service';
+import { PlatformSettingsService } from './platform-settings.service';
 
 @Injectable()
 export class VendorOrderSubscriber implements OnApplicationBootstrap {
@@ -10,6 +11,7 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
         private vendorService: VendorService,
         private orderService: OrderService,
         private connection: TransactionalConnection,
+        private platformSettingsService: PlatformSettingsService,
     ) { }
 
     onApplicationBootstrap() {
@@ -60,10 +62,16 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
 
         if (vendor) {
             const vendorEntity = await this.vendorService.findOne(ctx, vendor.id);
-            if (vendorEntity && vendorEntity.commissionRate > 0) {
-                const total = order.totalWithTax;
-                const commission = Math.round((total * vendorEntity.commissionRate) / 100);
-                await this.vendorService.setOrderCommission(ctx, orderId, commission);
+            if (vendorEntity) {
+                const platformSettings = await this.platformSettingsService.getOrCreateSettings(ctx);
+                const rate = vendorEntity.commissionRate > 0
+                    ? vendorEntity.commissionRate
+                    : platformSettings.defaultCommissionRate;
+                if (rate > 0) {
+                    const total = order.totalWithTax;
+                    const commission = Math.round((total * rate) / 100);
+                    await this.vendorService.setOrderCommission(ctx, orderId, commission);
+                }
             }
         }
     }

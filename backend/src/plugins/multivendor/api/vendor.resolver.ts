@@ -1,14 +1,17 @@
-import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset } from '@vendure/core';
+import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection } from '@vendure/core';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
+import { OrderStatusService } from '../service/order-status.service';
 
 @Resolver()
 export class VendorResolver {
     constructor(
         private vendorService: VendorService,
         private orderService: OrderService,
-        private assetService: AssetService
+        private assetService: AssetService,
+        private connection: TransactionalConnection,
+        private orderStatusService: OrderStatusService,
     ) { }
 
     @Mutation()
@@ -101,6 +104,39 @@ export class VendorResolver {
         }
 
         return this.orderService.transitionToState(ctx, orderId, status as any);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async updateMyOrderCustomStatus(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('statusCode') statusCode: string
+    ): Promise<boolean> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        const order = await this.orderService.findOne(ctx, orderId, ['customFields.vendor']);
+        if (!order) {
+            throw new Error('Order not found');
+        }
+
+        const orderVendor = (order.customFields as any).vendor;
+        if (!orderVendor || orderVendor.id !== vendor.id) {
+            throw new Error('You do not have permission to update this order');
+        }
+
+        const status = await this.orderStatusService.findByCode(ctx, statusCode);
+        if (!status || !status.vendorCanSet) {
+            throw new Error('You are not allowed to set this status');
+        }
+
+        await this.connection.getRepository(ctx, Order).update(orderId, {
+            customFields: { customStatus: statusCode },
+        });
+        return true;
     }
 
     @ResolveField()

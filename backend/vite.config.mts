@@ -43,6 +43,12 @@ export default defineConfig({
             gqlOutputPath: './src/gql',
         }),
     ],
+    optimizeDeps: {
+        // Force la ré-optimisation au démarrage pour éviter les erreurs
+        // vite:react-swc sur Windows avec les chemins longs dans node_modules
+        force: true,
+        include: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
+    },
     resolve: {
         dedupe: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
         alias: {

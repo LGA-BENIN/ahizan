@@ -8,7 +8,6 @@ import { DeliveryZonesComponent } from './delivery-zones';
 import { OrdersListComponent } from './orders-list';
 
 export default defineDashboardExtension({
-    id: 'multivendor',
     routes: [
         {
             path: 'vendors',
@@ -17,7 +16,7 @@ export default defineDashboardExtension({
                 id: 'vendors',
                 title: 'Vendeurs',
                 sectionId: 'marketplace',
-                routerLink: ['/extensions', 'multivendor', 'vendors'],
+                url: '/vendors',
             },
         },
         {
@@ -31,7 +30,7 @@ export default defineDashboardExtension({
                 id: 'marketplace-orders',
                 title: 'Commandes',
                 sectionId: 'marketplace',
-                routerLink: ['/extensions', 'multivendor', 'orders'],
+                url: '/orders',
             },
         },
         {
@@ -41,7 +40,7 @@ export default defineDashboardExtension({
                 id: 'platform-settings',
                 title: 'Paramètres',
                 sectionId: 'marketplace',
-                routerLink: ['/extensions', 'multivendor', 'settings'],
+                url: '/settings',
             },
         },
         {
@@ -51,7 +50,7 @@ export default defineDashboardExtension({
                 id: 'order-statuses',
                 title: 'Statuts commandes',
                 sectionId: 'marketplace',
-                routerLink: ['/extensions', 'multivendor', 'order-statuses'],
+                url: '/order-statuses',
             },
         },
         {
@@ -61,7 +60,7 @@ export default defineDashboardExtension({
                 id: 'delivery-zones',
                 title: 'Zones de livraison',
                 sectionId: 'marketplace',
-                routerLink: ['/extensions', 'multivendor', 'delivery-zones'],
+                url: '/delivery-zones',
             },
         },
     ],

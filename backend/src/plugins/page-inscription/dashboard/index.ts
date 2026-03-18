@@ -2,7 +2,6 @@ import { defineDashboardExtension } from '@vendure/dashboard';
 import { RegistrationFieldsListComponent } from './fields-list';
 
 export default defineDashboardExtension({
-    id: 'page-inscription',
     navSections: [
         {
             id: 'personalisation',
@@ -17,7 +16,7 @@ export default defineDashboardExtension({
                 id: 'page-inscription',
                 title: 'Page Inscription',
                 sectionId: 'personalisation',
-                routerLink: ['/extensions', 'page-inscription', 'fields'],
+                url: '/fields',
             },
         },
     ],

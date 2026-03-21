@@ -29,6 +29,12 @@ export class PageSection extends VendureEntity {
     @Column({ type: 'text', nullable: true })
     dataJson: string;
 
+    @Column({ type: 'timestamp', nullable: true })
+    scheduledStart: Date;
+
+    @Column({ type: 'timestamp', nullable: true })
+    scheduledEnd: Date;
+
     @ManyToOne(type => Page, page => page.sections)
     page: Page;
 }

@@ -4,6 +4,7 @@ import { DeletionResponse } from '@vendure/common/lib/generated-types';
 import { CMSService } from '../service/cms.service';
 import { Page } from '../entities/page.entity';
 import { PageSection } from '../entities/section.entity';
+import { PagePreset } from '../entities/page-preset.entity';
 
 @Resolver()
 export class CMSAdminResolver {
@@ -90,6 +91,47 @@ export class CMSAdminResolver {
     @Allow(Permission.Public)
     async initializeHomePage(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID }): Promise<Page | null> {
         return this.cmsService.initializeHomePage(ctx, args.pageId);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async pagePresets(@Ctx() ctx: RequestContext): Promise<PagePreset[]> {
+        return this.cmsService.findAllPresets(ctx);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async createPreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
+        return this.cmsService.createPreset(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async updatePreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
+        return this.cmsService.updatePreset(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async deletePreset(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deletePreset(ctx, args.id);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async applyPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page | null> {
+        return this.cmsService.applyPreset(ctx, args.presetId, args.pageId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async savePageAsPreset(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID, name: string, description?: string }): Promise<PagePreset> {
+        return this.cmsService.savePageAsPreset(ctx, args.pageId, args.name, args.description);
     }
 }
 

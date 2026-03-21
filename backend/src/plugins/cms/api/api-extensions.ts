@@ -12,6 +12,19 @@ export const commonApiExtensions = gql`
         order: Int!
         isActive: Boolean!
         dataJson: String
+        scheduledStart: DateTime
+        scheduledEnd: DateTime
+    }
+
+    type PagePreset implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        name: String!
+        description: String
+        thumbnail: String
+        sectionsJson: String!
+        isBuiltIn: Boolean!
     }
 
     type Page implements Node {
@@ -78,6 +91,8 @@ export const adminApiExtensions = gql`
         order: Int
         isActive: Boolean
         dataJson: String
+        scheduledStart: DateTime
+        scheduledEnd: DateTime
     }
 
     input UpdateSectionInput {
@@ -89,11 +104,29 @@ export const adminApiExtensions = gql`
         order: Int
         isActive: Boolean
         dataJson: String
+        scheduledStart: DateTime
+        scheduledEnd: DateTime
+    }
+
+    input CreatePresetInput {
+        name: String!
+        description: String
+        thumbnail: String
+        sectionsJson: String!
+    }
+
+    input UpdatePresetInput {
+        id: ID!
+        name: String
+        description: String
+        thumbnail: String
+        sectionsJson: String
     }
 
     extend type Query {
         pages(options: PageListOptions): PageList!
         page(id: ID!): Page
+        pagePresets: [PagePreset!]!
     }
 
     extend type Mutation {
@@ -105,6 +138,11 @@ export const adminApiExtensions = gql`
         deleteSection(id: ID!): DeletionResponse!
         initializeHomePage(pageId: ID!): Page
         createCmsAsset(file: Upload!): Asset!
+        createPreset(input: CreatePresetInput!): PagePreset!
+        updatePreset(input: UpdatePresetInput!): PagePreset!
+        deletePreset(id: ID!): DeletionResponse!
+        applyPreset(presetId: ID!, pageId: ID!): Page!
+        savePageAsPreset(pageId: ID!, name: String!, description: String): PagePreset!
     }
 `;
 

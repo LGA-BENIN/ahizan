@@ -2,13 +2,14 @@ import { PluginCommonModule, VendurePlugin, RequestContext, ChannelService } fro
 import { OnApplicationBootstrap } from '@nestjs/common';
 import { Page } from './entities/page.entity';
 import { PageSection } from './entities/section.entity';
+import { PagePreset } from './entities/page-preset.entity';
 import { CMSService } from './service/cms.service';
 import { adminApiExtensions, shopApiExtensions } from './api/api-extensions';
 import { CMSAdminResolver, CMSShopResolver } from './api/cms.resolver';
 
 @VendurePlugin({
     imports: [PluginCommonModule],
-    entities: [Page, PageSection],
+    entities: [Page, PageSection, PagePreset],
     providers: [CMSService],
     adminApiExtensions: {
         schema: adminApiExtensions,

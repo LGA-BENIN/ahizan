@@ -2,36 +2,34 @@ import Link from "next/link";
 import { ProductCarousel } from "@/components/commerce/product-carousel";
 import { cacheLife } from "next/cache";
 import { query } from "@/lib/vendure/api";
-import { GetCollectionProductsQuery } from "@/lib/vendure/queries";
+import { SearchProductsQuery } from "@/lib/vendure/queries";
 
 interface ProductGridProps {
     title?: string;
     description?: string;
-    layout?: 'grid' | 'carousel';
+    layout?: 'grid' | 'carousel' | 'list';
     collectionSlug?: string;
+    filterType?: string;
+    productIds?: string[];
     take?: number;
-    products?: any[]; // For manual selection
+    products?: any[];
 }
 
-import { SearchProductsQuery } from "@/lib/vendure/queries";
+function formatCFA(price: number): string {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price / 100);
+}
 
-async function getFeaturedProducts(filterType: string, collectionSlug: string, take: number) {
+function getPrice(product: any): number {
+    if (product.priceWithTax?.__typename === 'SinglePrice') return product.priceWithTax.value;
+    return product.priceWithTax?.min ?? 0;
+}
+
+async function fetchProducts(filterType: string, collectionSlug: string, take: number) {
     'use cache'
-    cacheLife('days')
+    cacheLife('hours')
 
     const sort: any = {};
-    const filter: any = {};
-
-    if (filterType === 'LATEST') {
-        // SearchResultSortParameter doesn't support createdAt by default in Vendure
-        // We'll leave it empty to use default search relevance/order
-    } else if (filterType === 'BEST_SELLERS') {
-        sort.price = 'DESC';
-    }
-
-    if (filterType === 'COLLECTION' && collectionSlug) {
-        filter.collectionSlug = { eq: collectionSlug };
-    }
+    if (filterType === 'BEST_SELLERS') sort.price = 'DESC';
 
     try {
         const result = await query(SearchProductsQuery, {
@@ -40,71 +38,90 @@ async function getFeaturedProducts(filterType: string, collectionSlug: string, t
                 skip: 0,
                 sort,
                 groupByProduct: true,
-                ...(collectionSlug && filterType === 'COLLECTION' ? { collectionSlug } : {})
+                ...(filterType === 'COLLECTION' && collectionSlug ? { collectionSlug } : {})
             }
         });
         return result.data.search.items;
     } catch (e) {
-        console.error(`Failed to fetch featured products`, e);
+        console.error(`[PRODUCT_GRID] Failed to fetch products (filterType=${filterType})`, e);
         return [];
     }
 }
 
 export async function FeaturedProducts({
     filterType = "LATEST",
-    collectionSlug = "electronics",
+    collectionSlug = "",
     title,
     description,
     layout = "carousel",
     take = 12,
+    productIds,
     products: manualProducts
-}: ProductGridProps & { filterType?: string }) {
+}: ProductGridProps) {
 
-    const products = manualProducts || (await getFeaturedProducts(filterType, collectionSlug, take));
-    const sectionTitle = title || (filterType === 'LATEST' ? "Nouveaux Arrivages" : filterType === 'BEST_SELLERS' ? "Meilleures Ventes" : "Produits Sélectionnés");
+    let products = manualProducts || [];
+
+    if (products.length === 0) {
+        products = await fetchProducts(filterType, collectionSlug, take);
+    }
+
+    if (productIds && productIds.length > 0 && products.length > 0) {
+        const idSet = new Set(productIds);
+        products = products.filter((p: any) => idSet.has(p.productId?.toString()));
+    }
+
+    const sectionTitle = title || (
+        filterType === 'LATEST' ? "Nouveaux Arrivages" :
+        filterType === 'BEST_SELLERS' ? "Meilleures Ventes" :
+        filterType === 'COLLECTION' ? "Sélection" :
+        "Produits Sélectionnés"
+    );
 
     if (products.length === 0) return null;
 
     return (
         <section className="container mx-auto px-4 py-10">
             {(sectionTitle || description) && (
-                <div className="mb-14 text-left">
-                    {sectionTitle && <h2 className="text-2xl md:text-4xl font-black tracking-tight mb-4 uppercase italic leading-none">{sectionTitle}</h2>}
+                <div className="mb-10 text-left">
+                    {sectionTitle && <h2 className="text-2xl md:text-3xl font-black tracking-tight mb-3 uppercase leading-none">{sectionTitle}</h2>}
                     {description && <p className="text-muted-foreground font-medium text-base max-w-2xl">{description}</p>}
-                    <div className="h-1 w-20 bg-primary mt-6 rounded-full shadow-lg shadow-primary/20" />
+                    <div className="h-1 w-16 bg-primary mt-4 rounded-full" />
                 </div>
             )}
 
-            {layout === 'grid' ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {layout === 'list' ? (
+                <div className="space-y-4">
                     {products.map((product: any) => (
-                        <Link 
-                            key={product.productId} 
-                            href={`/product/${product.slug}`}
-                            className="group relative bg-white rounded-2xl p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit"
-                        >
-                            <div className="aspect-square relative mb-4 overflow-hidden rounded-xl bg-muted">
-                                <img
-                                    src={product.productAsset?.preview || '/placeholder.png'}
-                                    alt={product.productName}
-                                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700"
-                                />
+                        <Link key={product.productId} href={`/product/${product.slug}`}
+                            className="group flex items-center gap-4 bg-white rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
+                            <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+                                <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
+                                    className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
                             </div>
-                            <h3 className="font-bold text-sm md:text-base mb-1 truncate">{product.productName}</h3>
-                            <p className="text-primary font-black mt-auto">
-                                {product.priceWithTax?.__typename === 'SinglePrice' 
-                                    ? (product.priceWithTax.value / 100) 
-                                    : (product.priceWithTax?.min / 100)} {product.currencyCode}
-                            </p>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-sm truncate">{product.productName}</h3>
+                                <p className="text-primary font-black text-sm mt-1">{formatCFA(getPrice(product))}</p>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            ) : layout === 'grid' ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                    {products.map((product: any) => (
+                        <Link key={product.productId} href={`/product/${product.slug}`}
+                            className="group relative bg-white rounded-2xl p-3 md:p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit">
+                            <div className="aspect-square relative mb-3 overflow-hidden rounded-xl bg-muted">
+                                <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
+                                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />
+                            </div>
+                            <h3 className="font-bold text-xs md:text-sm mb-1 truncate">{product.productName}</h3>
+                            <p className="text-primary font-black text-sm mt-auto">{formatCFA(getPrice(product))}</p>
                         </Link>
                     ))}
                 </div>
             ) : (
-                <ProductCarousel
-                    title="" // Pass empty as we render our own header
-                    products={products}
-                />
+                <ProductCarousel title="" products={products} />
             )}
         </section>
-    )
+    );
 }

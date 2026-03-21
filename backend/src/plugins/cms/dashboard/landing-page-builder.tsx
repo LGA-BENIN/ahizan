@@ -3,6 +3,54 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as queries from './queries';
 const { GET_PAGE, GET_PAGES, UPDATE_SECTION, CREATE_SECTION, DELETE_SECTION, CREATE_PAGE, INITIALIZE_HOME_PAGE, CREATE_ASSETS, CREATE_CMS_ASSET } = queries;
 
+/* ═══════════════════════════════════════════════════════
+   CSS CLASSES — Compatible thème clair/sombre Vendure
+   Utilise les variables CSS du dashboard Vendure
+   ═══════════════════════════════════════════════════════ */
+const cls = {
+    page: 'vd-cms-builder',
+    sidebar: 'vd-cms-sidebar',
+    main: 'vd-cms-main',
+    card: 'vd-cms-card',
+    label: 'vd-cms-label',
+    input: 'vd-cms-input',
+    select: 'vd-cms-select',
+    textarea: 'vd-cms-textarea',
+    btnPrimary: 'vd-cms-btn-primary',
+    btnSecondary: 'vd-cms-btn-secondary',
+    btnDanger: 'vd-cms-btn-danger',
+    btnOutline: 'vd-cms-btn-outline',
+    badge: 'vd-cms-badge',
+    sectionItem: 'vd-cms-section-item',
+    sectionItemActive: 'vd-cms-section-item-active',
+    editor: 'vd-cms-editor',
+    grid2: 'vd-cms-grid-2',
+};
+
+const BUILDER_STYLES = `
+.vd-cms-builder { display: flex; height: 100vh; overflow: hidden; font-family: inherit; color: var(--color-text, #1e293b); background: var(--color-component-bg-100, #f8fafc); }
+.vd-cms-sidebar { width: 460px; border-right: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); display: flex; flex-direction: column; }
+.vd-cms-main { flex: 1; padding: 32px; overflow: auto; }
+.vd-cms-card { padding: 16px; border-radius: 10px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); margin-bottom: 12px; }
+.vd-cms-label { display: block; font-size: 11px; font-weight: 700; color: var(--color-text-300, #64748b); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+.vd-cms-input { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text, #1e293b); font-size: 13px; outline: none; }
+.vd-cms-input:focus { border-color: var(--color-primary-500, #3b82f6); box-shadow: 0 0 0 2px var(--color-primary-100, #dbeafe); }
+.vd-cms-select { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text, #1e293b); font-size: 13px; }
+.vd-cms-textarea { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text, #1e293b); font-size: 13px; min-height: 70px; resize: vertical; }
+.vd-cms-btn-primary { padding: 8px 16px; border-radius: 6px; border: none; background: var(--color-primary-500, #3b82f6); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+.vd-cms-btn-primary:hover { background: var(--color-primary-600, #2563eb); }
+.vd-cms-btn-secondary { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); color: var(--color-text, #1e293b); font-size: 11px; font-weight: 600; cursor: pointer; }
+.vd-cms-btn-secondary:hover { background: var(--color-component-bg-100, #f1f5f9); }
+.vd-cms-btn-danger { padding: 6px 12px; border-radius: 6px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer; }
+.vd-cms-btn-outline { padding: 4px 10px; border-radius: 4px; border: 1px solid var(--color-component-border, #e2e8f0); background: transparent; color: var(--color-text-300, #64748b); font-size: 10px; font-weight: 600; cursor: pointer; }
+.vd-cms-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: var(--color-component-bg-100, #f1f5f9); color: var(--color-text-300, #64748b); border: 1px solid var(--color-component-border, #e2e8f0); }
+.vd-cms-section-item { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.15s; }
+.vd-cms-section-item:hover { border-color: var(--color-primary-300, #93c5fd); }
+.vd-cms-section-item-active { border-color: var(--color-primary-500, #3b82f6); background: var(--color-primary-50, #eff6ff); }
+.vd-cms-editor { padding: 16px; border: 1px solid var(--color-component-border, #e2e8f0); border-top: none; border-radius: 0 0 8px 8px; background: var(--color-component-bg-200, #fff); display: flex; flex-direction: column; gap: 14px; }
+.vd-cms-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+`;
+
 // --- GraphQL Fetcher ---
 async function fetchGraphQL(query: any, variables?: any, file?: File) {
     const apiUrl = window.location.origin + '/admin-api';
@@ -12,7 +60,6 @@ async function fetchGraphQL(query: any, variables?: any, file?: File) {
     const queryStr = typeof query === 'string' ? query : query.loc?.source?.body || query.definitions?.[0]?.loc?.source?.body;
     let vars = variables?.variables || variables || {};
     
-    // Check if we have a file inside variables or as 3rd arg
     let uploadFile = file;
     if (!uploadFile && vars && typeof vars === 'object') {
         const fileKey = Object.keys(vars).find(k => vars[k] instanceof File);
@@ -23,10 +70,7 @@ async function fetchGraphQL(query: any, variables?: any, file?: File) {
     }
 
     if (uploadFile) {
-        // Multipart for Vendure Asset Upload
         const formData = new FormData();
-        
-        // Determine mapping path
         let mapPath = 'variables.file';
         if (queryStr.includes('createAssets')) {
             mapPath = 'variables.input.0.file';
@@ -34,41 +78,23 @@ async function fetchGraphQL(query: any, variables?: any, file?: File) {
         } else if (vars.file === null) {
             mapPath = 'variables.file';
         }
-
-        const operations = {
-            query: queryStr,
-            variables: vars
-        };
-        
+        const operations = { query: queryStr, variables: vars };
         formData.append('operations', JSON.stringify(operations));
         formData.append('map', JSON.stringify({ '0': [mapPath] }));
         formData.append('0', uploadFile);
         body = formData;
     } else {
         headers['Content-Type'] = 'application/json';
-        body = JSON.stringify({
-            query: queryStr,
-            variables: vars
-        });
+        body = JSON.stringify({ query: queryStr, variables: vars });
     }
 
-    const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body,
-    });
-
+    const response = await fetch(apiUrl, { method: 'POST', headers, credentials: 'include', body });
     if (!response.ok) {
         const text = await response.text();
         throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
     }
-
     const json = await response.json();
-    if (json.errors) {
-        console.error('[LandingPageBuilder] GraphQL Errors:', json.errors);
-        throw new Error(json.errors[0].message);
-    }
+    if (json.errors) throw new Error(json.errors[0].message);
     return json.data;
 }
 
@@ -104,7 +130,13 @@ const SECTION_TEMPLATES: Record<string, any> = {
             { label: 'Accueil', link: '/' },
             { label: 'Boutique', link: '/search' },
             { label: 'Vendeurs', link: '/vendors' }
-        ]
+        ],
+        showSearch: true,
+        searchPlaceholder: 'Rechercher un produit, une marque ou une catégorie',
+        showVendorLink: true,
+        vendorLinkText: 'Vendez sur AHIZAN',
+        vendorLinkUrl: '/register',
+        helpLinks: [{ label: 'Aide', link: '/help' }]
     },
     HERO: {
         title: "Découvrez l'Afrique Autrement",
@@ -162,13 +194,85 @@ const SECTION_TEMPLATES: Record<string, any> = {
         ]
     },
     FOOTER_CONF: {
-        about: "AHIZAN est votre plateforme de confiance pour le commerce local.",
+        about: "AHIZAN est votre marketplace de confiance pour le shopping en ligne au Bénin. Nous nous engageons à vous offrir le meilleur service.",
         facebook: "https://facebook.com/ahizan",
-        whatsapp: "https://wa.me/22900000000",
-        links: [
-            { label: 'A propos', link: '/about' },
-            { label: 'Conditions', link: '/terms' }
+        instagram: "",
+        twitter: "",
+        youtube: "",
+        linkedin: "",
+        tiktok: "",
+        whatsapp: "+22900000000",
+        appStoreUrl: "",
+        playStoreUrl: "",
+        showNewsletter: true,
+        newsletterTitle: "NOUVEAU SUR AHIZAN ?",
+        newsletterSubtitle: "Inscrivez-vous pour recevoir nos offres exclusives et nouveautés.",
+        linkGroups: [
+            { title: "BESOIN D'AIDE ?", links: [{ label: 'Discuter avec nous', link: '/contact' }, { label: 'Aide & FAQ', link: '/help' }, { label: 'Contactez-nous', link: '/contact' }] },
+            { title: 'LIENS UTILES', links: [{ label: 'Suivre sa commande', link: '/account/orders' }, { label: 'Politique de retour', link: '/returns' }, { label: 'Comment commander ?', link: '/how-to' }] },
+            { title: 'À PROPOS', links: [{ label: 'Qui sommes-nous', link: '/about' }, { label: 'Conditions générales', link: '/terms' }, { label: 'Politique de confidentialité', link: '/privacy' }] }
+        ],
+        paymentMethods: ['Mobile Money', 'Cash'],
+        brands: ['Samsung', 'Apple', 'Nike', 'Adidas', 'Infinix', 'Tecno'],
+        copyrightText: "© 2026 AHIZAN. Tous droits réservés."
+    },
+    HERO_SLIDER: {
+        slides: [
+            { title: "Bienvenue sur AHIZAN", subtitle: "La marketplace du Bénin", ctaText: "Acheter", ctaLink: "/search", imageUrl: "https://images.unsplash.com/photo-1523381210434-271e8be1f52b", overlayColor: "rgba(0,0,0,0.4)", textAlign: "center" },
+            { title: "Nouveautés", subtitle: "Découvrez nos derniers arrivages", ctaText: "Voir", ctaLink: "/search", imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da", overlayColor: "rgba(0,0,0,0.4)", textAlign: "left" }
+        ],
+        autoPlay: true,
+        interval: 5000,
+        height: "md"
+    },
+    SEARCH_BAR: {
+        placeholder: "Rechercher un produit, une marque, une catégorie...",
+        backgroundColor: "#F8FAFC",
+        quickLinks: [
+            { label: "Électronique", link: "/search?q=electronique" },
+            { label: "Mode", link: "/search?q=mode" },
+            { label: "Maison", link: "/search?q=maison" }
         ]
+    },
+    PROMO_GRID: {
+        title: "Promotions",
+        layout: "2cols",
+        items: [
+            { title: "Soldes d'été", subtitle: "Jusqu'à -50%", imageUrl: "", link: "/search" },
+            { title: "Nouveautés", subtitle: "Arrivages de la semaine", imageUrl: "", link: "/search" }
+        ]
+    },
+    RECENTLY_VIEWED: {
+        title: "Vus récemment",
+        take: 8
+    },
+    CTA_VENDOR: {
+        title: "Vendez sur AHIZAN",
+        subtitle: "Rejoignez des milliers de vendeurs et touchez des millions d'acheteurs au Bénin.",
+        ctaText: "Devenir vendeur",
+        ctaLink: "/register",
+        backgroundImage: "",
+        overlayColor: "rgba(15, 23, 42, 0.85)"
+    },
+    NEWSLETTER: {
+        title: "Restez informé",
+        subtitle: "Inscrivez-vous pour recevoir nos offres exclusives.",
+        placeholder: "Votre adresse email",
+        buttonText: "S'inscrire",
+        backgroundColor: "#F8FAFC"
+    },
+    TESTIMONIALS: {
+        title: "Ce que disent nos clients",
+        testimonials: [
+            { name: "Koffi A.", text: "Service excellent, livraison rapide !", rating: 5, role: "Client fidèle" },
+            { name: "Aïcha M.", text: "J'adore la qualité des produits sur AHIZAN.", rating: 5, role: "Acheteuse" }
+        ]
+    },
+    VENDOR_SHOWCASE: {
+        title: "Nos Vendeurs",
+        description: "Découvrez les meilleurs vendeurs de la plateforme",
+        take: 8,
+        layout: "grid"
     }
 };
 
@@ -490,28 +594,47 @@ export function LandingPageBuilder() {
         updateSectionMutation.mutate({ id: section.id, dataJson: JSON.stringify(data) });
     };
 
+    const ALL_SECTION_TYPES = [
+        { type: 'HERO', label: '🖼️ Hero', color: '#0f172a' },
+        { type: 'HERO_SLIDER', label: '🎠 Slider', color: '#1e40af' },
+        { type: 'SEARCH_BAR', label: '🔍 Recherche', color: '#0891b2' },
+        { type: 'PRODUCT_GRID', label: '📦 Produits', color: '#2563eb' },
+        { type: 'CATEGORY_GRID', label: '📂 Catégories', color: '#7c3aed' },
+        { type: 'FLASH_DEALS', label: '⚡ Flash', color: '#dc2626' },
+        { type: 'PROMO_GRID', label: '🎯 Promos', color: '#ea580c' },
+        { type: 'VENDOR_SHOWCASE', label: '🏪 Vendeurs', color: '#0d9488' },
+        { type: 'BANNER', label: '🏷️ Bannière', color: '#4f46e5' },
+        { type: 'FLEX_GRID', label: '⊞ Grille', color: '#8b5cf6' },
+        { type: 'BLOG_POSTS', label: '📰 Blog', color: '#10b981' },
+        { type: 'FEATURES', label: '✅ Atouts', color: '#059669' },
+        { type: 'CTA_VENDOR', label: '📢 CTA Vendeur', color: '#b91c1c' },
+        { type: 'NEWSLETTER', label: '✉️ Newsletter', color: '#0369a1' },
+        { type: 'TESTIMONIALS', label: '💬 Avis', color: '#a21caf' },
+        { type: 'RECENTLY_VIEWED', label: '👁️ Vus récemment', color: '#64748b' },
+        { type: 'PROMO_BANNER', label: '🔔 Promo Banner', color: '#ca8a04' },
+    ];
+
     const sections = page.sections || [];
     const globalSections = sections.filter((s: any) => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'].includes(s.type));
     const contentSections = sections.filter((s: any) => !['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'].includes(s.type)).sort((a: any, b: any) => a.order - b.order);
 
     return (
-        <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', overflow: 'hidden', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <div>
+        <style dangerouslySetInnerHTML={{ __html: BUILDER_STYLES }} />
+        <div className={cls.page}>
             {/* Sidebar Controls */}
-            <div style={{ width: '450px', borderRight: '1px solid #e2e8f0', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '4px 0 10px rgba(0,0,0,0.02)' }}>
-                <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
-                    <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '900', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '24px' }}>✨</span> AHIZAN CMS
+            <div className={cls.sidebar}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-component-border, #e2e8f0)' }}>
+                    <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        ✨ AHIZAN CMS
                     </h1>
-                    <p style={{ color: '#64748b', margin: '4px 0 0 0', fontSize: '13px' }}>Personnalisez votre boutique sans code.</p>
+                    <p style={{ opacity: 0.6, margin: '4px 0 0 0', fontSize: '12px' }}>Personnalisez votre boutique sans code.</p>
                 </div>
 
-                <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h2 style={{ fontSize: '12px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Configuration Globale</h2>
-                        <button
-                            onClick={() => confirm('Reset ?') && initializeHomePageMutation.mutate(pageId)}
-                            style={{ fontSize: '10px', background: '#fff1f2', color: '#e11d48', border: '1px solid #fecdd3', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                        >
+                <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <span className={cls.label} style={{ margin: 0 }}>Configuration Globale</span>
+                        <button className={cls.btnDanger} onClick={() => confirm('Réinitialiser toutes les sections ?') && initializeHomePageMutation.mutate(pageId)}>
                             Réinitialiser
                         </button>
                     </div>
@@ -540,13 +663,15 @@ export function LandingPageBuilder() {
                         ))}
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h2 style={{ fontSize: '12px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0 }}>Contenu de la Page</h2>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <button onClick={() => handleAddSection('HERO')} style={{ padding: '4px 8px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ Hero</button>
-                            <button onClick={() => handleAddSection('PRODUCT_GRID')} style={{ padding: '4px 8px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ Prod</button>
-                            <button onClick={() => handleAddSection('FLEX_GRID')} style={{ padding: '4px 8px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ Grille</button>
-                            <button onClick={() => handleAddSection('BLOG_POSTS')} style={{ padding: '4px 8px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ Pubs</button>
+                    <div style={{ marginBottom: '16px' }}>
+                        <span className={cls.label}>Contenu de la Page</span>
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px' }}>
+                            {ALL_SECTION_TYPES.map(st => (
+                                <button key={st.type} onClick={() => handleAddSection(st.type)}
+                                    style={{ padding: '3px 8px', background: st.color, color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: '700' }}>
+                                    {st.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -619,6 +744,7 @@ export function LandingPageBuilder() {
                 </div>
             )}
         </div>
+        </div>
     );
 
     function renderEditor(section: any) {
@@ -682,7 +808,7 @@ export function LandingPageBuilder() {
                             )}
 
                             {(data.backgroundType === 'image' || data.backgroundType === 'video') && (
-                                <div style={{ spaceY: '8px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     <button
                                         onClick={() => handleFileUpload(section, data.backgroundType === 'image' ? 'backgroundImageUrl' : 'backgroundVideoUrl')}
                                         style={{ width: '100%', padding: '10px', background: '#0f172a', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }}
@@ -1166,10 +1292,83 @@ export function LandingPageBuilder() {
                     </>
                 )}
 
+                {/* Generic editor for types without a specific editor */}
+                {!['THEME_SETTINGS', 'TOP_BAR', 'HEADER_CONF', 'HERO', 'PRODUCT_GRID', 'BLOG_POSTS', 'FLEX_GRID'].includes(section.type) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {Object.entries(data).map(([key, value]) => {
+                            if (key === 'slides' || key === 'items' || key === 'testimonials' || key === 'quickLinks' || key === 'features' || key === 'categories') {
+                                return (
+                                    <div key={key}>
+                                        <label className={cls.label}>{key} (liste)</label>
+                                        <textarea className={cls.textarea} defaultValue={JSON.stringify(value, null, 2)}
+                                            onBlur={(e) => { try { updateDataJson(section, key, JSON.parse(e.target.value)); } catch { alert('JSON invalide pour ' + key); } }}
+                                            style={{ fontFamily: 'monospace', fontSize: '11px', minHeight: '120px' }} />
+                                    </div>
+                                );
+                            }
+                            if (typeof value === 'boolean') {
+                                return (
+                                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <input type="checkbox" defaultChecked={value as boolean} onChange={(e) => updateDataJson(section, key, e.target.checked)} />
+                                        <span className={cls.label} style={{ margin: 0 }}>{key}</span>
+                                    </label>
+                                );
+                            }
+                            if (typeof value === 'number') {
+                                return (
+                                    <div key={key}>
+                                        <label className={cls.label}>{key}</label>
+                                        <input className={cls.input} type="number" defaultValue={value as number} onBlur={(e) => updateDataJson(section, key, Number(e.target.value))} />
+                                    </div>
+                                );
+                            }
+                            if (typeof value === 'string' && (key.toLowerCase().includes('color') || key.toLowerCase().includes('background'))) {
+                                return (
+                                    <div key={key}>
+                                        <label className={cls.label}>{key}</label>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <input type="color" defaultValue={(value as string).startsWith('#') ? value as string : '#ffffff'} onChange={(e) => updateDataJson(section, key, e.target.value)} style={{ width: '40px', height: '32px', border: '1px solid var(--color-component-border)', borderRadius: '4px', cursor: 'pointer' }} />
+                                            <input className={cls.input} type="text" defaultValue={value as string} onBlur={(e) => updateDataJson(section, key, e.target.value)} />
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            if (typeof value === 'string' && (key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('logo'))) {
+                                return (
+                                    <div key={key}>
+                                        <label className={cls.label}>{key}</label>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <input className={cls.input} type="text" value={value as string} readOnly style={{ flex: 1, fontSize: '10px' }} />
+                                            <button className={cls.btnPrimary} onClick={() => handleFileUpload(section, key)}>📁</button>
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            if (typeof value === 'string' && (value as string).length > 80) {
+                                return (
+                                    <div key={key}>
+                                        <label className={cls.label}>{key}</label>
+                                        <textarea className={cls.textarea} defaultValue={value as string} onBlur={(e) => updateDataJson(section, key, e.target.value)} />
+                                    </div>
+                                );
+                            }
+                            if (typeof value === 'string') {
+                                return (
+                                    <div key={key}>
+                                        <label className={cls.label}>{key}</label>
+                                        <input className={cls.input} type="text" defaultValue={value as string} onBlur={(e) => updateDataJson(section, key, e.target.value)} />
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })}
+                    </div>
+                )}
+
                 {/* Advanced JSON Editor for power users */}
-                <div style={{ marginTop: '1rem', borderTop: '1px dashed #e2e8f0', paddingTop: '1rem' }}>
+                <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--color-component-border, #e2e8f0)', paddingTop: '1rem' }}>
                     <details>
-                        <summary style={{ fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', color: '#cbd5e1' }}>Expert: Mode JSON</summary>
+                        <summary style={{ fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', color: 'var(--color-text-300, #cbd5e1)' }}>Expert: Mode JSON</summary>
                         <textarea
                             defaultValue={section.dataJson}
                             style={{ width: '100%', minHeight: '100px', marginTop: '1rem', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '11px', background: '#f8fafc' }}

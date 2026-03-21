@@ -115,29 +115,30 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         )}
                     </div>
 
-                    {/* Integrated Sticky Header */}
+                    {/* Top Ad Area (non-sticky, scrolls away) */}
+                    {topBar?.adMediaUrl && (
+                        <div className="w-full bg-slate-900 overflow-hidden flex justify-center items-center">
+                            {topBar.adMediaType === 'video' ? (
+                                <video autoPlay muted loop playsInline className="w-full max-h-[80px] object-cover">
+                                    <source src={topBar.adMediaUrl} />
+                                </video>
+                            ) : (
+                                <Link href={topBar.adLink || '#'} className="w-full">
+                                    <img src={topBar.adMediaUrl} alt="Publicité" className="w-full max-h-[80px] object-cover" />
+                                </Link>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Announcement bar */}
+                    {topBar?.text && (
+                        <div className="text-center text-xs font-bold tracking-wide py-2" style={{ background: topBar.backgroundColor || '#0f172a', color: topBar.textColor || '#ffffff' }}>
+                            {topBar.text}
+                        </div>
+                    )}
+
+                    {/* Sticky Header */}
                     <div className="sticky top-0 z-50 w-full shadow-sm">
-                        {/* Top Ad Area */}
-                        {topBar?.adMediaUrl && (
-                            <div className="w-full bg-slate-900 overflow-hidden flex justify-center items-center">
-                                {topBar.adMediaType === 'video' ? (
-                                    <video autoPlay muted loop playsInline className="w-full max-h-[80px] object-cover">
-                                        <source src={topBar.adMediaUrl} />
-                                    </video>
-                                ) : (
-                                    <Link href={topBar.adLink || '#'} className="w-full">
-                                        <img src={topBar.adMediaUrl} alt="Publicité" className="w-full max-h-[80px] object-cover" />
-                                    </Link>
-                                )}
-                            </div>
-                        )}
-
-                        {topBar?.text && (
-                            <div style={{ background: topBar.backgroundColor || '#0f172a', color: topBar.textColor || '#ffffff', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', letterSpacing: '0.05em' }}>
-                                {topBar.text}
-                            </div>
-                        )}
-
                         <Navbar config={header} />
                     </div>
 

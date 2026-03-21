@@ -3,6 +3,7 @@ import { EntityHydrator, ListQueryBuilder, TransactionalConnection, ID, RequestC
 import { DeletionResponse, DeletionResult } from '@vendure/common/lib/generated-types';
 import { Page } from '../entities/page.entity';
 import { PageSection } from '../entities/section.entity';
+import { PagePreset } from '../entities/page-preset.entity';
 
 @Injectable()
 export class CMSService {
@@ -139,7 +140,13 @@ export class CMSService {
                     { label: 'Accueil', link: '/' },
                     { label: 'Boutique', link: '/search' },
                     { label: 'Vendeurs', link: '/vendors' }
-                ]
+                ],
+                showSearch: true,
+                searchPlaceholder: 'Rechercher un produit, une marque ou une catégorie',
+                showVendorLink: true,
+                vendorLinkText: 'Vendez sur AHIZAN',
+                vendorLinkUrl: '/register',
+                helpLinks: [{ label: 'Aide', link: '/help' }]
             })
         });
 
@@ -215,14 +222,19 @@ export class CMSService {
             order: 7,
             isActive: true,
             dataJson: JSON.stringify({
-                about: "AHIZAN est votre destination privilégiée pour le shopping en ligne. Nous nous engageons à vous offrir le meilleur service.",
+                about: "AHIZAN est votre marketplace de confiance pour le shopping en ligne au Bénin.",
                 facebook: "https://facebook.com/ahizan",
-                whatsapp: "+23700000000",
-                links: [
-                    { label: 'À propos', link: '/about' },
-                    { label: 'Contact', link: '/contact' },
-                    { label: 'Livraison', link: '/shipping' }
-                ]
+                whatsapp: "+22900000000",
+                showNewsletter: true,
+                newsletterTitle: "NOUVEAU SUR AHIZAN ?",
+                newsletterSubtitle: "Inscrivez-vous pour recevoir nos offres exclusives.",
+                linkGroups: [
+                    { title: "BESOIN D'AIDE ?", links: [{ label: 'Discuter avec nous', link: '/contact' }, { label: 'Aide & FAQ', link: '/help' }] },
+                    { title: 'LIENS UTILES', links: [{ label: 'Suivre sa commande', link: '/account/orders' }, { label: 'Politique de retour', link: '/returns' }] },
+                    { title: 'À PROPOS', links: [{ label: 'Qui sommes-nous', link: '/about' }, { label: 'Conditions générales', link: '/terms' }] }
+                ],
+                paymentMethods: ['Mobile Money', 'Cash'],
+                copyrightText: "© 2026 AHIZAN. Tous droits réservés."
             })
         });
 
@@ -248,5 +260,73 @@ export class CMSService {
         return {
             result: 'DELETED' as any,
         };
+    }
+
+    // --- Presets ---
+
+    async findAllPresets(ctx: RequestContext): Promise<PagePreset[]> {
+        return this.connection.getRepository(ctx, PagePreset).find({ order: { createdAt: 'DESC' } });
+    }
+
+    async createPreset(ctx: RequestContext, input: any): Promise<PagePreset> {
+        const preset = new PagePreset(input);
+        return this.connection.getRepository(ctx, PagePreset).save(preset);
+    }
+
+    async updatePreset(ctx: RequestContext, input: any): Promise<PagePreset> {
+        const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, input.id);
+        Object.assign(preset, input);
+        return this.connection.getRepository(ctx, PagePreset).save(preset);
+    }
+
+    async deletePreset(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
+        const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, id);
+        await this.connection.getRepository(ctx, PagePreset).remove(preset);
+        return { result: 'DELETED' as any };
+    }
+
+    async applyPreset(ctx: RequestContext, presetId: ID, pageId: ID): Promise<Page | null> {
+        const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, presetId);
+        const page = await this.connection.getEntityOrThrow(ctx, Page, pageId);
+
+        await this.clearPageSections(ctx, pageId);
+
+        const sections = JSON.parse(preset.sectionsJson);
+        for (const sectionData of sections) {
+            await this.createSection(ctx, {
+                pageId,
+                type: sectionData.type,
+                title: sectionData.title || '',
+                description: sectionData.description || '',
+                layout: sectionData.layout || 'grid',
+                order: sectionData.order || 0,
+                isActive: sectionData.isActive !== false,
+                dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
+            });
+        }
+
+        return this.findOne(ctx, pageId);
+    }
+
+    async savePageAsPreset(ctx: RequestContext, pageId: ID, name: string, description?: string): Promise<PagePreset> {
+        const page = await this.findOne(ctx, pageId);
+        if (!page) throw new Error(`Page ${pageId} not found`);
+
+        const sectionsData = (page.sections || []).map(s => ({
+            type: s.type,
+            title: s.title,
+            description: s.description,
+            layout: s.layout,
+            order: s.order,
+            isActive: s.isActive,
+            dataJson: s.dataJson,
+        }));
+
+        return this.createPreset(ctx, {
+            name,
+            description: description || '',
+            sectionsJson: JSON.stringify(sectionsData),
+            isBuiltIn: false,
+        });
     }
 }

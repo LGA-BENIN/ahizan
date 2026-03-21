@@ -79,14 +79,37 @@ export interface HeaderConfData {
     layoutType?: 'standard' | 'columns';
     columnCount?: number;
     columnsData?: HeaderColumn[];
-    menuItems?: Array<{ label: string; link: string }>;
+    menuItems?: Array<{ label: string; link: string; children?: Array<{ label: string; link: string }> }>;
+    showSearch?: boolean;
+    searchPlaceholder?: string;
+    showVendorLink?: boolean;
+    vendorLinkText?: string;
+    vendorLinkUrl?: string;
+    helpLinks?: Array<{ label: string; link: string }>;
 }
 
 export interface FooterConfData {
     about?: string;
     facebook?: string;
+    instagram?: string;
+    twitter?: string;
+    youtube?: string;
+    linkedin?: string;
+    tiktok?: string;
     whatsapp?: string;
+    appStoreUrl?: string;
+    playStoreUrl?: string;
+    newsletterTitle?: string;
+    newsletterSubtitle?: string;
+    showNewsletter?: boolean;
+    linkGroups?: Array<{
+        title: string;
+        links: Array<{ label: string; link: string }>;
+    }>;
     links?: Array<{ label: string; link: string }>;
+    paymentMethods?: string[];
+    brands?: string[];
+    copyrightText?: string;
 }
 
 export interface HeroData {

@@ -21,7 +21,8 @@ const GET_ORDERS_WITH_VENDOR = `
                         name
                     }
                     commissionAmount
-                    customStatus
+                    sellerStatus
+                    adminStatus
                 }
             }
             totalItems
@@ -74,12 +75,30 @@ export function OrdersListComponent() {
     const [page, setPage] = useState(0);
     const take = 20;
 
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, refetch } = useQuery({
         queryKey: ['adminOrders', page],
         queryFn: () => fetchGraphQL(GET_ORDERS_WITH_VENDOR, {
             options: { skip: page * take, take, sort: { createdAt: 'DESC' } },
         }),
     });
+
+    const [updating, setUpdating] = useState<string | null>(null);
+
+    const handleUpdateStatus = async (orderId: string, status: string) => {
+        setUpdating(orderId);
+        try {
+            await fetchGraphQL(`
+                mutation UpdateOrderAdminStatus($orderId: ID!, $status: String!) {
+                    updateOrderAdminStatus(orderId: $orderId, status: $status)
+                }
+            `, { orderId, status });
+            await refetch();
+        } catch (e: any) {
+            alert('Erreur: ' + e.message);
+        } finally {
+            setUpdating(null);
+        }
+    };
 
     const orders = data?.orders?.items || [];
     const totalItems = data?.orders?.totalItems || 0;
@@ -99,7 +118,8 @@ export function OrdersListComponent() {
                         <th style={{ padding: '10px 8px', fontSize: 13 }}>Client</th>
                         <th style={{ padding: '10px 8px', fontSize: 13 }}>Vendeur</th>
                         <th style={{ padding: '10px 8px', fontSize: 13 }}>Statut</th>
-                        <th style={{ padding: '10px 8px', fontSize: 13 }}>Suivi</th>
+                        <th style={{ padding: '10px 8px', fontSize: 13 }}>Statut Vendeur</th>
+                        <th style={{ padding: '10px 8px', fontSize: 13 }}>Statut Livraison</th>
                         <th style={{ padding: '10px 8px', fontSize: 13, textAlign: 'right' }}>Total</th>
                         <th style={{ padding: '10px 8px', fontSize: 13, textAlign: 'right' }}>Commission</th>
                         <th style={{ padding: '10px 8px', fontSize: 13 }}>Date</th>
@@ -109,8 +129,24 @@ export function OrdersListComponent() {
                     {orders.map((order: any) => {
                         const vendor = order.customFields?.vendor;
                         const commission = order.customFields?.commissionAmount;
-                        const customStatus = order.customFields?.customStatus;
+                        const sellerStatus = order.customFields?.sellerStatus || 'pending';
+                        const adminStatus = order.customFields?.adminStatus || 'pending';
                         const stateColor = stateColors[order.state] || '#9CA3AF';
+
+                        const sellerLabels: Record<string, {label: string; color: string}> = {
+                            pending: { label: 'En attente', color: '#F59E0B' },
+                            confirmed: { label: 'Confirmée', color: '#3B82F6' },
+                            refused: { label: 'Refusée', color: '#EF4444' },
+                        };
+                        const adminLabels: Record<string, {label: string; color: string}> = {
+                            pending: { label: 'En attente', color: '#9CA3AF' },
+                            shipped: { label: 'Expédiée', color: '#6366F1' },
+                            in_transit: { label: 'En transit', color: '#0EA5E9' },
+                            delivered: { label: 'Livrée', color: '#10B981' },
+                            cancelled: { label: 'Annulée', color: '#EF4444' },
+                        };
+                        const sObj = sellerLabels[sellerStatus] || sellerLabels.pending;
+                        const aObj = adminLabels[adminStatus] || adminLabels.pending;
 
                         return (
                             <tr key={order.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
@@ -134,8 +170,61 @@ export function OrdersListComponent() {
                                         {order.state}
                                     </span>
                                 </td>
-                                <td style={{ padding: '10px 8px', fontSize: 12 }}>
-                                    {customStatus || '—'}
+                                <td style={{ padding: '10px 8px' }}>
+                                    <span style={{ background: sObj.color + '20', color: sObj.color, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
+                                        {sObj.label}
+                                    </span>
+                                </td>
+                                <td style={{ padding: '10px 8px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <span style={{ background: aObj.color + '20', color: aObj.color, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600, alignSelf: 'flex-start' }}>
+                                            {aObj.label}
+                                        </span>
+                                        
+                                        {adminStatus !== 'delivered' && adminStatus !== 'cancelled' && (
+                                            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                                                {/* Logic for NEXT status */}
+                                                {adminStatus === 'pending' && sellerStatus === 'confirmed' && (
+                                                    <button 
+                                                        onClick={() => handleUpdateStatus(order.id, 'shipped')}
+                                                        disabled={!!updating}
+                                                        style={{ fontSize: 10, padding: '2px 6px', background: '#3B82F6', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                                    >
+                                                        Expédier
+                                                    </button>
+                                                )}
+                                                {adminStatus === 'shipped' && (
+                                                    <button 
+                                                        onClick={() => handleUpdateStatus(order.id, 'in_transit')}
+                                                        disabled={!!updating}
+                                                        style={{ fontSize: 10, padding: '2px 6px', background: '#0EA5E9', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                                    >
+                                                        En transit
+                                                    </button>
+                                                )}
+                                                {adminStatus === 'in_transit' && (
+                                                    <button 
+                                                        onClick={() => handleUpdateStatus(order.id, 'delivered')}
+                                                        disabled={!!updating}
+                                                        style={{ fontSize: 10, padding: '2px 6px', background: '#10B981', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                                    >
+                                                        Livré
+                                                    </button>
+                                                )}
+
+                                                <button 
+                                                    onClick={() => handleUpdateStatus(order.id, 'cancelled')}
+                                                    disabled={!!updating}
+                                                    style={{ fontSize: 10, padding: '2px 6px', background: '#EF4444', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                                >
+                                                    Annuler
+                                                </button>
+                                            </div>
+                                        )}
+                                        {adminStatus === 'pending' && sellerStatus === 'pending' && (
+                                            <span style={{ fontSize: 10, color: '#9CA3AF', fontStyle: 'italic' }}>En attente du vendeur</span>
+                                        )}
+                                    </div>
                                 </td>
                                 <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 600, fontSize: 13 }}>
                                     {formatPrice(order.totalWithTax, order.currencyCode)}

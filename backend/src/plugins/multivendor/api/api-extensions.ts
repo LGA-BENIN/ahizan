@@ -287,7 +287,7 @@ export const shopApiExtensions = `
         applyToBecomeVendor(input: CreateVendorInput!): Vendor!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
-        updateMyOrderCustomStatus(orderId: ID!, statusCode: String!): Boolean!
+        updateMyOrderSellerStatus(orderId: ID!, statusCode: String!): Boolean!
         uploadVendorFile(file: Upload!): Asset!
         
         createMyProduct(input: CreateVendorProductInput!): Product!
@@ -344,5 +344,8 @@ export const adminApiExtensions = `
         createVendorFacetValue(input: CreateVendorFacetValueInput!): FacetValue!
         deleteMyProduct(id: ID!): DeletionResponse!
         uploadVendorFile(file: Upload!): Asset!
+        
+        # Order Management (Admin status updates)
+        updateOrderAdminStatus(orderId: ID!, status: String!): Boolean!
     }
 `;

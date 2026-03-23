@@ -6,6 +6,7 @@ import { PlatformSettingsComponent } from './platform-settings';
 import { OrderStatusesComponent } from './order-statuses';
 import { DeliveryZonesComponent } from './delivery-zones';
 import { OrdersListComponent } from './orders-list';
+import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
 
 export default defineDashboardExtension({
     routes: [
@@ -68,6 +69,20 @@ export default defineDashboardExtension({
         {
             id: 'marketplace',
             title: 'Marketplace',
+        },
+    ],
+    dataTableColumns: [
+        {
+            id: 'seller-status',
+            entity: 'Order',
+            title: 'Statut Vendeur',
+            component: SellerStatusColumn,
+        },
+        {
+            id: 'admin-status',
+            entity: 'Order',
+            title: 'Statut Livraison',
+            component: AdminStatusColumn,
         },
     ],
 });

@@ -108,7 +108,7 @@ export class VendorResolver {
 
     @Mutation()
     @Allow(Permission.Authenticated)
-    async updateMyOrderCustomStatus(
+    async updateMyOrderSellerStatus(
         @Ctx() ctx: RequestContext,
         @Args('orderId') orderId: string,
         @Args('statusCode') statusCode: string
@@ -128,13 +128,13 @@ export class VendorResolver {
             throw new Error('You do not have permission to update this order');
         }
 
-        const status = await this.orderStatusService.findByCode(ctx, statusCode);
-        if (!status || !status.vendorCanSet) {
-            throw new Error('You are not allowed to set this status');
+        // Must be a valid seller state
+        if (!['pending', 'confirmed', 'refused'].includes(statusCode)) {
+            throw new Error('Invalid seller status');
         }
 
         await this.connection.getRepository(ctx, Order).update(orderId, {
-            customFields: { customStatus: statusCode },
+            customFields: { sellerStatus: statusCode },
         });
         return true;
     }
@@ -248,12 +248,40 @@ export class VendorAdminResolver {
     }
 
     @Mutation()
-    @Allow(Permission.Public)
+    @Allow(Permission.Authenticated)
     async setVendorAllowNegativeBalance(
         @Ctx() ctx: RequestContext,
         @Args('vendorId') vendorId: string,
         @Args('allow') allow: boolean
     ): Promise<Vendor> {
         return this.vendorService.setAllowNegativeBalance(ctx, vendorId, allow);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async updateOrderAdminStatus(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('status') status: string
+    ): Promise<boolean> {
+        // Validate status
+        if (!['pending', 'shipped', 'in_transit', 'delivered', 'cancelled'].includes(status)) {
+            throw new Error('Invalid admin status');
+        }
+
+        const order = await this.connection.getRepository(ctx, Order).findOne({ where: { id: orderId } });
+        if (!order) {
+            throw new Error('Order not found');
+        }
+
+        await this.connection.getRepository(ctx, Order).update(orderId, {
+            customFields: { adminStatus: status },
+        });
+
+        // If admin cancels, we might also want to set sellerStatus to refused if it was pending? 
+        // User said: "superadmin should also have the possibilitu to reject the commande at any level"
+        // If it's cancelled by admin, it's globally cancelled.
+        
+        return true;
     }
 }

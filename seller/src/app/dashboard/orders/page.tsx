@@ -5,6 +5,7 @@ import { formatPrice } from '@/lib/format';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { OrderFilters } from '@/components/dashboard/order-filters';
+import { OrderRowActions } from '@/components/dashboard/order-row-actions';
 
 export default async function VendorOrdersPage({ searchParams }: { searchParams?: Promise<{ state?: string; sort?: string }> }) {
     const token = await getAuthToken();
@@ -47,6 +48,26 @@ export default async function VendorOrdersPage({ searchParams }: { searchParams?
         }
     };
 
+    const getSellerStatusBadge = (status?: string) => {
+        const s = status || 'pending';
+        switch (s) {
+            case 'confirmed': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Confirmée</span>;
+            case 'refused': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Refusée</span>;
+            default: return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">En attente</span>;
+        }
+    };
+
+    const getAdminStatusBadge = (status?: string) => {
+        const s = status || 'pending';
+        switch (s) {
+            case 'shipped': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">Expédiée</span>;
+            case 'in_transit': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">En transit</span>;
+            case 'delivered': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Livrée</span>;
+            case 'cancelled': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Annulée</span>;
+            default: return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">En attente</span>;
+        }
+    };
+
     return (
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
@@ -65,7 +86,8 @@ export default async function VendorOrdersPage({ searchParams }: { searchParams?
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut Vendeur</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut Livraison</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
@@ -93,14 +115,16 @@ export default async function VendorOrdersPage({ searchParams }: { searchParams?
                                     <div className="text-xs text-gray-500">{order.lines.length} article(s)</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.state)}`}>
-                                        {order.state}
-                                    </span>
+                                    {getSellerStatusBadge(order.customFields?.sellerStatus)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {getAdminStatusBadge(order.customFields?.adminStatus)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <Link href={`/dashboard/orders/${order.id}`} className="text-indigo-600 hover:text-indigo-900">
-                                        Détails
-                                    </Link>
+                                    <OrderRowActions 
+                                        orderId={order.id} 
+                                        sellerStatus={order.customFields?.sellerStatus} 
+                                    />
                                 </td>
                             </tr>
                         ))}

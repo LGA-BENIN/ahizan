@@ -31,7 +31,7 @@ export async function updateOrderStatusAction(orderId: string, status: string) {
     }
 }
 
-export async function updateOrderCustomStatusAction(orderId: string, statusCode: string) {
+export async function updateOrderSellerStatusAction(orderId: string, statusCode: string) {
     try {
         const token = await getAuthToken();
         const headers: Record<string, string> = {
@@ -47,8 +47,8 @@ export async function updateOrderCustomStatusAction(orderId: string, statusCode:
             method: 'POST',
             headers,
             body: JSON.stringify({
-                query: `mutation UpdateMyOrderCustomStatus($orderId: ID!, $statusCode: String!) {
-                    updateMyOrderCustomStatus(orderId: $orderId, statusCode: $statusCode)
+                query: `mutation UpdateMyOrderSellerStatus($orderId: ID!, $statusCode: String!) {
+                    updateMyOrderSellerStatus(orderId: $orderId, statusCode: $statusCode)
                 }`,
                 variables: { orderId, statusCode },
             }),
@@ -86,6 +86,28 @@ export async function fetchVendorOrderStatuses(): Promise<any[]> {
         });
         const json = await res.json();
         return json.data?.vendorOrderStatuses || [];
+    } catch {
+        return [];
+    }
+}
+
+export async function fetchAllOrderStatuses(): Promise<any[]> {
+    try {
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
+        };
+        
+        const res = await fetch(VENDURE_API_URL!, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: `query { orderStatuses { id code label color order vendorCanSet isFinal enabled } }`,
+            }),
+            cache: 'no-store',
+        });
+        const json = await res.json();
+        return json.data?.orderStatuses || [];
     } catch {
         return [];
     }

@@ -75,7 +75,11 @@ export default async function VendorOrderDetailPage({ params }: { params: Promis
                 </div>
 
                 {/* Order Status Actions */}
-                <OrderStatusActions orderId={order.id} currentState={order.state} />
+                <OrderStatusActions 
+                    orderId={order.id} 
+                    currentSellerStatus={order.customFields?.sellerStatus} 
+                    currentAdminStatus={order.customFields?.adminStatus} 
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

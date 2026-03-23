@@ -106,11 +106,35 @@ ${shopApiExtensions}
         });
 
         config.customFields.Order.push({
-            name: 'customStatus',
+            name: 'sellerStatus',
             type: 'string',
             public: true,
             nullable: true,
             defaultValue: 'pending',
+            options: [
+                { value: 'pending' },
+                { value: 'confirmed' },
+                { value: 'refused' },
+            ],
+            readonly: true,
+        });
+
+        config.customFields.Order.push({
+            name: 'adminStatus',
+            type: 'string',
+            public: true,
+            nullable: true,
+            defaultValue: 'pending',
+            options: [
+                { value: 'pending' },
+                { value: 'shipped' },
+                { value: 'in_transit' },
+                { value: 'delivered' },
+                { value: 'cancelled' },
+            ],
+            ui: {
+                component: 'select-form-input',
+            },
         });
 
         // ---------------------------

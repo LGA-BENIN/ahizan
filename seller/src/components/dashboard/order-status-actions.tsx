@@ -1,46 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateOrderStatusAction, updateOrderCustomStatusAction, fetchVendorOrderStatuses } from '@/app/dashboard/orders/actions';
-
-const STATE_TRANSITIONS: Record<string, { label: string; next: string; color: string }[]> = {
-    'PaymentAuthorized': [
-        { label: 'Marquer comme Expédié', next: 'Shipped', color: 'bg-blue-600 hover:bg-blue-700' },
-    ],
-    'PaymentSettled': [
-        { label: 'Marquer comme Expédié', next: 'Shipped', color: 'bg-blue-600 hover:bg-blue-700' },
-    ],
-    'Shipped': [
-        { label: 'Marquer comme Livré', next: 'Delivered', color: 'bg-green-600 hover:bg-green-700' },
-    ],
-};
+import { updateOrderSellerStatusAction } from '@/app/dashboard/orders/actions';
 
 interface OrderStatusActionsProps {
     orderId: string;
-    currentState: string;
-    currentCustomStatus?: string;
+    currentSellerStatus?: string;
+    currentAdminStatus?: string;
 }
 
-export default function OrderStatusActions({ orderId, currentState, currentCustomStatus }: OrderStatusActionsProps) {
+const SELLER_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+    'pending': { label: 'En attente', color: 'bg-yellow-500' },
+    'confirmed': { label: 'Confirmée', color: 'bg-blue-500' },
+    'refused': { label: 'Refusée', color: 'bg-red-500' },
+};
+
+const ADMIN_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+    'pending': { label: 'En attente', color: 'bg-gray-400' },
+    'shipped': { label: 'Expédiée', color: 'bg-indigo-500' },
+    'in_transit': { label: 'En transit', color: 'bg-blue-400' },
+    'delivered': { label: 'Livrée', color: 'bg-emerald-500' },
+    'cancelled': { label: 'Annulée', color: 'bg-red-600' },
+};
+
+export default function OrderStatusActions({ orderId, currentSellerStatus, currentAdminStatus }: OrderStatusActionsProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showConfirm, setShowConfirm] = useState<string | null>(null);
-    const [customStatuses, setCustomStatuses] = useState<any[]>([]);
-    const [selectedCustomStatus, setSelectedCustomStatus] = useState(currentCustomStatus || '');
     const router = useRouter();
 
-    useEffect(() => {
-        fetchVendorOrderStatuses().then(setCustomStatuses);
-    }, []);
+    const sellerStatus = currentSellerStatus || 'pending';
+    const adminStatus = currentAdminStatus || 'pending';
 
-    const transitions = STATE_TRANSITIONS[currentState];
-
-    const handleTransition = async (nextState: string) => {
+    const handleSellerStatusChange = async (statusCode: string) => {
         setLoading(true);
         setError(null);
         try {
-            const result = await updateOrderStatusAction(orderId, nextState);
+            const result = await updateOrderSellerStatusAction(orderId, statusCode);
             if (!result.success) {
                 setError(result.error || 'Une erreur est survenue');
             } else {
@@ -50,29 +46,11 @@ export default function OrderStatusActions({ orderId, currentState, currentCusto
             setError(e.message || 'Une erreur est survenue');
         } finally {
             setLoading(false);
-            setShowConfirm(null);
         }
     };
 
-    const handleCustomStatusChange = async (statusCode: string) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const result = await updateOrderCustomStatusAction(orderId, statusCode);
-            if (!result.success) {
-                setError(result.error || 'Une erreur est survenue');
-            } else {
-                setSelectedCustomStatus(statusCode);
-                router.refresh();
-            }
-        } catch (e: any) {
-            setError(e.message || 'Une erreur est survenue');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const currentCustomStatusObj = customStatuses.find(s => s.code === (selectedCustomStatus || currentCustomStatus));
+    const sellerObj = SELLER_STATUS_LABELS[sellerStatus] || SELLER_STATUS_LABELS['pending'];
+    const adminObj = ADMIN_STATUS_LABELS[adminStatus] || ADMIN_STATUS_LABELS['pending'];
 
     return (
         <div className="mt-4 space-y-4">
@@ -82,69 +60,55 @@ export default function OrderStatusActions({ orderId, currentState, currentCusto
                 </div>
             )}
 
-            {/* Vendure native state transitions */}
-            {transitions && transitions.length > 0 && (
-                <div className="flex gap-3">
-                    {transitions.map((t) => (
-                        <div key={t.next}>
-                            {showConfirm === t.next ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-600">Confirmer ?</span>
-                                    <button
-                                        onClick={() => handleTransition(t.next)}
-                                        disabled={loading}
-                                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
-                                    >
-                                        {loading ? 'En cours...' : 'Oui'}
-                                    </button>
-                                    <button
-                                        onClick={() => setShowConfirm(null)}
-                                        disabled={loading}
-                                        className="px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400 disabled:opacity-50"
-                                    >
-                                        Non
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => setShowConfirm(t.next)}
-                                    className={`px-4 py-2 text-white text-sm rounded-lg ${t.color} transition-colors`}
-                                >
-                                    {t.label}
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Custom marketplace status dropdown */}
-            {customStatuses.length > 0 && (
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
-                    <span className="text-sm font-medium text-gray-700">Statut suivi :</span>
-                    {currentCustomStatusObj && (
-                        <span
-                            className="px-2 py-0.5 text-xs font-semibold rounded-full text-white"
-                            style={{ backgroundColor: currentCustomStatusObj.color }}
-                        >
-                            {currentCustomStatusObj.label}
+            <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-lg border">
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">Votre Statut :</span>
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full text-white ${sellerObj.color}`}>
+                            {sellerObj.label}
                         </span>
-                    )}
-                    <select
-                        value={selectedCustomStatus || currentCustomStatus || ''}
-                        onChange={(e) => handleCustomStatusChange(e.target.value)}
-                        disabled={loading}
-                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white disabled:opacity-50"
-                    >
-                        <option value="">-- Changer le statut --</option>
-                        {customStatuses.map((s: any) => (
-                            <option key={s.id} value={s.code}>
-                                {s.label}
-                            </option>
-                        ))}
-                    </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 border-l pl-4">
+                        <span className="text-sm font-medium text-gray-700">Statut Livraison (Admin) :</span>
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full text-white ${adminObj.color}`}>
+                            {adminObj.label}
+                        </span>
+                    </div>
                 </div>
-            )}
+                
+                {/* Actions strictly limited to Seller confirming/refusing */}
+                {sellerStatus === 'pending' && (
+                    <div className="flex gap-3 mt-4">
+                        <button
+                            onClick={() => handleSellerStatusChange('confirmed')}
+                            disabled={loading}
+                            className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                        >
+                            {loading ? 'En cours...' : 'Confirmer la commande'}
+                        </button>
+                        <button
+                            onClick={() => handleSellerStatusChange('refused')}
+                            disabled={loading}
+                            className="px-5 py-2.5 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 hover:text-red-800 disabled:opacity-50 transition-colors"
+                        >
+                            {loading ? 'En cours...' : 'Refuser la commande'}
+                        </button>
+                    </div>
+                )}
+
+                {sellerStatus === 'confirmed' && (
+                    <div className="mt-4 text-sm text-gray-600 italic bg-blue-50/50 p-3 rounded-md border border-blue-100">
+                        Vous avez confirmé cette commande. Veuillez préparer la marchandise pour l'expédition.
+                    </div>
+                )}
+
+                {sellerStatus === 'refused' && (
+                    <div className="mt-4 text-sm text-gray-600 italic bg-red-50/50 p-3 rounded-md border border-red-100">
+                        Vous avez refusé cette commande.
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

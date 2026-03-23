@@ -11,6 +11,10 @@ export const GetMyVendorOrdersQuery = graphql(`
                 currencyCode
                 createdAt
                 updatedAt
+                customFields {
+                    sellerStatus
+                    adminStatus
+                }
                 customer {
                     firstName
                     lastName
@@ -44,6 +48,10 @@ export const GetMyVendorOrderDetailQuery = graphql(`
                 subTotalWithTax
                 shippingWithTax
                 currencyCode
+                customFields {
+                    sellerStatus
+                    adminStatus
+                }
                 customer {
                     id
                     firstName

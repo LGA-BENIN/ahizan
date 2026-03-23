@@ -91,6 +91,16 @@ export async function query<TResult, TVariables>(
 
     console.log(`[API Query] Requesting: ${VENDURE_API_URL}`);
     console.log(`[API Query] Variables:`, JSON.stringify(variables, null, 2));
+    
+    // DEBUG LOG HEADERS
+    try {
+        const fs = require('fs');
+        const documentName = (document as any)?.definitions?.[0]?.name?.value || 'Unknown';
+        fs.appendFileSync('checkout-debug.log', `[API] Executing ${documentName}
+AuthHeader: ${headers['Authorization'] ? 'PRESENT (' + headers['Authorization'].substring(0,15) + '...)' : 'MISSING'}
+Variables: ${JSON.stringify(variables)}
+\n`);
+    } catch(e) {}
 
     const hasRevalidate = fetchOptions?.next && 'revalidate' in (fetchOptions.next as any);
     const response = await fetch(VENDURE_API_URL!, {

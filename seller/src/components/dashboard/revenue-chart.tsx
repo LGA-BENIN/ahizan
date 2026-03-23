@@ -21,7 +21,9 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
     }
 
     for (const order of settledOrders) {
-        const day = new Date(order.createdAt).toISOString().split('T')[0];
+        const dateStr = order.createdAt || order.updatedAt;
+        if (!dateStr) continue;
+        const day = new Date(dateStr).toISOString().split('T')[0];
         if (last30Days[day] !== undefined) {
             last30Days[day] += order.totalWithTax;
         }

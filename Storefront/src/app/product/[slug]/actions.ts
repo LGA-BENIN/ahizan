@@ -4,9 +4,11 @@ import { mutate } from '@/lib/vendure/api';
 import { AddToCartMutation } from '@/lib/vendure/mutations';
 import { updateTag } from 'next/cache';
 import { setAuthToken } from '@/lib/auth';
+import { ensureAddingItems } from '@/app/checkout/actions';
 
 export async function addToCart(variantId: string, quantity: number = 1) {
   try {
+    await ensureAddingItems();
     const result = await mutate(AddToCartMutation, { variantId, quantity }, { useAuthToken: true });
 
     if (result.token) {

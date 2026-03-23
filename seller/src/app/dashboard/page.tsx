@@ -9,16 +9,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { unstable_noStore as noStore } from 'next/cache';
 import { formatPrice } from "@/lib/format";
 import Link from "next/link";
+import { getAuthToken } from "@/lib/auth";
 
 export default async function DashboardPage() {
     noStore();
 
-    const token = null; // query helper uses useAuthToken: true or getAuthToken internally if not provided
+    const token = await getAuthToken();
 
     const [{ data: vendorData }, { data: productsData }, { data: ordersData }] = await Promise.all([
-        query(GetMyVendorProfileQuery, {}, { useAuthToken: true }).catch(() => ({ data: { myVendorProfile: null } })),
-        query(GetMyVendorProductsQuery, { options: { take: 100 } }, { useAuthToken: true }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
-        query(GetMyVendorOrdersQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { useAuthToken: true }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } }))
+        query(GetMyVendorProfileQuery, {}, { token }).catch(() => ({ data: { myVendorProfile: null } })),
+        query(GetMyVendorProductsQuery, { options: { take: 100 } }, { token }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
+        query(GetMyVendorOrdersQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } }))
     ]);
 
     const vendor = (vendorData as any)?.myVendorProfile;

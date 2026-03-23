@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, MapPin, Truck, CreditCard, Edit, Mail } from 'lucide-react';
 import { useCheckout } from '../checkout-provider';
@@ -15,21 +15,38 @@ export default function ReviewStep({ onEditStep }: ReviewStepProps) {
   const { order, paymentMethods, selectedPaymentMethodCode, isGuest } = useCheckout();
   const [loading, setLoading] = useState(false);
 
+  const isSubmitting = useRef(false);
+
   const selectedPaymentMethod = paymentMethods.find(
     (method) => method.code === selectedPaymentMethodCode
   );
 
   const handlePlaceOrder = async () => {
-    if (!selectedPaymentMethodCode) return;
+    if (!selectedPaymentMethodCode || isSubmitting.current) return;
 
+    isSubmitting.current = true;
     setLoading(true);
     try {
-      await placeOrderAction(selectedPaymentMethodCode);
+      const result = await placeOrderAction(selectedPaymentMethodCode);
+      
+      if (result && !result.success) {
+         if (result.error.includes('NO_ACTIVE_ORDER')) {
+             console.log('No active order found. Session may have expired or order was already placed. Redirecting to cart.');
+             // Force a full reload to /cart to clear any stale Next.js cache state
+             window.location.href = '/cart';
+             return;
+         }
+         console.error('Error placing order:', result.error);
+         alert(`Payment failed: ${result.error}`); // Simple fallback alert for visibility
+         isSubmitting.current = false;
+         setLoading(false);
+      }
     } catch (error) {
       if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
-        throw error;
+        throw error; // This is a correct redirect from NextJS
       }
       console.error('Error placing order:', error);
+      isSubmitting.current = false;
       setLoading(false);
     }
   };

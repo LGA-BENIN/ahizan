@@ -14,13 +14,18 @@ import { GetActiveOrderForCheckoutQuery } from '@/lib/vendure/queries';
 import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from "next/navigation";
 import { formatPhoneE164 } from '@/lib/format-phone';
+import fs from 'fs';
 import { setAuthToken, getAuthToken } from '@/lib/auth';
+
 function log(message: string) {
     const timestamp = new Date().toISOString();
     console.log(`[CHECKOUT] [${timestamp}] ${message}`);
+    try {
+        fs.appendFileSync('checkout-debug.log', `[CHECKOUT] [${timestamp}] ${message}\n`);
+    } catch(e) {}
 }
 
-async function ensureAddingItems() {
+export async function ensureAddingItems() {
     log('Ensuring order is in AddingItems state');
     const orderCheck = await query(GetActiveOrderForCheckoutQuery, {}, { useAuthToken: true });
     const currentState = orderCheck.data?.activeOrder?.state;
@@ -147,7 +152,7 @@ export async function transitionToArrangingPayment() {
         if (result.data.transitionOrderToState?.__typename === 'OrderStateTransitionError') {
             const errorResult = result.data.transitionOrderToState;
             log(`Transition error: ${errorResult.errorCode} - ${errorResult.message}`);
-            if (errorResult.errorCode === 'ORDER_STATE_TRANSITION_ERROR' && errorResult.message.includes('to "ArrangingPayment"')) {
+            if (errorResult.errorCode === 'ORDER_STATE_TRANSITION_ERROR' && errorResult.fromState === 'ArrangingPayment') {
                 log('Order already in ArrangingPayment state, proceeding.');
                 return result.token || currentToken;
             }
@@ -206,9 +211,7 @@ export async function placeOrder(paymentMethodCode: string) {
         if (result.data.addPaymentToOrder.__typename !== 'Order') {
             const errorResult = result.data.addPaymentToOrder;
             log(`Place order error: ${errorResult.errorCode} - ${errorResult.message}`);
-            throw new Error(
-                `Failed to place order: ${errorResult.errorCode} - ${errorResult.message}`
-            );
+            return { success: false, error: `${errorResult.errorCode} - ${errorResult.message}` };
         }
 
         if (result.token) {

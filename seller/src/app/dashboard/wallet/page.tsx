@@ -7,13 +7,16 @@ import { formatPrice } from '@/lib/format';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { unstable_noStore as noStore } from 'next/cache';
 import WalletRechargeButton from './wallet-recharge-button';
+import { getAuthToken } from '@/lib/auth';
 
 export default async function WalletPage() {
     noStore();
 
+    const token = await getAuthToken();
+
     const [{ data: vendorData }, { data: ordersData }] = await Promise.all([
-        query(GetMyVendorProfileQuery, {}, { useAuthToken: true }).catch(() => ({ data: { myVendorProfile: null } })),
-        query(GetMyVendorOrdersQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { useAuthToken: true }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
+        query(GetMyVendorProfileQuery, {}, { token }).catch(() => ({ data: { myVendorProfile: null } })),
+        query(GetMyVendorOrdersQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
     ]);
 
     const vendor = (vendorData as any)?.myVendorProfile;
@@ -128,7 +131,7 @@ export default async function WalletPage() {
                                     <div key={order.id} className="flex items-center justify-between border-b pb-2 last:border-0">
                                         <div>
                                             <p className="text-sm font-medium">{order.code}</p>
-                                            <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString('fr-FR')}</p>
+                                            <p className="text-xs text-muted-foreground">{new Date(order.createdAt || order.updatedAt).toLocaleDateString('fr-FR')}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm font-medium text-red-600">-{formatPrice(commission, currencyCode)}</p>

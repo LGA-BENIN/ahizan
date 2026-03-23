@@ -465,8 +465,11 @@ export class VendorService implements OnApplicationBootstrap {
             Permission.CreateCatalog,
             Permission.UpdateCatalog,
             Permission.DeleteCatalog,
-            Permission.ReadOrder,
-            Permission.UpdateOrder,
+            // NOTE: ReadOrder and UpdateOrder are intentionally excluded here.
+            // Including them causes Vendure's shop API auth guard to set
+            // authorizedAsOwnerOnly=false for vendor users, which breaks
+            // shop mutations like addPaymentToOrder (returns NoActiveOrderError).
+            // Vendor order management uses custom resolvers instead.
             Permission.ReadAsset,
             Permission.CreateAsset,
             Permission.ReadCountry,

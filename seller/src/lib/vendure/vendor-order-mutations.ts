@@ -9,6 +9,7 @@ export const GetMyVendorOrdersQuery = graphql(`
                 state
                 totalWithTax
                 currencyCode
+                createdAt
                 updatedAt
                 customer {
                     firstName

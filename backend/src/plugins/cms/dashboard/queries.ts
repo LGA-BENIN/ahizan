@@ -128,3 +128,19 @@ export const CREATE_CMS_ASSET = gql`
     }
   }
 `;
+
+export const GET_FACET_VALUES = gql`
+  query GetFacetValues($options: FacetValueListOptions) {
+    facetValues(options: $options) {
+      items {
+        id
+        name
+        code
+        facet {
+          name
+          code
+        }
+      }
+    }
+  }
+`;

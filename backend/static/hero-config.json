@@ -1,0 +1,52 @@
+{
+  "selectedTemplate": "bento",
+  "classic": {
+    "title": "okay na le titre est ici",
+    "subtitle": "knfelawifnmawemlcaxfckùames canrcdx,mcùèasdcxa;rvc",
+    "buttonText": "buy na ",
+    "buttonLink": "/buy",
+    "type": "video",
+    "assistanceDesc": "contact moi si tu veut ",
+    "whatsappDesc": "+229 0202920930",
+    "sellDesc": "vendex et achetez na ",
+    "flashTitle": "Promo ramadan",
+    "flashDiscount": "-60%",
+    "flashBgType": "image",
+    "flashBgUrl": "/assets/banners/1774347287371-WhatsApp Image 2026-03-18 at 8.03.43 AM.jpeg",
+    "bgUrl": "/assets/banners/1774348182525-gooey.ai lipsync (1).mp4",
+    "mainTextColor": "#e31837",
+    "modalTextColor": "white"
+  },
+  "bento": {
+    "mainTitle": "cerfwrf",
+    "mainSubtitle": "rgesrgesrg",
+    "mainButtonText": "ergesrg",
+    "mainButtonLink": "ecrfvdc",
+    "flashTitle": "this is for easter",
+    "whatsappTitle": "gerge",
+    "sellTitle": "ergferf",
+    "type": "image",
+    "bgUrl": "/assets/banners/1774347356846-Why Do People Call God The Great I Am_.mp4",
+    "assistanceTitle": "Assistanc",
+    "assistanceDesc": "template deux and i dont know where it is ",
+    "whatsappDesc": "dfasdfdc",
+    "sellDesc": "sfdcvaerfcd",
+    "flashDesc": "-50%",
+    "mainTextColor": "black",
+    "modalTextColor": "#e31837"
+  },
+  "fullwidth": {
+    "type": "video",
+    "bgUrl": "/assets/banners/1774345906375-tikcdn_beubagah_com_da49db46_376a_452d_bf3f_14136c7fad1f.mp4",
+    "title": "vendez aujaudhui",
+    "subtitle": "chez ahizan on vend tous hien",
+    "buttonText": "achetez non",
+    "buttonLink": "achat",
+    "assistanceDesc": "contactez elidja si vous avez besoin",
+    "whatsappDesc": "+229 0002882093",
+    "sellDesc": "fdrefgergf",
+    "whatsappTitle": "WhatsApp",
+    "sellTitle": "Vendrrtyr"
+  },
+  "showSidebar": true
+}

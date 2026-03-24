@@ -20,6 +20,28 @@ export class BannerAdminController {
         return { success: true };
     }
 
+    @Get('hero-config')
+    async getHeroConfig() {
+        return this.bannerService.getHeroConfig();
+    }
+
+    @Post('hero-config')
+    async saveHeroConfig(@Body() config: any) {
+        await this.bannerService.saveHeroConfig(config);
+        return { success: true };
+    }
+
+    @Get('promo-config')
+    async getPromoConfig() {
+        return this.bannerService.getPromoConfig();
+    }
+
+    @Post('promo-config')
+    async savePromoConfig(@Body() config: any) {
+        await this.bannerService.savePromoConfig(config);
+        return { success: true };
+    }
+
     @Post('upload')
     @UseInterceptors(FileInterceptor('file'))
     async uploadImage(@UploadedFile() file: any) {

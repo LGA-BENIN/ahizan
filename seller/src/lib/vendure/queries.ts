@@ -309,6 +309,7 @@ export const GetFacetsQuery = graphql(`
             items {
                 id
                 name
+                code
                 values {
                     id
                     name

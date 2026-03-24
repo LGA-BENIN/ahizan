@@ -5,9 +5,7 @@ import CreateProductForm from '@/components/dashboard/products/create-form';
 
 export default async function CreateProductPage() {
     const token = await getAuthToken();
-    const { data } = await query(GetFacetsQuery, {
-        options: { filter: { name: { eq: "Category" } } }
-    }, { token });
+    const { data } = await query(GetFacetsQuery, {}, { token });
 
     return (
         <div className="p-6 max-w-2xl mx-auto">

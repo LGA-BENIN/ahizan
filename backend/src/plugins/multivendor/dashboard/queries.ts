@@ -76,8 +76,8 @@ export const UPDATE_VENDOR_STATUS = gql`
 `;
 
 export const GET_PRODUCTS = gql`
-    query GetPublicProducts($options: ProductListOptions) {
-        publicProducts(options: $options) {
+    query GetProducts($options: ProductListOptions) {
+        products(options: $options) {
             items {
                 id
                 createdAt
@@ -135,6 +135,31 @@ export const SET_VENDOR_ALLOW_NEGATIVE_BALANCE = gql`
         setVendorAllowNegativeBalance(vendorId: $vendorId, allow: $allow) {
             id
             allowNegativeBalance
+        }
+    }
+`;
+
+export const GET_FACETS = gql`
+    query GetFacets($options: FacetListOptions) {
+        facets(options: $options) {
+            items {
+                id
+                name
+                code
+                values {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
+export const CREATE_FACET_VALUE = gql`
+    mutation CreateVendorFacetValue($input: CreateVendorFacetValueInput!) {
+        createVendorFacetValue(input: $input) {
+            id
+            name
         }
     }
 `;

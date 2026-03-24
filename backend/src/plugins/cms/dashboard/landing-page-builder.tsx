@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as queries from './queries';
 const { GET_PAGE, GET_PAGES, UPDATE_SECTION, CREATE_SECTION, DELETE_SECTION, CREATE_PAGE, INITIALIZE_HOME_PAGE, CREATE_ASSETS, CREATE_CMS_ASSET } = queries;
@@ -276,1110 +276,377 @@ const SECTION_TEMPLATES: Record<string, any> = {
     }
 };
 
-// --- Visual Preview Mockup ---
-function VisualPreview({ sections }: { sections: any[] }) {
-    const safeParse = (json: string) => {
-        try {
-            return JSON.parse(json || '{}');
-        } catch (e) {
-            console.error('[VisualPreview] JSON parse error:', e);
-            return {};
-        }
-    };
+// --- Helper for Icons in Section List ---
+function getSectionIcon(type: string) {
+    switch (type) {
+        case 'TOP_BAR': return '🏷️';
+        case 'HEADER_CONF': return '🧭';
+        case 'HERO': return '🖼️';
+        case 'HERO_SLIDER': return '🎠';
+        case 'QUICK_LINKS': return '📱';
+        case 'FLASH_DEALS': return '⚡';
+        case 'PRODUCT_GRID': return '📦';
+        case 'BRAND_SHOWCASE': return '👟';
+        case 'CATEGORY_SHOWCASE': return '📂';
+        case 'BANNER': return '📰';
+        case 'FEATURES': return '✅';
+        case 'APP_PROMO': return '📲';
+        case 'FOOTER_CONF': return '🦶';
+        case 'THEME_SETTINGS': return '🎨';
+        default: return '🧩';
+    }
+}
 
-    const sorted = [...sections].sort((a, b) => a.order - b.order);
-    const theme = safeParse(sections.find(s => s.type === 'THEME_SETTINGS')?.dataJson);
-    const header = safeParse(sections.find(s => s.type === 'HEADER_CONF')?.dataJson);
-    const topBar = safeParse(sections.find(s => s.type === 'TOP_BAR')?.dataJson);
-    const footer = safeParse(sections.find(s => s.type === 'FOOTER_CONF')?.dataJson);
-
-    return (
-        <div style={{
-            width: '100%',
-            height: '100%',
-            background: theme.backgroundType === 'color' ? (theme.backgroundColor || '#f1f5f9') : '#f1f5f9',
-            backgroundImage: theme.backgroundType === 'image' && theme.backgroundImageUrl ? `url(${theme.backgroundImageUrl})` : 'none',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.1)',
-            border: '8px solid #0f172a',
-            position: 'relative'
-        }}>
-            {/* Background Video Mockup */}
-            {theme.backgroundType === 'video' && theme.backgroundVideoUrl && (
-                <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.2, background: '#000' }}>
-                    <div style={{ padding: '20px', color: '#fff', fontSize: '10px', textAlign: 'center' }}>[📹 Vidéo de fond active]</div>
-                </div>
-            )}
-
-            <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                {/* Header Area Wrapper (Sticky feel) */}
-                <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-                    {/* Top Ad Mockup */}
-                    {topBar.adMediaUrl && (
-                        <div style={{ background: '#0369a1', color: '#fff', padding: '6px', textAlign: 'center', fontSize: '9px', fontWeight: 'bold' }}>
-                            {topBar.adMediaType === 'video' ? '📺 Publication Vidéo en cours' : '🖼️ Image publicitaire active'}
-                        </div>
-                    )}
-
-                    {/* Top Bar Mockup */}
-                    {topBar.text && (
-                        <div style={{ background: topBar.backgroundColor || '#0f172a', color: topBar.textColor || '#fff', padding: '6px', textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }}>
-                            {topBar.text}
-                        </div>
-                    )}
-
-                    {/* Navbar Mockup */}
-                    <div style={{
-                        padding: '12px 20px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        maxWidth: theme.layoutMode === 'boxed' ? '90%' : '100%',
-                        margin: '0 auto',
-                        width: '100%'
-                    }}>
-                        {header.layoutType === 'columns' ? (
-                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${header.columnCount || 1}, 1fr)`, width: '100%', gap: '15px' }}>
-                                {(header.columnsData || []).map((col: any, i: number) => (
-                                    <div key={i} style={{ fontSize: '10px', textAlign: 'center', background: '#f8fafc', padding: '6px', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
-                                        {col.type === 'image' ? (col.imageUrl ? '🖼️ Image' : '🖼️ Vide') : (col.content || 'Texte')}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <>
-                                <div style={{ fontWeight: 'black', fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', fontStyle: 'italic' }}>
-                                    {header.logoUrl ? <div style={{ width: '22px', height: '22px', background: '#eee', borderRadius: '4px' }}></div> : '⭐'}
-                                    {header.siteName || 'AHIZAN'}
-                                </div>
-                                <div style={{ display: 'flex', gap: '15px' }}>
-                                    {(header.menuItems || []).slice(0, 3).map((item: any, i: number) => (
-                                        <span key={i} style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>{item.label}</span>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* Content Area Rendering Mockups for each section */}
-                <div style={{
-                    flex: 1,
-                    maxWidth: theme.layoutMode === 'boxed' ? '90%' : '100%',
-                    margin: '0 auto',
-                    width: '100%',
-                    padding: '20px 0'
-                }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        {sorted.map((section: any, idx: number) => {
-                            if (['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF', 'POPUP'].includes(section.type)) return null;
-                            const data = safeParse(section.dataJson);
-
-                            return (
-                                <div key={section.id} style={{
-                                    background: 'rgba(255,255,255,0.95)',
-                                    borderRadius: theme.borderRadius || '16px',
-                                    border: '1px solid #e2e8f0',
-                                    padding: '20px',
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.02)'
-                                }}>
-                                    <div style={{ fontSize: '10px', fontWeight: '900', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>{section.type}</span>
-                                        <span>#{idx + 1}</span>
-                                    </div>
-
-                                    {section.type === 'HERO' && (
-                                        <div style={{ textAlign: data.textAlign || 'center', padding: '20px 0' }}>
-                                            <h2 style={{ fontSize: '18px', fontWeight: '900', color: theme.primaryColor || '#0f172a', margin: '0 0 8px 0', textTransform: 'uppercase', fontStyle: 'italic' }}>{data.title || 'Titre Hero'}</h2>
-                                            <p style={{ fontSize: '11px', color: '#64748b', margin: '0 0 15px 0' }}>{data.subtitle}</p>
-                                            <div style={{ display: 'inline-block', padding: '8px 16px', background: theme.primaryColor || '#0f172a', color: '#fff', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold' }}>{data.ctaText}</div>
-                                        </div>
-                                    )}
-
-                                    {section.type === 'PRODUCT_GRID' && (
-                                        <div>
-                                            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '12px' }}>{data.title}</div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
-                                                {[1, 2, 3, 4].map(i => (
-                                                    <div key={i} style={{ aspectRatio: '1/1', background: '#f1f5f9', borderRadius: '8px' }}></div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {section.type === 'FLEX_GRID' && (
-                                        <div>
-                                            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '12px' }}>{data.title}</div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${data.columns || 1}, 1fr)`, gap: '10px' }}>
-                                                {(data.items || []).slice(0, (data.columns || 1) * 2).map((item: any, i: number) => {
-                                                    const isSideBySide = data.template === 'IMAGE_LEFT' || data.template === 'IMAGE_RIGHT';
-                                                    const isRight = data.template === 'IMAGE_RIGHT';
-                                                    return (
-                                                        <div key={i} style={{ 
-                                                            background: '#f8fafc', 
-                                                            padding: '8px', 
-                                                            borderRadius: '8px', 
-                                                            border: '1px solid #f1f5f9',
-                                                            display: 'flex',
-                                                            flexDirection: isSideBySide ? (isRight ? 'row-reverse' : 'row') : 'column',
-                                                            gap: '8px',
-                                                            alignItems: 'center'
-                                                        }}>
-                                                            <div style={{ 
-                                                                width: isSideBySide ? '40%' : '100%', 
-                                                                height: isSideBySide ? '30px' : '40px', 
-                                                                background: '#eee', 
-                                                                borderRadius: '4px' 
-                                                            }}></div>
-                                                            <div style={{ 
-                                                                fontSize: '9px', 
-                                                                fontWeight: 'bold',
-                                                                textAlign: isSideBySide ? (isRight ? 'right' : 'left') : 'center',
-                                                                flex: 1
-                                                            }}>{item.title}</div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {section.type === 'BLOG_POSTS' && (
-                                        <div>
-                                            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                                                {data.title}
-                                                <span style={{ fontSize: '9px', color: '#2563eb' }}>Voir tout →</span>
-                                            </div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: data.layout === 'carousel' ? '1fr' : '1fr 1fr 1fr', gap: '10px' }}>
-                                                {(data.items || []).slice(0, 3).map((item: any, i: number) => (
-                                                    <div key={i} style={{ border: '1px solid #f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
-                                                        <div style={{ width: '100%', height: '40px', background: item.imageUrl ? `url(${item.imageUrl}) center/cover` : '#eee' }}></div>
-                                                        <div style={{ padding: '6px', fontSize: '9px', fontWeight: 'bold' }}>{item.title}</div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {!['HERO', 'PRODUCT_GRID', 'FLEX_GRID', 'BLOG_POSTS'].includes(section.type) && (
-                                        <div style={{ color: '#94a3b8', fontSize: '10px', fontStyle: 'italic' }}>{section.title || section.type} (Aperçu non disponible)</div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Footer Mockup */}
-                <div style={{ background: '#0f172a', color: '#fff', padding: '25px 20px', fontSize: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                        <div style={{ width: '45%', color: '#94a3b8', lineHeight: '1.6' }}>{footer.about?.substring(0, 100)}...</div>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            {footer.facebook && <span style={{ padding: '4px 8px', background: '#1e293b', borderRadius: '4px' }}>FB</span>}
-                            {footer.whatsapp && <span style={{ padding: '4px 8px', background: '#1e293b', borderRadius: '4px' }}>WA</span>}
-                        </div>
-                    </div>
-                    <div style={{ borderTop: '1px solid #1e293b', paddingTop: '15px', textAlign: 'center', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                        © 2026 {header.siteName || 'AHIZAN'}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+function getSectionDescription(type: string) {
+    switch (type) {
+        case 'TOP_BAR': return 'Petite bannière d\'annonce tout en haut.';
+        case 'HEADER_CONF': return 'Logo, menu et barre de recherche.';
+        case 'HERO': return 'Section principale avec titre et image.';
+        case 'HERO_SLIDER': return 'Carousel d\'images promotionnelles.';
+        case 'QUICK_LINKS': return 'Raccourcis vers les catégories populaires.';
+        case 'FLASH_DEALS': return 'Ventes à durée limitée avec compte à rebours.';
+        case 'PRODUCT_GRID': return 'Grille de produits personnalisable.';
+        case 'FOOTER_CONF': return 'Informations de contact et liens utiles.';
+        default: return 'Section personnalisable de votre boutique.';
+    }
 }
 
 export function LandingPageBuilder() {
-    const queryClient = useQueryClient();
-    const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER'>('ROADMAP');
+    const [bannerConfig, setBannerConfig] = useState<any>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
-    const { data: pagesData, isLoading: pagesLoading, error: pagesError, refetch: refetchPages } = useQuery({
+    // Initial fetch of banner config
+    useEffect(() => {
+        fetch('http://localhost:3000/banner/config')
+            .then(res => res.json())
+            .then(data => setBannerConfig(data))
+            .catch(err => console.error('Error fetching banner config:', err));
+    }, []);
+
+    const handleUpload = async (event: any, type: 'desktop' | 'mobile') => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('http://localhost:3000/banner/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.url) {
+                setBannerConfig({
+                    ...bannerConfig,
+                    [type === 'desktop' ? 'desktopImageUrl' : 'mobileImageUrl']: data.url
+                });
+            }
+        } catch (err) {
+            alert("Erreur lors de l'upload de l'image.");
+        }
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await fetch('http://localhost:3000/banner/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bannerConfig)
+            });
+            alert('Paramètres enregistrés avec succès !');
+        } catch (err) {
+            alert("Erreur lors de l'enregistrement.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Mapping for our groups and sections
+    const groups = [
+        // ... (rest of groups definition)
+        {
+            title: "0. General Site Settings",
+            description: "Global configurations for the entire storefront.",
+            sections: [
+                { id: 'global-layout', type: 'GLOBAL', title: "Layout & Spacing", desc: "Site width, container margins, and default padding." },
+                { id: 'global-colors', type: 'GLOBAL', title: "Color Palette", desc: "Main branding colors (Red, Navy Blue, White)." },
+                { id: 'global-typography', type: 'GLOBAL', title: "Typography", desc: "Font families and base text sizes." }
+            ]
+        },
+        {
+            title: "1. The Header Ecosystem (The Top Layer)",
+            description: "Control what customers see first—ads, navigation, and site-wide utilities.",
+            sections: [
+                { id: 'top-flash-banner', type: 'TOP_BAR', title: "TopFlashBanner", desc: "Time-sensitive announcement bar." },
+                { id: 'utility-header', type: 'UTILITY_HEADER', title: "UtilityHeader", desc: "Language, Account, and Vendor links." },
+                { id: 'main-navbar', type: 'HEADER_CONF', title: "MainNavbar", desc: "Logo, Search and primary navigation." }
+            ]
+        },
+        {
+            title: "2. The Hero Block (The 'Above the Fold' Section)",
+            description: "The primary entry point of your homepage. High-visual impact area.",
+            sections: [
+                { id: 'category-sidebar', type: 'CATEGORY_SIDEBAR', title: "CategorySidebar", desc: "Animated vertical category list." },
+                { id: 'hero-carousel', type: 'HERO', title: "HeroCarousel", desc: "Main marketing sliding banners." },
+                { id: 'service-panel', type: 'SERVICE_PANEL', title: "ServicePanel", desc: "WhatsApp, Support, and Vendor boxes." }
+            ]
+        },
+        {
+            title: "3. Navigation & Promotional Triggers",
+            description: "Fast-access grids and high-urgency sales sections.",
+            sections: [
+                { id: 'quick-links-grid', type: 'QUICK_LINKS', title: "QuickLinksGrid", desc: "Circular icons for services/popular categories." },
+                { id: 'flash-sales-section', type: 'FLASH_DEALS', title: "FlashSalesSection", desc: "Urgency section with countdown and stock." },
+                { id: 'brand-showcase', type: 'BRAND_SHOWCASE', title: "BrandShowcase", desc: "Scrolling list of official partner brands." }
+            ]
+        },
+        {
+            title: "4. Content & Discovery Sections",
+            description: "Drive interest through curated collections and large banners.",
+            sections: [
+                { id: 'category-showcase', type: 'PRODUCT_GRID', title: "CategoryShowcase", desc: "Selected product grids per category." },
+                { id: 'billboard-banner', type: 'BANNER', title: "BillboardBanner", desc: "Full-width posters to break up the scroll." },
+                { id: 'recommendations-feed', type: 'RECENTLY_VIEWED', title: "RecommendationsFeed", desc: "Personalized product recommendations." }
+            ]
+        },
+        {
+            title: "5. Trust & Footer (The Foundation)",
+            description: "Build confidence and provide site-wide links and SEO content.",
+            sections: [
+                { id: 'benefits-bar', type: 'FEATURES', title: "BenefitsBar", desc: "Free Delivery, Secure Payment guarantees." },
+                { id: 'app-promotion', type: 'APP_PROMO', title: "AppPromotion", desc: "Link to download the Mobile App." },
+                { id: 'main-footer', type: 'FOOTER_CONF', title: "MainFooter", desc: "Full list of links and social icons." },
+                { id: 'seo-text-section', type: 'SEO_TEXT', title: "SeoTextSection", desc: "Rich text for SEO and site description." }
+            ]
+        }
+    ];
+
+    const { data: pagesData, isLoading, error } = useQuery({
         queryKey: ['pages'],
         queryFn: () => fetchGraphQL(GET_PAGES, { options: { take: 10 } })
     });
 
-    const pageId = pagesData?.pages?.items?.[0]?.id;
+    if (view === 'EDITING_BANNER') {
+        return (
+            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+                <button 
+                    onClick={() => setView('ROADMAP')}
+                    style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '10px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '32px' }}
+                >
+                    ← Retour au Roadmap
+                </button>
 
-    const { data: pageData, isLoading: pageLoading, error, refetch: refetchPage } = useQuery({
-        queryKey: ['page', pageId],
-        queryFn: () => fetchGraphQL(GET_PAGE, { id: pageId }),
-        enabled: !!pageId,
-    });
+                <div style={{ background: '#fff', borderRadius: '24px', padding: '48px', border: '1px solid #e2e8f0', maxWidth: '900px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                    <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', marginBottom: '8px' }}>🚀 Personnalisation du TopFlashBanner</h2>
+                    <p style={{ color: '#64748b', fontSize: '15px', marginBottom: '40px' }}>Gérez la bannière publicitaire tout en haut de votre boutique.</p>
 
-    const updateSectionMutation = useMutation({
-        mutationFn: (input: any) => fetchGraphQL(UPDATE_SECTION, { input }),
-        onSuccess: () => refetchPage()
-    });
-
-    const createSectionMutation = useMutation({
-        mutationFn: (input: any) => fetchGraphQL(CREATE_SECTION, { input }),
-        onSuccess: () => refetchPage()
-    });
-
-    const deleteSectionMutation = useMutation({
-        mutationFn: (id: string) => fetchGraphQL(DELETE_SECTION, { id }),
-        onSuccess: () => refetchPage()
-    });
-
-    const initializeHomePageMutation = useMutation({
-        mutationFn: (pageId: string) => fetchGraphQL(INITIALIZE_HOME_PAGE, { pageId }),
-        onSuccess: () => refetchPage()
-    });
-
-    const createAssetMutation = useMutation({
-        mutationFn: (file: File) => fetchGraphQL(queries.CREATE_CMS_ASSET, { file }),
-    });
-
-    const handleFileUpload = async (section: any, key: string) => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*,video/*';
-        input.onchange = async (e: any) => {
-            const file = e.target.files[0];
-            if (file) {
-                try {
-                    const dataRes = await createAssetMutation.mutateAsync(file);
-                    const asset = dataRes.createCmsAsset;
-                    if (asset && (asset.preview || asset.source)) {
-                        updateDataJson(section, key, asset.preview || asset.source);
-                    } else {
-                        alert('Erreur: Impossible de récupérer l\'aperçu de l\'asset');
-                    }
-                } catch (err: any) {
-                    console.error('[LandingPageBuilder] Upload Error:', err);
-                    alert(`Erreur lors de l'upload: ${err.message || 'Erreur inconnue'}`);
-                }
-            }
-        };
-        input.click();
-    };
-
-    if (pagesLoading) return <div style={{ padding: '2rem' }}>Chargement...</div>;
-    if (pagesError) return <div style={{ padding: '2rem', color: '#ef4444' }}>Erreur de connection API : {(pagesError as Error).message}</div>;
-
-    if (!pageId) return (
-        <div style={{ padding: '2rem', textAlign: 'center', maxWidth: '600px', margin: '4rem auto', background: 'white', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-            <h1 style={{ fontSize: '24px', marginBottom: '1rem' }}>CMS non initialisé</h1>
-            <button onClick={() => fetchGraphQL(CREATE_PAGE, { input: { slug: 'home', title: 'Home Page', type: 'HOME', isActive: true } }).then(() => refetchPages())}
-                style={{ padding: '12px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                Créer la page d'accueil
-            </button>
-        </div>
-    );
-
-    if (pageLoading) return <div style={{ padding: '2rem' }}>Chargement de la page...</div>;
-    if (error) return <div style={{ padding: '2rem', color: '#ef4444' }}>Erreur : {(error as Error).message}</div>;
-
-    const page = pageData?.page;
-    if (!page) return <div style={{ padding: '2rem' }}>Page introuvable.</div>;
-
-    const handleAddSection = (type: string) => {
-        createSectionMutation.mutate({
-            pageId: page.id,
-            type,
-            title: `Nouvelle section ${type}`,
-            order: page.sections.length,
-            isActive: true,
-            dataJson: JSON.stringify(SECTION_TEMPLATES[type] || {}, null, 2)
-        });
-    };
-
-    const updateDataJson = (section: any, key: string, value: any) => {
-        const data = JSON.parse(section.dataJson || '{}');
-        data[key] = value;
-        updateSectionMutation.mutate({ id: section.id, dataJson: JSON.stringify(data) });
-    };
-
-    const ALL_SECTION_TYPES = [
-        { type: 'HERO', label: '🖼️ Hero', color: '#0f172a' },
-        { type: 'HERO_SLIDER', label: '🎠 Slider', color: '#1e40af' },
-        { type: 'SEARCH_BAR', label: '🔍 Recherche', color: '#0891b2' },
-        { type: 'PRODUCT_GRID', label: '📦 Produits', color: '#2563eb' },
-        { type: 'CATEGORY_GRID', label: '📂 Catégories', color: '#7c3aed' },
-        { type: 'FLASH_DEALS', label: '⚡ Flash', color: '#dc2626' },
-        { type: 'PROMO_GRID', label: '🎯 Promos', color: '#ea580c' },
-        { type: 'VENDOR_SHOWCASE', label: '🏪 Vendeurs', color: '#0d9488' },
-        { type: 'BANNER', label: '🏷️ Bannière', color: '#4f46e5' },
-        { type: 'FLEX_GRID', label: '⊞ Grille', color: '#8b5cf6' },
-        { type: 'BLOG_POSTS', label: '📰 Blog', color: '#10b981' },
-        { type: 'FEATURES', label: '✅ Atouts', color: '#059669' },
-        { type: 'CTA_VENDOR', label: '📢 CTA Vendeur', color: '#b91c1c' },
-        { type: 'NEWSLETTER', label: '✉️ Newsletter', color: '#0369a1' },
-        { type: 'TESTIMONIALS', label: '💬 Avis', color: '#a21caf' },
-        { type: 'RECENTLY_VIEWED', label: '👁️ Vus récemment', color: '#64748b' },
-        { type: 'PROMO_BANNER', label: '🔔 Promo Banner', color: '#ca8a04' },
-    ];
-
-    const sections = page.sections || [];
-    const globalSections = sections.filter((s: any) => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'].includes(s.type));
-    const contentSections = sections.filter((s: any) => !['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'].includes(s.type)).sort((a: any, b: any) => a.order - b.order);
-
-    return (
-        <div>
-        <style dangerouslySetInnerHTML={{ __html: BUILDER_STYLES }} />
-        <div className={cls.page}>
-            {/* Sidebar Controls */}
-            <div className={cls.sidebar}>
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-component-border, #e2e8f0)' }}>
-                    <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        ✨ AHIZAN CMS
-                    </h1>
-                    <p style={{ opacity: 0.6, margin: '4px 0 0 0', fontSize: '12px' }}>Personnalisez votre boutique sans code.</p>
-                </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <span className={cls.label} style={{ margin: 0 }}>Configuration Globale</span>
-                        <button className={cls.btnDanger} onClick={() => confirm('Réinitialiser toutes les sections ?') && initializeHomePageMutation.mutate(pageId)}>
-                            Réinitialiser
+                    {/* Mode Selector */}
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', background: '#f1f5f9', padding: '6px', borderRadius: '14px', width: 'fit-content' }}>
+                        <button 
+                            onClick={() => setBannerConfig({ ...bannerConfig, type: 'image' })}
+                            style={{ 
+                                padding: '10px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer',
+                                background: bannerConfig?.type === 'image' || !bannerConfig?.type ? '#fff' : 'transparent', 
+                                boxShadow: bannerConfig?.type === 'image' || !bannerConfig?.type ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                color: bannerConfig?.type === 'image' || !bannerConfig?.type ? '#002f6c' : '#64748b'
+                            }}
+                        >
+                            🖼️ Mode Image (Bannières)
+                        </button>
+                        <button 
+                            onClick={() => setBannerConfig({ ...bannerConfig, type: 'text' })}
+                            style={{ 
+                                padding: '10px 20px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer',
+                                background: bannerConfig?.type === 'text' ? '#fff' : 'transparent', 
+                                boxShadow: bannerConfig?.type === 'text' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                color: bannerConfig?.type === 'text' ? '#002f6c' : '#64748b'
+                            }}
+                        >
+                            ✍️ Mode Texte (Annonce Flash)
                         </button>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '2rem' }}>
-                        {globalSections.map((section: any) => (
-                            <button
-                                key={section.id}
-                                onClick={() => setEditingSectionId(editingSectionId === section.id ? null : section.id)}
-                                style={{
-                                    padding: '12px 16px',
-                                    background: editingSectionId === section.id ? '#f1f5f9' : '#fff',
-                                    border: editingSectionId === section.id ? '2px solid #0f172a' : '1px solid #e2e8f0',
-                                    borderRadius: '12px',
-                                    textAlign: 'left',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <span style={{ fontWeight: '700', fontSize: '14px', color: '#1e293b' }}>{section.title}</span>
-                                <span style={{ fontSize: '12px', opacity: 0.5 }}>{editingSectionId === section.id ? '▼' : '▶'}</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    <div style={{ marginBottom: '16px' }}>
-                        <span className={cls.label}>Contenu de la Page</span>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px' }}>
-                            {ALL_SECTION_TYPES.map(st => (
-                                <button key={st.type} onClick={() => handleAddSection(st.type)}
-                                    style={{ padding: '3px 8px', background: st.color, color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: '700' }}>
-                                    {st.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {contentSections.map((section: any) => (
-                            <div key={section.id}>
-                                <button
-                                    onClick={() => setEditingSectionId(editingSectionId === section.id ? null : section.id)}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px 16px',
-                                        background: editingSectionId === section.id ? '#f1f5f9' : '#fff',
-                                        border: editingSectionId === section.id ? '2px solid #0f172a' : '1px solid #e2e8f0',
-                                        borderRadius: '12px',
-                                        textAlign: 'left',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}
-                                >
-                                    <span style={{ fontWeight: '700', fontSize: '14px', color: '#1e293b' }}>{section.title}</span>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <span style={{ fontSize: '10px', background: '#f8fafc', padding: '2px 6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>{section.type}</span>
-                                    </div>
-                                </button>
-
-                                {editingSectionId === section.id && (
-                                    <div style={{ padding: '20px', border: '1px solid #e2e8f0', borderTop: 'none', background: '#fff', borderRadius: '0 0 12px 12px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        {/* Editor Content (Unified) */}
-                                        {renderEditor(section)}
-                                        <button
-                                            onClick={() => confirm('Supprimer ?') && deleteSectionMutation.mutate(section.id)}
-                                            style={{ color: '#ef4444', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', textAlign: 'right' }}
-                                        >
-                                            ❌ Supprimer cette section
-                                        </button>
-                                    </div>
-                                )}
+                    {bannerConfig?.type === 'text' ? (
+                        /* Text Mode Fields */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>Étiquette (Ex: Flash Ad)</label>
+                                <input 
+                                    type="text"
+                                    value={bannerConfig?.topText || ''}
+                                    onChange={(e) => setBannerConfig({ ...bannerConfig, topText: e.target.value })}
+                                    style={{ padding: '14px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}
+                                />
                             </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Status Bar */}
-                <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '8px', height: '8px', background: '#22c55e', borderRadius: '50%' }}></div>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b' }}>SYNCHRONISÉ</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Preview Area */}
-            <div style={{ flex: 1, padding: '40px', background: '#f1f5f9', overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: '100%', maxWidth: '900px', height: 'fit-content' }}>
-                    <VisualPreview sections={sections} />
-                    <p style={{ textAlign: 'center', marginTop: '20px', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>APPERÇU INTERACTIF (MOCKUP)</p>
-                </div>
-            </div>
-
-            {/* Floating Global Editor Overlay (for quick editing) */}
-            {editingSectionId && globalSections.find(s => s.id === editingSectionId) && (
-                <div style={{ position: 'fixed', top: '24px', left: '460px', width: '400px', maxHeight: 'calc(100vh - 48px)', background: '#fff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', borderRadius: '16px', border: '1px solid #e2e8f0', overflowY: 'auto', zIndex: 100, padding: '24px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '900' }}>{globalSections.find(s => s.id === editingSectionId).title}</h3>
-                        <button onClick={() => setEditingSectionId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
-                    </div>
-                    {renderEditor(globalSections.find(s => s.id === editingSectionId))}
-                </div>
-            )}
-        </div>
-        </div>
-    );
-
-    function renderEditor(section: any) {
-        const data = JSON.parse(section.dataJson || '{}');
-
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {section.type === 'THEME_SETTINGS' && (
-                    <>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Couleur Primaire</label>
-                                <input type="color" defaultValue={data.primaryColor} onChange={(e) => updateDataJson(section, 'primaryColor', e.target.value)} style={{ width: '100%', height: '40px', cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>Message Principal</label>
+                                <textarea 
+                                    value={bannerConfig?.mainText || ''}
+                                    onChange={(e) => setBannerConfig({ ...bannerConfig, mainText: e.target.value })}
+                                    style={{ padding: '14px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', minHeight: '80px', fontFamily: 'inherit' }}
+                                />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Accentuation</label>
-                                <input type="color" defaultValue={data.secondaryColor} onChange={(e) => updateDataJson(section, 'secondaryColor', e.target.value)} style={{ width: '100%', height: '40px', cursor: 'pointer', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>Texte du Lien (Ex: En savoir plus)</label>
+                                <input 
+                                    type="text"
+                                    value={bannerConfig?.linkText || ''}
+                                    onChange={(e) => setBannerConfig({ ...bannerConfig, linkText: e.target.value })}
+                                    style={{ padding: '14px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}
+                                />
                             </div>
                         </div>
-
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Mode Mise en Page</label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                {['boxed', 'full'].map(mode => (
-                                    <button
-                                        key={mode}
-                                        onClick={() => updateDataJson(section, 'layoutMode', mode)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '8px',
-                                            borderRadius: '8px',
-                                            border: '1px solid',
-                                            borderColor: data.layoutMode === mode ? '#0f172a' : '#e2e8f0',
-                                            background: data.layoutMode === mode ? '#0f172a' : '#fff',
-                                            color: data.layoutMode === mode ? '#fff' : '#0f172a',
-                                            fontSize: '12px',
-                                            fontWeight: 'bold',
-                                            textTransform: 'capitalize'
-                                        }}
-                                    >
-                                        {mode === 'boxed' ? 'Encadré (Boxed)' : 'Plein Écran (Full)'}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '12px' }}>Fond Global du Site</label>
-                            <select
-                                defaultValue={data.backgroundType}
-                                onChange={(e) => updateDataJson(section, 'backgroundType', e.target.value)}
-                                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px', fontSize: '13px' }}
-                            >
-                                <option value="color">Couleur Unie</option>
-                                <option value="image">Image de Fond</option>
-                                <option value="video">Vidéo de Fond</option>
-                            </select>
-
-                            {data.backgroundType === 'color' && (
-                                <input type="color" defaultValue={data.backgroundColor} onChange={(e) => updateDataJson(section, 'backgroundColor', e.target.value)} style={{ width: '100%', height: '30px', cursor: 'pointer' }} />
-                            )}
-
-                            {(data.backgroundType === 'image' || data.backgroundType === 'video') && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <button
-                                        onClick={() => handleFileUpload(section, data.backgroundType === 'image' ? 'backgroundImageUrl' : 'backgroundVideoUrl')}
-                                        style={{ width: '100%', padding: '10px', background: '#0f172a', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }}
-                                    >
-                                        Uploader {data.backgroundType === 'image' ? 'l\'image' : 'la vidéo'}
-                                    </button>
-                                    {(data.backgroundImageUrl || data.backgroundVideoUrl) && (
-                                        <div style={{ marginTop: '8px', fontSize: '10px', color: '#64748b', wordBreak: 'break-all' }}>
-                                            Source: {data.backgroundImageUrl || data.backgroundVideoUrl}
-                                        </div>
+                    ) : (
+                        /* Image Mode Fields */
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+                            {/* Desktop Image Section */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>Bannière Desktop (Large)</label>
+                                <div style={{ 
+                                    width: '100%', height: '140px', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #e2e8f0', 
+                                    overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                }}>
+                                    {bannerConfig?.desktopImageUrl ? (
+                                        <img src={`http://localhost:3000${bannerConfig.desktopImageUrl}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Desktop Preview" />
+                                    ) : (
+                                        <span style={{ color: '#94a3b8', fontSize: '12px' }}>Aucune image sélectionnée</span>
                                     )}
                                 </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Arrondi Global (Boutons/Cartes)</label>
-                            <input type="text" defaultValue={data.borderRadius} onBlur={(e) => updateDataJson(section, 'borderRadius', e.target.value)} placeholder="8px" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                        </div>
-                    </>
-                )}
-
-                {section.type === 'TOP_BAR' && (
-                    <>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Texte de l'annonce</label>
-                            <textarea defaultValue={data.text} onBlur={(e) => updateDataJson(section, 'text', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '60px' }} />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Fond</label>
-                                <input type="color" defaultValue={data.backgroundColor} onChange={(e) => updateDataJson(section, 'backgroundColor', e.target.value)} style={{ width: '100%', height: '30px', cursor: 'pointer' }} />
+                                <input type="file" onChange={(e) => handleUpload(e, 'desktop')} style={{ fontSize: '12px' }} />
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Texte</label>
-                                <input type="color" defaultValue={data.textColor} onChange={(e) => updateDataJson(section, 'textColor', e.target.value)} style={{ width: '100%', height: '30px', cursor: 'pointer' }} />
+
+                            {/* Mobile Image Section */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>Bannière Mobile (Portrait)</label>
+                                <div style={{ 
+                                    width: '100px', height: '140px', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #e2e8f0', 
+                                    overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' 
+                                }}>
+                                    {bannerConfig?.mobileImageUrl ? (
+                                        <img src={`http://localhost:3000${bannerConfig.mobileImageUrl}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Mobile Preview" />
+                                    ) : (
+                                        <span style={{ color: '#94a3b8', fontSize: '10px', textAlign: 'center' }}>Aucune image</span>
+                                    )}
+                                </div>
+                                <input type="file" onChange={(e) => handleUpload(e, 'mobile')} style={{ fontSize: '12px' }} />
                             </div>
                         </div>
+                    )}
 
-                        <div style={{ padding: '16px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#0369a1', marginBottom: '12px' }}>Publicité / Publication Vidéo</label>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                                {['image', 'video'].map(type => (
-                                    <button
-                                        key={type}
-                                        onClick={() => updateDataJson(section, 'adMediaType', type)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '6px',
-                                            borderRadius: '6px',
-                                            border: '1px solid',
-                                            borderColor: data.adMediaType === type ? '#0369a1' : '#e2e8f0',
-                                            background: data.adMediaType === type ? '#0369a1' : '#fff',
-                                            color: data.adMediaType === type ? '#fff' : '#0369a1',
-                                            fontSize: '11px',
-                                            fontWeight: 'bold',
-                                            textTransform: 'capitalize'
-                                        }}
-                                    >
-                                        {type}
-                                    </button>
-                                ))}
-                            </div>
-                            <button
-                                onClick={() => handleFileUpload(section, 'adMediaUrl')}
-                                style={{ width: '100%', padding: '10px', background: '#0369a1', color: '#fff', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}
-                            >
-                                Uploader {data.adMediaType === 'image' ? 'l\'image' : 'la vidéo'} pub
-                            </button>
-                            <input
+                    <div style={{ height: '1px', background: '#f1f5f9', margin: '40px 0' }}></div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>URL de Redirection (Target URL)</label>
+                            <input 
                                 type="text"
-                                placeholder="Lien de redirection (ex: /promo)"
-                                defaultValue={data.adLink}
-                                onBlur={(e) => updateDataJson(section, 'adLink', e.target.value)}
-                                style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px' }}
+                                placeholder="Ex: /promotions"
+                                value={bannerConfig?.targetUrl || ''}
+                                onChange={(e) => setBannerConfig({ ...bannerConfig, targetUrl: e.target.value })}
+                                style={{ padding: '14px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', width: '100%' }}
                             />
                         </div>
-                    </>
-                )}
 
-                {section.type === 'HEADER_CONF' && (
-                    <>
-                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '12px' }}>Type d'En-tête</label>
-                            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                                {['standard', 'columns'].map(type => (
-                                    <button
-                                        key={type}
-                                        onClick={() => updateDataJson(section, 'layoutType', type)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '8px',
-                                            borderRadius: '8px',
-                                            border: '1px solid',
-                                            borderColor: data.layoutType === type ? '#0f172a' : '#e2e8f0',
-                                            background: data.layoutType === type ? '#0f172a' : '#fff',
-                                            color: data.layoutType === type ? '#fff' : '#0f172a',
-                                            fontSize: '11px',
-                                            fontWeight: 'bold'
-                                        }}
-                                    >
-                                        {type === 'standard' ? 'Standard (Logo+Menu)' : 'Modulaire (Colonnes)'}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {data.layoutType === 'standard' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>Nom du site</label>
-                                        <input type="text" defaultValue={data.siteName} onBlur={(e) => updateDataJson(section, 'siteName', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>Logo URL</label>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <input type="text" value={data.logoUrl || ''} readOnly style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontSize: '10px' }} />
-                                            <button onClick={() => handleFileUpload(section, 'logoUrl')} style={{ padding: '8px 12px', background: '#0f172a', color: '#fff', borderRadius: '6px', fontSize: '11px' }}>Uploader</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {data.layoutType === 'columns' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>Nombre de colonnes</label>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            {[1, 2, 3].map(n => (
-                                                <button
-                                                    key={n}
-                                                    onClick={() => {
-                                                        const newCols = [...(data.columnsData || [])];
-                                                        while (newCols.length < n) newCols.push({ type: 'text', content: 'Contenu Colonne' });
-                                                        updateDataJson(section, 'columnCount', n);
-                                                        updateDataJson(section, 'columnsData', newCols.slice(0, n));
-                                                    }}
-                                                    style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid', borderColor: data.columnCount === n ? '#0f172a' : '#e2e8f0', background: data.columnCount === n ? '#0f172a' : '#fff', color: data.columnCount === n ? '#fff' : '#0f172a', fontWeight: 'bold' }}
-                                                >
-                                                    {n}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {(data.columnsData || []).map((col: any, idx: number) => (
-                                        <div key={idx} style={{ padding: '12px', background: '#fff', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-                                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>Colonne {idx + 1}</label>
-                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                                                {['text', 'image'].map(type => (
-                                                    <button
-                                                        key={type}
-                                                        onClick={() => {
-                                                            const newCols = [...data.columnsData];
-                                                            newCols[idx].type = type;
-                                                            updateDataJson(section, 'columnsData', newCols);
-                                                        }}
-                                                        style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid', fontSize: '10px', background: col.type === type ? '#f1f5f9' : '#fff' }}
-                                                    >
-                                                        {type === 'text' ? 'Texte' : 'Image'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            {col.type === 'text' ? (
-                                                <textarea
-                                                    defaultValue={col.content}
-                                                    onBlur={(e) => {
-                                                        const newCols = [...data.columnsData];
-                                                        newCols[idx].content = e.target.value;
-                                                        updateDataJson(section, 'columnsData', newCols);
-                                                    }}
-                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', minHeight: '60px' }}
-                                                />
-                                            ) : (
-                                                <button
-                                                    onClick={() => {
-                                                        const input = document.createElement('input');
-                                                        input.type = 'file';
-                                                        input.accept = 'image/*';
-                                                        input.onchange = async (e: any) => {
-                                                            const file = e.target.files[0];
-                                                            if (file) {
-                                                                const dataRes = await createAssetMutation.mutateAsync(file);
-                                                                const asset = dataRes.createCmsAsset;
-                                                                if (asset && (asset.preview || asset.source)) {
-                                                                    const newCols = [...data.columnsData];
-                                                                    newCols[idx].imageUrl = asset.preview || asset.source;
-                                                                    updateDataJson(section, 'columnsData', newCols);
-                                                                }
-                                                            }
-                                                        };
-                                                        input.click();
-                                                    }}
-                                                    style={{ width: '100%', padding: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '11px' }}
-                                                >
-                                                    {col.imageUrl ? 'Changer l\'image' : 'Uploader une image'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {section.type === 'HERO' && (
-                    <>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Titre de Bienvenue</label>
-                            <input type="text" defaultValue={data.title} onBlur={(e) => updateDataJson(section, 'title', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontWeight: 'bold' }} />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Sous-titre / Description</label>
-                            <textarea defaultValue={data.subtitle} onBlur={(e) => updateDataJson(section, 'subtitle', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '80px' }} />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Image de Fond</label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <input type="text" value={data.backgroundImage} readOnly style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontSize: '10px' }} />
-                                <button onClick={() => handleFileUpload(section, 'backgroundImage')} style={{ padding: '8px 12px', background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '11px' }}>📁 Uploader</button>
-                            </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Texte Bouton</label>
-                                <input type="text" defaultValue={data.ctaText} onBlur={(e) => updateDataJson(section, 'ctaText', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>Visibilité de la bannière</h4>
+                                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>Activez ou désactivez l'affichage sur la boutique.</p>
                             </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Lien Bouton</label>
-                                <input type="text" defaultValue={data.ctaLink} onBlur={(e) => updateDataJson(section, 'ctaLink', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {section.type === 'PRODUCT_GRID' && (
-                    <>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Titre du Bloc</label>
-                            <input type="text" defaultValue={data.title} onBlur={(e) => updateDataJson(section, 'title', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Source</label>
-                            <select value={data.filterType} onChange={(e) => updateDataJson(section, 'filterType', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                <option value="LATEST">Nouveaux Produits</option>
-                                <option value="BEST_SELLERS">Meilleures Ventes</option>
-                                <option value="COLLECTION">Par Collection</option>
-                            </select>
-                        </div>
-                    </>
-                )}
-
-                {section.type === 'BLOG_POSTS' && (
-                    <>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Titre de la section</label>
-                            <input type="text" defaultValue={data.title} onBlur={(e) => updateDataJson(section, 'title', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                        </div>
-                        
-                        <div style={{ marginTop: '16px' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '12px' }}>Liste des Publications</label>
-                            {(data.items || []).map((item: any, idx: number) => (
-                                <div key={idx} style={{ padding: '12px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '12px', position: 'relative' }}>
-                                    <button 
-                                        onClick={() => {
-                                            const newItems = [...data.items];
-                                            newItems.splice(idx, 1);
-                                            updateDataJson(section, 'items', newItems);
-                                        }}
-                                        style={{ position: 'absolute', top: '8px', right: '8px', border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
-                                    >
-                                        Supprimer
-                                    </button>
-                                    <div style={{ marginBottom: '8px' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Titre de l'article"
-                                            defaultValue={item.title}
-                                            onBlur={(e) => {
-                                                const newItems = [...data.items];
-                                                newItems[idx].title = e.target.value;
-                                                updateDataJson(section, 'items', newItems);
-                                            }}
-                                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #f1f5f9', fontSize: '13px', fontWeight: 'bold' }}
-                                        />
-                                    </div>
-                                    <div style={{ marginBottom: '8px', display: 'flex', gap: '8px' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Date (ex: 12 Mars 2026)"
-                                            defaultValue={item.date}
-                                            onBlur={(e) => {
-                                                const newItems = [...data.items];
-                                                newItems[idx].date = e.target.value;
-                                                updateDataJson(section, 'items', newItems);
-                                            }}
-                                            style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #f1f5f9', fontSize: '11px' }}
-                                        />
-                                        <button 
-                                            onClick={() => {
-                                                const input = document.createElement('input');
-                                                input.type = 'file';
-                                                input.accept = 'image/*';
-                                                input.onchange = async (e: any) => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const res = await createAssetMutation.mutateAsync(file);
-                                                        const asset = res.createCmsAsset;
-                                                        if (asset && (asset.preview || asset.source)) {
-                                                            const newItems = [...data.items];
-                                                            newItems[idx].imageUrl = asset.preview || asset.source;
-                                                            updateDataJson(section, 'items', newItems);
-                                                        }
-                                                    }
-                                                };
-                                                input.click();
-                                            }}
-                                            style={{ padding: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '10px' }}
-                                        >
-                                            {item.imageUrl ? 'Image OK' : '📸 Image'}
-                                        </button>
-                                    </div>
-                                    <textarea
-                                        placeholder="Extrait / Description"
-                                        defaultValue={item.excerpt}
-                                        onBlur={(e) => {
-                                            const newItems = [...data.items];
-                                            newItems[idx].excerpt = e.target.value;
-                                            updateDataJson(section, 'items', newItems);
-                                        }}
-                                        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #f1f5f9', fontSize: '11px', minHeight: '60px' }}
-                                    />
-                                    <div style={{ marginTop: '8px' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Lien (ex: /blog/article-1)"
-                                            defaultValue={item.link}
-                                            onBlur={(e) => {
-                                                const newItems = [...data.items];
-                                                newItems[idx].link = e.target.value;
-                                                updateDataJson(section, 'items', newItems);
-                                            }}
-                                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #f1f5f9', fontSize: '11px' }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
                             <button 
-                                onClick={() => {
-                                    const newItems = [...(data.items || []), { id: Date.now().toString(), title: "Nouvel article", excerpt: "Description ici...", date: "Aujourd'hui", imageUrl: "", link: "#" }];
-                                    updateDataJson(section, 'items', newItems);
+                                onClick={() => setBannerConfig({ ...bannerConfig, isActive: !bannerConfig.isActive })}
+                                style={{ 
+                                    padding: '10px 24px', borderRadius: '12px', fontWeight: '900', fontSize: '12px', border: 'none', cursor: 'pointer',
+                                    background: bannerConfig?.isActive ? '#059669' : '#e2e8f0', color: bannerConfig?.isActive ? '#fff' : '#475569'
                                 }}
-                                style={{ width: '100%', padding: '12px', background: '#fff', border: '2px dashed #e2e8f0', borderRadius: '12px', color: '#64748b', fontWeight: 'bold', cursor: 'pointer' }}
                             >
-                                + Ajouter une publication
+                                {bannerConfig?.isActive ? 'ACTIVÉE' : 'DÉSACTIVÉE'}
                             </button>
                         </div>
-
-                        <div style={{ marginTop: '16px' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Mise en page</label>
-                            <select defaultValue={data.layout || 'grid'} onChange={(e) => updateDataJson(section, 'layout', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                <option value="grid">Grille (Grid)</option>
-                                <option value="carousel">Défilant (Carousel)</option>
-                            </select>
-                        </div>
-                    </>
-                )}
-
-                {section.type === 'FLEX_GRID' && (
-                    <>
-                        <div>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '8px' }}>Titre de la section</label>
-                            <input type="text" defaultValue={data.title} onBlur={(e) => updateDataJson(section, 'title', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                        </div>
-                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '12px' }}>Modèle de Disposition</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                                {[
-                                    { id: 'IMAGE_LEFT', label: '📸 Texte à droite' },
-                                    { id: 'IMAGE_RIGHT', label: 'Texte à gauche 📸' },
-                                    { id: 'IMAGE_TOP', label: '📸 Texte en bas' }
-                                ].map(t => (
-                                    <button
-                                        key={t.id}
-                                        onClick={() => updateDataJson(section, 'template', t.id)}
-                                        style={{
-                                            padding: '8px 4px',
-                                            borderRadius: '8px',
-                                            border: '1px solid',
-                                            fontSize: '10px',
-                                            fontWeight: 'bold',
-                                            borderColor: data.template === t.id ? '#0f172a' : '#e2e8f0',
-                                            background: data.template === t.id ? '#0f172a' : '#fff',
-                                            color: data.template === t.id ? '#fff' : '#0f172a'
-                                        }}
-                                    >
-                                        {t.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: '16px' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#64748b', marginBottom: '12px' }}>Contenu de la Grille</label>
-                            {(data.items || []).map((item: any, idx: number) => (
-                                <div key={idx} style={{ padding: '12px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '12px', position: 'relative' }}>
-                                    <div style={{ marginBottom: '8px' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Titre"
-                                            defaultValue={item.title}
-                                            onBlur={(e) => {
-                                                const newItems = [...data.items];
-                                                newItems[idx].title = e.target.value;
-                                                updateDataJson(section, 'items', newItems);
-                                            }}
-                                            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #f1f5f9', fontSize: '13px', fontWeight: 'bold' }}
-                                        />
-                                    </div>
-                                    <div style={{ marginBottom: '8px' }}>
-                                        <textarea
-                                            placeholder="Description"
-                                            defaultValue={item.description}
-                                            onBlur={(e) => {
-                                                const newItems = [...data.items];
-                                                newItems[idx].description = e.target.value;
-                                                updateDataJson(section, 'items', newItems);
-                                            }}
-                                            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #f1f5f9', fontSize: '12px', minHeight: '40px' }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <div style={{ width: '40px', height: '40px', background: '#f8fafc', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                                            {item.imageUrl ? <img src={item.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '10px' }}>🖼️</div>}
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                const input = document.createElement('input');
-                                                input.type = 'file';
-                                                input.accept = 'image/*';
-                                                input.onchange = async (e: any) => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const res = await createAssetMutation.mutateAsync(file);
-                                                        const asset = res.createCmsAsset;
-                                                        if (asset && (asset.preview || asset.source)) {
-                                                            const newItems = [...data.items];
-                                                            newItems[idx].imageUrl = asset.preview || asset.source;
-                                                            updateDataJson(section, 'items', newItems);
-                                                        }
-                                                    }
-                                                };
-                                                input.click();
-                                            }}
-                                            style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}
-                                        >
-                                            {item.imageUrl ? 'Changer' : 'Uploader'}
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                const newItems = data.items.filter((_: any, i: number) => i !== idx);
-                                                updateDataJson(section, 'items', newItems);
-                                            }}
-                                            style={{ padding: '6px', background: '#fff1f2', color: '#e11d48', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                                        >
-                                            🗑️
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                            <button
-                                onClick={() => {
-                                    const newItems = [...(data.items || []), { title: 'Nouveau', description: 'Description', imageUrl: '' }];
-                                    updateDataJson(section, 'items', newItems);
-                                }}
-                                style={{ width: '100%', padding: '10px', background: '#fff', border: '1px dashed #cbd5e1', borderRadius: '12px', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}
-                            >
-                                + Ajouter un élément
-                            </button>
-                        </div>
-                    </>
-                )}
-
-                {/* Generic editor for types without a specific editor */}
-                {!['THEME_SETTINGS', 'TOP_BAR', 'HEADER_CONF', 'HERO', 'PRODUCT_GRID', 'BLOG_POSTS', 'FLEX_GRID'].includes(section.type) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {Object.entries(data).map(([key, value]) => {
-                            if (key === 'slides' || key === 'items' || key === 'testimonials' || key === 'quickLinks' || key === 'features' || key === 'categories') {
-                                return (
-                                    <div key={key}>
-                                        <label className={cls.label}>{key} (liste)</label>
-                                        <textarea className={cls.textarea} defaultValue={JSON.stringify(value, null, 2)}
-                                            onBlur={(e) => { try { updateDataJson(section, key, JSON.parse(e.target.value)); } catch { alert('JSON invalide pour ' + key); } }}
-                                            style={{ fontFamily: 'monospace', fontSize: '11px', minHeight: '120px' }} />
-                                    </div>
-                                );
-                            }
-                            if (typeof value === 'boolean') {
-                                return (
-                                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <input type="checkbox" defaultChecked={value as boolean} onChange={(e) => updateDataJson(section, key, e.target.checked)} />
-                                        <span className={cls.label} style={{ margin: 0 }}>{key}</span>
-                                    </label>
-                                );
-                            }
-                            if (typeof value === 'number') {
-                                return (
-                                    <div key={key}>
-                                        <label className={cls.label}>{key}</label>
-                                        <input className={cls.input} type="number" defaultValue={value as number} onBlur={(e) => updateDataJson(section, key, Number(e.target.value))} />
-                                    </div>
-                                );
-                            }
-                            if (typeof value === 'string' && (key.toLowerCase().includes('color') || key.toLowerCase().includes('background'))) {
-                                return (
-                                    <div key={key}>
-                                        <label className={cls.label}>{key}</label>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <input type="color" defaultValue={(value as string).startsWith('#') ? value as string : '#ffffff'} onChange={(e) => updateDataJson(section, key, e.target.value)} style={{ width: '40px', height: '32px', border: '1px solid var(--color-component-border)', borderRadius: '4px', cursor: 'pointer' }} />
-                                            <input className={cls.input} type="text" defaultValue={value as string} onBlur={(e) => updateDataJson(section, key, e.target.value)} />
-                                        </div>
-                                    </div>
-                                );
-                            }
-                            if (typeof value === 'string' && (key.toLowerCase().includes('image') || key.toLowerCase().includes('url') || key.toLowerCase().includes('logo'))) {
-                                return (
-                                    <div key={key}>
-                                        <label className={cls.label}>{key}</label>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <input className={cls.input} type="text" value={value as string} readOnly style={{ flex: 1, fontSize: '10px' }} />
-                                            <button className={cls.btnPrimary} onClick={() => handleFileUpload(section, key)}>📁</button>
-                                        </div>
-                                    </div>
-                                );
-                            }
-                            if (typeof value === 'string' && (value as string).length > 80) {
-                                return (
-                                    <div key={key}>
-                                        <label className={cls.label}>{key}</label>
-                                        <textarea className={cls.textarea} defaultValue={value as string} onBlur={(e) => updateDataJson(section, key, e.target.value)} />
-                                    </div>
-                                );
-                            }
-                            if (typeof value === 'string') {
-                                return (
-                                    <div key={key}>
-                                        <label className={cls.label}>{key}</label>
-                                        <input className={cls.input} type="text" defaultValue={value as string} onBlur={(e) => updateDataJson(section, key, e.target.value)} />
-                                    </div>
-                                );
-                            }
-                            return null;
-                        })}
                     </div>
-                )}
 
-                {/* Advanced JSON Editor for power users */}
-                <div style={{ marginTop: '1rem', borderTop: '1px dashed var(--color-component-border, #e2e8f0)', paddingTop: '1rem' }}>
-                    <details>
-                        <summary style={{ fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', color: 'var(--color-text-300, #cbd5e1)' }}>Expert: Mode JSON</summary>
-                        <textarea
-                            defaultValue={section.dataJson}
-                            style={{ width: '100%', minHeight: '100px', marginTop: '1rem', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace', fontSize: '11px', background: '#f8fafc' }}
-                            onBlur={(e) => {
-                                try { JSON.parse(e.target.value); updateSectionMutation.mutate({ id: section.id, dataJson: e.target.value }); }
-                                catch (err) { alert('JSON invalide'); }
-                            }}
-                        />
-                    </details>
+                    <button 
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        style={{ 
+                            marginTop: '48px', width: '100%', padding: '16px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                            background: '#002f6c', color: '#fff', fontSize: '15px', fontWeight: '800', boxShadow: '0 10px 15px -3px rgba(0,47,108,0.3)'
+                        }}
+                    >
+                        {isSaving ? 'Enregistrement...' : 'SAUVEGARDER LES PARAMÈTRES'}
+                    </button>
                 </div>
             </div>
         );
     }
+
+    return (
+        <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+            <header style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>🗺️ ROADMAP DU PAGE BUILDER</h1>
+                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '14px' }}>Structure ordonnée de votre boutique Ahizan</p>
+                </div>
+                <div style={{ background: '#002f6c', color: '#fff', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }}>
+                    CONFIGURÉ POUR AHIZAN
+                </div>
+            </header>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '1000px' }}>
+                {groups.map((group, gIdx) => (
+                    <div key={gIdx} style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' }}>
+                        <div style={{ padding: '24px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{group.title}</h2>
+                            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>{group.description}</p>
+                        </div>
+                        <div style={{ padding: '0 24px' }}>
+                            {group.sections.map((section, sIdx) => (
+                                <div key={sIdx} style={{ 
+                                    padding: '20px 0', 
+                                    borderBottom: sIdx === group.sections.length - 1 ? 'none' : '1px solid #f1f5f9',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                        <div style={{ 
+                                            width: '8px', height: '8px', background: '#e31837', borderRadius: '50%'
+                                        }}></div>
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>{section.title}</h3>
+                                            <p style={{ margin: '2px 0 0 0', color: '#94a3b8', fontSize: '12px' }}>{section.desc}</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => section.id === 'top-flash-banner' ? setView('EDITING_BANNER') : alert(`L'éditeur pour ${section.title} sera prêt prochainement !`)}
+                                        style={{ 
+                                            background: '#fff', 
+                                            border: '1px solid #002f6c', 
+                                            color: '#002f6c', 
+                                            padding: '8px 16px', 
+                                            borderRadius: '8px', 
+                                            fontSize: '13px', 
+                                            fontWeight: '700', 
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                        }}
+                                        onMouseOver={(e) => { e.currentTarget.style.background = '#002f6c'; e.currentTarget.style.color = '#fff'; }}
+                                        onMouseOut={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#002f6c'; }}
+                                    >
+                                        Modifier la section
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <footer style={{ marginTop: '60px', padding: '24px 0', borderTop: '1px solid #e2e8f0', color: '#94a3b8', fontSize: '12px' }}>
+                Système de Configuration Ahizan — Mode Simplifié
+            </footer>
+        </div>
+    );
 }

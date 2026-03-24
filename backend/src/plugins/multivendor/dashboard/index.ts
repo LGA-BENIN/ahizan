@@ -64,6 +64,16 @@ export default defineDashboardExtension({
                 url: '/delivery-zones',
             },
         },
+        {
+            path: 'marketplace-products',
+            component: ProductListComponent,
+            navMenuItem: {
+                id: 'marketplace-products-list',
+                title: 'Produits Marketplace',
+                sectionId: 'marketplace',
+                url: 'marketplace-products',
+            },
+        },
     ],
     navSections: [
         {
@@ -71,6 +81,7 @@ export default defineDashboardExtension({
             title: 'Marketplace',
         },
     ],
+    /*
     dataTableColumns: [
         {
             id: 'seller-status',
@@ -85,4 +96,5 @@ export default defineDashboardExtension({
             component: AdminStatusColumn,
         },
     ],
+    */
 });

@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, FacetValueService, FacetValue, AssetService, Asset } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, FacetService, FacetValueService, FacetValue, AssetService, Asset } from '@vendure/core';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -14,6 +14,7 @@ export class VendorShopResolver {
         private productService: ProductService,
         private productVariantService: ProductVariantService,
         private orderService: OrderService,
+        private facetService: FacetService,
         private facetValueService: FacetValueService,
         private assetService: AssetService
     ) { }
@@ -304,6 +305,30 @@ export class VendorShopResolver {
         }
 
         return this.vendorService.update(ctx, vendor.id.toString(), input);
+    }
+
+    /**
+     * Create a new facet value (category) for vendors/admin
+     */
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async createVendorFacetValue(
+        @Ctx() ctx: RequestContext,
+        @Args('input') input: { name: string, facetId: string }
+    ): Promise<FacetValue> {
+        const facet = await this.facetService.findOne(ctx, input.facetId);
+        if (!facet) {
+            throw new Error('Facet not found');
+        }
+
+        return this.facetValueService.create(ctx, facet, {
+            facetId: input.facetId,
+            code: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+            translations: [{
+                languageCode: ctx.languageCode,
+                name: input.name,
+            }]
+        });
     }
 }
 

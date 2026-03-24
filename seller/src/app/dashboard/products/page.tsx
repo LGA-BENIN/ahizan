@@ -5,7 +5,6 @@ import { getAuthToken } from '@/lib/auth';
 import Link from 'next/link';
 import CreateProductModal from '@/components/dashboard/products/create-modal';
 import DeleteProductDialog from '@/components/dashboard/products/delete-dialog';
-import CreateCategoryModal from '@/components/dashboard/products/create-category-modal';
 
 export default async function ProductListPage() {
     const token = await getAuthToken();
@@ -28,7 +27,6 @@ export default async function ProductListPage() {
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Mes Produits</h1>
                 <div className="flex gap-2">
-                    {categoryFacetId && <CreateCategoryModal facetId={categoryFacetId} />}
                     <CreateProductModal facets={facets} />
                 </div>
             </div>

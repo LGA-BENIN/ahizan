@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { GET_PRODUCTS } from './queries';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { GET_PRODUCTS, GET_FACETS, CREATE_FACET_VALUE } from './queries';
 
 // --- Interfaces ---
 interface Product {
@@ -42,8 +42,115 @@ async function fetchGraphQL(query: any, variables?: any) {
     return json.data;
 }
 
+// --- CategoryManager Component ---
+function CategoryManager() {
+    const queryClient = useQueryClient();
+    const [newCategoryName, setNewCategoryName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const { data: facetsData, isLoading: isLoadingFacets, error: facetsError } = useQuery({
+        queryKey: ['facets'],
+        queryFn: async () => {
+            const result = await fetchGraphQL(GET_FACETS); // Fetch all to see what we have
+            console.log('Facets result:', result);
+            return result;
+        }
+    });
+
+    // Try to find a facet with name "Category" or code "category"
+    const categoryFacet = facetsData?.facets?.items?.find((f: any) => 
+        f.name.toLowerCase() === 'category' || f.code === 'category' || f.name.toLowerCase() === 'catégorie'
+    );
+    const categories = categoryFacet?.values || [];
+    const categoryFacetId = categoryFacet?.id;
+
+    const createMutation = useMutation({
+        mutationFn: (name: string) => fetchGraphQL(CREATE_FACET_VALUE, {
+            input: { name, facetId: categoryFacetId }
+        }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['facets'] });
+            setNewCategoryName('');
+            setIsSubmitting(false);
+            alert('Catégorie créée avec succès!');
+        },
+        onError: (error) => {
+            setIsSubmitting(false);
+            alert('Erreur: ' + (error as Error).message);
+        }
+    });
+
+    const handleAddCategory = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCategoryName.trim() || !categoryFacetId) return;
+        setIsSubmitting(true);
+        createMutation.mutate(newCategoryName);
+    };
+
+    return (
+        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Gérer les Catégories</h2>
+            
+            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
+                <input 
+                    type="text" 
+                    placeholder="Nom de la nouvelle catégorie..." 
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    disabled={isSubmitting || isLoadingFacets || !categoryFacetId}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', background: (!categoryFacetId && !isLoadingFacets) ? '#f3f4f6' : 'white' }}
+                />
+                <button 
+                    type="submit" 
+                    disabled={isSubmitting || isLoadingFacets || !categoryFacetId}
+                    style={{ 
+                        padding: '8px 16px', 
+                        borderRadius: '6px', 
+                        background: '#4f46e5', 
+                        color: 'white', 
+                        border: 'none', 
+                        cursor: (isSubmitting || isLoadingFacets || !categoryFacetId) ? 'not-allowed' : 'pointer',
+                        opacity: (isSubmitting || isLoadingFacets || !categoryFacetId) ? 0.7 : 1
+                    }}
+                >
+                    {isSubmitting ? 'Création...' : 'Ajouter une catégorie'}
+                </button>
+            </form>
+
+            {!categoryFacetId && !isLoadingFacets && (
+                <div style={{ color: '#b91c1c', fontSize: '13px', marginBottom: '16px', padding: '8px', background: '#fef2f2', borderRadius: '6px', border: '1px solid #fee2e2' }}>
+                    ⚠️ Aucun facet nommé <strong>"Category"</strong> ou <strong>"catégorie"</strong> n'a été trouvé. 
+                    Veuillez en créer un dans <em>Catalogue {' > '} Facets</em> avec le code <code>category</code>.
+                </div>
+            )}
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {isLoadingFacets ? (
+                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Chargement des catégories...</span>
+                ) : categories.length === 0 ? (
+                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Aucune catégorie (Vérifiez qu'un facet "Category" existe).</span>
+                ) : (
+                    categories.map((cat: any) => (
+                        <span key={cat.id} style={{ 
+                            background: '#f3f4f6', 
+                            padding: '4px 10px', 
+                            borderRadius: '16px', 
+                            fontSize: '13px', 
+                            color: '#4b5563',
+                            border: '1px solid #e5e7eb'
+                        }}>
+                            {cat.name}
+                        </span>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}
+
 // --- ProductList Component ---
 export function ProductListComponent() {
+    console.log('ProductListComponent rendering...');
     const [page, setPage] = useState(1);
     const pageSize = 10;
     const [searchTerm, setSearchTerm] = useState('');
@@ -73,7 +180,8 @@ export function ProductListComponent() {
         queryFn: () => fetchGraphQL(GET_PRODUCTS, queryVariables),
     });
 
-    const { items = [], totalItems = 0 } = data?.publicProducts || {};
+    // Use products field instead of publicProducts
+    const { items = [], totalItems = 0 } = data?.products || {};
     const totalPages = Math.ceil(totalItems / pageSize);
 
     // Client-side filtering for vendor if standard API doesn't support deep filter yet
@@ -108,6 +216,9 @@ export function ProductListComponent() {
                 <h1 style={{ fontSize: '28px', color: '#1f2937', marginBottom: '8px' }}>Global Products</h1>
                 <p style={{ color: '#6b7280' }}>View and manage products from all vendors.</p>
             </div>
+
+            {/* Category Manager Section */}
+            <CategoryManager />
 
             {/* Filter Bar */}
             <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageUploader from '@/components/ImageUploader';
-import { createProductAction, createCategoryAction } from '@/app/dashboard/products/actions';
+import { createProductAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
 
 interface CreateProductFormProps {
@@ -22,10 +22,13 @@ export default function CreateProductForm({ facets, onSuccess, ...props }: Creat
         category: '',
     });
     const [assetIds, setAssetIds] = useState<string[]>([]);
-    const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [localCategories, setLocalCategories] = useState(facets?.items[0]?.values || []);
-    const categoryFacetId = facets?.items[0]?.id;
+    // Find the facet with code 'category' or name 'Category'/'Catégorie'
+    const categoryFacet = facets?.items?.find((f: any) => 
+        f.code === 'category' || 
+        f.name.toLowerCase() === 'category' || 
+        f.name.toLowerCase() === 'catégorie'
+    );
+    const [localCategories, setLocalCategories] = useState(categoryFacet?.values || []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -56,24 +59,6 @@ export default function CreateProductForm({ facets, onSuccess, ...props }: Creat
         }
     };
 
-    const handleCreateCategory = async () => {
-        if (!newCategoryName || !categoryFacetId) return;
-        try {
-            const result = await createCategoryAction(newCategoryName, categoryFacetId);
-            if (result.success) {
-                setLocalCategories([...localCategories, result.category]);
-                setFormData({ ...formData, category: result.category.id });
-                setIsCreatingCategory(false);
-                setNewCategoryName('');
-                toast.success('Catégorie créée');
-            } else {
-                toast.error('Erreur catégorie: ' + result.error);
-            }
-        } catch (err) {
-            console.error('Error creating category:', err);
-            toast.error('Erreur inattendue');
-        }
-    };
 
     return (
         <form onSubmit={handleSubmit} className={`space-y-6 ${props.className || 'bg-white p-6 rounded-lg shadow'}`}>
@@ -131,44 +116,16 @@ export default function CreateProductForm({ facets, onSuccess, ...props }: Creat
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-                <div className="flex gap-2">
-                    <select
-                        className="block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                        value={formData.category}
-                        onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    >
-                        <option value="">Sélectionner une catégorie</option>
-                        {localCategories.map((cat: any) => (
-                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                    </select>
-                    <button
-                        type="button"
-                        onClick={() => setIsCreatingCategory(!isCreatingCategory)}
-                        className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                    >
-                        +
-                    </button>
-                </div>
-
-                {isCreatingCategory && (
-                    <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200 flex gap-2 items-center">
-                        <input
-                            type="text"
-                            placeholder="Nom de la nouvelle catégorie"
-                            className="flex-1 border border-gray-300 rounded p-1"
-                            value={newCategoryName}
-                            onChange={e => setNewCategoryName(e.target.value)}
-                        />
-                        <button
-                            type="button"
-                            onClick={handleCreateCategory}
-                            className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700"
-                        >
-                            Créer
-                        </button>
-                    </div>
-                )}
+                <select
+                    className="block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    value={formData.category}
+                    onChange={e => setFormData({ ...formData, category: e.target.value })}
+                >
+                    <option value="">Sélectionner une catégorie</option>
+                    {localCategories.map((cat: any) => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                </select>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">

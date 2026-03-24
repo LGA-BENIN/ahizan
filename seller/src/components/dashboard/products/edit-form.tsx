@@ -25,7 +25,12 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
 
-    const categories = facets?.items[0]?.values || [];
+    const categoryFacet = facets?.items?.find((f: any) => 
+        f.code === 'category' || 
+        f.name.toLowerCase() === 'category' || 
+        f.name.toLowerCase() === 'catégorie'
+    );
+    const categories = categoryFacet?.values || [];
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

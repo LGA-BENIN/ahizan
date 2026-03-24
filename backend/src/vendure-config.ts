@@ -23,6 +23,7 @@ import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifi
 import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender';
 import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
 import { CMSPlugin } from './plugins/cms/cms.plugin';
+import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 
 // Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
@@ -142,5 +143,6 @@ export const config: VendureConfig = {
         PageInscriptionPlugin,
         AhizanNotificationsPlugin,
         CMSPlugin,
+        BannerManagerPlugin,
     ],
 };

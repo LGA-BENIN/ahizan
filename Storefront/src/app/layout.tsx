@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { Navbar } from "@/components/layout/navbar";
+import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
+import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
 import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SITE_NAME, SITE_URL } from "@/lib/metadata";
@@ -115,34 +116,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         )}
                     </div>
 
-                    {/* Top Ad Area (non-sticky, scrolls away) */}
-                    {topBar?.adMediaUrl && (
-                        <div className="w-full bg-slate-900 overflow-hidden flex justify-center items-center">
-                            {topBar.adMediaType === 'video' ? (
-                                <video autoPlay muted loop playsInline className="w-full max-h-[80px] object-cover">
-                                    <source src={topBar.adMediaUrl} />
-                                </video>
-                            ) : (
-                                <Link href={topBar.adLink || '#'} className="w-full">
-                                    <img src={topBar.adMediaUrl} alt="Publicité" className="w-full max-h-[80px] object-cover" />
-                                </Link>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Announcement bar */}
-                    {topBar?.text && (
-                        <div className="text-center text-xs font-bold tracking-wide py-2" style={{ background: topBar.backgroundColor || '#0f172a', color: topBar.textColor || '#ffffff' }}>
-                            {topBar.text}
-                        </div>
-                    )}
-
                     {/* Sticky Header */}
                     <div className="sticky top-0 z-50 w-full shadow-sm">
-                        <Navbar config={header} />
+                        <TopFlashBanner />
+                        <AhizanNavbar />
                     </div>
 
-                    <main className={`relative z-10 flex-grow w-full mx-auto ${layoutMode === 'boxed' ? 'max-w-[var(--content-max-width)] px-4' : 'max-w-none'}`}>
+                    <main className="relative z-10 flex-grow w-full mx-auto">
                         {children}
                     </main>
 

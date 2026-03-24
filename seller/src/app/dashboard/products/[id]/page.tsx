@@ -15,7 +15,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     // Parallel fetch
     const [productResult, facetsResult] = await Promise.all([
         query(GetMyVendorProductQuery, { id }, { token }),
-        query(GetFacetsQuery, { options: { filter: { name: { eq: "Category" } } } }, { token })
+        query(GetFacetsQuery, {}, { token })
     ]);
 
     const product = productResult.data?.myVendorProduct;

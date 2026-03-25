@@ -40,22 +40,303 @@ const categories = [
     { name: "Autres catégories", icon: <MoreHorizontal className="w-4 h-4" /> },
 ];
 
+function FlashSaleSection({ config: activeFlash }: { config: any }) {
+    const [flashProducts, setFlashProducts] = useState<any[]>([]);
+    const [timeLeft, setTimeLeft] = useState({ h: '00', m: '00', s: '00' });
+
+    // Timer Logic
+    useEffect(() => {
+        if (!activeFlash?.endTime) return;
+        
+        const timer = setInterval(() => {
+            const now = new Date();
+            const end = new Date(activeFlash.endTime);
+            const start = activeFlash.startTime ? new Date(activeFlash.startTime) : now;
+            
+            // Check if active or simple mode
+            const isActive = now >= start && now <= end;
+            const isSimple = activeFlash.isSimpleMode;
+
+            if (!isActive && !isSimple) {
+                setTimeLeft({ h: '00', m: '00', s: '00' });
+                clearInterval(timer);
+                return;
+            }
+
+            const updateTimer = () => {
+                const currentTime = new Date();
+                const diff = end.getTime() - currentTime.getTime();
+
+                if (diff <= 0) {
+                    setTimeLeft({ h: '00', m: '00', s: '00' });
+                    clearInterval(timer);
+                    return;
+                }
+            
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                
+                setTimeLeft({
+                    h: h < 10 ? `0${h}` : `${h}`,
+                    m: m < 10 ? `0${m}` : `${m}`,
+                    s: s < 10 ? `0${s}` : `${s}`
+                });
+            };
+
+            updateTimer(); 
+        }, 1000);
+        
+        return () => clearInterval(timer);
+    }, [activeFlash]);
+
+    // Dynamic Product Fetching for This Section
+    useEffect(() => {
+        if (!activeFlash) return;
+
+        const isFilterMode = activeFlash.selectionType === 'FILTER';
+        
+        if (isFilterMode) {
+            const searchInput: any = {
+                groupByProduct: true,
+                take: 12
+            };
+
+            if (activeFlash.filterCriteria?.minPrice) {
+                searchInput.priceRange = { ...searchInput.priceRange, min: activeFlash.filterCriteria.minPrice * 100 };
+            }
+            if (activeFlash.filterCriteria?.maxPrice) {
+                searchInput.priceRange = { ...searchInput.priceRange, max: activeFlash.filterCriteria.maxPrice * 100 };
+            }
+            if (activeFlash.filterCriteria?.facetValueIds?.length > 0) {
+                searchInput.facetValueIds = activeFlash.filterCriteria.facetValueIds.map((id: any) => String(id));
+            }
+
+            const searchQuery = `
+                query GetFlashProducts($input: SearchInput!) {
+                    search(input: $input) {
+                        items {
+                            productId
+                            productName
+                            slug
+                            productAsset {
+                                preview
+                            }
+                            priceWithTax {
+                                ... on PriceRange { min max }
+                                ... on SinglePrice { value }
+                            }
+                        }
+                    }
+                }
+            `;
+
+            fetch('http://127.0.0.1:3000/shop-api', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    query: searchQuery, 
+                    variables: { input: searchInput } 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log(`Flash Sale (${activeFlash.name}) Search Result:`, data);
+                if (data.errors) {
+                    console.error('GraphQL Errors:', data.errors);
+                    return;
+                }
+                const items = data.data?.search?.items || [];
+                if (items.length === 0) {
+                    console.warn(`No products found for flash sale: ${activeFlash.name}. Check your filters.`);
+                }
+                setFlashProducts(items.map((item: any) => ({
+                    id: item.productId,
+                    name: item.productName,
+                    slug: item.slug,
+                    assets: item.productAsset ? [{ preview: item.productAsset.preview }] : [],
+                    variants: [{
+                        price: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0,
+                        listPrice: (item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0) * 1.2,
+                        stockLevel: 'En stock'
+                    }]
+                })));
+            })
+            .catch(err => {
+                console.error(`Fetch error for flash sale ${activeFlash.name}:`, err);
+            });
+
+        } else if (activeFlash.selectionType === 'MANUAL' && activeFlash.manualProductIds?.length > 0) {
+            // ... (rest remains or updated to 127.0.0.1)
+            fetch('http://127.0.0.1:3000/shop-api', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    query: `
+                        query GetFlashProducts($options: ProductListOptions) {
+                            products(options: $options) {
+                                items {
+                                    id
+                                    name
+                                    slug
+                                    variants {
+                                        price
+                                        priceWithTax
+                                        stockLevel
+                                        listPrice
+                                    }
+                                    assets {
+                                        preview
+                                    }
+                                }
+                            }
+                        }
+                    `, 
+                    variables: { 
+                        options: { 
+                            filter: { id: { in: activeFlash.manualProductIds } },
+                            take: 12
+                        } 
+                    } 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log(`Flash Sale (${activeFlash.name}) Manual Result:`, data);
+                setFlashProducts(data.data?.products?.items || []);
+            })
+            .catch(err => console.error('Error fetching manual products:', err));
+        }
+    }, [activeFlash]);
+
+    // Checks if we should display
+    const now = new Date();
+    const isStarted = !activeFlash.startTime || now >= new Date(activeFlash.startTime);
+    const isNotEnded = now <= new Date(activeFlash.endTime);
+    if (!isStarted || !isNotEnded) return null;
+
+    return (
+        <div 
+            className={`mt-12 rounded-3xl shadow-xl overflow-hidden animate-in fade-in duration-1000 ${activeFlash.isSimpleMode ? 'border-none' : 'border border-gray-100'}`}
+            style={{ 
+                backgroundColor: activeFlash.isSimpleMode ? '#ffffff' : (activeFlash?.bgColor || '#e31837'),
+                backgroundImage: !activeFlash.isSimpleMode && activeFlash?.bgImageUrl ? 'url(http://localhost:3000' + activeFlash.bgImageUrl + ')' : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                position: 'relative'
+            }}
+        >
+            {activeFlash?.bgImageUrl && !activeFlash.isSimpleMode && <div className="absolute inset-0 bg-black/40 z-0"></div>}
+
+            {/* Flash Header */}
+            <div className={`p-4 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4 relative z-10 ${activeFlash.isSimpleMode ? 'text-gray-900 border-b border-gray-100' : 'text-white'}`}>
+                <div className="flex items-center gap-4">
+                    {!activeFlash.isSimpleMode && (
+                        <div className="p-3 bg-white/20 rounded-2xl animate-pulse">
+                            <Clock className="w-8 h-8" />
+                        </div>
+                    )}
+                    <div>
+                        <h2 className={`font-black tracking-tight uppercase ${activeFlash.isSimpleMode ? 'text-xl md:text-2xl text-[#002f6c]' : 'text-2xl md:text-3xl'}`}>
+                            {activeFlash?.title || "Ventes Flash"}
+                        </h2>
+                        <p className={`text-xs font-bold ${activeFlash.isSimpleMode ? 'text-gray-500' : 'opacity-75'}`}>
+                            {activeFlash?.subtitle || "Offres exceptionnelles limitées dans le temps"}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8">
+                    {!activeFlash.isSimpleMode && (
+                        <div className="flex items-center gap-3 bg-black/20 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-sm">
+                            <span className="text-sm font-bold uppercase tracking-widest opacity-60 text-center">Fini dans:</span>
+                            <div className="flex items-center gap-2 font-black text-xl">
+                                <span style={{ color: activeFlash?.accentColor || 'white' }}>{timeLeft.h}h</span><span className="opacity-30">:</span>
+                                <span style={{ color: activeFlash?.accentColor || 'white' }}>{timeLeft.m}m</span><span className="opacity-30">:</span>
+                                <span style={{ color: activeFlash?.accentColor || 'white' }}>{timeLeft.s}s</span>
+                            </div>
+                        </div>
+                    )}
+                    <Link href="/search?sales=true" className={`${activeFlash.isSimpleMode ? 'bg-[#002f6c] text-white' : 'bg-white text-[#e31837]'} px-6 py-2.5 rounded-xl font-bold hover:bg-gray-800 hover:text-white transition-all transform hover:-translate-x-2 flex items-center gap-2 group shadow-sm`}>
+                        Voir tout <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                </div>
+            </div>
+
+            {/* Flash Products Grid */}
+            <div className={`p-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 relative z-10 ${activeFlash.isSimpleMode ? 'bg-white' : 'bg-white bg-opacity-95 backdrop-blur-md'}`}>
+                {(flashProducts.length > 0 ? flashProducts : [1, 2, 3, 4, 5, 6]).map((p: any, i) => {
+                    const isPlaceholder = typeof p === 'number';
+                    const price = isPlaceholder ? (199 + i * 50) : (p.variants?.[0]?.price || 0);
+                    const listPrice = isPlaceholder ? (350 + i * 50) : (p.variants?.[0]?.listPrice || price * 1.5);
+                    const discount = Math.round((1 - price / listPrice) * 100);
+                    
+                    return (
+                        <div key={isPlaceholder ? i : p.id} className="flex flex-col gap-4 group cursor-pointer">
+                            <div className="relative aspect-square bg-[#f8f9fa] rounded-[2.5rem] overflow-hidden flex items-center justify-center p-4 border-2 border-gray-50 group-hover:border-[#e31837]/20 group-hover:shadow-2xl group-hover:-translate-y-3 transition-all duration-500">
+                                <div className="absolute top-4 right-4 bg-[#e31837] text-white text-[11px] font-black px-2.5 py-1 rounded-full shadow-lg z-10">
+                                    -{discount}%
+                                </div>
+                                {isPlaceholder ? (
+                                    <div className="text-6xl text-gray-200 group-hover:text-[#002f6c]/10 transition-colors transform group-hover:scale-125 duration-700 font-black">A</div>
+                                ) : (
+                                    <img src={p.assets?.[0]?.preview || ''} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" alt={p.name} />
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-100 group-hover:opacity-10 transition-opacity"></div>
+                            </div>
+                            
+                            <div className="space-y-1 px-2">
+                                <h4 className="text-[14px] font-bold text-gray-800 line-clamp-1 group-hover:text-[#e31837] transition-colors">{isPlaceholder ? `Produit Ahizan Premium #${i}` : p.name}</h4>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="font-black text-lg text-[#002f6c]">{isPlaceholder ? price : (price / 100).toFixed(0)} Dhs</span>
+                                    <span className="text-xs text-gray-400 line-through font-medium">{isPlaceholder ? listPrice : (listPrice / 100).toFixed(0)} Dhs</span>
+                                </div>
+                                <div className="pt-2">
+                                    <div className="flex justify-between text-[10px] font-bold mb-1.5">
+                                        <span className="text-gray-500 uppercase tracking-tighter">Stock</span>
+                                        <span className="text-[#e31837]">{isPlaceholder ? (15 + i) : (p.variants?.[0]?.stockLevel || 'Limited')}</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-50 shadow-inner">
+                                        <div 
+                                            className="h-full bg-gradient-to-r from-[#e31837] to-[#ff4b6b] rounded-full transition-all duration-1000 delay-500" 
+                                            style={{ width: `${isPlaceholder ? Math.max(20, 100 - i * 12) : 65}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 export function AhizanHome() {
     const [heroConfig, setHeroConfig] = useState<any>(null);
     const [promoConfig, setPromoConfig] = useState<any>(null);
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
+    const [activeFlashSales, setActiveFlashSales] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchConfigs = async () => {
             try {
-                const [heroRes, promoRes] = await Promise.all([
-                    fetch('http://localhost:3000/banner/hero-config'),
-                    fetch('http://localhost:3000/banner/promo-config')
+                const [heroRes, promoRes, flashRes] = await Promise.all([
+                    fetch('http://127.0.0.1:3000/banner/hero-config'),
+                    fetch('http://127.0.0.1:3000/banner/promo-config'),
+                    fetch('http://127.0.0.1:3000/banner/flash-active')
                 ]);
+                
                 const heroData = await heroRes.json();
                 const promoData = await promoRes.json();
+                const flashData = await flashRes.json();
+                
+                console.log('Active Flash Sales count:', flashData?.length);
+                
                 setHeroConfig(heroData);
                 setPromoConfig(promoData);
+                if (Array.isArray(flashData)) {
+                    setActiveFlashSales(flashData);
+                }
             } catch (err) {
                 console.error('Error fetching configs:', err);
             }
@@ -505,72 +786,10 @@ export function AhizanHome() {
                     </div>
                 )}
 
-                {/* Ventes Flash Section */}
-                <div className="mt-12 bg-white rounded-3xl shadow-xl shadow-gray-200 border border-gray-100 overflow-hidden animate-in fade-in duration-1000">
-                    {/* Flash Header */}
-                    <div className="bg-[#e31837] p-4 md:p-6 flex flex-col md:flex-row items-center justify-between text-white gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-white/20 rounded-2xl animate-pulse">
-                                <Clock className="w-8 h-8" />
-                            </div>
-                            <div>
-                                <h2 className="font-black text-2xl md:text-3xl tracking-tight uppercase">{promoConfig.flashTitle || "Ventes Flash"}</h2>
-                                <p className="text-xs font-bold opacity-75">{promoConfig.flashSubtitle || "Offres exceptionnelles limitées dans le temps"}</p>
-                            </div>
-                        </div>
-                        <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8">
-                            <div className="flex items-center gap-3 bg-black/20 px-6 py-3 rounded-2xl border border-white/10 backdrop-blur-sm">
-                                <span className="text-sm font-bold uppercase tracking-widest opacity-60 text-center">Fini dans:</span>
-                                <div className="flex items-center gap-2 font-black text-xl">
-                                    <span>05h</span><span className="opacity-30">:</span>
-                                    <span>14m</span><span className="opacity-30">:</span>
-                                    <span>16s</span>
-                                </div>
-                            </div>
-                            <Link href="/sales" className="bg-white text-[#e31837] px-6 py-2.5 rounded-xl font-bold hover:bg-[#002f6c] hover:text-white transition-all transform hover:-translate-x-2 flex items-center gap-2 group">
-                                Voir tout <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                            </Link>
-                        </div>
-                    </div>
-
-                    {/* Flash Products Grid */}
-                    <div className="p-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div key={i} className="flex flex-col gap-4 group cursor-pointer">
-                                <div className="relative aspect-square bg-[#f8f9fa] rounded-[2.5rem] overflow-hidden flex items-center justify-center p-6 border-2 border-gray-50 group-hover:border-[#e31837]/20 group-hover:shadow-2xl group-hover:-translate-y-3 transition-all duration-500">
-                                    <div className="absolute top-4 right-4 bg-[#e31837] text-white text-[11px] font-black px-2.5 py-1 rounded-full shadow-lg z-10">
-                                        -{20 + i * 5}%
-                                    </div>
-                                    <div className="text-6xl text-gray-200 group-hover:text-[#002f6c]/10 transition-colors transform group-hover:scale-125 duration-700 font-black">A</div>
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-100 group-hover:opacity-10 transition-opacity"></div>
-                                </div>
-                                
-                                <div className="space-y-1 px-2">
-                                    <h4 className="text-[14px] font-bold text-gray-800 line-clamp-1 group-hover:text-[#e31837] transition-colors">Produit Ahizan Premium #{i}</h4>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="font-black text-lg text-[#002f6c]">{199 + i * 50} Dhs</span>
-                                        <span className="text-xs text-gray-400 line-through font-medium">{350 + i * 50} Dhs</span>
-                                    </div>
-                                    <div className="pt-2">
-                                        <div className="flex justify-between text-[10px] font-bold mb-1.5">
-                                            <span className="text-gray-500 uppercase tracking-tighter text-center">Stock Ahizan</span>
-                                            <span className="text-[#e31837]">{15 + i} restants</span>
-                                        </div>
-                                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-50 shadow-inner">
-                                            <div 
-                                                className="h-full bg-gradient-to-r from-[#e31837] to-[#ff4b6b] rounded-full transition-all duration-1000 delay-500" 
-                                                style={{ width: `${Math.max(20, 100 - i * 12)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button className="mt-2 w-full py-2.5 bg-gray-50 text-gray-800 rounded-xl text-xs font-bold hover:bg-[#e31837] hover:text-white transition-all transform opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 active:scale-95 shadow-lg shadow-gray-200">
-                                    Ajouter au panier
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                {/* Ventes Flash Sections DYNAMIQUE (MULTI-SUPPORT) */}
+                {activeFlashSales.map((flash) => (
+                    <FlashSaleSection key={flash.id} config={flash} />
+                ))}
             </div>
         </div>
     );

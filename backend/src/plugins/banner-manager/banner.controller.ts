@@ -42,6 +42,23 @@ export class BannerAdminController {
         return { success: true };
     }
 
+    // --- Flash Sale Versioning ---
+    @Get('flash-versions')
+    async getFlashVersions() {
+        return this.bannerService.getFlashVersions();
+    }
+
+    @Post('flash-versions')
+    async saveFlashVersions(@Body() versions: any[]) {
+        await this.bannerService.saveFlashVersions(versions);
+        return { success: true };
+    }
+
+    @Get('flash-active')
+    async getActiveFlashSale() {
+        return this.bannerService.getActiveFlashVersions();
+    }
+
     @Post('upload')
     @UseInterceptors(FileInterceptor('file'))
     async uploadImage(@UploadedFile() file: any) {

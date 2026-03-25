@@ -322,10 +322,12 @@ function getSectionDescription(type: string) {
 }
 
 export function LandingPageBuilder() {
-    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO'>('ROADMAP');
+    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO' | 'EDITING_FLASH'>('ROADMAP');
     const [bannerConfig, setBannerConfig] = useState<any>(null);
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
     const [debugData, setDebugData] = useState<any>(null);
+    const [flashVersions, setFlashVersions] = useState<any[]>([]);
+    const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -377,17 +379,26 @@ export function LandingPageBuilder() {
     useEffect(() => {
         const fetchConfigs = async () => {
             try {
-                const [bannerRes, heroRes, promoRes] = await Promise.all([
+                const [bannerRes, heroRes, promoRes, flashRes] = await Promise.all([
                     fetch('http://localhost:3000/banner/config'),
                     fetch('http://localhost:3000/banner/hero-config'),
-                    fetch('http://localhost:3000/banner/promo-config')
+                    fetch('http://localhost:3000/banner/promo-config'),
+                    fetch('http://localhost:3000/banner/flash-versions')
                 ]);
                 const bannerData = await bannerRes.json();
                 const heroData = await heroRes.json();
                 const promoData = await promoRes.json();
+                const flashData = await flashRes.json();
+                
                 setBannerConfig(bannerData);
                 setHeroConfig(heroData);
                 setPromoConfig(promoData);
+                setFlashVersions(flashData);
+                
+                if (flashData.length > 0) {
+                    const active = flashData.find((v: any) => v.isActive) || flashData[0];
+                    setSelectedVersionId(active.id);
+                }
             } catch (err) {
                 console.error('Error fetching configs:', err);
             }
@@ -395,7 +406,48 @@ export function LandingPageBuilder() {
         fetchConfigs();
     }, []);
 
-    const handleUpload = async (event: any, target: 'banner-desktop' | 'banner-mobile' | 'hero-bg' | 'hero-flash' | 'promo-bg') => {
+    const handleFlashSave = async (versionsToSave?: any[]) => {
+        setIsSaving(true);
+        try {
+            await fetch('http://localhost:3000/banner/flash-versions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(versionsToSave || flashVersions)
+            });
+            setSaveStatus('✅ Versions Flash enregistrées !');
+        } catch (err) {
+            setSaveStatus('❌ Échec de l\'enregistrement.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const createNewFlashVersion = () => {
+        const newVersion = {
+            id: Date.now().toString(),
+            name: `Campagne ${flashVersions.length + 1}`,
+            isActive: flashVersions.length === 0,
+            title: 'VENTES FLASH',
+            subtitle: 'Offres exceptionnelles limitées dans le temps',
+            endTime: new Date(Date.now() + 3600000 * 5).toISOString(),
+            bgColor: '#e31837',
+            textColor: '#ffffff',
+            accentColor: '#ffffff',
+            selectionType: 'MANUAL',
+            isSimpleMode: false,
+            manualProductIds: [],
+            filterCriteria: { 
+                minPrice: 0,
+                minDiscount: 0,
+                onlyInStock: true
+            }
+        };
+        const updated = [...flashVersions, newVersion];
+        setFlashVersions(updated);
+        setSelectedVersionId(newVersion.id);
+    };
+
+    const handleUpload = async (event: any, target: 'banner-desktop' | 'banner-mobile' | 'hero-bg' | 'hero-flash' | 'promo-bg' | 'flash-version-bg') => {
         const file = event.target.files[0];
         if (!file) return;
 
@@ -431,6 +483,9 @@ export function LandingPageBuilder() {
                         ...prev,
                         facetMedia: { ...prev.facetMedia, [slug]: data.url }
                     }));
+                } else if (target === 'flash-version-bg' && selectedVersionId) {
+                    const updated = flashVersions.map(v => v.id === selectedVersionId ? { ...v, bgImageUrl: data.url } : v);
+                    setFlashVersions(updated);
                 } else {
                     setBannerConfig((prev: any) => ({
                         ...prev,
@@ -875,6 +930,261 @@ export function LandingPageBuilder() {
         );
     }
 
+    if (view === 'EDITING_FLASH') {
+        const v = flashVersions.find(fv => fv.id === selectedVersionId) || flashVersions[0];
+        
+        return (
+            <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
+                <StatusNotification />
+                
+                {/* 1. Sidebar : Liste des Campagnes */}
+                <div style={{ width: '320px', background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
+                        <button onClick={() => setView('ROADMAP')} style={{ background: '#f1f5f9', border: 'none', padding: '10px 15px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'block', width: '100%', marginBottom: '20px' }}>← Retour au Dashboard</button>
+                        <h2 style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', margin: 0 }}>Ventes Flash</h2>
+                        <button onClick={createNewFlashVersion} style={{ background: '#002f6c', color: '#fff', border: 'none', padding: '10px', borderRadius: '10px', width: '100%', marginTop: '16px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>+ Nouvelle Campagne</button>
+                    </div>
+                    
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                        {flashVersions.map(fv => (
+                            <div 
+                                key={fv.id} 
+                                onClick={() => setSelectedVersionId(fv.id)}
+                                style={{ padding: '16px', borderRadius: '16px', background: selectedVersionId === fv.id ? '#fef2f2' : 'transparent', border: selectedVersionId === fv.id ? '2px solid #e31837' : '1px solid transparent', cursor: 'pointer', marginBottom: '12px', transition: 'all 0.2s' }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontWeight: '800', fontSize: '14px', color: selectedVersionId === fv.id ? '#e31837' : '#0f172a' }}>{fv.name}</span>
+                                    {fv.isActive && <span style={{ background: '#059669', color: '#fff', padding: '2px 6px', borderRadius: '6px', fontSize: '9px', fontWeight: '900' }}>ACTIF</span>}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>{fv.manualProductIds?.length || 0} produits • {fv.selectionType}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ padding: '20px', borderTop: '1px solid #f1f5f9' }}>
+                        <button onClick={() => handleFlashSave()} disabled={isSaving} style={{ background: '#002f6c', color: '#fff', border: 'none', padding: '14px', borderRadius: '12px', width: '100%', fontWeight: 'bold', cursor: 'pointer' }}>
+                            {isSaving ? 'Sauvegarde...' : 'ENREGISTRER TOUT'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* 2. Main Editor Panel */}
+                {v ? (
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '48px' }}>
+                        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                                <div>
+                                    <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>Éditer : {v.name}</h1>
+                                    <p style={{ color: '#64748b', marginTop: '4px' }}>Personnalisez l'apparence et le contenu de cette vente flash.</p>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button 
+                                        onClick={() => {
+                                            const updated = flashVersions.map(fv => fv.id === v.id ? { ...fv, isActive: !fv.isActive } : fv);
+                                            setFlashVersions(updated);
+                                            handleFlashSave(updated);
+                                        }}
+                                        style={{ background: v.isActive ? '#059669' : '#fff', color: v.isActive ? '#fff' : '#059669', border: '1px solid #059669', padding: '10px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                                    >
+                                        {v.isActive ? '✅ Version Active (Désactiver)' : '🚀 Activer cette version'}
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            const updated = flashVersions.filter(fv => fv.id !== v.id);
+                                            setFlashVersions(updated);
+                                            if (updated.length > 0) setSelectedVersionId(updated[0].id);
+                                            handleFlashSave(updated);
+                                        }}
+                                        style={{ background: '#fff', color: '#dc2626', border: '1px solid #fecaca', padding: '10px 15px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                                    >
+                                        🗑️ Supprimer
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '40px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                                    {/* Informations de Base */}
+                                    <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                            <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#002f6c', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>📢 Textes & Timing</h3>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                                <input type="checkbox" checked={v.isSimpleMode} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, isSimpleMode: e.target.checked} : fv))} />
+                                                ✨ Mode Simplifié (Design léger)
+                                            </label>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>DÉBUT DE LA VENTE</label>
+                                                    <input 
+                                                        type="datetime-local" 
+                                                        value={v.startTime ? new Date(new Date(v.startTime).getTime() - new Date(v.startTime).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} 
+                                                        onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, startTime: new Date(e.target.value).toISOString()} : fv))} 
+                                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>FIN DE LA VENTE</label>
+                                                    <input 
+                                                        type="datetime-local" 
+                                                        value={v.endTime ? new Date(new Date(v.endTime).getTime() - new Date(v.endTime).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''} 
+                                                        onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, endTime: new Date(e.target.value).toISOString()} : fv))} 
+                                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} 
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TITRE PRINCIPAL</label>
+                                                    <input type="text" value={v.title} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, title: e.target.value} : fv))} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>SOUS-TITRE / OFFRE</label>
+                                                    <input type="text" value={v.subtitle} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, subtitle: e.target.value} : fv))} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Sélection des Produits */}
+                                    <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                            <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#002f6c', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>📦 Produits en Vente</h3>
+                                            <select 
+                                                value={v.selectionType} 
+                                                onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, selectionType: e.target.value as any} : fv))}
+                                                style={{ padding: '8px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 'bold' }}
+                                            >
+                                                <option value="MANUAL">📍 Sélection Manuelle</option>
+                                                <option value="FILTER">⚡ Filtre Intelligent</option>
+                                            </select>
+                                        </div>
+
+                                        {v.selectionType === 'MANUAL' ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', fontSize: '13px', color: '#64748b' }}>
+                                                    🔍 Barre de recherche produits coming soon... <br/>
+                                                    (En attendant, utilisez les filtres intelligents pour un remplissage automatique rapide !)
+                                                </div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    {v.manualProductIds?.map((pid: string) => (
+                                                        <div key={pid} style={{ background: '#f1f5f9', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            PID: {pid}
+                                                            <button style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '14px' }}>×</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                                    <div>
+                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>PRIX MINIMUM (FCFA)</label>
+                                                        <input type="number" value={v.filterCriteria?.minPrice || 0} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, filterCriteria: {...fv.filterCriteria, minPrice: Number(e.target.value)}} : fv))} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>PRIX MAXIMUM (FCFA)</label>
+                                                        <input type="number" value={v.filterCriteria?.maxPrice || 0} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, filterCriteria: {...fv.filterCriteria, maxPrice: Number(e.target.value)}} : fv))} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                                    <div>
+                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>REMISE MINIMUM (%)</label>
+                                                        <input type="number" value={v.filterCriteria?.minDiscount || 0} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, filterCriteria: {...fv.filterCriteria, minDiscount: Number(e.target.value)}} : fv))} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', paddingTop: '24px' }}>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                                            <input type="checkbox" checked={v.filterCriteria?.onlyInStock} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, filterCriteria: {...fv.filterCriteria, onlyInStock: e.target.checked}} : fv))} />
+                                                            Uniquement produits en Stock
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>CATEGORIES CIBLES</label>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '100px', overflowY: 'auto', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '10px' }}>
+                                                        {siteCategories.map(cat => (
+                                                            <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={v.filterCriteria?.facetValueIds?.includes(cat.id)} 
+                                                                    onChange={(e) => {
+                                                                        const ids = v.filterCriteria?.facetValueIds || [];
+                                                                        const newIds = e.target.checked ? [...ids, cat.id] : ids.filter(id => id !== cat.id);
+                                                                        setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, filterCriteria: {...fv.filterCriteria, facetValueIds: newIds}} : fv));
+                                                                    }}
+                                                                />
+                                                                {cat.name}
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                                    {/* Style & Background */}
+                                    <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+                                        <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#002f6c', marginBottom: '24px', textTransform: 'uppercase', letterSpacing: '1px' }}>🎨 Style Visuel</h3>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>COULEUR DE FOND</label>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <input type="color" value={v.bgColor} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, bgColor: e.target.value} : fv))} style={{ border: 'none', background: 'none', width: '40px', height: '40px', cursor: 'pointer' }} />
+                                                    <input type="text" value={v.bgColor} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, bgColor: e.target.value} : fv))} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>COULEUR D'ACCENT (Timer)</label>
+                                                <div style={{ display: 'flex', gap: '10px' }}>
+                                                    <input type="color" value={v.accentColor} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, accentColor: e.target.value} : fv))} style={{ border: 'none', background: 'none', width: '40px', height: '40px', cursor: 'pointer' }} />
+                                                    <input type="text" value={v.accentColor} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, accentColor: e.target.value} : fv))} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>IMAGE DE FOND (OPTIONNEL)</label>
+                                                <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                                                    <input type="file" onChange={(e) => handleUpload(e, 'flash-version-bg')} style={{ fontSize: '12px' }} />
+                                                    {v.bgImageUrl && (
+                                                        <img src={`http://localhost:3000${v.bgImageUrl}`} style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '12px', borderRadius: '8px' }} />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Preview Card */}
+                                    <div style={{ background: v.bgColor, color: v.textColor, padding: '32px', borderRadius: '24px', border: '1px solid rgba(0,0,0,0.1)', overflow: 'hidden', position: 'relative' }}>
+                                        {v.bgImageUrl && <img src={`http://localhost:3000${v.bgImageUrl}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />}
+                                        <div style={{ position: 'relative', zIndex: 1 }}>
+                                            <h4 style={{ margin: 0, fontSize: '20px', fontWeight: '900' }}>{v.title}</h4>
+                                            <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.8 }}>{v.subtitle}</p>
+                                            <div style={{ marginTop: '20px', display: 'flex', gap: '8px' }}>
+                                                {['05', '14', '16'].map((n) => (
+                                                    <div key={n} style={{ background: '#fff', color: v.bgColor, padding: '8px', borderRadius: '10px', fontWeight: '900', fontSize: '16px', minWidth: '40px', textAlign: 'center' }}>{n}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '64px', marginBottom: '20px' }}>📦</div>
+                            <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>Aucune campagne flash sélectionnée</h2>
+                            <p style={{ color: '#64748b' }}>Créez votre première vente flash pour commencer.</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     if (view === 'EDITING_BANNER') {
         const b = bannerConfig;
         return (
@@ -949,7 +1259,7 @@ export function LandingPageBuilder() {
             description: "Ventes Flash et liens rapides.",
             sections: [
                 { id: 'quick-links', title: "QuickLinks & Grande Braderie", desc: "Raccourcis de catégories et bannière promo." },
-                { id: 'flash-sales', title: "Flash Sales Section", desc: "Urgence et compte à rebours (Automatisé)." },
+                { id: 'flash-sales', title: "⚡ Ventes Flash (Personnalisation Avancée)", desc: "Gérez plusieurs versions, timers et filtrage dynamique." },
                 { id: 'brand-showcase', title: "Brand Showcase", desc: "Logos des partenaires officiels." }
             ]
         },
@@ -1003,6 +1313,7 @@ export function LandingPageBuilder() {
                                         if (s.id === 'top-flash-banner') setView('EDITING_BANNER'); 
                                         else if (s.id === 'hero-carousel') setView('EDITING_HERO'); 
                                         else if (s.id === 'quick-links') setView('EDITING_PROMO');
+                                        else if (s.id === 'flash-sales') setView('EDITING_FLASH');
                                         else alert('Module en cours de développement...'); 
                                     }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #002f6c', color: '#002f6c', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>Modifier</button>
                                 </div>

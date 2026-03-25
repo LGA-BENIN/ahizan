@@ -65,6 +65,33 @@ export interface HeroConfig {
     };
 }
 
+export interface FlashSaleVersion {
+    id: string;
+    name: string; // Internal admin name
+    isActive: boolean;
+    isSimpleMode?: boolean; // New: Simplified design toggle
+    title: string;
+    subtitle: string;
+    startTime?: string; // New: Starting date/time
+    endTime: string; // ISO Date
+    // Visuals
+    bgColor: string;
+    textColor: string;
+    accentColor: string;
+    bgImageUrl?: string;
+    // Content Logic
+    selectionType: 'MANUAL' | 'FILTER';
+    manualProductIds: string[];
+    filterCriteria?: {
+        minPrice?: number;
+        maxPrice?: number;
+        facetValueIds?: string[];
+        collectionId?: string[];
+        minDiscount?: number; // New: Minimum discount %
+        onlyInStock?: boolean; // New: In-stock only toggle
+    };
+}
+
 export interface PromoConfig {
     showQuickLinks: boolean;
     quickLinksStyle: 'circles' | 'cards' | 'minimal';
@@ -87,6 +114,7 @@ export class BannerService {
     private configPath = path.join(process.cwd(), 'static', 'banner-config.json');
     private heroConfigPath = path.join(process.cwd(), 'static', 'hero-config.json');
     private promoConfigPath = path.join(process.cwd(), 'static', 'promo-config.json');
+    private flashConfigPath = path.join(process.cwd(), 'static', 'flash-versions.json');
 
     async getConfig(): Promise<BannerConfig> {
         try {
@@ -199,5 +227,24 @@ export class BannerService {
 
     async savePromoConfig(config: PromoConfig): Promise<void> {
         await fs.writeFile(this.promoConfigPath, JSON.stringify(config, null, 2), 'utf-8');
+    }
+
+    // --- Flash Sale Versioning ---
+    async getFlashVersions(): Promise<FlashSaleVersion[]> {
+        try {
+            const data = await fs.readFile(this.flashConfigPath, 'utf-8');
+            return JSON.parse(data);
+        } catch (error) {
+            return [];
+        }
+    }
+
+    async saveFlashVersions(versions: FlashSaleVersion[]): Promise<void> {
+        await fs.writeFile(this.flashConfigPath, JSON.stringify(versions, null, 2), 'utf-8');
+    }
+
+    async getActiveFlashVersions(): Promise<FlashSaleVersion[]> {
+        const versions = await this.getFlashVersions();
+        return versions.filter(v => v.isActive);
     }
 }

@@ -133,6 +133,27 @@ export class CMSAdminResolver {
     async savePageAsPreset(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID, name: string, description?: string }): Promise<PagePreset> {
         return this.cmsService.savePageAsPreset(ctx, args.pageId, args.name, args.description);
     }
+
+    @Query()
+    @Allow(Permission.Public)
+    async cmsFacetValues(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const { FacetValue } = await import('@vendure/core');
+        const connection = (this.cmsService as any).connection;
+        const facets = await connection.getRepository(ctx, FacetValue).find({
+            relations: ['facet']
+        });
+        
+        // Translate and map to public JSON
+        return facets.map((f: any) => ({
+            id: f.id,
+            name: f.name || f.code, // Fallback to code if name is undefined (translations)
+            code: f.code,
+            facet: {
+                name: f.facet?.name || f.facet?.code,
+                code: f.facet?.code
+            }
+        }));
+    }
 }
 
 @Resolver()
@@ -146,5 +167,25 @@ export class CMSShopResolver {
             return this.cmsService.findOne(ctx, args.id);
         }
         return this.cmsService.findOneBySlug(ctx, args.slug || '');
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async cmsFacetValues(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const { FacetValue } = await import('@vendure/core');
+        const connection = (this.cmsService as any).connection;
+        const facets = await connection.getRepository(ctx, FacetValue).find({
+            relations: ['facet']
+        });
+        
+        return facets.map((f: any) => ({
+            id: f.id,
+            name: f.name || f.code,
+            code: f.code,
+            facet: {
+                name: f.facet?.name || f.facet?.code,
+                code: f.facet?.code
+            }
+        }));
     }
 }

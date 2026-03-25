@@ -173,7 +173,11 @@ export class BannerService {
     async getPromoConfig(): Promise<PromoConfig> {
         try {
             const data = await fs.readFile(this.promoConfigPath, 'utf-8');
-            return JSON.parse(data);
+            const config = JSON.parse(data);
+            return {
+                ...config,
+                facetMedia: config.facetMedia || {}
+            };
         } catch (error) {
             return {
                 showQuickLinks: true,

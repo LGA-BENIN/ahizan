@@ -6,9 +6,15 @@
     "subtitle": "cest ca la force du padre ",
     "ctaText": "chai",
     "bgType": "image",
-    "bgColor": "#e31837",
-    "bgUrl": "/assets/banners/1774352130123-WhatsApp Image 2026-03-18 at 8.03.44 AM.jpeg",
-    "textColor": "black"
+    "bgColor": "#e4b9bf",
+    "bgUrl": "/assets/banners/1774435077317-Once upon a time, in a dense forest, there lived aâ¦.avif",
+    "textColor": "black",
+    "type": "text"
   },
-  "quickLinksStyle": "circles"
+  "quickLinksStyle": "cards",
+  "facetMedia": {
+    "dsfsdfsd": "/assets/banners/1774433609725-WhatsApp Image 2026-03-18 at 8.03.44 AM (1).jpeg",
+    "categoryone": "/assets/banners/1774433625620-animated-character-tiktok.jpg",
+    "hahaonepro": "/assets/banners/1774433630663-WhatsApp Image 2026-03-18 at 8.03.43 AM.jpeg"
+  }
 }

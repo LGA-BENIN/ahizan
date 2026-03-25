@@ -63,14 +63,8 @@ export function AhizanHome() {
         fetchConfigs();
 
         const gqlQuery = `
-            query GetAllFacetValues {
-                facetValues(options: { take: 100 }) {
-                    items {
-                        id
-                        name
-                        code
-                    }
-                }
+            query GetCmsFacets {
+                cmsFacetValues
             }
         `;
 
@@ -81,17 +75,19 @@ export function AhizanHome() {
         })
         .then(res => res.json())
         .then(data => {
-            const items = data.data?.facetValues?.items || [];
+            const items = data.data?.cmsFacetValues || [];
             if (items.length > 0) {
-                // Try to find category-related ones first
+                // Priority filtering: facets that are definitely categories
                 let filtered = items.filter((iv: any) => 
-                    iv.code.toLowerCase().includes('cat') || 
-                    iv.name.toLowerCase().includes('cat')
+                    iv.facet?.code?.toLowerCase().includes('cat') || 
+                    iv.facet?.name?.toLowerCase().includes('cat') ||
+                    iv.facet?.code?.toLowerCase().includes('univer') ||
+                    iv.facet?.name?.toLowerCase().includes('univer')
                 );
                 
-                // Fallback: if no "cat" match, just take the first 12 items as categories
-                const finalItems = filtered.length > 0 ? filtered : items.slice(0, 12);
-                
+                // Fallback: If no "cat" match, just take ALL items (up to 30)
+                const finalItems = filtered.length > 0 ? filtered : items.slice(0, 30);
+
                 setSiteCategories(finalItems.map((iv: any) => ({
                     id: iv.id,
                     name: iv.name,
@@ -123,13 +119,13 @@ export function AhizanHome() {
                                     {(siteCategories.length > 0 ? siteCategories : categories).map((cat: any, i) => (
                                         <Link 
                                             key={i} 
-                                            href={`/category/${cat.slug || (cat.name ? cat.name.toLowerCase().replace(/ & /g, '-').replace(/, /g, '-').replace(/ /g, '-') : '')}`}
+                                            href={`/search?facets=${cat.id}`}
                                             className="flex items-center gap-4 px-6 py-2.5 text-[13px] font-medium text-gray-700 hover:text-[#e31837] hover:bg-red-50/50 transition-all group"
                                             style={{ animationDelay: `${i * 50}ms` }}
                                         >
                                             <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 group-hover:text-[#e31837] group-hover:bg-red-50 transition-all overflow-hidden">
                                                 {promoConfig.facetMedia?.[cat.slug] ? (
-                                                    <img src={promoConfig.facetMedia[cat.slug]} className="w-full h-full object-cover" />
+                                                    <img src={`http://localhost:3000${promoConfig.facetMedia[cat.slug]}`} className="w-full h-full object-cover" />
                                                 ) : (
                                                     cat.icon || <Smartphone className="w-4 h-4" />
                                                 )}
@@ -405,20 +401,18 @@ export function AhizanHome() {
                                 return (
                                     <Link 
                                         key={cat.id || i} 
-                                        href={`/category/${cat.slug}`} 
+                                        href={`/search?facets=${cat.id}`} 
                                         className="group cursor-pointer snap-start flex-shrink-0"
                                     >
                                         {promoConfig.quickLinksStyle === 'circles' && (
                                             <div className="flex flex-col items-center gap-3 w-32 md:w-40">
                                                 <div className="aspect-square w-full bg-white rounded-[2.5rem] flex items-center justify-center shadow-md border border-gray-100 group-hover:shadow-2xl group-hover:-translate-y-3 transition-all duration-300 overflow-hidden relative">
                                                     <div className="absolute inset-0 bg-gradient-to-tr from-[#002f6c]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                                    {customImg ? (
-                                                        <img src={customImg} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                                    ) : (
-                                                        <div className="w-16 h-16 bg-[#f8f9fa] rounded-full flex items-center justify-center text-[#002f6c] font-black group-hover:bg-[#e31837] group-hover:text-white transition-colors">
-                                                            <span className="text-3xl uppercase">{cat.name.charAt(0)}</span>
-                                                        </div>
-                                                    )}
+                                                    <img
+                                                        src={promoConfig?.facetMedia?.[cat.slug] ? `http://localhost:3000${promoConfig.facetMedia[cat.slug]}` : `https://images.unsplash.com/photo-${i}?w=400&h=400&fit=crop`}
+                                                        alt={cat.name}
+                                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                                    />
                                                 </div>
                                                 <span className="text-[14px] font-black text-gray-700 group-hover:text-[#e31837] transition-colors text-center truncate w-full uppercase tracking-tighter">{cat.name}</span>
                                             </div>
@@ -428,7 +422,7 @@ export function AhizanHome() {
                                             <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-md group-hover:shadow-2xl group-hover:-translate-y-2 transition-all flex flex-col items-center gap-4 w-40 md:w-48">
                                                 <div className="w-16 h-16 bg-red-50 text-[#e31837] rounded-2xl flex items-center justify-center font-black overflow-hidden">
                                                     {customImg ? (
-                                                        <img src={customImg} alt={cat.name} className="w-full h-full object-cover" />
+                                                        <img src={`http://localhost:3000${customImg}`} alt={cat.name} className="w-full h-full object-cover" />
                                                     ) : (
                                                        <span className="text-2xl uppercase">{cat.name.charAt(0)}</span>
                                                     )}
@@ -440,7 +434,7 @@ export function AhizanHome() {
                                         {promoConfig.quickLinksStyle === 'minimal' && (
                                             <div className="bg-white px-8 py-4 rounded-3xl border border-gray-200 shadow-sm group-hover:border-[#e31837] group-hover:text-[#e31837] transition-all flex items-center gap-4 flex-shrink-0">
                                                 {customImg ? (
-                                                    <img src={customImg} className="w-8 h-8 rounded-lg object-cover" />
+                                                    <img src={`http://localhost:3000${customImg}`} className="w-8 h-8 rounded-lg object-cover" />
                                                 ) : (
                                                     <div className="w-8 h-8 rounded-lg bg-[#e31837]/10 flex items-center justify-center font-black text-[#e31837] text-xs uppercase">{cat.name.charAt(0)}</div>
                                                 )}

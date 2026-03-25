@@ -127,6 +127,7 @@ export const adminApiExtensions = gql`
         pages(options: PageListOptions): PageList!
         page(id: ID!): Page
         pagePresets: [PagePreset!]!
+        cmsFacetValues: [JSON!]!
     }
 
     extend type Mutation {
@@ -151,5 +152,6 @@ export const shopApiExtensions = gql`
 
     extend type Query {
         page(slug: String!): Page
+        cmsFacetValues: [JSON!]!
     }
 `;

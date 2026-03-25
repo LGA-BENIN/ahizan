@@ -89,13 +89,23 @@ async function fetchGraphQL(query: any, variables?: any, file?: File) {
     }
 
     const response = await fetch(apiUrl, { method: 'POST', headers, credentials: 'include', body });
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+    try {
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+        }
+        const result = await response.json();
+        if (result.errors) {
+            const msg = result.errors.map((e: any) => e.message).join(', ');
+            console.error('GraphQL Errors:', msg);
+            throw new Error(msg);
+        }
+
+        return result.data;
+    } catch (err: any) {
+        console.error("fetchGraphQL error:", err);
+        throw err;
     }
-    const json = await response.json();
-    if (json.errors) throw new Error(json.errors[0].message);
-    return json.data;
 }
 
 const SECTION_TEMPLATES: Record<string, any> = {
@@ -315,31 +325,37 @@ export function LandingPageBuilder() {
     const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO'>('ROADMAP');
     const [bannerConfig, setBannerConfig] = useState<any>(null);
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
+    const [debugData, setDebugData] = useState<any>(null);
 
     useEffect(() => {
         const loadCategories = async () => {
             try {
-                const data = await fetchGraphQL(GET_FACET_VALUES);
-                if (data && data.facetValues) {
-                    const items = data.facetValues.items;
+                // Fetch with a large limit
+                const data = await fetchGraphQL(GET_FACET_VALUES); // No variables needed now
+                console.log("Builder: Facet search result:", data);
+                setDebugData(data); // STORE FOR DEBUGGING
+                
+                if (data && data.cmsFacetValues) {
+                    const items = data.cmsFacetValues || [];
                     
-                    // Filter for values where the parent facet is "category"-related (SAFELY)
-                    const categoryValues = items.filter((iv: any) => 
-                        iv.facet?.code?.toLowerCase().includes('cat') || 
-                        iv.facet?.name?.toLowerCase().includes('cat')
-                    );
-
-                    // Use filtered results if available, otherwise EXTREMELY lenient fallback: ALL items
-                    const displayItems = categoryValues.length > 0 ? categoryValues : items.slice(0, 100);
+                    // Lenient mapping: take ALL items found
+                    const displayItems = items;
 
                     setSiteCategories(displayItems.map((iv: any) => ({
                         name: iv.name,
                         slug: iv.code,
                         id: iv.id
                     })));
+
+                    if (items.length === 0) {
+                        console.warn("Builder: No facet values returned from API.");
+                    }
+                } else {
+                    console.error("Builder: Invalid data structure from API", data);
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Failed to load categories:", err);
+                setDebugData({ error: err.message || String(err), raw: debugData });
             }
         };
         loadCategories();
@@ -427,6 +443,10 @@ export function LandingPageBuilder() {
             setSaveStatus('❌ Échec de l\'upload.');
         }
     };
+
+    if (!heroConfig || !promoConfig) {
+        return <div style={{ padding: '40px', textAlign: 'center', background: '#f8fafc', color: '#64748b' }}>Chargement de la configuration...</div>;
+    }
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -706,8 +726,12 @@ export function LandingPageBuilder() {
                                 <button 
                                     onClick={async () => {
                                         const data = await fetchGraphQL(GET_FACET_VALUES);
-                                        if (data?.facetValues) {
-                                            setSiteCategories(data.facetValues.items.map((iv: any) => ({ name: iv.name, slug: iv.code })));
+                                        if (data?.cmsFacetValues) {
+                                            setSiteCategories(data.cmsFacetValues.map((iv: any) => ({ 
+                                                name: iv.name, 
+                                                slug: iv.code,
+                                                id: iv.id 
+                                            })));
                                         }
                                     }}
                                     style={{ fontSize: '10px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -718,7 +742,18 @@ export function LandingPageBuilder() {
 
                             {siteCategories.length === 0 ? (
                                 <div style={{ padding: '20px', textAlign: 'center', background: '#fff9f9', borderRadius: '12px', border: '1px dashed #feb2b2', color: '#c53030', fontSize: '12px', fontWeight: 'bold' }}>
-                                    ⚠️ Aucune facette "category" détectée ! Vérifiez vos réglages Vendure.
+                                    ⚠️ Aucune facette détectée dans l'API ! ({siteCategories.length} trouvées) <br/>
+                                    <span style={{ fontSize: '10px', fontWeight: 'normal', color: '#64748b', marginTop: '8px', display: 'block' }}>
+                                        Vérifiez que vous avez bien créé des <b>Valeurs de facettes</b> dans la section Catalog &gt; Facets.
+                                    </span>
+                                    {debugData && (
+                                        <details style={{ marginTop: '10px', textAlign: 'left' }}>
+                                            <summary style={{ cursor: 'pointer', fontSize: '9px', opacity: 0.5 }}>Voir JSON Brut (Debug)</summary>
+                                            <pre style={{ fontSize: '9px', background: '#000', color: '#0f0', padding: '10px', overflowX: 'auto', maxHeight: '150px' }}>
+                                                {JSON.stringify(debugData, null, 2)}
+                                            </pre>
+                                        </details>
+                                    )}
                                 </div>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
@@ -727,11 +762,11 @@ export function LandingPageBuilder() {
                                             <div style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.name}</div>
                                             
                                             <div style={{ width: '100%', height: '80px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-                                                {p.facetMedia[cat.slug] ? (
+                                                {p.facetMedia?.[cat.slug] ? (
                                                     <>
                                                         <img src={p.facetMedia[cat.slug]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         <button 
-                                                            onClick={(e) => { e.stopPropagation(); const nm = {...p.facetMedia}; delete nm[cat.slug]; setPromoConfig({...p, facetMedia: nm}) }} 
+                                                            onClick={(e) => { e.stopPropagation(); const nm = {...(p.facetMedia || {})}; delete nm[cat.slug]; setPromoConfig({...p, facetMedia: nm}) }} 
                                                             style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(239, 68, 68, 0.9)', color: 'white', border: 'none', borderRadius: '8px', padding: '4px 8px', fontSize: '10px', cursor: 'pointer', zIndex: 10 }}
                                                         >
                                                             Supprimer
@@ -744,7 +779,7 @@ export function LandingPageBuilder() {
 
                                             <label style={{ display: 'block' }}>
                                                 <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '4px' }}>CHOISIR UNE IMAGE / ICONE</span>
-                                                <input type="file" onChange={(e) => handleUpload(e, `facet-icon-${cat.slug}`)} style={{ fontSize: '10px', width: '100%' }} />
+                                                <input type="file" onChange={(e) => handleUpload(e, `facet-icon-${cat.slug}` as any)} style={{ fontSize: '10px', width: '100%' }} />
                                             </label>
                                         </div>
                                     ))}
@@ -757,7 +792,7 @@ export function LandingPageBuilder() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                                 <div>
                                     <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#002f6c', margin: 0 }}>GRANDE BRADERIE AHIZAN</h3>
-                                    <p style={{ fontSize: '12px', color: '#64748b', mt: '4px' }}>Bannière promotionnelle de transition.</p>
+                                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Bannière promotionnelle de transition.</p>
                                 </div>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#f8fafc', padding: '10px 20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                     <input type="checkbox" checked={p.showPromoBanner} onChange={(e) => setPromoConfig({ ...p, showPromoBanner: e.target.checked })} />
@@ -938,8 +973,10 @@ export function LandingPageBuilder() {
         }
     ];
 
+    if (!heroConfig || !promoConfig) return null;
+
     return (
-        <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+        <div className="max-w-[1600px] mx-auto w-full px-4 md:px-[2%] xl:px-[4%] pt-8" style={{ background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div>
                     <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>🗺️ ROADMAP DU PAGE BUILDER</h1>

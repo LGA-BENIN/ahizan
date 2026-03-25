@@ -110,12 +110,25 @@ export interface PromoConfig {
     };
 }
 
+export interface GeneralConfig {
+    logoUrl: string;
+    preloader: {
+        type: 'default' | 'image' | 'video' | 'none';
+        url?: string;
+    };
+    background: {
+        type: 'color' | 'image' | 'video';
+        value: string; // color or url
+    };
+}
+
 @Injectable()
 export class BannerService {
     private configPath = path.join(process.cwd(), 'static', 'banner-config.json');
     private heroConfigPath = path.join(process.cwd(), 'static', 'hero-config.json');
     private promoConfigPath = path.join(process.cwd(), 'static', 'promo-config.json');
     private flashConfigPath = path.join(process.cwd(), 'static', 'flash-versions.json');
+    private generalConfigPath = path.join(process.cwd(), 'static', 'general-config.json');
 
     async getConfig(): Promise<BannerConfig> {
         try {
@@ -247,5 +260,23 @@ export class BannerService {
     async getActiveFlashVersions(): Promise<FlashSaleVersion[]> {
         const versions = await this.getFlashVersions();
         return versions.filter(v => v.isActive);
+    }
+
+    // --- General Config ---
+    async getGeneralConfig(): Promise<GeneralConfig> {
+        try {
+            const data = await fs.readFile(this.generalConfigPath, 'utf-8');
+            return JSON.parse(data);
+        } catch (error) {
+            return {
+                logoUrl: '',
+                preloader: { type: 'default' },
+                background: { type: 'color', value: '#f8f9fa' }
+            };
+        }
+    }
+
+    async saveGeneralConfig(config: GeneralConfig): Promise<void> {
+        await fs.writeFile(this.generalConfigPath, JSON.stringify(config, null, 2), 'utf-8');
     }
 }

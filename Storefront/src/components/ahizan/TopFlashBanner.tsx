@@ -34,15 +34,15 @@ export function TopFlashBanner() {
 
     if (config.type === 'text') {
         return (
-            <div className="w-full bg-[#e31837] text-white py-2 px-4 shadow-md">
-                <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6">
+            <div className="w-full bg-[#e31837] text-white py-2 px-4 shadow-sm">
+                <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6">
                     {/* Badge */}
-                    <span className="bg-white/20 text-white text-[10px] md:text-[11px] font-black px-2.5 py-1 rounded-full border border-white/10 uppercase tracking-widest whitespace-nowrap">
-                        {config.topText || 'Flash Ad'}
+                    <span className="bg-white/10 text-white text-[10px] md:text-[11px] font-bold px-3 py-1 rounded-full border border-white/20 tracking-wider whitespace-nowrap">
+                        {config.topText || 'OFFRE FLASH'}
                     </span>
                     
                     {/* Main Text */}
-                    <p className="text-[12px] md:text-[14px] font-bold text-center md:text-left leading-tight">
+                    <p className="text-[12px] md:text-[14px] font-medium text-center md:text-left leading-tight">
                         {config.mainText}
                     </p>
 
@@ -50,7 +50,7 @@ export function TopFlashBanner() {
                     {config.targetUrl && (
                         <Link 
                             href={config.targetUrl} 
-                            className="flex items-center gap-1.5 text-[11px] md:text-[13px] font-black border-b-2 border-white/30 hover:border-white transition-all whitespace-nowrap pb-0.5 group"
+                            className="flex items-center gap-1.5 text-[11px] md:text-[13px] font-bold border-b border-white/30 hover:border-white transition-all whitespace-nowrap pb-0.5 group"
                         >
                             {config.linkText || 'En savoir plus'}
                             <span className="group-hover:translate-x-1 transition-transform">→</span>

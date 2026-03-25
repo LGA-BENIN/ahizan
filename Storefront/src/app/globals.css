@@ -120,3 +120,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes preloader-rush {
+  0% { transform: translateX(-100vw) skewX(-15deg); opacity: 0; }
+  35% { transform: translateX(0) skewX(0); opacity: 1; }
+  65% { transform: translateX(0) skewX(0); opacity: 1; }
+  100% { transform: translateX(100vw) skewX(15deg); opacity: 0; }
+}
+
+.animate-ahizan-rush {
+  display: inline-block;
+  animation: preloader-rush 2.8s cubic-bezier(0.8, 0, 0.2, 1) infinite;
+}

@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
+import { AhizanPreloader } from "@/components/ahizan/Preloader";
 import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
 import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -66,23 +67,28 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     const homePage = await getPageContent('home');
     const sections = homePage?.sections || [];
 
+    // Fetch our NEW General Config for Branding & System
+    let generalConfig: any = null;
+    try {
+        const res = await fetch('http://localhost:3000/banner/general-config', { cache: 'no-store' });
+        generalConfig = await res.json();
+    } catch (e) {
+        console.error("Failed to fetch general config in layout:", e);
+    }
+
     const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
-    const topBar = sections.find(s => s.type === 'TOP_BAR')?.data as TopBarData;
-    const header = sections.find(s => s.type === 'HEADER_CONF')?.data as HeaderConfData;
     const footer = sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
 
-    // Default theme fallbacks
-    const primaryColor = theme?.primaryColor || "#0f172a";
-    const secondaryColor = theme?.secondaryColor || "#f59e0b";
-    const borderRadius = theme?.borderRadius || "8px";
-    const layoutMode = theme?.layoutMode || 'boxed';
+    // Use General Config for Background if available, fallback to section-based theme
+    const bgType = generalConfig?.background?.type || theme?.backgroundType || 'color';
+    const bgValue = generalConfig?.background?.value || (bgType === 'color' ? theme?.backgroundColor : (bgType === 'image' ? theme?.backgroundImageUrl : theme?.backgroundVideoUrl)) || '#ffffff';
 
     const themeStyles = {
-        '--primary': primaryColor,
-        '--brand-primary': primaryColor,
-        '--brand-secondary': secondaryColor,
-        '--radius': borderRadius,
-        '--content-max-width': layoutMode === 'boxed' ? '1280px' : '100%',
+        '--primary': theme?.primaryColor || "#0f172a",
+        '--brand-primary': theme?.primaryColor || "#0f172a",
+        '--brand-secondary': theme?.secondaryColor || "#f59e0b",
+        '--radius': theme?.borderRadius || "8px",
+        '--content-max-width': (theme?.layoutMode || 'boxed') === 'boxed' ? '1280px' : '100%',
     } as React.CSSProperties;
 
     return (
@@ -92,18 +98,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 style={themeStyles}
             >
                 <ThemeProvider>
-                    {/* Global Background Layer */}
+                    <AhizanPreloader config={generalConfig} />
+                    
+                    {/* Global Background Layer - centralizing both systems */}
                     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                        {theme?.backgroundType === 'color' && (
-                            <div className="absolute inset-0" style={{ background: theme.backgroundColor || '#ffffff' }} />
+                        {bgType === 'color' && (
+                            <div className="absolute inset-0" style={{ background: bgValue }} />
                         )}
-                        {theme?.backgroundType === 'image' && theme.backgroundImageUrl && (
+                        {bgType === 'image' && bgValue && (
                             <div
-                                className="absolute inset-0 bg-cover bg-center"
-                                style={{ backgroundImage: `url(${theme.backgroundImageUrl})` }}
+                                className="absolute inset-0 bg-cover bg-center bg-fixed"
+                                style={{ backgroundImage: `url(${bgValue.startsWith('/') ? `http://localhost:3000${bgValue}` : bgValue})` }}
                             />
                         )}
-                        {theme?.backgroundType === 'video' && theme.backgroundVideoUrl && (
+                        {bgType === 'video' && bgValue && (
                             <video
                                 autoPlay
                                 muted
@@ -111,7 +119,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                                 playsInline
                                 className="absolute min-w-full min-h-full object-cover opacity-30"
                             >
-                                <source src={theme.backgroundVideoUrl} type="video/mp4" />
+                                <source src={bgValue.startsWith('/') ? `http://localhost:3000${bgValue}` : bgValue} type="video/mp4" />
                             </video>
                         )}
                     </div>
@@ -119,7 +127,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     {/* Sticky Header */}
                     <div className="sticky top-0 z-50 w-full shadow-sm">
                         <TopFlashBanner />
-                        <AhizanNavbar />
+                        <AhizanNavbar logoUrl={generalConfig?.logoUrl} />
                     </div>
 
                     <main className="relative z-10 flex-grow w-full mx-auto">

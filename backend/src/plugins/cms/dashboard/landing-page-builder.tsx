@@ -322,8 +322,11 @@ function getSectionDescription(type: string) {
 }
 
 export function LandingPageBuilder() {
-    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO' | 'EDITING_FLASH'>('ROADMAP');
+    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO' | 'EDITING_FLASH' | 'PERSONALIZING_SYSTEM'>('ROADMAP');
     const [bannerConfig, setBannerConfig] = useState<any>(null);
+    const [heroConfig, setHeroConfig] = useState<any>(null);
+    const [promoConfig, setPromoConfig] = useState<any>(null);
+    const [generalConfig, setGeneralConfig] = useState<any>(null);
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
     const [debugData, setDebugData] = useState<any>(null);
     const [flashVersions, setFlashVersions] = useState<any[]>([]);
@@ -362,8 +365,6 @@ export function LandingPageBuilder() {
         };
         loadCategories();
     }, []);
-    const [heroConfig, setHeroConfig] = useState<any>(null);
-    const [promoConfig, setPromoConfig] = useState<any>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
@@ -379,21 +380,24 @@ export function LandingPageBuilder() {
     useEffect(() => {
         const fetchConfigs = async () => {
             try {
-                const [bannerRes, heroRes, promoRes, flashRes] = await Promise.all([
+                const [bannerRes, heroRes, promoRes, flashRes, generalRes] = await Promise.all([
                     fetch('http://localhost:3000/banner/config'),
                     fetch('http://localhost:3000/banner/hero-config'),
                     fetch('http://localhost:3000/banner/promo-config'),
-                    fetch('http://localhost:3000/banner/flash-versions')
+                    fetch('http://localhost:3000/banner/flash-versions'),
+                    fetch('http://localhost:3000/banner/general-config')
                 ]);
                 const bannerData = await bannerRes.json();
                 const heroData = await heroRes.json();
                 const promoData = await promoRes.json();
                 const flashData = await flashRes.json();
+                const generalData = await generalRes.json();
                 
                 setBannerConfig(bannerData);
                 setHeroConfig(heroData);
                 setPromoConfig(promoData);
                 setFlashVersions(flashData);
+                setGeneralConfig(generalData);
                 
                 if (flashData.length > 0) {
                     const active = flashData.find((v: any) => v.isActive) || flashData[0];
@@ -447,7 +451,23 @@ export function LandingPageBuilder() {
         setSelectedVersionId(newVersion.id);
     };
 
-    const handleUpload = async (event: any, target: 'banner-desktop' | 'banner-mobile' | 'hero-bg' | 'hero-flash' | 'promo-bg' | 'flash-version-bg') => {
+    const handleGeneralSave = async () => {
+        setIsSaving(true);
+        try {
+            await fetch('http://localhost:3000/banner/general-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(generalConfig)
+            });
+            setSaveStatus('✅ Paramètres système enregistrés !');
+        } catch (err) {
+            setSaveStatus('❌ Échec de l\'enregistrement.');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleUpload = async (event: any, target: 'banner-desktop' | 'banner-mobile' | 'hero-bg' | 'hero-flash' | 'promo-bg' | 'flash-version-bg' | 'system-logo' | 'system-preloader' | 'system-bg') => {
         const file = event.target.files[0];
         if (!file) return;
 
@@ -486,6 +506,12 @@ export function LandingPageBuilder() {
                 } else if (target === 'flash-version-bg' && selectedVersionId) {
                     const updated = flashVersions.map(v => v.id === selectedVersionId ? { ...v, bgImageUrl: data.url } : v);
                     setFlashVersions(updated);
+                } else if (target === 'system-logo') {
+                    setGeneralConfig((prev: any) => ({ ...prev, logoUrl: data.url }));
+                } else if (target === 'system-preloader') {
+                    setGeneralConfig((prev: any) => ({ ...prev, preloader: { ...prev.preloader, url: data.url } }));
+                } else if (target === 'system-bg') {
+                    setGeneralConfig((prev: any) => ({ ...prev, background: { ...prev.background, value: data.url } }));
                 } else {
                     setBannerConfig((prev: any) => ({
                         ...prev,
@@ -671,14 +697,18 @@ export function LandingPageBuilder() {
                                         </div>
                                     )}
 
-                                    <label style={{ fontSize: '11px', fontWeight: 'bold', marginTop: '16px' }}>TEXTES PRINCIPAUX</label>
-                                    <input type="text" placeholder="Titre principal" value={config.title || config.mainTitle || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainTitle' : 'title']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                                    <textarea placeholder="Description / Sous-titre" value={config.subtitle || config.mainSubtitle || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainSubtitle' : 'subtitle']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: '80px' }} />
-                                    
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                                        <input type="text" placeholder="Texte bouton" value={config.buttonText || config.mainButtonText || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainButtonText' : 'buttonText']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                                        <input type="text" placeholder="Lien bouton (ex: /search)" value={config.buttonLink || config.mainButtonLink || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainButtonLink' : 'buttonLink']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                                    </div>
+                                    {config.type === 'text' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                                            <label style={{ fontSize: '11px', fontWeight: 'bold' }}>TEXTES PRINCIPAUX</label>
+                                            <input type="text" placeholder="Titre principal" value={config.title || config.mainTitle || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainTitle' : 'title']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                            <textarea placeholder="Description / Sous-titre" value={config.subtitle || config.mainSubtitle || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainSubtitle' : 'subtitle']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: '80px' }} />
+                                            
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                                <input type="text" placeholder="Texte bouton" value={config.buttonText || config.mainButtonText || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainButtonText' : 'buttonText']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                                <input type="text" placeholder="Lien bouton (ex: /search)" value={config.buttonLink || config.mainButtonLink || ''} onChange={(e) => setHeroConfig({ ...heroConfig, [t]: { ...config, [t === 'bento' ? 'mainButtonLink' : 'buttonLink']: e.target.value } })} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -877,22 +907,24 @@ export function LandingPageBuilder() {
                                     </div>
 
                                     {/* Text Fields (Title/Sub/CTA) */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                                            <div>
-                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TITRE DE LA BANNIÈRE</label>
-                                                <input type="text" value={p.promoBanner.title} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, title: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                    {p.promoBanner.type === 'text' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TITRE DE LA BANNIÈRE</label>
+                                                    <input type="text" value={p.promoBanner.title} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, title: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>SOUS-TITRE / DESCRIPTION</label>
+                                                    <input type="text" value={p.promoBanner.subtitle} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, subtitle: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
                                             </div>
                                             <div>
-                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>SOUS-TITRE / DESCRIPTION</label>
-                                                <input type="text" value={p.promoBanner.subtitle} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, subtitle: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TEXTE DU BOUTON</label>
+                                                <input type="text" value={p.promoBanner.ctaText} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, ctaText: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
                                             </div>
                                         </div>
-                                        <div>
-                                            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TEXTE DU BOUTON</label>
-                                            <input type="text" value={p.promoBanner.ctaText} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, ctaText: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
-                                        </div>
-                                    </div>
+                                    )}
 
                                     {/* Background Settings */}
                                     <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '24px' }}>
@@ -1231,6 +1263,91 @@ export function LandingPageBuilder() {
         );
     }
 
+    if (view === 'PERSONALIZING_SYSTEM') {
+        const gc = generalConfig || { preloader: { type: 'default' }, background: { type: 'color', value: '#ffffff' } };
+        return (
+            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+                <StatusNotification />
+                <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '10px', marginBottom: '32px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
+                <div style={{ background: '#fff', padding: '48px', borderRadius: '24px', maxWidth: '800px', margin: '0 auto', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                        <div>
+                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>⚙️ Branding & Système</h2>
+                            <p style={{ color: '#64748b', marginTop: '4px' }}>Logo, Préchargeur et Arrière-plan global.</p>
+                        </div>
+                        <button onClick={handleGeneralSave} disabled={isSaving} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>{isSaving ? 'Enregistrement...' : 'ENREGISTRER'}</button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+                        {/* LOGO */}
+                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '32px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Logo de la boutique</label>
+                            <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                                <div style={{ width: '120px', height: '120px', border: '2px dashed #e2e8f0', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#f8fafc' }}>
+                                    {gc.logoUrl ? <img src={`http://localhost:3000${gc.logoUrl}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '24px' }}>🖼️</span>}
+                                </div>
+                                <input type="file" onChange={(e) => handleUpload(e, 'system-logo')} style={{ fontSize: '13px' }} />
+                            </div>
+                        </div>
+
+                        {/* PRELOADER */}
+                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '32px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Préchargeur (Preloader)</label>
+                            <select 
+                                value={gc.preloader.type} 
+                                onChange={(e) => setGeneralConfig({ ...gc, preloader: { ...gc.preloader, type: e.target.value as any } })}
+                                style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 'bold', marginBottom: '16px' }}
+                            >
+                                <option value="default">✨ Animation AHIZAN (Par défaut)</option>
+                                <option value="image">🖼️ Image / GIF personnalisé</option>
+                                <option value="video">🎥 Vidéo MP4 (Court)</option>
+                                <option value="none">🚫 Aucun preloader</option>
+                            </select>
+                            {(gc.preloader.type === 'image' || gc.preloader.type === 'video') && (
+                                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>MÉDIA DU PRÉCHARGEUR</label>
+                                    <input type="file" onChange={(e) => handleUpload(e, 'system-preloader')} style={{ fontSize: '13px' }} />
+                                    {gc.preloader.url && <div style={{ marginTop: '8px', fontSize: '11px', color: '#059669' }}>✅ Fichier prêt: {gc.preloader.url}</div>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* BACKGROUND */}
+                        <div>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Arrière-plan global (Background)</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                                <div>
+                                    <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>TYPE D'ARRIÈRE-PLAN</label>
+                                    <select 
+                                        value={gc.background.type} 
+                                        onChange={(e) => setGeneralConfig({ ...gc, background: { ...gc.background, type: e.target.value as any } })}
+                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}
+                                    >
+                                        <option value="color">🎨 Couleur unie</option>
+                                        <option value="image">🖼️ Image (Fixe/Parallaxe)</option>
+                                        <option value="video">🎥 Vidéo dynamique</option>
+                                    </select>
+                                </div>
+                                {gc.background.type === 'color' ? (
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>COULEUR</label>
+                                        <input type="color" value={gc.background.value} onChange={(e) => setGeneralConfig({ ...gc, background: { ...gc.background, value: e.target.value } })} style={{ width: '100%', height: '42px', border: 'none', borderRadius: '8px', cursor: 'pointer' }} />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>MÉDIA D'ARRIÈRE-PLAN</label>
+                                        <input type="file" onChange={(e) => handleUpload(e, 'system-bg')} style={{ fontSize: '13px' }} />
+                                        {gc.background.value && <div style={{ marginTop: '8px', fontSize: '11px', color: '#059669' }}>✅ Média configuré</div>}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // Full Roadmap View
     const groups = [
         {
@@ -1287,8 +1404,6 @@ export function LandingPageBuilder() {
         }
     ];
 
-    if (!heroConfig || !promoConfig) return null;
-
     return (
         <div className="max-w-[1600px] mx-auto w-full px-4 md:px-[2%] xl:px-[4%] pt-8" style={{ background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
@@ -1318,6 +1433,7 @@ export function LandingPageBuilder() {
                                         else if (s.id === 'hero-carousel') setView('EDITING_HERO'); 
                                         else if (s.id === 'quick-links') setView('EDITING_PROMO');
                                         else if (s.id === 'flash-sales') setView('EDITING_FLASH');
+                                        else if (s.id === 'global-colors') setView('PERSONALIZING_SYSTEM');
                                         else alert('Module en cours de développement...'); 
                                     }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #002f6c', color: '#002f6c', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>Modifier</button>
                                 </div>

@@ -1,0 +1,10 @@
+{
+  "logoUrl": "/assets/banners/1774462589859-WhatsApp Image 2026-03-18 at 8.03.44 AM.jpeg",
+  "preloader": {
+    "type": "default"
+  },
+  "background": {
+    "type": "image",
+    "value": "/assets/banners/1774462609514-animated-character-tiktok.jpg"
+  }
+}

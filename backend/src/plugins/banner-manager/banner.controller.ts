@@ -59,6 +59,17 @@ export class BannerAdminController {
         return this.bannerService.getActiveFlashVersions();
     }
 
+    @Get('general-config')
+    async getGeneralConfig() {
+        return this.bannerService.getGeneralConfig();
+    }
+
+    @Post('general-config')
+    async saveGeneralConfig(@Body() config: any) {
+        await this.bannerService.saveGeneralConfig(config);
+        return { success: true };
+    }
+
     @Post('upload')
     @UseInterceptors(FileInterceptor('file'))
     async uploadImage(@UploadedFile() file: any) {

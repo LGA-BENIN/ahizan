@@ -89,6 +89,7 @@ export interface FlashSaleVersion {
         collectionId?: string[];
         minDiscount?: number; // New: Minimum discount %
         onlyInStock?: boolean; // New: In-stock only toggle
+        take?: number; // New: Limit for product fetching
     };
 }
 

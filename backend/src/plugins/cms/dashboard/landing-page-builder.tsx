@@ -1101,6 +1101,10 @@ export function LandingPageBuilder() {
                                                     </div>
                                                 </div>
                                                 <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>LIMITE DE PRODUITS (AFFICHER N ARTICLES)</label>
+                                                    <input type="number" value={v.filterCriteria?.take || 12} onChange={(e) => setFlashVersions(flashVersions.map(fv => fv.id === v.id ? {...fv, filterCriteria: {...fv.filterCriteria, take: Number(e.target.value)}} : fv))} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                </div>
+                                                <div>
                                                     <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>CATEGORIES CIBLES</label>
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '100px', overflowY: 'auto', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '10px' }}>
                                                         {siteCategories.map(cat => (

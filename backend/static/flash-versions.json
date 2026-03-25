@@ -12,11 +12,12 @@
     "selectionType": "FILTER",
     "manualProductIds": [],
     "filterCriteria": {
-      "minPrice": 10,
+      "minPrice": 0,
       "maxPrice": 500000,
       "facetValueIds": [
         3,
-        4
+        4,
+        2
       ]
     },
     "startTime": "2026-03-25T01:01:00.000Z"
@@ -35,14 +36,39 @@
     "isSimpleMode": true,
     "manualProductIds": [],
     "filterCriteria": {
-      "minPrice": 50,
+      "minPrice": 0,
       "minDiscount": 0,
       "onlyInStock": true,
       "facetValueIds": [
         1,
-        2
-      ]
+        2,
+        3
+      ],
+      "maxPrice": 100
     },
     "startTime": "2026-03-24T13:24:00.000Z"
+  },
+  {
+    "id": "1774453895672",
+    "name": "Campagne 3",
+    "isActive": true,
+    "title": "montre protatif",
+    "subtitle": "les meilleur de votre regions",
+    "endTime": "2026-03-25T20:51:35.672Z",
+    "bgColor": "#c88992",
+    "textColor": "#ffffff",
+    "accentColor": "#ffffff",
+    "selectionType": "FILTER",
+    "isSimpleMode": true,
+    "manualProductIds": [],
+    "filterCriteria": {
+      "minPrice": 0,
+      "minDiscount": 0,
+      "onlyInStock": true,
+      "facetValueIds": [
+        2
+      ],
+      "maxPrice": 1000
+    }
   }
 ]

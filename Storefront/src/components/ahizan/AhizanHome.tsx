@@ -99,15 +99,9 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
         if (isFilterMode) {
             const searchInput: any = {
                 groupByProduct: true,
-                take: 12
+                take: activeFlash.filterCriteria?.take || 50 // Fetch more to allow for client-side filtering
             };
 
-            if (activeFlash.filterCriteria?.minPrice) {
-                searchInput.priceRange = { ...searchInput.priceRange, min: activeFlash.filterCriteria.minPrice * 100 };
-            }
-            if (activeFlash.filterCriteria?.maxPrice) {
-                searchInput.priceRange = { ...searchInput.priceRange, max: activeFlash.filterCriteria.maxPrice * 100 };
-            }
             if (activeFlash.filterCriteria?.facetValueIds?.length > 0) {
                 searchInput.facetValueIds = activeFlash.filterCriteria.facetValueIds.map((id: any) => String(id));
             }
@@ -120,6 +114,7 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
                             productName
                             slug
                             productAsset {
+                                id
                                 preview
                             }
                             priceWithTax {
@@ -131,7 +126,7 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
                 }
             `;
 
-            fetch('http://127.0.0.1:3000/shop-api', {
+            fetch('http://localhost:3000/shop-api', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -146,7 +141,38 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
                     console.error('GraphQL Errors:', data.errors);
                     return;
                 }
-                const items = data.data?.search?.items || [];
+                let items = data.data?.search?.items || [];
+                console.log(`Flash Sale (${activeFlash.name}) items before filtering:`, items.length);
+                
+                // Client-side filtering for fields not supported by the DefaultSearchPlugin's SearchInput
+                if (activeFlash.filterCriteria) {
+                    const { minPrice, maxPrice, minDiscount, onlyInStock } = activeFlash.filterCriteria;
+                    console.log(`Applying filters for ${activeFlash.name}:`, { minPrice, maxPrice, minDiscount, onlyInStock });
+                    
+                    items = items.filter((item: any) => {
+                        const price = item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0;
+                        const priceInFcfa = price / 100;
+
+                        if (minPrice && priceInFcfa < minPrice) return false;
+                        if (maxPrice && priceInFcfa > maxPrice) return false;
+                        
+                        // minDiscount check
+                        if (minDiscount > 0) {
+                            const listPrice = price * 1.25; 
+                            const discount = Math.round((1 - price / listPrice) * 100);
+                            if (discount < minDiscount) return false;
+                        }
+
+                        return true;
+                    });
+                }
+
+                console.log(`Flash Sale (${activeFlash.name}) items after filtering:`, items.length);
+
+                // Slice to the actual requested limit
+                const limit = activeFlash.filterCriteria?.take || 12;
+                items = items.slice(0, limit);
+
                 if (items.length === 0) {
                     console.warn(`No products found for flash sale: ${activeFlash.name}. Check your filters.`);
                 }
@@ -157,7 +183,8 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
                     assets: item.productAsset ? [{ preview: item.productAsset.preview }] : [],
                     variants: [{
                         price: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0,
-                        listPrice: (item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0) * 1.2,
+                        priceWithTax: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0, // Ensure compatibility
+                        listPrice: (item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0) * 1.25,
                         stockLevel: 'En stock'
                     }]
                 })));
@@ -167,8 +194,7 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
             });
 
         } else if (activeFlash.selectionType === 'MANUAL' && activeFlash.manualProductIds?.length > 0) {
-            // ... (rest remains or updated to 127.0.0.1)
-            fetch('http://127.0.0.1:3000/shop-api', {
+            fetch('http://localhost:3000/shop-api', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -195,7 +221,7 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
                     variables: { 
                         options: { 
                             filter: { id: { in: activeFlash.manualProductIds } },
-                            take: 12
+                            take: activeFlash.filterCriteria?.take || 12
                         } 
                     } 
                 })
@@ -321,9 +347,9 @@ export function AhizanHome() {
         const fetchConfigs = async () => {
             try {
                 const [heroRes, promoRes, flashRes] = await Promise.all([
-                    fetch('http://127.0.0.1:3000/banner/hero-config'),
-                    fetch('http://127.0.0.1:3000/banner/promo-config'),
-                    fetch('http://127.0.0.1:3000/banner/flash-active')
+                    fetch('http://localhost:3000/banner/hero-config'),
+                    fetch('http://localhost:3000/banner/promo-config'),
+                    fetch('http://localhost:3000/banner/flash-active')
                 ]);
                 
                 const heroData = await heroRes.json();

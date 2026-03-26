@@ -61,6 +61,7 @@ export class BannerAdminController {
 
     @Get('general-config')
     async getGeneralConfig() {
+        console.log('[BannerAdminController] Fetching general-config...');
         return this.bannerService.getGeneralConfig();
     }
 

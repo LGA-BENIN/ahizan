@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 export function AhizanPreloader({ config }: { config: any }) {
     const [isVisible, setIsVisible] = useState(true);
@@ -28,7 +29,7 @@ export function AhizanPreloader({ config }: { config: any }) {
     if (!isVisible) return null;
 
     const type = config?.preloader?.type || 'default';
-    const mediaUrl = config?.preloader?.url ? `http://localhost:3000${config.preloader.url}` : null;
+    const mediaUrl = config?.preloader?.url ? getAssetUrl(config.preloader.url) : null;
 
     return (
         <div className={`fixed inset-0 z-[99999] flex items-center justify-center bg-white transition-opacity duration-700 ${isFading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>

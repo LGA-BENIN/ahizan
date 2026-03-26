@@ -4,10 +4,11 @@ import * as path from 'path';
 
 export interface BannerConfig {
     isActive: boolean;
-    type: 'image' | 'text';
+    type: 'image' | 'text' | 'video';
     targetUrl: string;
     desktopImageUrl: string;
     mobileImageUrl: string;
+    videoUrl?: string; // New field for video banner
     topText: string;
     mainText: string;
     linkText: string;

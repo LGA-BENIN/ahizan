@@ -1,34 +1,85 @@
 [
   {
-    "id": "1774438030810",
+    "id": "1774528495867",
     "name": "Campagne 1",
     "isActive": true,
-    "title": "BOOST DE PRINTEMPS",
-    "subtitle": "Électronique et Accessoires",
-    "endTime": "2026-03-26T23:00:00.000Z",
-    "bgColor": "#002f6c",
+    "title": "first one",
+    "subtitle": "donc on va vendre maintenant",
+    "endTime": "2026-03-28T12:40:00.000Z",
+    "bgColor": "#2f18e2",
     "textColor": "#ffffff",
-    "accentColor": "#ffcc00",
+    "accentColor": "#ffffff",
     "selectionType": "FILTER",
+    "isSimpleMode": false,
     "manualProductIds": [],
     "filterCriteria": {
       "minPrice": 0,
-      "maxPrice": 500000,
+      "minDiscount": 0,
+      "onlyInStock": true,
+      "maxPrice": 18,
       "facetValueIds": [
-        3,
         4,
-        2
+        3,
+        2,
+        1
       ]
     },
-    "startTime": "2026-03-25T01:01:00.000Z"
+    "startTime": "2026-03-26T12:37:00.000Z"
   },
   {
-    "id": "1774445060457",
+    "id": "1774528722746",
     "name": "Campagne 2",
     "isActive": true,
-    "title": "VENTES FLASH ÉCLAIR",
-    "subtitle": "Mode et Maison",
-    "endTime": "2026-03-27T18:00:00.000Z",
+    "title": "VENTES FLASH",
+    "subtitle": "Offres exceptionnelles limitées dans le temps",
+    "endTime": "2026-03-26T17:38:42.746Z",
+    "bgColor": "#e31837",
+    "textColor": "#ffffff",
+    "accentColor": "#ffffff",
+    "selectionType": "FILTER",
+    "isSimpleMode": false,
+    "manualProductIds": [],
+    "filterCriteria": {
+      "minPrice": 0,
+      "minDiscount": 0,
+      "onlyInStock": true,
+      "facetValueIds": [
+        3
+      ],
+      "maxPrice": 2288548
+    },
+    "bgImageUrl": "/assets/banners/1774528788982-goliate-for-sticker.jfif"
+  },
+  {
+    "id": "1774528810657",
+    "name": "Campagne 3",
+    "isActive": true,
+    "title": "VENTES FLASH",
+    "subtitle": "Offres exceptionnelles limitées dans le temps",
+    "endTime": "2026-03-26T17:40:10.657Z",
+    "bgColor": "#e31837",
+    "textColor": "#ffffff",
+    "accentColor": "#ffffff",
+    "selectionType": "FILTER",
+    "isSimpleMode": true,
+    "manualProductIds": [],
+    "filterCriteria": {
+      "minPrice": 0,
+      "minDiscount": 0,
+      "onlyInStock": true,
+      "facetValueIds": [
+        1
+      ],
+      "maxPrice": 12255
+    }
+  },
+  {
+    "id": "1774528840617",
+    "name": "Campagne 4",
+    "isActive": true,
+    "title": "VENTES FLASH",
+    "subtitle": "Offres exceptionnelles limitées dans le temps",
+    "endTime": "2026-03-26T17:40:40.617Z",
     "bgColor": "#e31837",
     "textColor": "#ffffff",
     "accentColor": "#ffffff",
@@ -41,21 +92,20 @@
       "onlyInStock": true,
       "facetValueIds": [
         1,
-        2,
-        3
+        3,
+        4
       ],
-      "maxPrice": 100
-    },
-    "startTime": "2026-03-24T13:24:00.000Z"
+      "maxPrice": 122335
+    }
   },
   {
-    "id": "1774453895672",
-    "name": "Campagne 3",
+    "id": "1774528862320",
+    "name": "Campagne 5",
     "isActive": true,
-    "title": "montre protatif",
-    "subtitle": "les meilleur de votre regions",
-    "endTime": "2026-03-25T20:51:35.672Z",
-    "bgColor": "#c88992",
+    "title": "VENTES FLASH",
+    "subtitle": "Offres exceptionnelles limitées dans le temps",
+    "endTime": "2026-03-26T17:41:02.320Z",
+    "bgColor": "#e31837",
     "textColor": "#ffffff",
     "accentColor": "#ffffff",
     "selectionType": "FILTER",
@@ -65,10 +115,13 @@
       "minPrice": 0,
       "minDiscount": 0,
       "onlyInStock": true,
+      "maxPrice": 84121,
       "facetValueIds": [
-        2
-      ],
-      "maxPrice": 1000
+        4,
+        3,
+        2,
+        1
+      ]
     }
   }
 ]

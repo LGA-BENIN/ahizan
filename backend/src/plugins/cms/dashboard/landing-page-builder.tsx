@@ -51,9 +51,19 @@ const BUILDER_STYLES = `
 .vd-cms-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 `;
 
+// --- Helper to get the Backend URL (handling Vite dev server port 5173 vs Vendure port 3000) ---
+const getBackendBaseUrl = () => {
+    const origin = window.location.origin;
+    // If we are on the Vite dev server, the backend is likely on 3000
+    if (origin.includes(':5173')) {
+        return origin.replace(':5173', ':3000');
+    }
+    return origin;
+};
+
 // --- GraphQL Fetcher ---
 async function fetchGraphQL(query: any, variables?: any, file?: File) {
-    const apiUrl = window.location.origin + '/admin-api';
+    const apiUrl = getBackendBaseUrl() + '/admin-api';
     const headers: Record<string, string> = {};
     let body: any;
 
@@ -322,7 +332,7 @@ function getSectionDescription(type: string) {
 }
 
 export function LandingPageBuilder() {
-    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO' | 'EDITING_FLASH' | 'PERSONALIZING_SYSTEM'>('ROADMAP');
+    const [view, setView] = useState<'ROADMAP' | 'EDITING_BANNER' | 'EDITING_HERO' | 'PERSONALIZING_HERO' | 'EDITING_PROMO' | 'EDITING_FLASH' | 'PERSONALIZING_SYSTEM' | 'EDITING_CATEGORY_PAGE' | 'EDITING_MODALS'>('ROADMAP');
     const [bannerConfig, setBannerConfig] = useState<any>(null);
     const [heroConfig, setHeroConfig] = useState<any>(null);
     const [promoConfig, setPromoConfig] = useState<any>(null);
@@ -331,6 +341,7 @@ export function LandingPageBuilder() {
     const [debugData, setDebugData] = useState<any>(null);
     const [flashVersions, setFlashVersions] = useState<any[]>([]);
     const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+    const [categoryConfig, setCategoryConfig] = useState<any>(null);
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -380,24 +391,49 @@ export function LandingPageBuilder() {
     useEffect(() => {
         const fetchConfigs = async () => {
             try {
-                const [bannerRes, heroRes, promoRes, flashRes, generalRes] = await Promise.all([
-                    fetch('http://localhost:3000/banner/config'),
-                    fetch('http://localhost:3000/banner/hero-config'),
-                    fetch('http://localhost:3000/banner/promo-config'),
-                    fetch('http://localhost:3000/banner/flash-versions'),
-                    fetch('http://localhost:3000/banner/general-config')
+                const baseUrl = getBackendBaseUrl();
+                const [bannerRes, heroRes, promoRes, flashRes, generalRes, categoryRes] = await Promise.all([
+                    fetch(`${baseUrl}/banner/config`),
+                    fetch(`${baseUrl}/banner/hero-config`),
+                    fetch(`${baseUrl}/banner/promo-config`),
+                    fetch(`${baseUrl}/banner/flash-versions`),
+                    fetch(`${baseUrl}/banner/general-config`),
+                    fetch(`${baseUrl}/banner/category-page-config`)
                 ]);
                 const bannerData = await bannerRes.json();
                 const heroData = await heroRes.json();
                 const promoData = await promoRes.json();
                 const flashData = await flashRes.json();
                 const generalData = await generalRes.json();
+                let categoryData = await categoryRes.json();
+
+                // Initial default if empty
+                if (!categoryData || Object.keys(categoryData).length === 0) {
+                    categoryData = {
+                        showBanner: true,
+                        bannerStyle: 'full',
+                        bannerOverlay: 0.4,
+                        columnsDesktop: 4,
+                        sidebarPosition: 'left',
+                        productsPerPage: 12,
+                        defaultSort: 'newest',
+                        filterStyle: 'accordion',
+                        showBreadcrumbs: true,
+                        descriptionPosition: 'top'
+                    };
+                }
                 
+                // Default Modal Config (Multi-modal migration)
+                if (!generalData.modals) {
+                    generalData.modals = generalData.modal ? [generalData.modal] : [];
+                }
+
                 setBannerConfig(bannerData);
                 setHeroConfig(heroData);
                 setPromoConfig(promoData);
                 setFlashVersions(flashData);
                 setGeneralConfig(generalData);
+                setCategoryConfig(categoryData);
                 
                 if (flashData.length > 0) {
                     const active = flashData.find((v: any) => v.isActive) || flashData[0];
@@ -413,7 +449,7 @@ export function LandingPageBuilder() {
     const handleFlashSave = async (versionsToSave?: any[]) => {
         setIsSaving(true);
         try {
-            await fetch('http://localhost:3000/banner/flash-versions', {
+            await fetch(`${getBackendBaseUrl()}/banner/flash-versions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(versionsToSave || flashVersions)
@@ -454,7 +490,7 @@ export function LandingPageBuilder() {
     const handleGeneralSave = async () => {
         setIsSaving(true);
         try {
-            await fetch('http://localhost:3000/banner/general-config', {
+            await fetch(`${getBackendBaseUrl()}/banner/general-config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(generalConfig)
@@ -467,7 +503,7 @@ export function LandingPageBuilder() {
         }
     };
 
-    const handleUpload = async (event: any, target: 'banner-desktop' | 'banner-mobile' | 'hero-bg' | 'hero-flash' | 'promo-bg' | 'flash-version-bg' | 'system-logo' | 'system-preloader' | 'system-bg') => {
+    const handleUpload = async (event: any, target: string) => {
         const file = event.target.files[0];
         if (!file) return;
 
@@ -475,7 +511,7 @@ export function LandingPageBuilder() {
         formData.append('file', file);
 
         try {
-            const res = await fetch('http://localhost:3000/banner/upload', {
+            const res = await fetch(`${getBackendBaseUrl()}/banner/upload`, {
                 method: 'POST',
                 body: formData
             });
@@ -512,6 +548,16 @@ export function LandingPageBuilder() {
                     setGeneralConfig((prev: any) => ({ ...prev, preloader: { ...prev.preloader, url: data.url } }));
                 } else if (target === 'system-bg') {
                     setGeneralConfig((prev: any) => ({ ...prev, background: { ...prev.background, value: data.url } }));
+                } else if (target === 'system-modal-image') {
+                    setGeneralConfig((prev: any) => ({ ...prev, modal: { ...prev.modal, value: data.url } }));
+                } else if (target.startsWith('system-modal-image-')) {
+                    const idx = parseInt(target.replace('system-modal-image-', ''));
+                    setGeneralConfig((prev: any) => ({
+                        ...prev,
+                        modals: prev.modals.map((m: any, i: number) => i === idx ? { ...m, value: data.url } : m)
+                    }));
+                } else if (target === 'banner-video') {
+                    setBannerConfig((prev: any) => ({ ...prev, videoUrl: data.url }));
                 } else {
                     setBannerConfig((prev: any) => ({
                         ...prev,
@@ -525,14 +571,26 @@ export function LandingPageBuilder() {
         }
     };
 
-    if (!heroConfig || !promoConfig) {
-        return <div style={{ padding: '40px', textAlign: 'center', background: '#f8fafc', color: '#64748b' }}>Chargement de la configuration...</div>;
-    }
+    const handleCategorySave = async () => {
+        setIsSaving(true);
+        try {
+            await fetch(`${getBackendBaseUrl()}/banner/category-page-config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(categoryConfig)
+            });
+            setSaveStatus('✅ Configuration Catégorie enregistrée !');
+        } catch (err) {
+            setSaveStatus("❌ Erreur d'enregistrement.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await fetch('http://localhost:3000/banner/config', {
+            await fetch(`${getBackendBaseUrl()}/banner/config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(bannerConfig)
@@ -548,7 +606,7 @@ export function LandingPageBuilder() {
     const handleHeroSave = async () => {
         setIsSaving(true);
         try {
-            await fetch('http://localhost:3000/banner/hero-config', {
+            await fetch(`${getBackendBaseUrl()}/banner/hero-config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(heroConfig)
@@ -564,7 +622,7 @@ export function LandingPageBuilder() {
     const handlePromoSave = async () => {
         setIsSaving(true);
         try {
-            await fetch('http://localhost:3000/banner/promo-config', {
+            await fetch(`${getBackendBaseUrl()}/banner/promo-config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(promoConfig)
@@ -613,7 +671,7 @@ export function LandingPageBuilder() {
                             { id: 'fullwidth', title: 'Full-Width Immersive', desc: 'Massive Video/Image Background', img: '/assets/templates/fullwidth.png' }
                         ].map((t) => (
                             <div key={t.id} onClick={() => { setHeroConfig({ ...heroConfig, selectedTemplate: t.id }); setView('PERSONALIZING_HERO'); }} style={{ background: '#fff', borderRadius: '24px', overflow: 'hidden', border: heroConfig.selectedTemplate === t.id ? '4px solid #e31837' : '1px solid #e2e8f0', cursor: 'pointer' }}>
-                                <img src={`http://localhost:3000${t.img}`} style={{ width: '100%', height: '220px', objectFit: 'cover' }} alt={t.title} />
+                                <img src={`${getBackendBaseUrl()}${t.img}`} style={{ width: '100%', height: '220px', objectFit: 'cover' }} alt={t.title} />
                                 <div style={{ padding: '24px' }}>
                                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>{t.title}</h3>
                                     <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#64748b' }}>{t.desc}</p>
@@ -774,6 +832,252 @@ export function LandingPageBuilder() {
         );
     }
 
+    if (view === 'EDITING_CATEGORY_PAGE') {
+        const c = categoryConfig || {};
+        return (
+            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+                <StatusNotification />
+                <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                        <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', color: '#64748b' }}>
+                            ← Retour au Roadmap
+                        </button>
+                        <button onClick={handleCategorySave} disabled={isSaving} style={{ background: '#002f6c', color: 'white', padding: '12px 32px', borderRadius: '12px', fontWeight: '900', border: 'none', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(0, 47, 108, 0.3)' }}>
+                            {isSaving ? 'Enregistrement...' : 'ENREGISTRER LA CONFIGURATION'}
+                        </button>
+                    </div>
+
+                    <div style={{ background: '#fff', padding: '40px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+                        <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', marginBottom: '8px' }}>📂 Personnalisation Page Catégorie</h2>
+                        <p style={{ color: '#64748b', fontSize: '15px', marginBottom: '40px' }}>Configurez l'apparence de vos listes de produits par collection.</p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                            {/* BANNER SETTINGS */}
+                            <div style={{ background: '#f0f9ff', padding: '24px', borderRadius: '16px', border: '2px solid #bae6fd' }}>
+                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#0369a1', marginBottom: '20px', textTransform: 'uppercase' }}>🖼️ BANNIÈRE & EN-TÊTE</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#0369a1', display: 'block', marginBottom: '8px' }}>AFFICHER LA BANNIÈRE</label>
+                                        <select value={c.showBanner ? 'yes' : 'no'} onChange={(e) => setCategoryConfig({ ...c, showBanner: e.target.value === 'yes' })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #bae6fd' }}>
+                                            <option value="yes">Afficher la bannière de collection (Image si dispo)</option>
+                                            <option value="no">Titre simple uniquement</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#0369a1', display: 'block', marginBottom: '8px' }}>STYLE DE BANNIÈRE</label>
+                                        <select value={c.bannerStyle} onChange={(e) => setCategoryConfig({ ...c, bannerStyle: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #bae6fd' }}>
+                                            <option value="minimal">Minimaliste (Hauteur réduite)</option>
+                                            <option value="full">Immersif (Plein écran / Hero)</option>
+                                            <option value="glass">Glassmorphism (Effet flou élégant)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style={{ marginTop: '20px' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: '900', color: '#0369a1', display: 'block', marginBottom: '8px' }}>OPACITÉ DE L'OVERLAY (CONTRASTE TEXTE)</label>
+                                    <input type="range" min="0" max="0.9" step="0.1" value={c.bannerOverlay} onChange={(e) => setCategoryConfig({ ...c, bannerOverlay: parseFloat(e.target.value) })} style={{ width: '100%' }} />
+                                    <div style={{ textAlign: 'right', fontSize: '12px', color: '#0369a1', fontWeight: 'bold' }}>{Math.round(c.bannerOverlay * 100)}% d'obscurcissement</div>
+                                </div>
+                            </div>
+
+                            {/* GRID & SIDEBAR */}
+                            <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', marginBottom: '20px', textTransform: 'uppercase' }}>📏 LAYOUT & GRILLE</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>POSITION DE LA SIDEBAR (FILTRES)</label>
+                                        <select value={c.sidebarPosition} onChange={(e) => setCategoryConfig({ ...c, sidebarPosition: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                            <option value="left">Gauche (Classique / Amazon style)</option>
+                                            <option value="right">Droite (Moderne)</option>
+                                            <option value="none">Masquée (Grille large / Filtres horizontaux)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>COLONNES SUR DESKTOP</label>
+                                        <select value={c.columnsDesktop} onChange={(e) => setCategoryConfig({ ...c, columnsDesktop: parseInt(e.target.value) })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                            <option value="2">2 Colonnes (Images massives)</option>
+                                            <option value="3">3 Colonnes</option>
+                                            <option value="4">4 Colonnes (Standard E-commerce)</option>
+                                            <option value="5">5 Colonnes (Vue catalogue compacte)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>PRODUITS PAR PAGE</label>
+                                        <input type="number" value={c.productsPerPage} onChange={(e) => setCategoryConfig({ ...c, productsPerPage: parseInt(e.target.value) })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>STYLE DE FILTRAGE</label>
+                                        <select value={c.filterStyle} onChange={(e) => setCategoryConfig({ ...c, filterStyle: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                            <option value="accordion">Accordéon interactif</option>
+                                            <option value="list">Liste statique ouverte</option>
+                                            <option value="horizontal">Barre Horizontale (Mobile-first)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* NAVIGATION & CONTENT */}
+                            <div style={{ background: '#fdf2f8', padding: '24px', borderRadius: '16px', border: '2px solid #fbcfe8' }}>
+                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#9d174d', marginBottom: '20px', textTransform: 'uppercase' }}>🔗 NAVIGATION & CONTENU</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#9d174d', display: 'block', marginBottom: '8px' }}>TRI PAR DÉFAUT</label>
+                                        <select value={c.defaultSort} onChange={(e) => setCategoryConfig({ ...c, defaultSort: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #fbcfe8' }}>
+                                            <option value="newest">Plus récents d'abord</option>
+                                            <option value="price-asc">Prix : Croissant</option>
+                                            <option value="price-desc">Prix : Décroissant</option>
+                                            <option value="popular">Les plus populaires</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#9d174d', display: 'block', marginBottom: '8px' }}>POSITION DESCRIPTION</label>
+                                        <select value={c.descriptionPosition} onChange={(e) => setCategoryConfig({ ...c, descriptionPosition: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #fbcfe8' }}>
+                                            <option value="top">Au-dessus de la grille (SEO)</option>
+                                            <option value="bottom">Sous la grille (Discret)</option>
+                                            <option value="banner">Intégrée dans la bannière Hero</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                                        <input type="checkbox" checked={c.showBreadcrumbs} onChange={(e) => setCategoryConfig({...c, showBreadcrumbs: e.target.checked})} style={{ width: '18px', height: '18px' }} />
+                                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#9d174d' }}>Afficher le fil d'Ariane (Breadcrumbs / Navigation locale)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button onClick={handleCategorySave} disabled={isSaving} style={{ background: '#002f6c', color: '#fff', padding: '20px', borderRadius: '14px', border: 'none', fontWeight: '900', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(0,47,108,0.3)', transition: 'all 0.2s' }}>
+                                {isSaving ? 'Enregistrement en cours...' : 'VALIDER LES PARAMÈTRES CATÉGORIE'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (view === 'EDITING_MODALS') {
+        const modals = generalConfig.modals || [];
+        
+        const addModal = () => {
+            const newModal = {
+                enabled: true,
+                type: 'image',
+                value: '',
+                link: '',
+                delay: 2,
+                duration: 0,
+                isClosable: true
+            };
+            setGeneralConfig({ ...generalConfig, modals: [...modals, newModal] });
+        };
+
+        const removeModal = (index: number) => {
+            setGeneralConfig({ ...generalConfig, modals: modals.filter((_: any, i: number) => i !== index) });
+        };
+
+        const updateModal = (index: number, fields: any) => {
+            setGeneralConfig({
+                ...generalConfig,
+                modals: modals.map((m: any, i: number) => i === index ? { ...m, ...fields } : m)
+            });
+        };
+
+        return (
+            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+                <StatusNotification />
+                <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                        <div>
+                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>📢 Gestionnaire de Modales</h2>
+                            <p style={{ color: '#64748b', marginTop: '4px' }}>Configurez plusieurs fenêtres surgissantes pour vos promotions.</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
+                            <button onClick={handleGeneralSave} disabled={isSaving} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>{isSaving ? 'Enregistrement...' : 'ENREGISTRER TOUT'}</button>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                        {modals.map((m: any, idx: number) => (
+                            <div key={idx} style={{ background: '#fff', padding: '32px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
+                                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#002f6c' }}>MODALE #{idx + 1}</h3>
+                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                            <input type="checkbox" checked={m.enabled} onChange={(e) => updateModal(idx, { enabled: e.target.checked })} />
+                                            {m.enabled ? 'ACTIVÉE' : 'DÉSACTIVÉE'}
+                                        </label>
+                                        <button onClick={() => removeModal(idx)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>Supprimer</button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '32px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TYPE DE CONTENU</label>
+                                            <select value={m.type} onChange={(e) => updateModal(idx, { type: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                                                <option value="image">🖼️ Image (Promo)</option>
+                                                <option value="text">✍️ Texte / Markdown</option>
+                                            </select>
+                                        </div>
+
+                                        {m.type === 'image' ? (
+                                            <>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>IMAGE DE LA PROMO</label>
+                                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                                        <div style={{ width: '80px', height: '80px', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', background: '#f8fafc' }}>
+                                                            {m.value ? <img src={getBackendBaseUrl() + m.value} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '20px' }}>🖼️</div>}
+                                                        </div>
+                                                        <input type="file" onChange={(e) => handleUpload(e, `system-modal-image-${idx}`)} style={{ fontSize: '12px' }} />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>LIEN DE REDIRECTION</label>
+                                                    <input type="text" value={m.link} onChange={(e) => updateModal(idx, { link: e.target.value })} placeholder="Ex: /search?q=promo" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>CONTENU (TEXTE / HTML)</label>
+                                                <textarea value={m.value} onChange={(e) => updateModal(idx, { value: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', minHeight: '120px' }} placeholder="Saisissez votre message ici..." />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        <h4 style={{ margin: 0, fontSize: '12px', fontWeight: '900', color: '#002f6c', textTransform: 'uppercase' }}>⚙️ Réglages d'affichage</h4>
+                                        <div>
+                                            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>DÉLAI D'APPARITION (secondes)</label>
+                                            <input type="number" value={m.delay} onChange={(e) => updateModal(idx, { delay: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                            <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>Temps d'attente après le chargement de la page.</p>
+                                        </div>
+                                        <div>
+                                            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>DURÉE D'AFFICHAGE (secondes)</label>
+                                            <input type="number" value={m.duration} onChange={(e) => updateModal(idx, { duration: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                            <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>0 = Reste affiché indéfiniment.</p>
+                                        </div>
+                                        <div style={{ marginTop: '8px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                                <input type="checkbox" checked={m.isClosable} onChange={(e) => updateModal(idx, { isClosable: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                                <span style={{ fontSize: '13px', fontWeight: '700', color: '#002f6c' }}>Bouton "Fermer" autorisé</span>
+                                            </label>
+                                            <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', marginLeft: '28px' }}>Si décoché, l'utilisateur ne pourra pas fermer la modale manuellement.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+
+                        <button onClick={addModal} style={{ background: '#fff', border: '2px dashed #cbd5e1', padding: '24px', borderRadius: '20px', color: '#64748b', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s', fontSize: '16px' }}>+ AJOUTER UNE NOUVELLE MODALE</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (view === 'EDITING_PROMO') {
         const p = promoConfig;
         return (
@@ -864,7 +1168,7 @@ export function LandingPageBuilder() {
 
                                             <label style={{ display: 'block' }}>
                                                 <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '4px' }}>CHOISIR UNE IMAGE / ICONE</span>
-                                                <input type="file" onChange={(e) => handleUpload(e, `facet-icon-${cat.slug}` as any)} style={{ fontSize: '10px', width: '100%' }} />
+                                                <input type="file" onChange={(e) => handleUpload(e, `facet-icon-${cat.slug}`)} style={{ fontSize: '10px', width: '100%' }} />
                                             </label>
                                         </div>
                                     ))}
@@ -888,71 +1192,91 @@ export function LandingPageBuilder() {
                             {p.showPromoBanner && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                     {/* Config Types */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px', background: '#f8fafc', borderRadius: '12px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: p.promoBanner.type === 'text' ? '1fr 1fr' : '1fr', gap: '20px', padding: '20px', background: '#f8fafc', borderRadius: '12px' }}>
                                         <div>
                                             <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>MODE DE CONTENU</label>
                                             <select value={p.promoBanner.type || 'text'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, type: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>
-                                                <option value="text">✍️ Texte uniquement</option>
+                                                <option value="text">✍️ Texte + Fond personnalisé</option>
                                                 <option value="image">🖼️ Image Pleine Page</option>
                                                 <option value="video">🎥 Vidéo Pleine Page</option>
                                             </select>
                                         </div>
-                                        <div>
-                                            <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>COULEUR DU TEXTE</label>
-                                            <select value={p.promoBanner.textColor || 'white'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, textColor: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>
-                                                <option value="white">⚪ Blanc (Défaut)</option>
-                                                <option value="black">⚫ Noir / Sombre</option>
-                                            </select>
-                                        </div>
+                                        {p.promoBanner.type === 'text' && (
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>COULEUR DU TEXTE</label>
+                                                <select value={p.promoBanner.textColor || 'white'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, textColor: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>
+                                                    <option value="white">⚪ Blanc (Défaut)</option>
+                                                    <option value="black">⚫ Noir / Sombre</option>
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Text Fields (Title/Sub/CTA) */}
-                                    {p.promoBanner.type === 'text' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                                                <div>
-                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TITRE DE LA BANNIÈRE</label>
-                                                    <input type="text" value={p.promoBanner.title} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, title: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                    {/* Text Fields (Only for Text Mode) */}
+                                    {p.promoBanner.type === 'text' ? (
+                                        <>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                                    <div>
+                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TITRE DE LA BANNIÈRE</label>
+                                                        <input type="text" value={p.promoBanner.title} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, title: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>SOUS-TITRE / DESCRIPTION</label>
+                                                        <input type="text" value={p.promoBanner.subtitle} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, subtitle: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                    </div>
                                                 </div>
                                                 <div>
-                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>SOUS-TITRE / DESCRIPTION</label>
-                                                    <input type="text" value={p.promoBanner.subtitle} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, subtitle: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                    <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TEXTE DU BOUTON</label>
+                                                    <input type="text" value={p.promoBanner.ctaText} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, ctaText: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
                                                 </div>
                                             </div>
-                                            <div>
-                                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', display: 'block', marginBottom: '8px' }}>TEXTE DU BOUTON</label>
-                                                <input type="text" value={p.promoBanner.ctaText} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, ctaText: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
-                                            </div>
-                                        </div>
-                                    )}
 
-                                    {/* Background Settings */}
-                                    <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '24px' }}>
-                                        <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '16px' }}>CONFIGURATION DU FOND</label>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                            <select value={p.promoBanner.bgType || 'color'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, bgType: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>
-                                                <option value="color">🎨 Couleur Unie</option>
-                                                <option value="image">🖼️ Image Personnalisée</option>
-                                                <option value="video">🎥 Vidéo d'ambiance</option>
-                                            </select>
+                                            {/* Background Settings (Only for Text Mode) */}
+                                            <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '24px' }}>
+                                                <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '16px' }}>CONFIGURATION DU FOND</label>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                    <select value={p.promoBanner.bgType || 'color'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, bgType: e.target.value } })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>
+                                                        <option value="color">🎨 Couleur Unie</option>
+                                                        <option value="image">🖼️ Image d'arrière-plan</option>
+                                                        <option value="video">🎥 Vidéo d'ambiance</option>
+                                                    </select>
 
-                                            {p.promoBanner.bgType === 'color' ? (
-                                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                    <input type="color" value={p.promoBanner.bgColor || '#e31837'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, bgColor: e.target.value } })} style={{ width: '50px', height: '50px', border: 'none', background: 'none', cursor: 'pointer' }} />
-                                                    <input type="text" value={p.promoBanner.bgColor || '#e31837'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, bgColor: e.target.value } })} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
-                                                </div>
-                                            ) : (
-                                                <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                                                    <input type="file" onChange={(e) => handleUpload(e, 'promo-bg')} style={{ fontSize: '13px' }} />
-                                                    {p.promoBanner.bgUrl && (
-                                                        <div style={{ marginTop: '12px', fontSize: '11px', color: '#002f6c' }}>
-                                                            ✅ Fichier actif : <strong>{p.promoBanner.bgUrl}</strong>
+                                                    {p.promoBanner.bgType === 'color' ? (
+                                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                                            <input type="color" value={p.promoBanner.bgColor || '#e31837'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, bgColor: e.target.value } })} style={{ width: '50px', height: '50px', border: 'none', background: 'none', cursor: 'pointer' }} />
+                                                            <input type="text" value={p.promoBanner.bgColor || '#e31837'} onChange={(e) => setPromoConfig({ ...p, promoBanner: { ...p.promoBanner, bgColor: e.target.value } })} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1' }} />
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                                                            <input type="file" onChange={(e) => handleUpload(e, 'promo-bg')} style={{ fontSize: '13px' }} />
+                                                            {p.promoBanner.bgUrl && (
+                                                                <div style={{ marginTop: '12px', fontSize: '11px', color: '#002f6c' }}>
+                                                                    ✅ Fond actif : <strong>{p.promoBanner.bgUrl}</strong>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
-                                            )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        /* Image/Video Full Page Mode */
+                                        <div style={{ borderTop: '2px solid #f1f5f9', paddingTop: '24px' }}>
+                                            <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '16px' }}>
+                                                {p.promoBanner.type === 'image' ? '🖼️ UPLOAD IMAGE PLEINE PAGE' : '🎥 UPLOAD VIDÉO PLEINE PAGE (MP4)'}
+                                            </label>
+                                            <div style={{ padding: '32px', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #cbd5e1', textAlign: 'center' }}>
+                                                <input type="file" onChange={(e) => handleUpload(e, 'promo-bg')} style={{ cursor: 'pointer' }} />
+                                                {p.promoBanner.bgUrl && (
+                                                    <div style={{ marginTop: '16px' }}>
+                                                        <div style={{ fontSize: '13px', color: '#059669', fontWeight: 'bold', marginBottom: '12px' }}>✅ Média configuré : {p.promoBanner.bgUrl}</div>
+                                                        {p.promoBanner.type === 'image' && <img src={getBackendBaseUrl() + p.promoBanner.bgUrl} style={{ maxWidth: '100%', height: '120px', objectFit: 'cover', borderRadius: '12px' }} />}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1184,7 +1508,7 @@ export function LandingPageBuilder() {
                                                 <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                                                     <input type="file" onChange={(e) => handleUpload(e, 'flash-version-bg')} style={{ fontSize: '12px' }} />
                                                     {v.bgImageUrl && (
-                                                        <img src={`http://localhost:3000${v.bgImageUrl}`} style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '12px', borderRadius: '8px' }} />
+                                                        <img src={getBackendBaseUrl() + v.bgImageUrl} style={{ width: '100%', height: '100px', objectFit: 'cover', marginTop: '12px', borderRadius: '8px' }} />
                                                     )}
                                                 </div>
                                             </div>
@@ -1193,7 +1517,7 @@ export function LandingPageBuilder() {
                                     
                                     {/* Preview Card */}
                                     <div style={{ background: v.bgColor, color: v.textColor, padding: '32px', borderRadius: '24px', border: '1px solid rgba(0,0,0,0.1)', overflow: 'hidden', position: 'relative' }}>
-                                        {v.bgImageUrl && <img src={`http://localhost:3000${v.bgImageUrl}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />}
+                                        {v.bgImageUrl && <img src={getBackendBaseUrl() + v.bgImageUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.3 }} />}
                                         <div style={{ position: 'relative', zIndex: 1 }}>
                                             <h4 style={{ margin: 0, fontSize: '20px', fontWeight: '900' }}>{v.title}</h4>
                                             <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.8 }}>{v.subtitle}</p>
@@ -1232,6 +1556,7 @@ export function LandingPageBuilder() {
                     
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '40px', background: '#f1f5f9', padding: '6px', borderRadius: '12px', width: 'fit-content' }}>
                          <button onClick={() => setBannerConfig({ ...b, type: 'image' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'image' ? '#fff' : 'transparent', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'image' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>🖼️ Image</button>
+                         <button onClick={() => setBannerConfig({ ...b, type: 'video' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'video' ? '#fff' : 'transparent', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'video' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>🎥 Vidéo</button>
                          <button onClick={() => setBannerConfig({ ...b, type: 'text' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'text' ? '#fff' : 'transparent', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'text' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>✍️ Texte</button>
                     </div>
 
@@ -1250,10 +1575,34 @@ export function LandingPageBuilder() {
                                 <input type="text" value={b.linkText} onChange={(e) => setBannerConfig({ ...b, linkText: e.target.value })} placeholder="Lien texte..." style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
                             </div>
                         </div>
+                    ) : b.type === 'video' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>VIDÉO DE LA BANNIÈRE (MP4)</label>
+                                <div style={{ padding: '32px', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#f8fafc', textAlign: 'center' }}>
+                                    <input type="file" onChange={(e) => handleUpload(e, 'banner-video')} style={{ cursor: 'pointer' }} />
+                                    {b.videoUrl && (
+                                        <div style={{ marginTop: '16px', color: '#059669', fontWeight: 'bold', fontSize: '13px' }}>
+                                            ✅ Vidéo configurée : {b.videoUrl}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LIEN DE REDIRECTION (CLIC)</label>
+                                <input type="text" value={b.targetUrl} onChange={(e) => setBannerConfig({ ...b, targetUrl: e.target.value })} placeholder="Ex: /promotions" style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                            </div>
+                        </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold' }}>DESKTOP BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-desktop')} /></div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold' }}>MOBILE BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-mobile')} /></div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold' }}>DESKTOP BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-desktop')} /></div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold' }}>MOBILE BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-mobile')} /></div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LIEN DE REDIRECTION (CLIC)</label>
+                                <input type="text" value={b.targetUrl} onChange={(e) => setBannerConfig({ ...b, targetUrl: e.target.value })} placeholder="Ex: /promotions" style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                            </div>
                         </div>
                     )}
                     
@@ -1264,7 +1613,7 @@ export function LandingPageBuilder() {
     }
 
     if (view === 'PERSONALIZING_SYSTEM') {
-        const gc = generalConfig || { preloader: { type: 'default' }, background: { type: 'color', value: '#ffffff' } };
+        const gc = generalConfig || { preloader: { type: 'default' }, background: { type: 'color', value: '#ffffff' }, modal: { enabled: false, type: 'image', value: '', link: '', delay: 5 } };
         return (
             <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
                 <StatusNotification />
@@ -1273,7 +1622,7 @@ export function LandingPageBuilder() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                         <div>
                             <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>⚙️ Branding & Système</h2>
-                            <p style={{ color: '#64748b', marginTop: '4px' }}>Logo, Préchargeur et Arrière-plan global.</p>
+                            <p style={{ color: '#64748b', marginTop: '4px' }}>Logo, Préchargeur, Arrière-plan et Modales.</p>
                         </div>
                         <button onClick={handleGeneralSave} disabled={isSaving} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>{isSaving ? 'Enregistrement...' : 'ENREGISTRER'}</button>
                     </div>
@@ -1284,7 +1633,7 @@ export function LandingPageBuilder() {
                             <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Logo de la boutique</label>
                             <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
                                 <div style={{ width: '120px', height: '120px', border: '2px dashed #e2e8f0', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#f8fafc' }}>
-                                    {gc.logoUrl ? <img src={`http://localhost:3000${gc.logoUrl}`} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '24px' }}>🖼️</span>}
+                                    {gc.logoUrl ? <img src={getBackendBaseUrl() + gc.logoUrl} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '24px' }}>🖼️</span>}
                                 </div>
                                 <input type="file" onChange={(e) => handleUpload(e, 'system-logo')} style={{ fontSize: '13px' }} />
                             </div>
@@ -1313,14 +1662,20 @@ export function LandingPageBuilder() {
                         </div>
 
                         {/* BACKGROUND */}
-                        <div>
+                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '32px' }}>
                             <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Arrière-plan global (Background)</label>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                                 <div>
                                     <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>TYPE D'ARRIÈRE-PLAN</label>
                                     <select 
                                         value={gc.background.type} 
-                                        onChange={(e) => setGeneralConfig({ ...gc, background: { ...gc.background, type: e.target.value as any } })}
+                                        onChange={(e) => {
+                                            const newType = e.target.value as any;
+                                            let newValue = gc.background.value;
+                                            if (newType === 'color' && !newValue.startsWith('#')) newValue = '#ffffff';
+                                            if ((newType === 'image' || newType === 'video') && newValue.startsWith('#')) newValue = '';
+                                            setGeneralConfig({ ...gc, background: { ...gc.background, type: newType, value: newValue } });
+                                        }}
                                         style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}
                                     >
                                         <option value="color">🎨 Couleur unie</option>
@@ -1336,10 +1691,24 @@ export function LandingPageBuilder() {
                                 ) : (
                                     <div>
                                         <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>MÉDIA D'ARRIÈRE-PLAN</label>
-                                        <input type="file" onChange={(e) => handleUpload(e, 'system-bg')} style={{ fontSize: '13px' }} />
-                                        {gc.background.value && <div style={{ marginTop: '8px', fontSize: '11px', color: '#059669' }}>✅ Média configuré</div>}
+                                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                                            <input type="file" onChange={(e) => handleUpload(e, 'system-bg')} style={{ fontSize: '13px' }} />
+                                            {gc.background.value && gc.background.value.startsWith('/assets') && (
+                                                <div style={{ marginTop: '12px', fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>✅ Fichier prêt</div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+
+                        {/* MODAL POPUP (HOME PAGE) */}
+                        <div style={{ paddingTop: '20px' }}>
+                            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '32px', borderRadius: '16px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '32px', marginBottom: '16px' }}>📢</div>
+                                <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#991b1b', margin: 0 }}>Gestion des Modales</h3>
+                                <p style={{ color: '#b91c1c', fontSize: '14px', marginTop: '4px', marginBottom: '24px' }}>Le système de modales a été amélioré ! Vous pouvez désormais gérer plusieurs modales avec des réglages avancés.</p>
+                                <button onClick={() => setView('EDITING_MODALS')} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer', boxShadow: '0 4px 6px rgba(227, 24, 55, 0.2)' }}>ACCÉDER AU GESTIONNAIRE DE MODALES</button>
                             </div>
                         </div>
                     </div>
@@ -1355,7 +1724,8 @@ export function LandingPageBuilder() {
             description: "Configuration globale de la boutique.",
             sections: [
                 { id: 'global-layout', title: "Layout & Spacing", desc: "Largeurs, marges et paddings par défaut." },
-                { id: 'global-colors', title: "Couleurs & Branding", desc: "Palette principale (Bleu, Rouge Ahizan)." },
+                { id: 'global-colors', title: "⚙️ Système & Branding", desc: "Logo, Préchargeur, Couleurs." },
+                { id: 'modal-manager', title: "📢 Gestionnaire de Modales", desc: "Configurez vos fenêtres surgissantes (Promos, Annonces)." },
                 { id: 'global-typography', title: "Typographie", desc: "Polices et tailles de textes de base." }
             ]
         },
@@ -1388,7 +1758,8 @@ export function LandingPageBuilder() {
             title: "4. Content & Discovery",
             description: "Collections et bannières publicitaires.",
             sections: [
-                { id: 'category-showcase', title: "Category Showcase", desc: "Grilles de produits par catégorie." },
+                { id: 'category-showcase', title: "Category Showcase", desc: "Grilles de produits par catégorie sur la Home." },
+                { id: 'category-page', title: "📁 Category Page (Personalisation)", desc: "Layout, bannières et filtres des pages de collections." },
                 { id: 'billboard-banner', title: "Billboard Banner", desc: "Grandes affiches de transition." },
                 { id: 'recommendations', title: "Recommendations Feed", desc: "Produits suggérés pour l'utilisateur." }
             ]
@@ -1433,7 +1804,9 @@ export function LandingPageBuilder() {
                                         else if (s.id === 'hero-carousel') setView('EDITING_HERO'); 
                                         else if (s.id === 'quick-links') setView('EDITING_PROMO');
                                         else if (s.id === 'flash-sales') setView('EDITING_FLASH');
+                                        else if (s.id === 'category-page') setView('EDITING_CATEGORY_PAGE');
                                         else if (s.id === 'global-colors') setView('PERSONALIZING_SYSTEM');
+                                        else if (s.id === 'modal-manager') setView('EDITING_MODALS');
                                         else alert('Module en cours de développement...'); 
                                     }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #002f6c', color: '#002f6c', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}>Modifier</button>
                                 </div>

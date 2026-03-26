@@ -12,9 +12,10 @@ interface ProductGridProps {
     }>;
     currentPage: number;
     take: number;
+    columns?: number;
 }
 
-export async function ProductGrid({productDataPromise, currentPage, take}: ProductGridProps) {
+export async function ProductGrid({productDataPromise, currentPage, take, columns = 3}: ProductGridProps) {
     const [result, channel] = await Promise.all([
         productDataPromise,
         getActiveChannel(),
@@ -31,6 +32,13 @@ export async function ProductGrid({productDataPromise, currentPage, take}: Produ
         );
     }
 
+    const gridCols = {
+        2: 'lg:grid-cols-2',
+        3: 'lg:grid-cols-3',
+        4: 'lg:grid-cols-4',
+        5: 'lg:grid-cols-5',
+    }[columns as 2 | 3 | 4 | 5] || 'lg:grid-cols-3';
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -40,7 +48,7 @@ export async function ProductGrid({productDataPromise, currentPage, take}: Produ
                 <SortDropdown/>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${gridCols} gap-6`}>
                 {searchResult.items.map((product, i) => (
                     <ProductCard key={'product-grid-item' + i} product={product}/>
                 ))}

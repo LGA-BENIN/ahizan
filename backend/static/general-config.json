@@ -1,10 +1,29 @@
 {
-  "logoUrl": "/assets/banners/1774462589859-WhatsApp Image 2026-03-18 at 8.03.44 AM.jpeg",
+  "logoUrl": "/assets/banners/1774524940128-revival-march-april-2026.png",
   "preloader": {
-    "type": "default"
+    "type": "default",
+    "url": "/assets/banners/1774517615659-tikcdn_beubagah_com_da49db46_376a_452d_bf3f_14136c7fad1f.mp4"
   },
   "background": {
     "type": "image",
-    "value": "/assets/banners/1774462609514-animated-character-tiktok.jpg"
-  }
+    "value": "/assets/banners/1774526159131-goliate-for-sticker.jfif"
+  },
+  "modal": {
+    "enabled": false,
+    "type": "image",
+    "value": "/assets/banners/1774535703371-goliate-for-sticker.jfif",
+    "link": "/eli",
+    "delay": 5
+  },
+  "modals": [
+    {
+      "enabled": false,
+      "type": "image",
+      "value": "/assets/banners/1774535703371-goliate-for-sticker.jfif",
+      "link": "/eli",
+      "delay": 10,
+      "isClosable": true,
+      "duration": 5
+    }
+  ]
 }

@@ -3,9 +3,22 @@
 import Link from "next/link";
 import { Search, User, HelpCircle, ShoppingCart, ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { getAssetUrl } from "@/lib/vendure/api-utils";
 
-export function AhizanNavbar({ logoUrl }: { logoUrl?: string }) {
+export function AhizanNavbar({ 
+    logoUrl, 
+    customer, 
+    order 
+}: { 
+    logoUrl?: string;
+    customer?: any;
+    order?: any;
+}) {
     const [searchQuery, setSearchQuery] = useState("");
+
+    const cartCount = order?.totalQuantity || 0;
+    const isLoggedIn = !!customer;
+    const displayName = customer?.firstName || "Compte";
 
     return (
         <div className="w-full flex flex-col font-sans animate-in fade-in duration-700">
@@ -36,7 +49,7 @@ export function AhizanNavbar({ logoUrl }: { logoUrl?: string }) {
                 {/* Logo */}
                 <Link href="/" className="flex items-center gap-1 flex-shrink-0">
                     {logoUrl ? (
-                        <img src={`http://localhost:3000${logoUrl}`} className="h-10 w-auto object-contain" alt="Ahizan Logo" />
+                        <img src={getAssetUrl(logoUrl)} className="h-10 w-auto object-contain" alt="Ahizan Logo" />
                     ) : (
                         <span className="text-2xl font-bold tracking-tight text-[#002f6c]">AHIZAN</span>
                     )}
@@ -64,11 +77,13 @@ export function AhizanNavbar({ logoUrl }: { logoUrl?: string }) {
                 {/* Actions */}
                 <div className="flex items-center gap-4 xl:gap-8 text-gray-700">
                     {/* User */}
-                    <Link href="/account" className="flex items-center gap-2 hover:text-[#e31837] transition-colors">
+                    <Link href={isLoggedIn ? "/account" : "/sign-in"} className="flex items-center gap-2 hover:text-[#e31837] transition-colors">
                         <User className="h-5 w-5" />
                         <div className="flex flex-col leading-tight hidden lg:flex">
-                            <span className="text-[11px] text-gray-500">Se connecter</span>
-                            <span className="text-sm font-semibold">Compte</span>
+                            <span className="text-[11px] text-gray-500">
+                                {isLoggedIn ? `Bonjour, ${customer.firstName}` : "Se connecter"}
+                            </span>
+                            <span className="text-sm font-semibold">{isLoggedIn ? "Mon Compte" : "Compte"}</span>
                         </div>
                         <ChevronDown className="h-3 w-3 hidden lg:inline" />
                     </Link>
@@ -83,7 +98,11 @@ export function AhizanNavbar({ logoUrl }: { logoUrl?: string }) {
                     <Link href="/cart" className="flex items-center gap-2 hover:text-[#e31837] transition-colors relative">
                         <div className="relative">
                             <ShoppingCart className="h-5 w-5" />
-                            <span className="absolute -top-1.5 -right-1.5 bg-[#e31837] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">0</span>
+                            {cartCount > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-[#e31837] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                                    {cartCount}
+                                </span>
+                            )}
                         </div>
                         <span className="text-sm font-semibold hidden lg:inline">Panier</span>
                     </Link>

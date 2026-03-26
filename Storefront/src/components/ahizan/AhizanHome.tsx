@@ -21,9 +21,11 @@ import {
     ChevronLeft,
     ChevronRight,
     Clock,
-    ArrowRight
+    ArrowRight,
+    X
 } from "lucide-react";
 import Link from "next/link";
+import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 
 const categories: any[] = []; // Remplace les anciennes catégories statiques
 
@@ -233,7 +235,7 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
             className={`mt-6 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-12 duration-1000 ${activeFlash.isSimpleMode ? 'border-none' : 'border border-gray-100'}`}
             style={{ 
                 backgroundColor: activeFlash.isSimpleMode ? '#ffffff' : (activeFlash?.bgColor || '#e31837'),
-                backgroundImage: !activeFlash.isSimpleMode && activeFlash?.bgImageUrl ? 'url(http://localhost:3000' + activeFlash.bgImageUrl + ')' : 'none',
+                backgroundImage: !activeFlash.isSimpleMode && activeFlash?.bgImageUrl ? `url(${getAssetUrl(activeFlash.bgImageUrl)})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 position: 'relative'
@@ -276,7 +278,7 @@ function FlashSaleSection({ config: activeFlash }: { config: any }) {
             </div>
 
             {/* Flash Products Grid */}
-            <div className={`p-5 md:p-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 relative z-10 ${activeFlash.isSimpleMode ? 'bg-white' : 'bg-white/95 backdrop-blur-sm'}`}>
+            <div className={`p-5 md:p-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 relative z-10 ${activeFlash.isSimpleMode ? 'bg-white/70 backdrop-blur-lg' : 'bg-white/95 backdrop-blur-sm'}`}>
                 {(flashProducts.length > 0 ? flashProducts : [1, 2, 3, 4, 5, 6]).map((p: any, i) => {
                     const isPlaceholder = typeof p === 'number';
                     const price = isPlaceholder ? (199 + i * 50) : (p.variants?.[0]?.price || 0);
@@ -330,10 +332,10 @@ export function AhizanHome() {
         const fetchConfigs = async () => {
             try {
                 const [heroRes, promoRes, flashRes, generalRes] = await Promise.all([
-                    fetch('http://localhost:3000/banner/hero-config'),
-                    fetch('http://localhost:3000/banner/promo-config'),
-                    fetch('http://localhost:3000/banner/flash-active'),
-                    fetch('http://localhost:3000/banner/general-config')
+                    fetch(getBannerApiUrl('hero-config')),
+                    fetch(getBannerApiUrl('promo-config')),
+                    fetch(getBannerApiUrl('flash-active')),
+                    fetch(getBannerApiUrl('general-config'))
                 ]);
                 
                 const heroData = await heroRes.json();
@@ -404,7 +406,7 @@ export function AhizanHome() {
         const bg = generalConfig.background;
         if (bg.type === 'color') return { backgroundColor: bg.value };
         if (bg.type === 'image' && bg.value) return { 
-            backgroundImage: `url(http://localhost:3000${bg.value})`,
+            backgroundImage: `url(${getAssetUrl(bg.value)})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundAttachment: 'fixed'
@@ -430,7 +432,7 @@ export function AhizanHome() {
                                         >
                                             <div className="w-5 h-5 flex items-center justify-center rounded text-gray-400 group-hover:text-[#e31837] transition-all overflow-hidden group-hover:scale-110">
                                                 {cat.id && promoConfig?.facetMedia?.[cat.slug] ? (
-                                                    <img src={`http://localhost:3000${promoConfig.facetMedia[cat.slug]}`} className="w-full h-full object-cover" />
+                                                    <img src={getAssetUrl(promoConfig.facetMedia[cat.slug])} className="w-full h-full object-cover" />
                                                 ) : (
                                                     cat.id ? (cat.icon || <Smartphone className="w-4 h-4" />) : <div className="w-4 h-4 bg-gray-100 animate-pulse rounded" />
                                                 )}
@@ -454,7 +456,7 @@ export function AhizanHome() {
                                         <img src={`http://localhost:3000${config.bgUrl}`} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="Hero BG" />
                                     )}
                                     {config.type === 'video' && config.bgUrl && (
-                                        <video src={`http://localhost:3000${config.bgUrl}`} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
+                                        <video src={getAssetUrl(config.bgUrl)} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
                                     )}
                                     
                                     {(config.type === 'image' || config.type === 'video') && config.bgUrl && (
@@ -511,10 +513,10 @@ export function AhizanHome() {
                                     {/* Offres Flash Card Customization */}
                                     <div className={`flex-grow rounded-xl shadow-sm flex items-center justify-center p-6 relative overflow-hidden group ${config.flashBgType === 'color' || !config.flashBgUrl ? 'bg-[#002f6c]' : ''}`}>
                                         {config.flashBgType === 'image' && config.flashBgUrl && (
-                                            <img src={`http://localhost:3000${config.flashBgUrl}`} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="Flash BG" />
+                                            <img src={getAssetUrl(config.flashBgUrl)} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="Flash BG" />
                                         )}
                                         {config.flashBgType === 'video' && config.flashBgUrl && (
-                                            <video src={`http://localhost:3000${config.flashBgUrl}`} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
+                                            <video src={getAssetUrl(config.flashBgUrl)} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
                                         )}
                                         
                                         {config.flashBgUrl && <div className="absolute inset-0 bg-black/20 z-10"></div>}
@@ -537,7 +539,7 @@ export function AhizanHome() {
                                         <img src={`http://localhost:3000${config.bgUrl}`} className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" alt="Hero BG" />
                                     )}
                                     {config.type === 'video' && config.bgUrl && (
-                                        <video src={`http://localhost:3000${config.bgUrl}`} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
+                                        <video src={getAssetUrl(config.bgUrl)} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
                                     )}
                                     
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent z-10 transition-opacity"></div>
@@ -668,7 +670,7 @@ export function AhizanHome() {
 
                 {/* QuickLinks Sections DYNAMIQUE */}
                 {promoConfig.showQuickLinks && siteCategories.length > 0 && (
-                    <div className="mt-6 bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-8 duration-700">
+                    <div className="mt-6 bg-white/70 backdrop-blur-lg p-6 md:p-8 rounded-xl shadow-sm border border-gray-100/50 overflow-hidden animate-in slide-in-from-bottom-8 duration-700">
                         <div className="flex items-center justify-between mb-8">
                             <h2 className="text-xl md:text-2xl font-bold text-[#002f6c] tracking-tight">{promoConfig.quickLinksTitle || "Nos Catégories"}</h2>
                             <Link href="/categories" className="text-[#e31837] text-sm font-bold hover:opacity-80 transition-opacity flex items-center gap-2 group/all">
@@ -693,7 +695,7 @@ export function AhizanHome() {
                                                 <div className="aspect-square w-full bg-gray-50 rounded-[2rem] flex items-center justify-center border border-gray-100 group-hover:border-[#e31837] group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-500 overflow-hidden relative">
                                                     <div className="absolute inset-0 bg-gradient-to-tr from-[#e31837]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                                     <img
-                                                        src={promoConfig?.facetMedia?.[cat.slug] ? `http://localhost:3000${promoConfig.facetMedia[cat.slug]}` : `https://images.unsplash.com/photo-${i}?w=400&h=400&fit=crop`}
+                                                        src={promoConfig?.facetMedia?.[cat.slug] ? getAssetUrl(promoConfig.facetMedia[cat.slug]) : `https://images.unsplash.com/photo-${i}?w=400&h=400&fit=crop`}
                                                         alt={cat.name}
                                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                                                     />
@@ -706,7 +708,7 @@ export function AhizanHome() {
                                             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm group-hover:border-[#e31837] group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-500 flex flex-col items-center gap-4 w-40 md:w-48">
                                                 <div className="w-16 h-16 bg-gray-50 text-[#e31837] rounded-xl flex items-center justify-center font-bold overflow-hidden shadow-inner group-hover:scale-110 transition-transform">
                                                     {customImg ? (
-                                                        <img src={`http://localhost:3000${customImg}`} alt={cat.name} className="w-full h-full object-cover" />
+                                                        <img src={getAssetUrl(customImg)} alt={cat.name} className="w-full h-full object-cover" />
                                                     ) : (
                                                        <span className="text-2xl uppercase group-hover:rotate-12 transition-transform">{cat.name.charAt(0)}</span>
                                                     )}
@@ -718,7 +720,7 @@ export function AhizanHome() {
                                         {promoConfig.quickLinksStyle === 'minimal' && (
                                             <div className="bg-white px-8 py-4 rounded-xl border border-gray-200 hover:border-[#e31837] hover:text-[#e31837] hover:shadow-lg hover:-translate-y-1 transition-all flex items-center gap-4 flex-shrink-0 group/min">
                                                 {customImg ? (
-                                                    <img src={`http://localhost:3000${customImg}`} className="w-8 h-8 rounded-lg object-cover group-hover/min:scale-110 transition-transform" />
+                                                    <img src={getAssetUrl(customImg)} className="w-8 h-8 rounded-lg object-cover group-hover/min:scale-110 transition-transform" />
                                                 ) : (
                                                     <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center font-bold text-[#e31837] text-xs uppercase group-hover/min:rotate-12 transition-transform">{cat.name.charAt(0)}</div>
                                                 )}
@@ -734,12 +736,12 @@ export function AhizanHome() {
 
                 {/* Middle Banner Ad (GRANDE BRADERIE) */}
                 {promoConfig.showPromoBanner && (
-                    <div className="mt-6 bg-white p-1 rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-1000">
+                    <div className="mt-6 bg-white/70 backdrop-blur-lg p-1 rounded-xl shadow-sm border border-gray-100/50 overflow-hidden animate-in zoom-in-95 duration-1000">
                         <div 
                             className="h-28 md:h-40 rounded-lg flex flex-col md:flex-row items-center justify-between px-8 md:px-16 overflow-hidden relative group cursor-pointer shadow-inner"
                             style={{ 
                                 backgroundColor: (promoConfig.promoBanner.bgType === 'color' || !promoConfig.promoBanner.bgType) ? (promoConfig.promoBanner.bgColor || '#e31837') : 'transparent',
-                                backgroundImage: (promoConfig.promoBanner.bgType === 'image' || promoConfig.promoBanner.type === 'image') && promoConfig.promoBanner.bgUrl ? `url(http://localhost:3000${promoConfig.promoBanner.bgUrl})` : 'none',
+                                backgroundImage: (promoConfig.promoBanner.bgType === 'image' || promoConfig.promoBanner.type === 'image') && promoConfig.promoBanner.bgUrl ? `url("${getAssetUrl(promoConfig.promoBanner.bgUrl)}")` : 'none',
                                 backgroundSize: 'cover',
                                 backgroundPosition: 'center'
                             }}
@@ -747,7 +749,7 @@ export function AhizanHome() {
                             {/* Video Background Layer */}
                             {(promoConfig.promoBanner.bgType === 'video' || promoConfig.promoBanner.type === 'video') && promoConfig.promoBanner.bgUrl && (
                                 <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0">
-                                    <source src={`http://localhost:3000${promoConfig.promoBanner.bgUrl}`} type="video/mp4" />
+                                    <source src={getAssetUrl(promoConfig.promoBanner.bgUrl)} type="video/mp4" />
                                 </video>
                             )}
 
@@ -789,6 +791,112 @@ export function AhizanHome() {
                 {activeFlashSales.map((flash) => (
                     <FlashSaleSection key={flash.id} config={flash} />
                 ))}
+
+                {/* MODAL POPUP (CONDITIONNEL) */}
+                {/* MODAL POPUPS (MULTI-SUPPORT) */}
+                {generalConfig?.modals?.map((m: any, idx: number) => (
+                    <HomeModal key={idx} config={m} />
+                ))}
+                {/* Migration Fallback */}
+                {(!generalConfig?.modals || generalConfig.modals.length === 0) && generalConfig?.modal && (
+                    <HomeModal config={generalConfig.modal} />
+                )}
             </div>
-);
+    );
+}
+
+function HomeModal({ config }: { config: any }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [hasShowned, setHasShowned] = useState(false);
+
+    useEffect(() => {
+        if (config?.enabled && !hasShowned) {
+            const delay = (config.delay || 5) * 1000;
+            const timer = setTimeout(() => {
+                setIsOpen(true);
+                setHasShowned(true);
+            }, delay);
+            return () => clearTimeout(timer);
+        }
+    }, [config, hasShowned]);
+
+    // Auto-close duration logic
+    useEffect(() => {
+        if (isOpen && config?.duration > 0) {
+            const timer = setTimeout(() => {
+                setIsOpen(false);
+            }, config.duration * 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, config?.duration]);
+
+    if (!isOpen) return null;
+
+    const isImage = config?.type === 'image';
+    const isClosable = config?.isClosable !== false; // Default to true
+
+    return (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-500">
+            {/* Overlay */}
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+                onClick={() => isClosable && setIsOpen(false)}
+            />
+            
+            {/* Modal Content */}
+            <div className={`relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500 ${!isClosable ? 'pointer-events-none child-pointer-events-auto' : ''}`}>
+                <style jsx>{`
+                    .child-pointer-events-auto > * {
+                        pointer-events: auto;
+                    }
+                `}</style>
+
+                {/* Close Button */}
+                {isClosable && (
+                    <button 
+                        onClick={() => setIsOpen(false)}
+                        className="absolute top-4 right-4 z-20 p-2 bg-black/10 hover:bg-black/20 rounded-full text-white transition-all shadow-lg"
+                    >
+                        <X className="w-6 h-6" />
+                    </button>
+                )}
+
+                {isImage ? (
+                    <div className="flex flex-col">
+                        {config.link ? (
+                            <Link href={config.link} onClick={() => setIsOpen(false)}>
+                                <img 
+                                    src={getAssetUrl(config.value)} 
+                                    alt="Promotion" 
+                                    className="w-full h-auto object-cover max-h-[70vh] cursor-pointer"
+                                />
+                            </Link>
+                        ) : (
+                            <img 
+                                src={getAssetUrl(config.value)} 
+                                alt="Promotion" 
+                                className="w-full h-auto object-cover max-h-[70vh]"
+                            />
+                        )}
+                    </div>
+                ) : (
+                    <div className="p-8 md:p-12 text-center">
+                        <div className="w-16 h-16 bg-red-50 text-[#e31837] rounded-2xl flex items-center justify-center mx-auto mb-6">
+                            <Smartphone className="w-8 h-8" />
+                        </div>
+                        <h2 className="text-2xl font-black text-[#002f6c] mb-4 tracking-tight">Annonce Spéciale</h2>
+                        <div className="text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
+                            {config.value || "Découvrez nos nouvelles offres exceptionnelles sur Ahizan !"}
+                        </div>
+                        <button 
+                            onClick={() => setIsOpen(false)}
+                            className="mt-8 w-full bg-[#002f6c] text-white py-4 rounded-xl font-bold hover:bg-[#001f4d] transition-all shadow-lg"
+                        >
+                            D'accord, j'ai compris
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }

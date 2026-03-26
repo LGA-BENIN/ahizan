@@ -11,6 +11,9 @@ import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SITE_NAME, SITE_URL } from "@/lib/metadata";
 import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
+import { getPageContent, ThemeSettingsData, FooterConfData } from "@/lib/vendure/cms-queries";
+import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
+import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -61,27 +64,49 @@ export const viewport: Viewport = {
     ],
 };
 
-import { getPageContent, ThemeSettingsData, TopBarData, HeaderConfData, FooterConfData } from "@/lib/vendure/cms-queries";
-
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * Component that handles the dynamic background and preloader based on CMS and Banner configs.
+ * Moved to a separate component to be wrapped in Suspense, avoiding the "Blocking Route" error.
+ */
+async function DynamicBranding({ children, footer }: { children: React.ReactNode; footer: FooterConfData }) {
     const homePage = await getPageContent('home');
     const sections = homePage?.sections || [];
 
-    // Fetch our NEW General Config for Branding & System
+    // Fetch user and cart data
+    const [customer, order] = await Promise.all([
+        getActiveCustomer(),
+        getActiveOrder()
+    ]);
+
+    // Fetch our General Config for Branding & System
     let generalConfig: any = null;
     try {
-        const res = await fetch('http://localhost:3000/banner/general-config', { cache: 'no-store' });
+        const res = await fetch(getBannerApiUrl('general-config'), { 
+            cache: 'no-store'
+        });
         generalConfig = await res.json();
     } catch (e) {
-        console.error("Failed to fetch general config in layout:", e);
+        console.error("Failed to fetch general config in DynamicBranding:", e);
     }
 
     const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
-    const footer = sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
 
-    // Use General Config for Background if available, fallback to section-based theme
-    const bgType = generalConfig?.background?.type || theme?.backgroundType || 'color';
-    const bgValue = generalConfig?.background?.value || (bgType === 'color' ? theme?.backgroundColor : (bgType === 'image' ? theme?.backgroundImageUrl : theme?.backgroundVideoUrl)) || '#ffffff';
+    // --- Robust Background Selection ---
+    let bgType = 'color';
+    let bgValue = '#ffffff';
+
+    // 1. Check General Config (Banner Manager) - HIGHEST PRIORITY
+    if (generalConfig?.background?.type && generalConfig?.background?.value) {
+        bgType = generalConfig.background.type;
+        bgValue = generalConfig.background.value;
+    } 
+    // 2. Fallback to Theme Settings (CMS Plugin)
+    else if (theme?.backgroundType) {
+        bgType = theme.backgroundType;
+        if (bgType === 'color') bgValue = theme.backgroundColor || '#ffffff';
+        else if (bgType === 'image') bgValue = theme.backgroundImageUrl || '';
+        else if (bgType === 'video') bgValue = theme.backgroundVideoUrl || '';
+    }
 
     const themeStyles = {
         '--primary': theme?.primaryColor || "#0f172a",
@@ -92,55 +117,79 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     } as React.CSSProperties;
 
     return (
+        <body
+            className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen relative`}
+            style={themeStyles}
+        >
+            <ThemeProvider>
+                <AhizanPreloader config={generalConfig} />
+                
+                {/* Global Background Layer */}
+                <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                    {bgType === 'color' && (
+                        <div className="absolute inset-0" style={{ background: bgValue }} />
+                    )}
+                    {bgType === 'image' && bgValue && (
+                        <div
+                            className="absolute inset-0 bg-cover bg-center bg-fixed"
+                            style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
+                        />
+                    )}
+                    {bgType === 'video' && bgValue && (
+                        <video
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            key={bgValue} // Force re-render if URL changes
+                            className="absolute min-w-full min-h-full object-cover opacity-60"
+                        >
+                            <source src={getAssetUrl(bgValue)} type="video/mp4" />
+                        </video>
+                    )}
+                </div>
+
+                {/* Sticky Header */}
+                <div className="sticky top-0 z-50 w-full shadow-sm">
+                    <TopFlashBanner />
+                    <AhizanNavbar 
+                        logoUrl={generalConfig?.logoUrl} 
+                        customer={customer}
+                        order={order}
+                    />
+                </div>
+
+                <main className="relative z-10 flex-grow w-full mx-auto">
+                    {children}
+                </main>
+
+                <Footer config={footer} />
+                <Toaster />
+                <Suspense fallback={null}>
+                    <GlobalPopupProvider />
+                </Suspense>
+            </ThemeProvider>
+        </body>
+    );
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+    const homePage = await getPageContent('home');
+    const footer = homePage?.sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
+
+    return (
         <html lang="fr" suppressHydrationWarning>
-            <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen relative`}
-                style={themeStyles}
-            >
-                <ThemeProvider>
-                    <AhizanPreloader config={generalConfig} />
-                    
-                    {/* Global Background Layer - centralizing both systems */}
-                    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                        {bgType === 'color' && (
-                            <div className="absolute inset-0" style={{ background: bgValue }} />
-                        )}
-                        {bgType === 'image' && bgValue && (
-                            <div
-                                className="absolute inset-0 bg-cover bg-center bg-fixed"
-                                style={{ backgroundImage: `url(${bgValue.startsWith('/') ? `http://localhost:3000${bgValue}` : bgValue})` }}
-                            />
-                        )}
-                        {bgType === 'video' && bgValue && (
-                            <video
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                className="absolute min-w-full min-h-full object-cover opacity-30"
-                            >
-                                <source src={bgValue.startsWith('/') ? `http://localhost:3000${bgValue}` : bgValue} type="video/mp4" />
-                            </video>
-                        )}
+            <Suspense fallback={
+                <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen relative`}>
+                    <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]">
+                        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-900"></div>
                     </div>
-
-                    {/* Sticky Header */}
-                    <div className="sticky top-0 z-50 w-full shadow-sm">
-                        <TopFlashBanner />
-                        <AhizanNavbar logoUrl={generalConfig?.logoUrl} />
-                    </div>
-
-                    <main className="relative z-10 flex-grow w-full mx-auto">
-                        {children}
-                    </main>
-
-                    <Footer config={footer} />
-                    <Toaster />
-                    <React.Suspense fallback={null}>
-                        <GlobalPopupProvider />
-                    </React.Suspense>
-                </ThemeProvider>
-            </body>
+                </body>
+            }>
+                <DynamicBranding footer={footer}>
+                    {children}
+                </DynamicBranding>
+            </Suspense>
         </html>
     );
 }

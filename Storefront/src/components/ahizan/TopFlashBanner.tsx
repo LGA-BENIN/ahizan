@@ -2,12 +2,21 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getBannerApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface BannerConfig {
     isActive: boolean;
+    type: 'text' | 'image' | 'video';
     targetUrl: string;
-    desktopImageUrl: string;
-    mobileImageUrl: string;
+    // Text Banner fields
+    topText?: string;
+    mainText?: string;
+    linkText?: string;
+    // Image Banner fields
+    desktopImageUrl?: string;
+    mobileImageUrl?: string;
+    // Video Banner fields
+    videoUrl?: string;
 }
 
 export function TopFlashBanner() {
@@ -16,7 +25,7 @@ export function TopFlashBanner() {
 
     useEffect(() => {
         // Fetch the flat-file config from our new backend REST endpoint
-        fetch('http://localhost:3000/banner/config')
+        fetch(getBannerApiUrl('config'))
             .then(res => res.json())
             .then(data => {
                 setConfig(data);
@@ -61,16 +70,32 @@ export function TopFlashBanner() {
         );
     }
 
-    const bannerContent = (
+    const bannerContent = config.type === 'video' && config.videoUrl ? (
+        <div className="w-full h-[45px] md:h-[70px] relative overflow-hidden flex items-center justify-center bg-black">
+             <video 
+                autoPlay 
+                muted 
+                loop 
+                playsInline 
+                className="w-full h-full object-cover"
+                key={config.videoUrl}
+            >
+                <source src={getAssetUrl(config.videoUrl)} />
+                Your browser does not support the video tag.
+            </video>
+        </div>
+    ) : (
         <picture className="w-full">
             {/* Desktop Image */}
-            <source 
-                media="(min-width: 768px)" 
-                srcSet={`http://localhost:3000${config.desktopImageUrl}`} 
-            />
+            {config.desktopImageUrl && (
+                <source 
+                    media="(min-width: 768px)" 
+                    srcSet={getAssetUrl(config.desktopImageUrl)} 
+                />
+            )}
             {/* Mobile Image (Default) */}
             <img 
-                src={`http://localhost:3000${config.mobileImageUrl || config.desktopImageUrl}`} 
+                src={getAssetUrl(config.mobileImageUrl || config.desktopImageUrl || '')} 
                 alt="Promotion Banner"
                 className="w-full h-auto object-cover max-h-[120px] md:max-h-[80px]"
             />

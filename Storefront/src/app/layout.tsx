@@ -11,6 +11,7 @@ import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SITE_NAME, SITE_URL } from "@/lib/metadata";
 import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
+import { CookieConsent } from "@/components/ahizan/cookie-consent";
 import { getPageContent, ThemeSettingsData, FooterConfData } from "@/lib/vendure/cms-queries";
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
@@ -168,6 +169,7 @@ async function DynamicBranding({ children, footer }: { children: React.ReactNode
                 <Suspense fallback={null}>
                     <GlobalPopupProvider />
                 </Suspense>
+                <CookieConsent config={generalConfig?.cookieConsent} />
             </ThemeProvider>
         </body>
     );

@@ -67,8 +67,17 @@ export async function FeaturedProducts({
 
     if (productIds && productIds.length > 0 && products.length > 0) {
         const idSet = new Set(productIds);
-        products = products.filter((p: any) => idSet.has(p.productId?.toString()));
+        products = products.filter((p: any) => idSet.has(p.productId?.toString()) || idSet.has(p.id?.toString()));
     }
+
+    // Ensure all products have slugs - if manual products only have IDs, we need info.
+    // However, usually these manual products from CMS already come with slugs if stored correctly.
+    // If slugs are missing, we log a warning as a safety measure.
+    products.forEach((p: any) => {
+        if (!p.slug && (p.productId || p.id)) {
+            console.warn(`[FeaturedProducts] Product ${p.productName || p.id} is missing a slug! Link to product page will be broken.`);
+        }
+    });
 
     const sectionTitle = title || (
         filterType === 'LATEST' ? "Nouveaux Arrivages" :

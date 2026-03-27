@@ -110,10 +110,13 @@ export function FlashDealsSection({
                     )}
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {products.map((product) => (
-                        <Link key={product.id} href={`/product/${product.slug}`}
-                            className="group bg-white rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-red-200 no-underline text-inherit">
+                    {products.map((product) => {
+                        if (!product.slug) {
+                            console.warn(`[FlashDeals] Product ${product.name} (ID: ${product.id}) is missing a slug!`);
+                        }
+                        return (
+                            <Link key={product.id} href={`/product/${product.slug}`}
+                                className="group bg-white rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-red-200 no-underline text-inherit">
                             <div className="aspect-square relative mb-3 overflow-hidden rounded-lg bg-muted">
                                 {product.imageUrl && (
                                     <img src={product.imageUrl} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />
@@ -132,7 +135,8 @@ export function FlashDealsSection({
                                 )}
                             </div>
                         </Link>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         </section>

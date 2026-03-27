@@ -94,6 +94,16 @@ export interface FlashSaleVersion {
     };
 }
 
+export interface ModalConfig {
+    enabled: boolean;
+    type: 'image' | 'text';
+    value: string;
+    link?: string;
+    delay?: number;
+    duration?: number;
+    isClosable?: boolean;
+}
+
 export interface PromoConfig {
     showQuickLinks: boolean;
     quickLinksStyle: 'circles' | 'cards' | 'minimal';
@@ -120,6 +130,16 @@ export interface GeneralConfig {
     background: {
         type: 'color' | 'image' | 'video';
         value: string; // color or url
+    };
+    modal?: ModalConfig; // Legacy single modal
+    modals?: ModalConfig[]; // New multi-modal support
+    cookieConsent?: {
+        enabled: boolean;
+        message: string;
+        linkText: string;
+        linkUrl: string;
+        acceptButtonText: string;
+        declineButtonText: string;
     };
 }
 
@@ -272,7 +292,15 @@ export class BannerService {
             return {
                 logoUrl: '',
                 preloader: { type: 'default' },
-                background: { type: 'color', value: '#f8f9fa' }
+                background: { type: 'color', value: '#f8f9fa' },
+                cookieConsent: {
+                    enabled: true,
+                    message: "Nous utilisons des cookies pour améliorer votre expérience sur notre boutique.",
+                    linkText: "En savoir plus",
+                    linkUrl: "/privacy",
+                    acceptButtonText: "Tout accepter",
+                    declineButtonText: "Continuer sans accepter"
+                }
             };
         }
     }

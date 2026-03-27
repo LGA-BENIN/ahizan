@@ -29,8 +29,10 @@ export default function PageInscription() {
         });
     }, []);
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure?')) return;
+    const handleDelete = async (id: string | undefined) => {
+        if (!id) return;
+        // Simple themed alert would be better than confirm(), but keeping it for now or replacing with a dialog later
+        if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce champ ?')) return;
         await deleteFieldAction(id);
         const data = await getRegistrationFields();
         setFields(data);
@@ -38,8 +40,7 @@ export default function PageInscription() {
 
     return (
         <div className="container mx-auto py-10">
-            <h1 className="text-3xl font-bold mb-8">Page Inscription Management</h1>
-            <h2 className="text-xl text-red-500 font-bold mb-4">DEBUG: PAGE UPDATED</h2>
+            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-8">Page Inscription Management</h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <Card>

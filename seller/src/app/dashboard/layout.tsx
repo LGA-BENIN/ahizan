@@ -6,41 +6,53 @@ import { unstable_noStore as noStore } from 'next/cache';
 
 function DashboardLoading() {
     return (
-        <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+        <div className="flex items-center justify-center h-screen bg-dashboard-bg">
+            <div className="flex flex-col items-center gap-4">
+                <div className="relative w-16 h-16">
+                    <div className="absolute inset-0 rounded-full border-4 border-muted" />
+                    <div className="absolute inset-0 rounded-full border-4 border-brand-navy border-t-transparent animate-spin" />
+                </div>
+                <p className="text-sm font-bold text-muted-foreground animate-pulse uppercase tracking-widest">AHIZAN Dashboard</p>
+            </div>
         </div>
     );
 }
 
-async function DashboardProtection() {
-    try {
-        const profile = await getMyVendorProfile();
-        const status = profile?.status;
-
-        if (status === 'PENDING') {
-            redirect('/pending');
-        } else if (status === 'REJECTED') {
-            redirect('/rejected');
-        }
-    } catch (e: any) {
-        console.error("Dashboard authorization check failed:", e.message);
-        // If we can't get the profile, the user is likely not logged in or session expired
-        redirect('/sign-in');
-    }
-    return null;
-}
-
 export default async function Layout({ children }: { children: React.ReactNode }) {
     noStore();
+    
+    return (
+        <Suspense fallback={<DashboardLoading />}>
+            <DashboardContentWrapper>
+                {children}
+            </DashboardContentWrapper>
+        </Suspense>
+    );
+}
+
+async function DashboardContentWrapper({ children }: { children: React.ReactNode }) {
+    const vendor = await getMyVendorProfile();
+
+    if (!vendor) {
+        redirect('/sign-in');
+    }
 
     return (
-        <DashboardLayout>
-            <Suspense fallback={null}>
-                <DashboardProtection />
-            </Suspense>
-            <Suspense fallback={<DashboardLoading />}>
-                {children}
-            </Suspense>
+        <DashboardLayout vendor={vendor}>
+            <DashboardProtection profile={vendor} />
+            {children}
         </DashboardLayout>
     );
+}
+
+async function DashboardProtection({ profile }: { profile: any }) {
+    const status = profile?.status;
+
+    if (status === 'PENDING') {
+        redirect('/pending');
+    } else if (status === 'REJECTED') {
+        redirect('/rejected');
+    }
+    
+    return null;
 }

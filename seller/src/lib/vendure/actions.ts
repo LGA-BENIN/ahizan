@@ -1,7 +1,7 @@
 'use server';
 
 import { query } from './api';
-import { GetActiveCustomerQuery, GetMyVendorProfileQuery } from './queries';
+import { GetActiveCustomerQuery, GetMyVendorProfileQuery, GetMyVendorFullProfileQuery } from './queries';
 import { getActiveChannelCached } from './cached';
 import { cache } from "react";
 import { readFragment } from "@/graphql";
@@ -19,11 +19,19 @@ export const getActiveCustomer = cache(async () => {
 
 export const getMyVendorProfile = async () => {
     const token = await getAuthToken();
-    const { data } = await query(GetMyVendorProfileQuery, {}, {
-        token,
-        useAuthToken: true
-    }) as any;
-    return data.myVendorProfile;
+    const [{ data }, { data: customerData }] = await Promise.all([
+        query(GetMyVendorFullProfileQuery, {}, {
+            token,
+            useAuthToken: true
+        }) as Promise<any>,
+        query(GetActiveCustomerQuery, {}, { token }).catch(() => ({ data: { activeCustomer: null } })) as Promise<any>
+    ]);
+
+    const profile = data.myVendorProfile;
+    if (profile && customerData.activeCustomer) {
+        profile.customer = customerData.activeCustomer;
+    }
+    return profile;
 }
 
 export const getActiveChannel = getActiveChannelCached;

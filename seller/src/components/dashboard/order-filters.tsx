@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { Search, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const STATES = [
     { value: '', label: 'Tous les statuts' },
@@ -12,7 +14,7 @@ const STATES = [
     { value: 'Cancelled', label: 'Annulé' },
 ];
 
-export function OrderFilters() {
+export default function OrderFilters() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [state, setState] = useState(searchParams.get('state') || '');
@@ -28,26 +30,33 @@ export function OrderFilters() {
     };
 
     return (
-        <div className="flex flex-wrap gap-3 mb-4">
-            <select
-                value={state}
-                onChange={(e) => { setState(e.target.value); applyFilters(e.target.value, undefined); }}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-            >
-                {STATES.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-            </select>
-            <select
-                value={sort}
-                onChange={(e) => { setSort(e.target.value); applyFilters(undefined, e.target.value); }}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
-            >
-                <option value="updatedAt_DESC">Plus récentes</option>
-                <option value="updatedAt_ASC">Plus anciennes</option>
-                <option value="totalWithTax_DESC">Montant décroissant</option>
-                <option value="totalWithTax_ASC">Montant croissant</option>
-            </select>
+        <div className="flex flex-wrap items-center gap-3 w-full">
+            <div className="relative group flex-1 min-w-[160px] sm:flex-none sm:w-auto">
+                <select
+                    value={state}
+                    onChange={(e) => { setState(e.target.value); applyFilters(e.target.value, undefined); }}
+                    className="appearance-none h-11 w-full pl-4 pr-10 text-sm font-bold bg-card border border-border rounded-xl focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer hover:bg-muted/50"
+                >
+                    {STATES.map(s => (
+                        <option key={s.value} value={s.value} className="bg-card">{s.label}</option>
+                    ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover:text-foreground transition-colors" />
+            </div>
+
+            <div className="relative group flex-1 min-w-[160px] sm:flex-none sm:w-auto">
+                <select
+                    value={sort}
+                    onChange={(e) => { setSort(e.target.value); applyFilters(undefined, e.target.value); }}
+                    className="appearance-none h-11 w-full pl-4 pr-10 text-sm font-bold bg-card border border-border rounded-xl focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer hover:bg-muted/50"
+                >
+                    <option value="updatedAt_DESC" className="bg-card">Plus récentes</option>
+                    <option value="updatedAt_ASC" className="bg-card">Plus anciennes</option>
+                    <option value="totalWithTax_DESC" className="bg-card">Montant décroissant</option>
+                    <option value="totalWithTax_ASC" className="bg-card">Montant croissant</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover:text-foreground transition-colors" />
+            </div>
         </div>
     );
 }

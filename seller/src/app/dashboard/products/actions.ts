@@ -13,6 +13,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
 
     try {
+        console.log(`[ACTION] Creating product: ${name}`);
         const { data } = await mutate(CreateMyProductMutation, {
             input: {
                 name,
@@ -25,9 +26,10 @@ export async function createProductAction(prevState: any, formData: FormData) {
             },
         }, { useAuthToken: true });
 
-        // revalidateTag('vendor-products'); // If you add tags to GetMyVendorProducts
+        console.log(`[ACTION] Product created successfully: ${data.createMyProduct?.id}`);
         return { success: true, product: data.createMyProduct };
     } catch (e: any) {
+        console.error(`[ACTION] Error creating product: ${e.message}`);
         return { success: false, error: e.message };
     }
 }

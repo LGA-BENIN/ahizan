@@ -13,7 +13,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ title, subtitle, description, ctaText, ctaLink, backgroundImage }: HeroSectionProps) {
     return (
-        <div className="relative overflow-hidden bg-background py-24 sm:py-32">
+        <div className="relative overflow-hidden bg-background py-16 md:py-24 lg:py-32">
             {backgroundImage && (
                 <div className="absolute inset-0 -z-10 h-full w-full object-cover">
                     <Image

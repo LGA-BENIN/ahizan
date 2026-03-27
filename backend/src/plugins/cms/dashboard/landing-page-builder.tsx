@@ -28,25 +28,25 @@ const cls = {
 };
 
 const BUILDER_STYLES = `
-.vd-cms-builder { display: flex; height: 100vh; overflow: hidden; font-family: inherit; color: var(--color-text, #1e293b); background: var(--color-component-bg-100, #f8fafc); }
+.vd-cms-builder { display: flex; height: 100vh; overflow: hidden; font-family: inherit; color: var(--color-text-100, #1e293b); background: var(--color-component-bg-100, #f8fafc); }
 .vd-cms-sidebar { width: 460px; border-right: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); display: flex; flex-direction: column; }
 .vd-cms-main { flex: 1; padding: 32px; overflow: auto; }
 .vd-cms-card { padding: 16px; border-radius: 10px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); margin-bottom: 12px; }
 .vd-cms-label { display: block; font-size: 11px; font-weight: 700; color: var(--color-text-300, #64748b); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
-.vd-cms-input { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text, #1e293b); font-size: 13px; outline: none; }
+.vd-cms-input { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text-100, #1e293b); font-size: 13px; outline: none; }
 .vd-cms-input:focus { border-color: var(--color-primary-500, #3b82f6); box-shadow: 0 0 0 2px var(--color-primary-100, #dbeafe); }
-.vd-cms-select { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text, #1e293b); font-size: 13px; }
-.vd-cms-textarea { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text, #1e293b); font-size: 13px; min-height: 70px; resize: vertical; }
+.vd-cms-select { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text-100, #1e293b); font-size: 13px; }
+.vd-cms-textarea { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-100, #f8fafc); color: var(--color-text-100, #1e293b); font-size: 13px; min-height: 70px; resize: vertical; }
 .vd-cms-btn-primary { padding: 8px 16px; border-radius: 6px; border: none; background: var(--color-primary-500, #3b82f6); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
 .vd-cms-btn-primary:hover { background: var(--color-primary-600, #2563eb); }
-.vd-cms-btn-secondary { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); color: var(--color-text, #1e293b); font-size: 11px; font-weight: 600; cursor: pointer; }
+.vd-cms-btn-secondary { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); color: var(--color-text-100, #1e293b); font-size: 11px; font-weight: 600; cursor: pointer; }
 .vd-cms-btn-secondary:hover { background: var(--color-component-bg-100, #f1f5f9); }
-.vd-cms-btn-danger { padding: 6px 12px; border-radius: 6px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; font-size: 11px; font-weight: 600; cursor: pointer; }
+.vd-cms-btn-danger { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--color-error-300, #fecaca); background: var(--color-error-50, #fef2f2); color: var(--color-error-500, #dc2626); font-size: 11px; font-weight: 600; cursor: pointer; }
 .vd-cms-btn-outline { padding: 4px 10px; border-radius: 4px; border: 1px solid var(--color-component-border, #e2e8f0); background: transparent; color: var(--color-text-300, #64748b); font-size: 10px; font-weight: 600; cursor: pointer; }
 .vd-cms-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: var(--color-component-bg-100, #f1f5f9); color: var(--color-text-300, #64748b); border: 1px solid var(--color-component-border, #e2e8f0); }
 .vd-cms-section-item { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--color-component-border, #e2e8f0); background: var(--color-component-bg-200, #fff); text-align: left; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: all 0.15s; }
 .vd-cms-section-item:hover { border-color: var(--color-primary-300, #93c5fd); }
-.vd-cms-section-item-active { border-color: var(--color-primary-500, #3b82f6); background: var(--color-primary-50, #eff6ff); }
+.vd-cms-section-item-active { border-color: var(--color-primary-500, #3b82f6); background: var(--color-primary-100, #eff6ff); }
 .vd-cms-editor { padding: 16px; border: 1px solid var(--color-component-border, #e2e8f0); border-top: none; border-radius: 0 0 8px 8px; background: var(--color-component-bg-200, #fff); display: flex; flex-direction: column; gap: 14px; }
 .vd-cms-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 `;
@@ -653,15 +653,15 @@ export function LandingPageBuilder() {
 
     if (view === 'EDITING_HERO') {
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh' }}>
                 <StatusNotification />
                 <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                         <div>
-                            <h2 style={{ fontSize: '32px', fontWeight: '900', color: '#0f172a', letterSpacing: '-1px' }}>🏢 Étape 1 : Choisir un Template</h2>
-                            <p style={{ color: '#64748b', fontSize: '16px', marginTop: '4px' }}>Sélectionnez la structure visuelle de votre section Hero.</p>
+                            <h2 style={{ fontSize: '32px', fontWeight: '900', color: 'var(--color-text-100)', letterSpacing: '-1px' }}>🏢 Étape 1 : Choisir un Template</h2>
+                            <p style={{ color: 'var(--color-text-300)', fontSize: '16px', marginTop: '4px' }}>Sélectionnez la structure visuelle de votre section Hero.</p>
                         </div>
-                        <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
+                        <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', color: 'var(--color-text-100)', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '32px' }}>
@@ -670,11 +670,11 @@ export function LandingPageBuilder() {
                             { id: 'bento', title: 'Bento Grid', desc: 'Modern High-Energy Grid', img: '/assets/templates/bento.png' },
                             { id: 'fullwidth', title: 'Full-Width Immersive', desc: 'Massive Video/Image Background', img: '/assets/templates/fullwidth.png' }
                         ].map((t) => (
-                            <div key={t.id} onClick={() => { setHeroConfig({ ...heroConfig, selectedTemplate: t.id }); setView('PERSONALIZING_HERO'); }} style={{ background: '#fff', borderRadius: '24px', overflow: 'hidden', border: heroConfig.selectedTemplate === t.id ? '4px solid #e31837' : '1px solid #e2e8f0', cursor: 'pointer' }}>
+                            <div key={t.id} onClick={() => { setHeroConfig({ ...heroConfig, selectedTemplate: t.id }); setView('PERSONALIZING_HERO'); }} style={{ background: 'var(--color-component-bg-200)', borderRadius: '24px', overflow: 'hidden', border: heroConfig.selectedTemplate === t.id ? '4px solid #e31837' : '1px solid var(--color-component-border)', cursor: 'pointer' }}>
                                 <img src={`${getBackendBaseUrl()}${t.img}`} style={{ width: '100%', height: '220px', objectFit: 'cover' }} alt={t.title} />
                                 <div style={{ padding: '24px' }}>
-                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800' }}>{t.title}</h3>
-                                    <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: '#64748b' }}>{t.desc}</p>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--color-text-100)' }}>{t.title}</h3>
+                                    <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: 'var(--color-text-300)' }}>{t.desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -689,21 +689,21 @@ export function LandingPageBuilder() {
         const config = activeConfig;
 
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh' }}>
                 <StatusNotification />
                 <div style={{ maxWidth: '900px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
-                        <button onClick={() => setView('EDITING_HERO')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>← Changer le Template</button>
-                        <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Annuler</button>
+                        <button onClick={() => setView('EDITING_HERO')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', color: 'var(--color-text-100)', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>← Changer le Template</button>
+                        <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', color: 'var(--color-text-100)', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Annuler</button>
                     </div>
 
-                    <div style={{ background: '#fff', padding: '48px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                        <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', marginBottom: '8px' }}>✍️ Étape 2 : Personnalisation</h2>
-                        <p style={{ color: '#64748b', fontSize: '15px', marginBottom: '40px' }}>Template : <strong>{t.toUpperCase()}</strong></p>
+                    <div style={{ background: 'var(--color-component-bg-200)', padding: '48px', borderRadius: '24px', border: '1px solid var(--color-component-border)', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                        <h2 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', marginBottom: '8px' }}>✍️ Étape 2 : Personnalisation</h2>
+                        <p style={{ color: 'var(--color-text-300)', fontSize: '15px', marginBottom: '40px' }}>Template : <strong>{t.toUpperCase()}</strong></p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
                             {/* SIDEBAR TOGGLE & GLOBAL COLORS (PROMINENT) */}
-                            <div style={{ background: '#eff6ff', padding: '24px', borderRadius: '16px', border: '2px solid #3b82f6' }}>
+                            <div style={{ background: 'var(--color-primary-50, #eff6ff)', padding: '24px', borderRadius: '16px', border: '2px solid var(--color-primary-500)' }}>
                                 <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#1e40af', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>⚙️ CONFIGURATION GLOBALE HERO</h3>
                                 <div style={{ marginBottom: '24px', paddingBottom: '20px', borderBottom: '1px solid #dbeafe' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
@@ -736,8 +736,8 @@ export function LandingPageBuilder() {
                             </div>
 
                             {/* SECTION PRINCIPALE (CARROUSEL / MILIEU / FOND) */}
-                            <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px' }}>
-                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#002f6c', marginBottom: '20px', borderBottom: '2px solid #002f6c', display: 'inline-block' }}>SECTION CENTRALE / FOND</h3>
+                            <div style={{ background: 'var(--color-component-bg-100)', padding: '24px', borderRadius: '16px' }}>
+                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: 'var(--color-primary-700)', marginBottom: '20px', borderBottom: '2px solid var(--color-primary-700)', display: 'inline-block' }}>SECTION CENTRALE / FOND</h3>
                                 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                     <label style={{ fontSize: '11px', fontWeight: 'bold' }}>TYPE DE MEDIA</label>
@@ -835,11 +835,11 @@ export function LandingPageBuilder() {
     if (view === 'EDITING_CATEGORY_PAGE') {
         const c = categoryConfig || {};
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
                 <StatusNotification />
                 <div style={{ maxWidth: '900px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                        <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', color: '#64748b' }}>
+                        <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', color: 'var(--color-text-300)' }}>
                             ← Retour au Roadmap
                         </button>
                         <button onClick={handleCategorySave} disabled={isSaving} style={{ background: '#002f6c', color: 'white', padding: '12px 32px', borderRadius: '12px', fontWeight: '900', border: 'none', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(0, 47, 108, 0.3)' }}>
@@ -847,9 +847,9 @@ export function LandingPageBuilder() {
                         </button>
                     </div>
 
-                    <div style={{ background: '#fff', padding: '40px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-                        <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', marginBottom: '8px' }}>📂 Personnalisation Page Catégorie</h2>
-                        <p style={{ color: '#64748b', fontSize: '15px', marginBottom: '40px' }}>Configurez l'apparence de vos listes de produits par collection.</p>
+                    <div style={{ background: 'var(--color-component-bg-200)', padding: '40px', borderRadius: '24px', border: '1px solid var(--color-component-border)' }}>
+                        <h2 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', marginBottom: '8px' }}>📂 Personnalisation Page Catégorie</h2>
+                        <p style={{ color: 'var(--color-text-300)', fontSize: '15px', marginBottom: '40px' }}>Configurez l'apparence de vos listes de produits par collection.</p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
                             {/* BANNER SETTINGS */}
@@ -880,8 +880,8 @@ export function LandingPageBuilder() {
                             </div>
 
                             {/* GRID & SIDEBAR */}
-                            <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#0f172a', marginBottom: '20px', textTransform: 'uppercase' }}>📏 LAYOUT & GRILLE</h3>
+                            <div style={{ background: 'var(--color-component-bg-100)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-component-border)' }}>
+                                <h3 style={{ fontSize: '14px', fontWeight: '900', color: 'var(--color-text-100)', marginBottom: '20px', textTransform: 'uppercase' }}>📏 LAYOUT & GRILLE</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                                     <div>
                                         <label style={{ fontSize: '11px', fontWeight: '900', color: '#64748b', display: 'block', marginBottom: '8px' }}>POSITION DE LA SIDEBAR (FILTRES)</label>
@@ -985,23 +985,23 @@ export function LandingPageBuilder() {
         };
 
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh' }}>
                 <StatusNotification />
                 <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                         <div>
-                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>📢 Gestionnaire de Modales</h2>
-                            <p style={{ color: '#64748b', marginTop: '4px' }}>Configurez plusieurs fenêtres surgissantes pour vos promotions.</p>
+                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', margin: 0 }}>📢 Gestionnaire de Modales</h2>
+                            <p style={{ color: 'var(--color-text-300)', marginTop: '4px' }}>Configurez plusieurs fenêtres surgissantes pour vos promotions.</p>
                         </div>
                         <div style={{ display: 'flex', gap: '12px' }}>
-                            <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
+                            <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', color: 'var(--color-text-100)', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
                             <button onClick={handleGeneralSave} disabled={isSaving} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>{isSaving ? 'Enregistrement...' : 'ENREGISTRER TOUT'}</button>
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                         {modals.map((m: any, idx: number) => (
-                            <div key={idx} style={{ background: '#fff', padding: '32px', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div key={idx} style={{ background: 'var(--color-component-bg-200)', padding: '32px', borderRadius: '20px', border: '1px solid var(--color-component-border)', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
                                     <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#002f6c' }}>MODALE #{idx + 1}</h3>
                                     <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -1081,11 +1081,11 @@ export function LandingPageBuilder() {
     if (view === 'EDITING_PROMO') {
         const p = promoConfig;
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
                 <StatusNotification />
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                        <button onClick={() => setView('ROADMAP')} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', color: '#64748b' }}>
+                        <button onClick={() => setView('ROADMAP')} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', color: 'var(--color-text-300)' }}>
                             ← Retour au Roadmap
                         </button>
                         <button onClick={handlePromoSave} disabled={isSaving} style={{ background: '#e31837', color: 'white', padding: '12px 32px', borderRadius: '12px', fontWeight: '900', border: 'none', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(227, 24, 55, 0.3)' }}>
@@ -1094,10 +1094,10 @@ export function LandingPageBuilder() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>⚡ Navigation & Promotion</h2>
+                        <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-100)' }}>⚡ Navigation & Promotion</h2>
                         
                         {/* QUICKLINKS TOGGLE & STYLE */}
-                        <div style={{ background: '#fff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ background: 'var(--color-component-bg-200)', padding: '24px', borderRadius: '16px', border: '1px solid var(--color-component-border)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
                                     <input type="checkbox" checked={p.showQuickLinks} onChange={(e) => setPromoConfig({ ...p, showQuickLinks: e.target.checked })} style={{ width: '20px', height: '20px' }} />
@@ -1290,14 +1290,14 @@ export function LandingPageBuilder() {
         const v = flashVersions.find(fv => fv.id === selectedVersionId) || flashVersions[0];
         
         return (
-            <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', height: '100vh', background: 'var(--color-component-bg-100)', overflow: 'hidden' }}>
                 <StatusNotification />
                 
                 {/* 1. Sidebar : Liste des Campagnes */}
-                <div style={{ width: '320px', background: '#fff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9' }}>
-                        <button onClick={() => setView('ROADMAP')} style={{ background: '#f1f5f9', border: 'none', padding: '10px 15px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'block', width: '100%', marginBottom: '20px' }}>← Retour au Dashboard</button>
-                        <h2 style={{ fontSize: '18px', fontWeight: '900', color: '#0f172a', margin: 0 }}>Ventes Flash</h2>
+                <div style={{ width: '320px', background: 'var(--color-component-bg-200)', borderRight: '1px solid var(--color-component-border)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '24px', borderBottom: '1px solid var(--color-component-border)' }}>
+                        <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-100)', border: 'none', color: 'var(--color-text-100)', padding: '10px 15px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'block', width: '100%', marginBottom: '20px' }}>← Retour au Dashboard</button>
+                        <h2 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--color-text-100)', margin: 0 }}>Ventes Flash</h2>
                         <button onClick={createNewFlashVersion} style={{ background: '#002f6c', color: '#fff', border: 'none', padding: '10px', borderRadius: '10px', width: '100%', marginTop: '16px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>+ Nouvelle Campagne</button>
                     </div>
                     
@@ -1306,10 +1306,10 @@ export function LandingPageBuilder() {
                             <div 
                                 key={fv.id} 
                                 onClick={() => setSelectedVersionId(fv.id)}
-                                style={{ padding: '16px', borderRadius: '16px', background: selectedVersionId === fv.id ? '#fef2f2' : 'transparent', border: selectedVersionId === fv.id ? '2px solid #e31837' : '1px solid transparent', cursor: 'pointer', marginBottom: '12px', transition: 'all 0.2s' }}
+                                style={{ padding: '16px', borderRadius: '16px', background: selectedVersionId === fv.id ? 'var(--color-primary-50, #fef2f2)' : 'transparent', border: selectedVersionId === fv.id ? '2px solid #e31837' : '1px solid transparent', cursor: 'pointer', marginBottom: '12px', transition: 'all 0.2s' }}
                             >
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: '800', fontSize: '14px', color: selectedVersionId === fv.id ? '#e31837' : '#0f172a' }}>{fv.name}</span>
+                                    <span style={{ fontWeight: '800', fontSize: '14px', color: selectedVersionId === fv.id ? '#e31837' : 'var(--color-text-100)' }}>{fv.name}</span>
                                     {fv.isActive && <span style={{ background: '#059669', color: '#fff', padding: '2px 6px', borderRadius: '6px', fontSize: '9px', fontWeight: '900' }}>ACTIF</span>}
                                 </div>
                                 <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>{fv.manualProductIds?.length || 0} produits • {fv.selectionType}</div>
@@ -1330,8 +1330,8 @@ export function LandingPageBuilder() {
                         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                                 <div>
-                                    <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>Éditer : {v.name}</h1>
-                                    <p style={{ color: '#64748b', marginTop: '4px' }}>Personnalisez l'apparence et le contenu de cette vente flash.</p>
+                                    <h1 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', margin: 0 }}>Éditer : {v.name}</h1>
+                                    <p style={{ color: 'var(--color-text-300)', marginTop: '4px' }}>Personnalisez l'apparence et le contenu de cette vente flash.</p>
                                 </div>
                                 <div style={{ display: 'flex', gap: '12px' }}>
                                     <button 
@@ -1361,7 +1361,7 @@ export function LandingPageBuilder() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '40px' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
                                     {/* Informations de Base */}
-                                    <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+                                    <div style={{ background: 'var(--color-component-bg-200)', padding: '32px', borderRadius: '24px', border: '1px solid var(--color-component-border)', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                                             <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#002f6c', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>📢 Textes & Timing</h3>
                                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -1536,8 +1536,8 @@ export function LandingPageBuilder() {
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '64px', marginBottom: '20px' }}>📦</div>
-                            <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>Aucune campagne flash sélectionnée</h2>
-                            <p style={{ color: '#64748b' }}>Créez votre première vente flash pour commencer.</p>
+                            <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'var(--color-text-100)' }}>Aucune campagne flash sélectionnée</h2>
+                            <p style={{ color: 'var(--color-text-300)' }}>Créez votre première vente flash pour commencer.</p>
                         </div>
                     </div>
                 )}
@@ -1548,39 +1548,39 @@ export function LandingPageBuilder() {
     if (view === 'EDITING_BANNER') {
         const b = bannerConfig;
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh' }}>
                 <StatusNotification />
-                <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '10px', marginBottom: '32px', fontWeight: 'bold' }}>← Retour</button>
-                <div style={{ background: '#fff', padding: '48px', borderRadius: '24px', maxWidth: '800px', margin: '0 auto', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
-                    <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', marginBottom: '40px' }}>🚀 TopFlashBanner Management</h2>
+                <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', color: 'var(--color-text-100)', padding: '10px 20px', borderRadius: '10px', marginBottom: '32px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
+                <div style={{ background: 'var(--color-component-bg-200)', padding: '48px', borderRadius: '24px', maxWidth: '800px', margin: '0 auto', border: '1px solid var(--color-component-border)', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                    <h2 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', marginBottom: '40px' }}>🚀 TopFlashBanner Management</h2>
                     
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '40px', background: '#f1f5f9', padding: '6px', borderRadius: '12px', width: 'fit-content' }}>
-                         <button onClick={() => setBannerConfig({ ...b, type: 'image' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'image' ? '#fff' : 'transparent', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'image' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>🖼️ Image</button>
-                         <button onClick={() => setBannerConfig({ ...b, type: 'video' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'video' ? '#fff' : 'transparent', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'video' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>🎥 Vidéo</button>
-                         <button onClick={() => setBannerConfig({ ...b, type: 'text' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'text' ? '#fff' : 'transparent', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'text' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>✍️ Texte</button>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '40px', background: 'var(--color-component-bg-100)', padding: '6px', borderRadius: '12px', width: 'fit-content', border: '1px solid var(--color-component-border)' }}>
+                         <button onClick={() => setBannerConfig({ ...b, type: 'image' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'image' ? 'var(--color-component-bg-200)' : 'transparent', color: 'var(--color-text-100)', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'image' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>🖼️ Image</button>
+                         <button onClick={() => setBannerConfig({ ...b, type: 'video' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'video' ? 'var(--color-component-bg-200)' : 'transparent', color: 'var(--color-text-100)', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'video' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>🎥 Vidéo</button>
+                         <button onClick={() => setBannerConfig({ ...b, type: 'text' })} style={{ padding: '10px 20px', borderRadius: '10px', fontSize: '13px', border: 'none', background: b.type === 'text' ? 'var(--color-component-bg-200)' : 'transparent', color: 'var(--color-text-100)', fontWeight: '800', cursor: 'pointer', boxShadow: b.type === 'text' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}>✍️ Texte</button>
                     </div>
 
                     {b.type === 'text' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>ETIQUETTE (FLASH AD)</label>
-                                <input type="text" value={b.topText} onChange={(e) => setBannerConfig({ ...b, topText: e.target.value })} placeholder="Ex: Flash Ad" style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>ETIQUETTE (FLASH AD)</label>
+                                <input type="text" value={b.topText} onChange={(e) => setBannerConfig({ ...b, topText: e.target.value })} placeholder="Ex: Flash Ad" style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)' }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>MESSAGE PRINCIPAL</label>
-                                <textarea value={b.mainText} onChange={(e) => setBannerConfig({ ...b, mainText: e.target.value })} placeholder="Message principal..." style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', minHeight: '80px' }} />
+                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>MESSAGE PRINCIPAL</label>
+                                <textarea value={b.mainText} onChange={(e) => setBannerConfig({ ...b, mainText: e.target.value })} placeholder="Message principal..." style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)', minHeight: '80px' }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LIEN (TEXTE)</label>
-                                <input type="text" value={b.linkText} onChange={(e) => setBannerConfig({ ...b, linkText: e.target.value })} placeholder="Lien texte..." style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>LIEN (TEXTE)</label>
+                                <input type="text" value={b.linkText} onChange={(e) => setBannerConfig({ ...b, linkText: e.target.value })} placeholder="Lien texte..." style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)' }} />
                             </div>
                         </div>
                     ) : b.type === 'video' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>VIDÉO DE LA BANNIÈRE (MP4)</label>
-                                <div style={{ padding: '32px', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#f8fafc', textAlign: 'center' }}>
-                                    <input type="file" onChange={(e) => handleUpload(e, 'banner-video')} style={{ cursor: 'pointer' }} />
+                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>VIDÉO DE LA BANNIÈRE (MP4)</label>
+                                <div style={{ padding: '32px', border: '2px dashed var(--color-component-border)', borderRadius: '16px', background: 'var(--color-component-bg-100)', textAlign: 'center' }}>
+                                    <input type="file" onChange={(e) => handleUpload(e, 'banner-video')} style={{ cursor: 'pointer', color: 'var(--color-text-100)' }} />
                                     {b.videoUrl && (
                                         <div style={{ marginTop: '16px', color: '#059669', fontWeight: 'bold', fontSize: '13px' }}>
                                             ✅ Vidéo configurée : {b.videoUrl}
@@ -1589,19 +1589,19 @@ export function LandingPageBuilder() {
                                 </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LIEN DE REDIRECTION (CLIC)</label>
-                                <input type="text" value={b.targetUrl} onChange={(e) => setBannerConfig({ ...b, targetUrl: e.target.value })} placeholder="Ex: /promotions" style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>LIEN DE REDIRECTION (CLIC)</label>
+                                <input type="text" value={b.targetUrl} onChange={(e) => setBannerConfig({ ...b, targetUrl: e.target.value })} placeholder="Ex: /promotions" style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)' }} />
                             </div>
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold' }}>DESKTOP BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-desktop')} /></div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold' }}>MOBILE BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-mobile')} /></div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>DESKTOP BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-desktop')} style={{ color: 'var(--color-text-100)' }} /></div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}><label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>MOBILE BANNER</label><input type="file" onChange={(e) => handleUpload(e, 'banner-mobile')} style={{ color: 'var(--color-text-100)' }} /></div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LIEN DE REDIRECTION (CLIC)</label>
-                                <input type="text" value={b.targetUrl} onChange={(e) => setBannerConfig({ ...b, targetUrl: e.target.value })} placeholder="Ex: /promotions" style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }} />
+                                <label style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-text-100)' }}>LIEN DE REDIRECTION (CLIC)</label>
+                                <input type="text" value={b.targetUrl} onChange={(e) => setBannerConfig({ ...b, targetUrl: e.target.value })} placeholder="Ex: /promotions" style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)' }} />
                             </div>
                         </div>
                     )}
@@ -1615,37 +1615,37 @@ export function LandingPageBuilder() {
     if (view === 'PERSONALIZING_SYSTEM') {
         const gc = generalConfig || { preloader: { type: 'default' }, background: { type: 'color', value: '#ffffff' }, modal: { enabled: false, type: 'image', value: '', link: '', delay: 5 } };
         return (
-            <div style={{ padding: '40px', background: '#f8fafc', minHeight: '100vh' }}>
+            <div style={{ padding: '40px', background: 'var(--color-component-bg-100)', minHeight: '100vh' }}>
                 <StatusNotification />
-                <button onClick={() => setView('ROADMAP')} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '10px 20px', borderRadius: '10px', marginBottom: '32px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
-                <div style={{ background: '#fff', padding: '48px', borderRadius: '24px', maxWidth: '800px', margin: '0 auto', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                <button onClick={() => setView('ROADMAP')} style={{ background: 'var(--color-component-bg-200)', border: '1px solid var(--color-component-border)', color: 'var(--color-text-100)', padding: '10px 20px', borderRadius: '10px', marginBottom: '32px', fontWeight: 'bold', cursor: 'pointer' }}>← Retour</button>
+                <div style={{ background: 'var(--color-component-bg-200)', padding: '48px', borderRadius: '24px', maxWidth: '800px', margin: '0 auto', border: '1px solid var(--color-component-border)', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                         <div>
-                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>⚙️ Branding & Système</h2>
-                            <p style={{ color: '#64748b', marginTop: '4px' }}>Logo, Préchargeur, Arrière-plan et Modales.</p>
+                            <h2 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', margin: 0 }}>⚙️ Branding & Système</h2>
+                            <p style={{ color: 'var(--color-text-300)', marginTop: '4px' }}>Logo, Préchargeur, Arrière-plan et Modales.</p>
                         </div>
                         <button onClick={handleGeneralSave} disabled={isSaving} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer' }}>{isSaving ? 'Enregistrement...' : 'ENREGISTRER'}</button>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
                         {/* LOGO */}
-                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '32px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Logo de la boutique</label>
+                        <div style={{ borderBottom: '1px solid var(--color-component-border)', paddingBottom: '32px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: 'var(--color-text-100)', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Logo de la boutique</label>
                             <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                                <div style={{ width: '120px', height: '120px', border: '2px dashed #e2e8f0', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#f8fafc' }}>
+                                <div style={{ width: '120px', height: '120px', border: '2px dashed var(--color-component-border)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'var(--color-component-bg-100)' }}>
                                     {gc.logoUrl ? <img src={getBackendBaseUrl() + gc.logoUrl} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '24px' }}>🖼️</span>}
                                 </div>
-                                <input type="file" onChange={(e) => handleUpload(e, 'system-logo')} style={{ fontSize: '13px' }} />
+                                <input type="file" onChange={(e) => handleUpload(e, 'system-logo')} style={{ fontSize: '13px', color: 'var(--color-text-100)' }} />
                             </div>
                         </div>
 
                         {/* PRELOADER */}
-                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '32px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Préchargeur (Preloader)</label>
+                        <div style={{ borderBottom: '1px solid var(--color-component-border)', paddingBottom: '32px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: 'var(--color-text-100)', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Préchargeur (Preloader)</label>
                             <select 
                                 value={gc.preloader.type} 
                                 onChange={(e) => setGeneralConfig({ ...gc, preloader: { ...gc.preloader, type: e.target.value as any } })}
-                                style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 'bold', marginBottom: '16px' }}
+                                style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)', fontWeight: 'bold', marginBottom: '16px' }}
                             >
                                 <option value="default">✨ Animation AHIZAN (Par défaut)</option>
                                 <option value="image">🖼️ Image / GIF personnalisé</option>
@@ -1653,20 +1653,20 @@ export function LandingPageBuilder() {
                                 <option value="none">🚫 Aucun preloader</option>
                             </select>
                             {(gc.preloader.type === 'image' || gc.preloader.type === 'video') && (
-                                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                    <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>MÉDIA DU PRÉCHARGEUR</label>
-                                    <input type="file" onChange={(e) => handleUpload(e, 'system-preloader')} style={{ fontSize: '13px' }} />
+                                <div style={{ background: 'var(--color-component-bg-100)', padding: '20px', borderRadius: '12px', border: '1px solid var(--color-component-border)' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: 'var(--color-text-100)' }}>MÉDIA DU PRÉCHARGEUR</label>
+                                    <input type="file" onChange={(e) => handleUpload(e, 'system-preloader')} style={{ fontSize: '13px', color: 'var(--color-text-100)' }} />
                                     {gc.preloader.url && <div style={{ marginTop: '8px', fontSize: '11px', color: '#059669' }}>✅ Fichier prêt: {gc.preloader.url}</div>}
                                 </div>
                             )}
                         </div>
 
                         {/* BACKGROUND */}
-                        <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '32px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: '900', color: '#002f6c', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Arrière-plan global (Background)</label>
+                        <div style={{ borderBottom: '1px solid var(--color-component-border)', paddingBottom: '32px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '900', color: 'var(--color-text-100)', display: 'block', marginBottom: '16px', textTransform: 'uppercase' }}>Arrière-plan global (Background)</label>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
                                 <div>
-                                    <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>TYPE D'ARRIÈRE-PLAN</label>
+                                    <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: 'var(--color-text-100)' }}>TYPE D'ARRIÈRE-PLAN</label>
                                     <select 
                                         value={gc.background.type} 
                                         onChange={(e) => {
@@ -1676,7 +1676,7 @@ export function LandingPageBuilder() {
                                             if ((newType === 'image' || newType === 'video') && newValue.startsWith('#')) newValue = '';
                                             setGeneralConfig({ ...gc, background: { ...gc.background, type: newType, value: newValue } });
                                         }}
-                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}
+                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--color-component-border)', background: 'var(--color-component-bg-100)', color: 'var(--color-text-100)' }}
                                     >
                                         <option value="color">🎨 Couleur unie</option>
                                         <option value="image">🖼️ Image (Fixe/Parallaxe)</option>
@@ -1685,14 +1685,14 @@ export function LandingPageBuilder() {
                                 </div>
                                 {gc.background.type === 'color' ? (
                                     <div>
-                                        <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>COULEUR</label>
+                                        <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: 'var(--color-text-100)' }}>COULEUR</label>
                                         <input type="color" value={gc.background.value} onChange={(e) => setGeneralConfig({ ...gc, background: { ...gc.background, value: e.target.value } })} style={{ width: '100%', height: '42px', border: 'none', borderRadius: '8px', cursor: 'pointer' }} />
                                     </div>
                                 ) : (
                                     <div>
-                                        <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>MÉDIA D'ARRIÈRE-PLAN</label>
-                                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
-                                            <input type="file" onChange={(e) => handleUpload(e, 'system-bg')} style={{ fontSize: '13px' }} />
+                                        <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: 'var(--color-text-100)' }}>MÉDIA D'ARRIÈRE-PLAN</label>
+                                        <div style={{ padding: '16px', background: 'var(--color-component-bg-100)', borderRadius: '12px', border: '1px dashed var(--color-component-border)', textAlign: 'center' }}>
+                                            <input type="file" onChange={(e) => handleUpload(e, 'system-bg')} style={{ fontSize: '13px', color: 'var(--color-text-100)' }} />
                                             {gc.background.value && gc.background.value.startsWith('/assets') && (
                                                 <div style={{ marginTop: '12px', fontSize: '11px', color: '#059669', fontWeight: 'bold' }}>✅ Fichier prêt</div>
                                             )}
@@ -1704,10 +1704,10 @@ export function LandingPageBuilder() {
 
                         {/* MODAL POPUP (HOME PAGE) */}
                         <div style={{ paddingTop: '20px' }}>
-                            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '32px', borderRadius: '16px', textAlign: 'center' }}>
+                            <div style={{ background: 'var(--color-primary-50, #fef2f2)', border: '1px solid var(--color-primary-100, #fecaca)', padding: '32px', borderRadius: '16px', textAlign: 'center' }}>
                                 <div style={{ fontSize: '32px', marginBottom: '16px' }}>📢</div>
-                                <h3 style={{ fontSize: '18px', fontWeight: '900', color: '#991b1b', margin: 0 }}>Gestion des Modales</h3>
-                                <p style={{ color: '#b91c1c', fontSize: '14px', marginTop: '4px', marginBottom: '24px' }}>Le système de modales a été amélioré ! Vous pouvez désormais gérer plusieurs modales avec des réglages avancés.</p>
+                                <h3 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--color-primary-800, #991b1b)', margin: 0 }}>Gestion des Modales</h3>
+                                <p style={{ color: 'var(--color-primary-700, #b91c1c)', fontSize: '14px', marginTop: '4px', marginBottom: '24px' }}>Le système de modales a été amélioré ! Vous pouvez désormais gérer plusieurs modales avec des réglages avancés.</p>
                                 <button onClick={() => setView('EDITING_MODALS')} style={{ background: '#e31837', color: '#fff', padding: '12px 24px', borderRadius: '12px', border: 'none', fontWeight: '900', cursor: 'pointer', boxShadow: '0 4px 6px rgba(227, 24, 55, 0.2)' }}>ACCÉDER AU GESTIONNAIRE DE MODALES</button>
                             </div>
                         </div>
@@ -1776,28 +1776,28 @@ export function LandingPageBuilder() {
     ];
 
     return (
-        <div className="max-w-[1600px] mx-auto w-full px-4 md:px-[2%] xl:px-[4%] pt-8" style={{ background: '#f8fafc', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+        <div className="max-w-[1600px] mx-auto w-full px-4 md:px-[2%] xl:px-[4%] pt-8" style={{ background: 'var(--color-component-bg-100)', minHeight: '100vh', color: 'var(--color-text-100)', fontFamily: 'Inter, sans-serif' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                 <div>
-                    <h1 style={{ fontSize: '28px', fontWeight: '900', color: '#0f172a', margin: 0 }}>🗺️ ROADMAP DU PAGE BUILDER</h1>
-                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '14px' }}>Configurez chaque pixel de votre boutique Ahizan</p>
+                    <h1 style={{ fontSize: '28px', fontWeight: '900', color: 'var(--color-text-100)', margin: 0 }}>🗺️ ROADMAP DU PAGE BUILDER</h1>
+                    <p style={{ margin: '4px 0 0 0', color: 'var(--color-text-300)', fontSize: '14px' }}>Configurez chaque pixel de votre boutique Ahizan</p>
                 </div>
                 <div style={{ background: '#002f6c', color: '#fff', padding: '10px 20px', borderRadius: '12px', fontSize: '13px', fontWeight: '900' }}>AHIZAN BUILDER V2.0</div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '1000px' }}>
                 {groups.map((group, idx) => (
-                    <div key={idx} style={{ background: '#fff', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-                        <div style={{ padding: '24px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
-                            <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>{group.title}</h2>
-                            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>{group.description}</p>
+                    <div key={idx} style={{ background: 'var(--color-component-bg-200)', borderRadius: '24px', border: '1px solid var(--color-component-border)', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+                        <div style={{ padding: '24px', background: 'var(--color-component-bg-300)', borderBottom: '1px solid var(--color-component-border)' }}>
+                            <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, color: 'var(--color-text-100)' }}>{group.title}</h2>
+                            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--color-text-300)' }}>{group.description}</p>
                         </div>
                         <div style={{ padding: '0 24px' }}>
                             {group.sections.map((s, sIdx) => (
-                                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: sIdx === group.sections.length - 1 ? 'none' : '1px solid #f8fafc' }}>
+                                <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 0', borderBottom: sIdx === group.sections.length - 1 ? 'none' : '1px solid var(--color-component-border)' }}>
                                     <div>
-                                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>{s.title}</h3>
-                                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>{s.desc}</p>
+                                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: 'var(--color-text-100)' }}>{s.title}</h3>
+                                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--color-text-300)' }}>{s.desc}</p>
                                     </div>
                                     <button onClick={() => { 
                                         if (s.id === 'top-flash-banner') setView('EDITING_BANNER'); 
@@ -1816,7 +1816,7 @@ export function LandingPageBuilder() {
                 ))}
             </div>
             
-            <footer style={{ marginTop: '60px', padding: '24px 0', borderTop: '1px solid #e2e8f0', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+            <footer style={{ marginTop: '60px', padding: '24px 0', borderTop: '1px solid var(--color-component-border)', textAlign: 'center', color: 'var(--color-text-300)', fontSize: '12px' }}>
                 Système de Configuration Ahizan — Mode Superadmin
             </footer>
         </div>

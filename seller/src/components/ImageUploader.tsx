@@ -1,27 +1,27 @@
 'use client';
 
+import React from 'react';
 import { useState } from 'react';
 import { uploadFileAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
+import { Upload, X, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// Assuming we have a mutation to upload files. 
-// Standard Vendure upload is via multipart/form-data to /shop-api but helper mutations might exist or we use fetch.
-// Usually in Vendure: 
-// mutation($file: Upload!) { uploadFile(file: $file) { id preview source } } - Admin API
-// For Shop API, Multivendor plugin might need to expose something or we use standard flow.
-// Let's assume we need to add `uploadFile` permissions or use a specific mutation.
-// Current `api-extensions` didn't explicitly add upload.
-// Vendor should likely use standard `uploadFile` but it might be restricted to Admin.
-// Multivendor usually allows vendors to upload assets. 
-// Let's check permissions or use a simple fetch wrapper if needed.
-// For now, I'll implement assuming standard `createProduct`'s `assetIds` input works, 
-// but we need the upload logic.
-// I'll create a simple file input that calls a customized upload function.
+interface ImageUploaderProps {
+    onImageUploaded: (assetId: string) => void;
+    onUploadingChange?: (isUploading: boolean) => void;
+}
 
-// Note: If standard uploadFile is not exposed to Shop API, we might need to enable it or use a custom one.
-// Let's proceed with a standard implementation and we can debug if it fails.
+interface AssetResponse {
+    id: string;
+    preview: string;
+    source: string;
+}
 
-export default function ImageUploader({ onImageUploaded }: { onImageUploaded: (assetId: string) => void }) {
+export default function ImageUploader({ 
+    onImageUploaded, 
+    onUploadingChange 
+}: ImageUploaderProps) {
     const [uploading, setUploading] = useState(false);
     const [preview, setPreview] = useState<string | null>(null);
 
@@ -30,6 +30,7 @@ export default function ImageUploader({ onImageUploaded }: { onImageUploaded: (a
         if (!file) return;
 
         setUploading(true);
+        if (onUploadingChange) onUploadingChange(true);
 
         try {
             const formData = new FormData();
@@ -38,52 +39,66 @@ export default function ImageUploader({ onImageUploaded }: { onImageUploaded: (a
             const result = await uploadFileAction(formData);
 
             if (result.success && result.asset) {
-                setPreview(result.asset.preview);
-                onImageUploaded(result.asset.id);
-                toast.success('Image téléchargée avec succès');
+                const asset = result.asset as AssetResponse;
+                setPreview(asset.preview);
+                onImageUploaded(asset.id);
+                toast.success('Image téléchargée');
             } else {
-                console.error('Upload failed', result.error);
-                toast.error('Erreur lors du téléchargement: ' + result.error);
+                toast.error('Erreur: ' + (result as any).error);
             }
         } catch (err) {
-            console.error('Upload error', err);
             toast.error('Erreur inattendue');
         } finally {
             setUploading(false);
+            if (onUploadingChange) onUploadingChange(false);
         }
     };
 
     return (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <div className="w-full">
             {preview ? (
-                <div className="relative inline-block">
-                    <img src={preview} alt="Uploaded" className="h-32 w-32 object-cover rounded" />
+                <div className="relative aspect-square w-full rounded-xl overflow-hidden border border-border group bg-muted/20">
+                    <img src={preview} alt="Uploaded" className="h-full w-full object-cover transition-transform group-hover:scale-110" />
                     <button
                         type="button"
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center p-1"
+                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => { setPreview(null); }}
                     >
-                        ×
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
             ) : (
-                <div className="space-y-2">
-                    <div className="text-gray-500">
-                        {uploading ? 'Envoi en cours...' : 'Glissez une image ou cliquez pour sélectionner'}
-                    </div>
+                <label className={cn(
+                    "flex flex-col items-center justify-center aspect-square w-full rounded-xl border-2 border-dashed transition-all cursor-pointer",
+                    uploading 
+                        ? "border-brand-navy bg-brand-navy/5" 
+                        : "border-muted-foreground/20 hover:border-brand-navy/40 hover:bg-muted/5"
+                )}>
                     <input
                         type="file"
                         accept="image/*"
                         onChange={handleFileChange}
-                        className="block w-full text-sm text-gray-500
-                            file:mr-4 file:py-2 file:px-4
-                            file:rounded-full file:border-0
-                            file:text-sm file:font-semibold
-                            file:bg-violet-50 file:text-violet-700
-                            hover:file:bg-violet-100"
+                        className="hidden"
                         disabled={uploading}
                     />
-                </div>
+                    
+                    {uploading ? (
+                        <div className="flex flex-col items-center gap-3">
+                            <Loader2 className="w-8 h-8 text-brand-navy animate-spin" />
+                            <p className="text-[10px] font-bold text-brand-navy uppercase tracking-widest">Envoi en cours...</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-3 px-6 text-center">
+                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                                <Upload className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <p className="text-[11px] font-bold uppercase tracking-widest">Ajouter une photo</p>
+                                <p className="text-[9px] text-muted-foreground mt-1 font-medium">PNG ou JPG (max. 10MB)</p>
+                            </div>
+                        </div>
+                    )}
+                </label>
             )}
         </div>
     );

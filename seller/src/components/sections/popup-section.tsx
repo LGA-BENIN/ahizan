@@ -99,7 +99,7 @@ export function PopupSection({
 
                         {ctaText && ctaLink && (
                             <div className="mt-8">
-                                <Button asChild className="w-full bg-orange-600 hover:bg-orange-700" size="lg" onClick={handleClose}>
+                                <Button asChild className="w-full rounded-full font-bold uppercase tracking-widest text-xs py-6 shadow-xl" size="lg" onClick={handleClose}>
                                     <Link href={ctaLink}>{ctaText}</Link>
                                 </Button>
                             </div>

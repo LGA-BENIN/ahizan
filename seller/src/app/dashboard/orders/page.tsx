@@ -4,8 +4,22 @@ import { getAuthToken } from '@/lib/auth';
 import { formatPrice } from '@/lib/format';
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { OrderFilters } from '@/components/dashboard/order-filters';
-import { OrderRowActions } from '@/components/dashboard/order-row-actions';
+import OrderFilters from '@/components/dashboard/order-filters';
+import OrderRowActions from '@/components/dashboard/order-row-actions';
+import { ShoppingBag } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const getSellerStatusBadge = (status?: string) => {
+    const s = status || 'pending';
+    switch (s) {
+        case 'confirmed': 
+            return <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900/30 uppercase tracking-wider">Confirmée</span>;
+        case 'refused': 
+            return <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30 uppercase tracking-wider">Refusée</span>;
+        default: 
+            return <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/30 uppercase tracking-wider">En attente</span>;
+    }
+};
 
 export default async function VendorOrdersPage({ searchParams }: { searchParams?: Promise<{ state?: string; sort?: string }> }) {
     const token = await getAuthToken();
@@ -25,114 +39,78 @@ export default async function VendorOrdersPage({ searchParams }: { searchParams?
     }, { token });
     const orders = (data as any).myVendorOrders?.items || [];
 
-    const getStatusColor = (state: string) => {
-        switch (state) {
-            case 'PaymentSettled': return 'bg-green-100 text-green-800';
-            case 'Shipped': return 'bg-blue-100 text-blue-800';
-            case 'Delivered': return 'bg-purple-100 text-purple-800';
-            case 'Cancelled': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const getStatusLabel = (state: string) => {
-        switch (state) {
-            case 'PaymentSettled': return 'Payé';
-            case 'PaymentAuthorized': return 'Autorisé';
-            case 'Shipped': return 'Expédié';
-            case 'Delivered': return 'Livré';
-            case 'Cancelled': return 'Annulé';
-            case 'AddingItems': return 'En cours';
-            case 'ArrangingPayment': return 'Paiement en attente';
-            default: return state;
-        }
-    };
-
-    const getSellerStatusBadge = (status?: string) => {
-        const s = status || 'pending';
-        switch (s) {
-            case 'confirmed': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Confirmée</span>;
-            case 'refused': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Refusée</span>;
-            default: return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">En attente</span>;
-        }
-    };
-
-    const getAdminStatusBadge = (status?: string) => {
-        const s = status || 'pending';
-        switch (s) {
-            case 'shipped': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">Expédiée</span>;
-            case 'in_transit': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">En transit</span>;
-            case 'delivered': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Livrée</span>;
-            case 'cancelled': return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Annulée</span>;
-            default: return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">En attente</span>;
-        }
-    };
-
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">Mes Commandes</h1>
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h1 className="text-2xl md:text-3xl font-serif font-bold tracking-tight">Mes Commandes</h1>
             </div>
-
-            <Suspense fallback={null}>
+            
+            <Suspense fallback={<div className="h-20 bg-card animate-pulse rounded-2xl border" />}>
                 <OrderFilters />
             </Suspense>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut Vendeur</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut Livraison</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {orders.map((order: any) => (
-                            <tr key={order.id}>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-gray-900">{order.code}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-500">
-                                        {new Date(order.updatedAt).toLocaleDateString()}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-900">
-                                        {order.customer?.firstName} {order.customer?.lastName}
-                                    </div>
-                                    <div className="text-sm text-gray-500">{order.customer?.emailAddress}</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-900">
-                                        {formatPrice(order.totalWithTax, order.currencyCode)}
-                                    </div>
-                                    <div className="text-xs text-gray-500">{order.lines.length} article(s)</div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    {getSellerStatusBadge(order.customFields?.sellerStatus)}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    {getAdminStatusBadge(order.customFields?.adminStatus)}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <OrderRowActions 
-                                        orderId={order.id} 
-                                        sellerStatus={order.customFields?.sellerStatus} 
-                                    />
-                                </td>
+            <div className="bg-card rounded-2xl md:rounded-[2rem] border border-border overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-border">
+                        <thead>
+                            <tr className="bg-muted/30">
+                                <th className="px-6 py-4 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Commande</th>
+                                <th className="px-6 py-4 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Client</th>
+                                <th className="px-6 py-4 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Total</th>
+                                <th className="px-6 py-4 text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-4 text-right text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-border bg-card">
+                            {orders.map((order: any) => (
+                                <tr key={order.id} className="group hover:bg-muted/30 transition-colors">
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{order.code}</span>
+                                            <span className="text-[10px] text-muted-foreground">
+                                                {new Date(order.updatedAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-foreground">
+                                                {order.customer?.firstName} {order.customer?.lastName}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground">{order.customer?.emailAddress}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex flex-col text-sm">
+                                            <span className="font-bold text-brand-navy">
+                                                {formatPrice(order.totalWithTax, order.currencyCode)}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground">{order.lines.length} article(s)</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        {getSellerStatusBadge(order.customFields?.sellerStatus)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                        <OrderRowActions 
+                                            orderId={order.id} 
+                                            sellerStatus={order.customFields?.sellerStatus} 
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
                 {orders.length === 0 && (
-                    <div className="p-10 text-center text-gray-500">
-                        Vous n&apos;avez pas encore de commandes.
+                    <div className="flex flex-col items-center justify-center p-20 text-center space-y-4">
+                        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+                            <ShoppingBag className="w-8 h-8 text-muted-foreground" />
+                        </div>
+                        <div className="space-y-1">
+                            <p className="font-bold text-lg text-foreground">Aucune commande</p>
+                            <p className="text-sm text-muted-foreground">Vous n'avez pas encore reçu de commandes.</p>
+                        </div>
                     </div>
                 )}
             </div>

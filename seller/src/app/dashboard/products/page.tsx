@@ -2,102 +2,57 @@ import { query } from '@/lib/vendure/api';
 import { GetMyVendorProductsQuery } from '@/lib/vendure/vendor-product-mutations';
 import { GetFacetsQuery } from '@/lib/vendure/queries';
 import { getAuthToken } from '@/lib/auth';
+import { Package, Plus } from 'lucide-react';
 import Link from 'next/link';
-import CreateProductModal from '@/components/dashboard/products/create-modal';
-import DeleteProductDialog from '@/components/dashboard/products/delete-dialog';
+import { Button } from '@/components/ui/button';
+import ProductListTable from '@/components/dashboard/products/product-list-table';
 
 export default async function ProductListPage() {
     const token = await getAuthToken();
 
     const [{ data: productData }, { data: facetsData }] = await Promise.all([
-        query(GetMyVendorProductsQuery, { options: { take: 50 } }, { token }),
+        query(GetMyVendorProductsQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { token }),
         query(GetFacetsQuery, { options: { filter: { name: { eq: "Category" } } } }, { token })
     ]);
 
     const products = (productData as any).myVendorProducts?.items || [];
     const facets = (facetsData as any).facets;
-    const categoryFacetId = facets?.items[0]?.id;
 
-    // Note: Currency code usually comes from ActiveChannel or Product Variant. 
-    // GetMyVendorProducts returns variants. 
-    // We can pick first variant price or range.
+    if (products.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[600px] text-center space-y-8 animate-in fade-in zoom-in duration-700">
+                <div className="w-32 h-32 bg-muted/50 rounded-full flex items-center justify-center shadow-inner relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-brand-navy/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <Package className="w-14 h-14 text-muted-foreground group-hover:text-brand-navy transition-colors duration-500" />
+                </div>
+                <div className="space-y-4 px-4">
+                    <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight leading-tight">Créez votre premier produit</h2>
+                    <p className="text-sm md:text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
+                        Prêt à partager votre expertise ? Mettez vos articles en vente et commencez à générer des revenus sur AHIZAN.
+                    </p>
+                </div>
+                <div className="flex items-center gap-4 pt-4">
+                     <Link href="/dashboard/products/new">
+                        <Button className="h-12 px-10 rounded-xl bg-brand-navy hover:bg-brand-navy/90 text-white font-bold shadow-lg shadow-brand-navy/20 flex items-center gap-2 uppercase text-xs tracking-widest">
+                            <Plus className="w-4 h-4" />
+                            Ajouter mon premier produit
+                        </Button>
+                     </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">Mes Produits</h1>
-                <div className="flex gap-2">
-                    <CreateProductModal facets={facets} />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                <div>
+                    <h1 className="text-2xl md:text-4xl font-serif font-black tracking-tight italic underline decoration-brand-red decoration-4">Mes Produits</h1>
+                    <p className="text-xs md:text-sm text-muted-foreground font-bold uppercase tracking-widest mt-1">Gestion du catalogue d'articles</p>
                 </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Catégorie</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prix</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {products.map((product: any) => {
-                            const variant = product.variants[0];
-                            // Try to find a facet value that belongs to the 'Category' facet (this logic might need adjustment depending on how you identify category facets vs others)
-                            // Ideally we would check the facet code. For now, we take any facet value.
-                            // Or better: filter by checking if the facetValue ID is in the category facet values list if we had it fully loaded.
-                            // Simply taking the first facetValue for now or checking name.
-                            const category = product.facetValues?.find((fv: any) => fv.facet?.name === 'Category' || true)?.name || '-';
-
-                            return (
-                                <tr key={product.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {product.featuredAsset ? (
-                                            <img src={product.featuredAsset.preview} alt={product.name} className="h-10 w-10 rounded object-cover" />
-                                        ) : (
-                                            <div className="h-10 w-10 bg-gray-200 rounded flex items-center justify-center text-gray-400">?</div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                                        <div className="text-sm text-gray-500">{product.slug}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-500">{category}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">
-                                            {variant ? `${variant.price} CFA` : '-'}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${variant?.stockLevel === 'IN_STOCK' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                            }`}>
-                                            {variant?.stockLevel === 'IN_STOCK' ? 'En Stock' : (variant?.stockLevel === 'OUT_OF_STOCK' ? 'Épuisé' : variant?.stockLevel)}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        <div className="flex items-center gap-4">
-                                            <Link href={`/dashboard/products/${product.id}`} className="text-indigo-600 hover:text-indigo-900">
-                                                Modifier
-                                            </Link>
-                                            <DeleteProductDialog productId={product.id} productName={product.name} />
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-                {products.length === 0 && (
-                    <div className="p-6 text-center text-gray-500">
-                        Aucun produit trouvé. Commencez par en ajouter un !
-                    </div>
-                )}
-            </div>
+            <ProductListTable initialProducts={products} facets={facets} />
         </div>
     );
 }

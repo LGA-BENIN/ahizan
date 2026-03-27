@@ -36,6 +36,11 @@ const basicSchema = z.object({
     zone: z.string().min(2, "Zone is required"),
     type: z.enum(['INDIVIDUAL', 'ONLINE', 'SHOP', 'ENTERPRISE']),
     sex: z.enum(['M', 'F', 'O']).optional(),
+    // Make enterprise fields optional in base for type compatibility
+    rccm: z.string().optional(),
+    ifu: z.string().optional(),
+    raisonSociale: z.string().optional(),
+    siegeAddress: z.string().optional(),
 });
 
 const enterpriseSchema = basicSchema.extend({
@@ -43,7 +48,6 @@ const enterpriseSchema = basicSchema.extend({
     ifu: z.string().min(1, "IFU is required"),
     raisonSociale: z.string().min(1, "Raison Sociale is required"),
     siegeAddress: z.string().min(1, "Siege Address is required"),
-    // carteCip is handled as a file separately
 });
 
 type FormData = z.infer<typeof enterpriseSchema>;
@@ -54,7 +58,7 @@ export function OnboardingForm() {
     const [isPending, setIsPending] = useState(false);
 
     const form = useForm<FormData>({
-        resolver: zodResolver(vendorType === 'ENTERPRISE' ? enterpriseSchema : basicSchema),
+        resolver: zodResolver(vendorType === 'ENTERPRISE' ? enterpriseSchema : basicSchema) as any,
         defaultValues: {
             name: '',
             description: '',
@@ -94,7 +98,7 @@ export function OnboardingForm() {
         <Card>
             <CardContent className="pt-6">
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
 
                         <div className="space-y-4">
                             <h2 className="text-xl font-semibold">Basic Information</h2>
@@ -225,12 +229,14 @@ export function OnboardingForm() {
 
                                 <div className="space-y-2">
                                     <FormLabel>Carte CIP (Upload)</FormLabel>
-                                    <div className="border border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors cursor-pointer">
-                                        <Upload className="h-8 w-8 mb-2" />
-                                        <span className="text-sm">Click to upload file</span>
+                                    <div className="border-2 border-dashed border-muted rounded-xl p-8 flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/30 transition-all cursor-pointer group">
+                                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                            <Upload className="h-6 w-6" />
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-widest text-center">Cliquez pour ajouter la Carte CIP</span>
                                         <Input type="file" className="hidden" />
                                     </div>
-                                    <p className="text-xs text-muted-foreground">Upload the official Carte CIP document.</p>
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-2">Format accepté : PDF, JPG, PNG (Max 5Mo)</p>
                                 </div>
                             </div>
                         )}

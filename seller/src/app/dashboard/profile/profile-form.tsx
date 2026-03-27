@@ -42,7 +42,7 @@ interface ProfileFormProps {
 }
 
 export function ProfileForm({ profile, fields }: ProfileFormProps) {
-    const [state, formAction, isPending] = useActionState(updateProfileAction, initialState);
+    const [state, formAction, isPending] = useActionState(updateProfileAction, initialState as any);
 
     // Helper to get pre-filled value from profile or dynamicDetails
     const getPrefilledValue = (fieldName: string): string => {
@@ -61,14 +61,14 @@ export function ProfileForm({ profile, fields }: ProfileFormProps) {
     );
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border p-8">
+        <div className="bg-card rounded-xl shadow-sm border p-4 sm:p-8">
             <div className="flex items-center gap-3 mb-6">
-                <div className="bg-orange-100 p-2 rounded-full">
-                    <Save className="w-5 h-5 text-orange-600" />
+                <div className="bg-primary/10 p-2 rounded-full">
+                    <Save className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-bold text-gray-900">Informations de la boutique</h2>
-                    <p className="text-sm text-gray-500">Modifiez vos informations et enregistrez.</p>
+                    <h2 className="text-xl font-bold text-foreground">Informations de la boutique</h2>
+                    <p className="text-sm text-muted-foreground">Modifiez vos informations et enregistrez.</p>
                 </div>
             </div>
 
@@ -174,19 +174,19 @@ export function ProfileForm({ profile, fields }: ProfileFormProps) {
                     ))}
 
                     {state?.error && (
-                        <div className="text-red-600 text-sm font-medium bg-red-50 p-3 rounded-lg">
+                        <div className="text-destructive text-sm font-medium bg-destructive/10 p-3 rounded-lg border border-destructive/20">
                             {state.error}
                         </div>
                     )}
                     {state?.success && (
-                        <div className="text-green-600 text-sm font-medium bg-green-50 p-3 rounded-lg">
+                        <div className="text-primary text-sm font-medium bg-primary/10 p-3 rounded-lg border border-primary/20">
                             Profil mis à jour avec succès !
                         </div>
                     )}
 
                     <Button
                         type="submit"
-                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                        className="w-full"
                         disabled={isPending}
                     >
                         {isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}

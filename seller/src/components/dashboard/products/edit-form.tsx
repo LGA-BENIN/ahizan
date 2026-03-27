@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation';
 import ImageUploader from '@/components/ImageUploader';
 import { updateProductAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Package, ImageIcon, Ruler, Save, X, Trash2, Info } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface EditProductFormProps {
     product: any;
@@ -24,6 +31,7 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
     });
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const categoryFacet = facets?.items?.find((f: any) => 
         f.code === 'category' || 
@@ -34,6 +42,7 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSubmitting(true);
         try {
             const data = new FormData();
             data.append('id', product.id);
@@ -58,113 +67,148 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
         } catch (err) {
             console.error('Error updating product:', err);
             toast.error('Erreur inattendue');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    const handleImageUploaded = (id: string, preview: string) => {
-        // We might need to fetch preview if not returned by uploader, 
-        // but uploader refactor didn't return preview to callback?
-        // Let's check ImageUploader signature.
-        // onImageUploaded: (assetId: string) => void
-        // It doesn't pass preview.
-        setAssetIds([...assetIds, id]);
-        // For preview, we can reload or just show a generic placeholder or fetch it.
-        // But wait, ImageUploader manages its own preview state. 
-        // Here we show EXISTING images.
-        toast.success('Image ajoutée (sauvegarder pour confirmer)');
+    const removeAsset = (assetId: string) => {
+        setAssetIds(assetIds.filter(id => id !== assetId));
+        setPreviewImages(previewImages.filter((a: any) => a.id !== assetId));
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
-            <div>
-                <label className="block text-sm font-medium text-gray-700">Nom du produit</label>
-                <input
-                    type="text"
-                    required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* Left Column: Basic Info */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-2 text-primary font-bold text-lg mb-2">
+                        <Package className="w-5 h-5" />
+                        <h2>Informations générales</h2>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Nom du produit <span className="text-destructive">*</span></Label>
+                        <Input
+                            id="name"
+                            required
+                            className="h-12 rounded-xl focus-visible:ring-primary/20"
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        />
+                    </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700">Description</label>
-                <textarea
-                    required
-                    rows={3}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                    value={formData.description}
-                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                />
-            </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="category">Catégorie <span className="text-destructive">*</span></Label>
+                        <Select 
+                            value={formData.category} 
+                            onValueChange={val => setFormData({ ...formData, category: val })}
+                        >
+                            <SelectTrigger className="h-12 rounded-xl">
+                                <SelectValue placeholder="Choisir une catégorie" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                {categories.map((cat: any) => (
+                                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Prix (CFA)</label>
-                    <input
-                        type="number"
-                        required
-                        min="0"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                        value={formData.price}
-                        onChange={e => setFormData({ ...formData, price: parseInt(e.target.value) })}
-                    />
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
+                        <Textarea
+                            id="description"
+                            required
+                            rows={6}
+                            className="rounded-xl resize-none focus-visible:ring-primary/20"
+                            value={formData.description}
+                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                        />
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Stock</label>
-                    <input
-                        type="number"
-                        required
-                        min="0"
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                        value={formData.stock}
-                        onChange={e => setFormData({ ...formData, stock: parseInt(e.target.value) })}
-                    />
-                </div>
-            </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-                <select
-                    className="block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value })}
-                >
-                    <option value="">Sélectionner une catégorie</option>
-                    {categories.map((cat: any) => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                </select>
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Images existantes</label>
-                <div className="flex gap-2 mb-2 flex-wrap">
-                    {previewImages.map((asset: any) => (
-                        <div key={asset.id} className="relative">
-                            <img src={asset.preview} alt="Asset" className="h-20 w-20 object-cover rounded" />
-                            {/* Deletion logic would go here */}
+                {/* Right Column: Pricing, Inventory & Media */}
+                <div className="space-y-8">
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-2 text-primary font-bold text-lg mb-2">
+                            <Ruler className="w-5 h-5" />
+                            <h2>Prix & Inventaire</h2>
                         </div>
-                    ))}
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="price">Prix (CFA) <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="price"
+                                    type="number"
+                                    required
+                                    className="h-12 rounded-xl"
+                                    value={formData.price}
+                                    onChange={e => setFormData({ ...formData, price: parseInt(e.target.value) })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="stock">Stock</Label>
+                                <Input
+                                    id="stock"
+                                    type="number"
+                                    required
+                                    className="h-12 rounded-xl"
+                                    value={formData.stock}
+                                    onChange={e => setFormData({ ...formData, stock: parseInt(e.target.value) })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-2 text-primary font-bold text-lg mb-2">
+                            <ImageIcon className="w-5 h-5" />
+                            <h2>Galerie Photos</h2>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {previewImages.map((asset: any) => (
+                                <div key={asset.id} className="group relative aspect-square rounded-xl overflow-hidden border">
+                                    <img src={asset.preview} alt="Produit" className="w-full h-full object-cover" />
+                                    <button 
+                                        type="button"
+                                        onClick={() => removeAsset(asset.id)}
+                                        className="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="p-4 rounded-2xl md:rounded-[2rem] border-2 border-dashed border-muted bg-muted/20">
+                            <ImageUploader onImageUploaded={(id) => setAssetIds(prev => [...prev, id])} />
+                        </div>
+                    </div>
                 </div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ajouter une image</label>
-                <ImageUploader onImageUploaded={(id) => setAssetIds(prev => [...prev, id])} />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-                <button
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 md:pt-10 border-t">
+                <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => router.back()}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    className="w-full sm:w-auto h-12 px-6 rounded-xl hover:bg-muted font-bold text-muted-foreground order-2 sm:order-1"
                 >
+                    <X className="w-4 h-4 mr-2" />
                     Annuler
-                </button>
-                <button
+                </Button>
+                
+                <Button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto h-12 px-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95 order-1 sm:order-2"
                 >
-                    Enregistrer les modifications
-                </button>
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSubmitting ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                </Button>
             </div>
         </form>
     );

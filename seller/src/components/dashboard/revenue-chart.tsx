@@ -71,7 +71,7 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
                     labelStyle={{ fontWeight: 'bold' }}
                     contentStyle={{ borderRadius: 8, fontSize: 13 }}
                 />
-                <Bar dataKey="revenue" fill="#f97316" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
         </ResponsiveContainer>
     );

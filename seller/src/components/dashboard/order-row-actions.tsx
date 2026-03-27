@@ -10,7 +10,7 @@ interface OrderRowActionsProps {
     sellerStatus?: string;
 }
 
-export function OrderRowActions({ orderId, sellerStatus }: OrderRowActionsProps) {
+export default function OrderRowActions({ orderId, sellerStatus }: OrderRowActionsProps) {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 

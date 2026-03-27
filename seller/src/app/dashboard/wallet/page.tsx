@@ -2,7 +2,7 @@ import { query } from '@/lib/vendure/api';
 import { GetMyVendorProfileQuery } from '@/lib/vendure/queries';
 import { GetMyVendorOrdersQuery } from '@/lib/vendure/vendor-order-mutations';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, TrendingDown, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Wallet, TrendingDown, TrendingUp, AlertTriangle, CreditCard, History } from 'lucide-react';
 import { formatPrice } from '@/lib/format';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -36,114 +36,132 @@ export default async function WalletPage() {
     const isNegative = walletBalance < 0;
 
     return (
-        <div className="space-y-6 max-w-3xl mx-auto">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Mon Portefeuille</h1>
-                <p className="text-muted-foreground mt-1">
-                    Gérez votre solde prépayé. Votre taux de commission actuel est de <strong>{commissionRate}%</strong>.
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+            <div className="flex flex-col gap-2">
+                <h1 className="text-3xl md:text-4xl font-serif font-black tracking-tight text-foreground italic underline decoration-brand-red decoration-4">Mon Portefeuille</h1>
+                <p className="text-muted-foreground font-medium">
+                    Gestion de votre solde prépayé. Taux de commission : <span className="text-brand-navy font-black">{commissionRate}%</span>.
                 </p>
             </div>
 
             {isNegative && (
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Solde négatif</AlertTitle>
-                    <AlertDescription>
-                        Votre portefeuille est en négatif. Veuillez recharger votre compte pour éviter que vos produits soient bloqués lors du checkout.
+                <Alert variant="destructive" className="rounded-2xl border-2 border-destructive bg-destructive/10 shadow-lg animate-pulse">
+                    <AlertTriangle className="h-5 w-5" />
+                    <AlertTitle className="font-black uppercase tracking-wider text-[10px] mb-1">Alerte Critique : Solde négatif</AlertTitle>
+                    <AlertDescription className="text-xs md:text-sm font-bold">
+                        Votre portefeuille est débiteur. Rechargez immédiatement pour éviter le blocage de vos produits au checkout.
                     </AlertDescription>
                 </Alert>
             )}
 
             {!isNegative && isLowBalance && (
-                <Alert className="bg-yellow-50 border-yellow-200 text-yellow-900">
-                    <AlertTriangle className="h-4 w-4 stroke-yellow-700" />
-                    <AlertTitle>Solde faible</AlertTitle>
-                    <AlertDescription>
-                        Votre solde est faible. Pensez à recharger votre portefeuille pour éviter une interruption de service.
+                <Alert className="rounded-2xl border-2 border-amber-500/50 bg-amber-500/10 shadow-md">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    <AlertTitle className="font-black uppercase tracking-wider text-[10px] mb-1 text-amber-700 dark:text-amber-300">Attention : Solde faible</AlertTitle>
+                    <AlertDescription className="text-xs md:text-sm font-bold text-amber-800 dark:text-amber-200">
+                        Votre solde est bientôt épuisé. Anticipez la recharge pour assurer la continuité de vos ventes.
                     </AlertDescription>
                 </Alert>
             )}
 
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card className={isNegative ? 'border-red-300 bg-red-50' : ''}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card className={isNegative ? 'border-2 border-destructive bg-destructive/5 shadow-xl shadow-destructive/10 rounded-2xl md:rounded-[2rem]' : 'border border-border bg-card shadow-sm rounded-2xl md:rounded-[2rem]'}>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Solde Actuel</CardTitle>
-                        <Wallet className={`h-4 w-4 ${isNegative ? 'text-red-500' : 'text-muted-foreground'}`} />
+                        <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Solde Actuel</CardTitle>
+                        <Wallet className={`h-5 w-5 ${isNegative ? 'text-red-500' : 'text-brand-navy'}`} />
                     </CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${isNegative ? 'text-red-600' : 'text-green-600'}`}>
+                    <CardContent className="pt-4">
+                        <div className={`text-4xl font-serif font-black tracking-tighter ${isNegative ? 'text-red-600' : 'text-green-600'}`}>
                             {formatPrice(walletBalance, currencyCode)}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">Prépayé sur la plateforme</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mt-2 tracking-widest">Fonds disponibles</p>
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border border-border bg-card shadow-sm rounded-2xl md:rounded-[2rem]">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Commissions Payées</CardTitle>
-                        <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Commissions</CardTitle>
+                        <TrendingDown className="h-5 w-5 text-brand-red" />
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatPrice(totalCommissionPaid, currencyCode)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Sur les commandes livrées</p>
+                    <CardContent className="pt-4">
+                        <div className="text-3xl font-serif font-black tracking-tighter text-brand-navy">{formatPrice(totalCommissionPaid, currencyCode)}</div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mt-2 tracking-widest">Total prélevé</p>
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border border-border bg-card shadow-sm rounded-2xl md:rounded-[2rem] sm:col-span-2 lg:col-span-1">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Commandes Réglées</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">Activité</CardTitle>
+                        <TrendingUp className="h-5 w-5 text-green-500" />
                     </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{settledOrders.length}</div>
-                        <p className="text-xs text-muted-foreground mt-1">Livraisons effectuées</p>
+                    <CardContent className="pt-4">
+                        <div className="text-3xl font-serif font-black tracking-tighter text-foreground">{settledOrders.length}</div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase mt-2 tracking-widest">Ventes finalisées</p>
                     </CardContent>
                 </Card>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Recharger mon Portefeuille</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                        Pour recharger votre portefeuille, effectuez un virement ou un paiement Mobile Money à la plateforme Ahizan, puis notifiez-nous pour que nous crééditions votre compte.
-                    </p>
-                    <div className="rounded-md bg-muted p-4 text-sm space-y-1">
-                        <p><strong>MTN Mobile Money :</strong> +229 XX XX XX XX</p>
-                        <p><strong>Moov Money :</strong> +229 XX XX XX XX</p>
-                        <p className="text-xs text-muted-foreground mt-2">Mentionnez votre nom de boutique dans le motif du paiement.</p>
-                    </div>
-                    <WalletRechargeButton vendorName={vendor?.name} />
-                </CardContent>
-            </Card>
-
-            {orders.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Historique des Déductions</CardTitle>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="border border-border bg-card rounded-2xl md:rounded-[2rem] shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/30 border-b border-border p-6">
+                        <CardTitle className="flex items-center gap-3 text-lg font-black uppercase tracking-tight">
+                            <CreditCard className="w-5 h-5 text-brand-navy" />
+                            Méthode de Recharge
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {orders.slice(0, 10).map((order: any) => {
-                                const commission = Math.round((order.totalWithTax * commissionRate) / 100);
-                                return (
-                                    <div key={order.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                                        <div>
-                                            <p className="text-sm font-medium">{order.code}</p>
-                                            <p className="text-xs text-muted-foreground">{new Date(order.createdAt || order.updatedAt).toLocaleDateString('fr-FR')}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-medium text-red-600">-{formatPrice(commission, currencyCode)}</p>
-                                            <p className="text-xs text-muted-foreground">{order.state}</p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                    <CardContent className="p-8 space-y-6">
+                        <p className="text-sm font-medium leading-relaxed text-muted-foreground">
+                            Effectuez un virement ou un paiement <span className="text-brand-navy font-bold">Mobile Money</span> à AHIZAN, puis cliquez sur le bouton ci-dessous pour nous notifier.
+                        </p>
+                        <div className="rounded-2xl border-2 border-brand-navy/10 bg-brand-navy/[0.02] p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase text-muted-foreground">MTN Mobile Money</span>
+                                <span className="font-serif font-black text-brand-navy">+229 XX XX XX XX</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase text-muted-foreground">Moov Money</span>
+                                <span className="font-serif font-black text-brand-navy">+229 XX XX XX XX</span>
+                            </div>
                         </div>
+                        <div className="p-4 bg-muted/30 rounded-xl border border-border">
+                            <p className="text-[10px] font-bold text-center uppercase tracking-widest leading-relaxed">
+                                IMPORTANT : Mentionnez impérativement le nom de votre boutique <span className="text-brand-red font-black">"{vendor?.name}"</span> dans le motif.
+                            </p>
+                        </div>
+                        <WalletRechargeButton vendorName={vendor?.name} />
                     </CardContent>
                 </Card>
-            )}
+
+                {orders.length > 0 && (
+                    <Card className="border border-border bg-card rounded-2xl md:rounded-[2rem] shadow-sm overflow-hidden">
+                        <CardHeader className="bg-muted/30 border-b border-border p-6">
+                            <CardTitle className="flex items-center gap-3 text-lg font-black uppercase tracking-tight">
+                                <History className="w-5 h-5 text-brand-navy" />
+                                Historique Récent
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="divide-y divide-border">
+                                {orders.slice(0, 6).map((order: any) => {
+                                    const commission = Math.round((order.totalWithTax * commissionRate) / 100);
+                                    return (
+                                        <div key={order.id} className="flex items-center justify-between p-5 hover:bg-muted/20 transition-colors">
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-black text-foreground">{order.code}</p>
+                                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{new Date(order.createdAt || order.updatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</p>
+                                            </div>
+                                            <div className="text-right space-y-1">
+                                                <p className="text-sm font-black text-brand-red">-{formatPrice(commission, currencyCode)}</p>
+                                                <p className="text-[10px] font-black uppercase text-brand-navy px-2 py-0.5 bg-brand-navy/5 rounded-full inline-block">{order.state === 'Delivered' ? 'Livré' : 'Payé'}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
         </div>
     );
 }

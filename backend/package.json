@@ -1,0 +1,50 @@
+{
+  "name": "backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:server": "nodemon --watch \"src/**/*.ts\" --exec \"ts-node --transpileOnly\" src/index.ts",
+    "dev:worker": "ts-node --transpileOnly ./src/index-worker.ts",
+    "dev:dashboard": "vite --clearScreen false",
+    "dev": "concurrently --kill-others npm:dev:*",
+    "run:fast": "concurrently --kill-others \"npm run dev:server\" \"npm run dev:worker\"",
+    "clean-ports": "npx kill-port 3000",
+    "build": "tsc",
+    "build:dashboard": "vite build",
+    "start:server": "node ./dist/index.js",
+    "start:worker": "node ./dist/index-worker.js",
+    "start": "concurrently npm:start:*",
+    "migration:generate": "node node_modules/@vendure/cli/dist/cli.js migrate --generate",
+    "migration:run": "node node_modules/@vendure/cli/dist/cli.js migrate --run",
+    "migration:revert": "node node_modules/@vendure/cli/dist/cli.js migrate --revert"
+  },
+  "dependencies": {
+    "@apollo/client": "^3.14.0",
+    "@craftjs/core": "^0.2.12",
+    "@vendure/asset-server-plugin": "3.5.2",
+    "@vendure/core": "^3.5.2",
+    "@vendure/dashboard": "3.5.2",
+    "@vendure/email-plugin": "3.5.2",
+    "@vendure/graphiql-plugin": "3.5.2",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "12.6.2",
+    "dotenv": "17.2.3",
+    "graphql-tag": "^2.12.6",
+    "pg": "^8.13.1",
+    "prismjs": "^1.30.0",
+    "react-router-dom": "^6.30.3",
+    "react-simple-code-editor": "^0.14.1",
+    "@tanstack/react-query": "^5.0.0",
+    "typeorm": "^0.3.28"
+  },
+  "devDependencies": {
+    "@swc/core": "1.13.5",
+    "@vendure/cli": "3.5.2",
+    "concurrently": "9.2.1",
+    "nodemon": "^3.1.11",
+    "typescript": "5.8.2"
+  },
+  "overrides": {
+    "@swc/core": "1.13.5"
+  }
+}

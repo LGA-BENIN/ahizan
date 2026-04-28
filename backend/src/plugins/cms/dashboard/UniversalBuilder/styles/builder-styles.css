@@ -1,0 +1,350 @@
+/* Ahizan Universal Builder — Clean White Professional Design System */
+
+:root {
+  --builder-bg: #ffffff;
+  --builder-panel-bg: #fafafa;
+  --builder-border: #e5e7eb;
+  --builder-border-hover: #d1d5db;
+  --builder-text: #111827;
+  --builder-text-muted: #6b7280;
+  --builder-text-soft: #9ca3af;
+  --builder-primary: #2563eb;
+  --builder-primary-light: #eff6ff;
+  --builder-primary-border: #bfdbfe;
+  --builder-accent: #f59e0b;
+  --builder-success: #059669;
+  --builder-danger: #dc2626;
+  --builder-canvas-bg: #f3f4f6;
+  --builder-section-bg: #ffffff;
+  --builder-section-hover: #f9fafb;
+  --builder-card-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --builder-card-shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
+  
+  --panel-width: 300px;
+  --header-height: 52px;
+  --transition-fast: 0.15s ease;
+}
+
+/* ===== Foundation ===== */
+.universal-builder {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  background-color: var(--builder-bg);
+  color: var(--builder-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+
+/* ===== Header / Toolbar ===== */
+.builder-header {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid var(--builder-border);
+  z-index: 100;
+}
+
+.builder-logo {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-size: 1rem;
+  color: var(--builder-text);
+}
+
+.mode-switcher {
+  display: flex;
+  background: var(--builder-canvas-bg);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--builder-border);
+}
+
+.mode-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+  background: transparent;
+  color: var(--builder-text-muted);
+}
+
+.mode-btn:hover {
+  color: var(--builder-text);
+  background: rgba(0,0,0,0.03);
+}
+
+.mode-btn.active {
+  background: #ffffff;
+  color: var(--builder-primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* ===== Layout ===== */
+.builder-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ===== Sidebar ===== */
+.builder-sidebar {
+  width: var(--panel-width);
+  background: var(--builder-panel-bg);
+  border-right: 1px solid var(--builder-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 0.75rem 1rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--builder-text-muted);
+}
+
+/* ===== Canvas ===== */
+.canvas-wrapper {
+  flex: 1;
+  background-color: var(--builder-canvas-bg);
+  padding: 32px;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.canvas-frame {
+  background: white;
+  width: 100%;
+  max-width: 1200px;
+  min-height: 100%;
+  box-shadow: var(--builder-card-shadow-lg);
+  border-radius: 4px;
+  transform-origin: top center;
+  transition: width 0.3s ease;
+}
+
+/* ===== Code Editor ===== */
+.code-editor-container {
+  flex: 1;
+  height: 100%;
+  background: #1e1e1e;
+}
+
+/* ===== Empty / Loading States ===== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--builder-text-muted);
+  text-align: center;
+  padding: 2rem;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-weight: 600;
+  color: var(--builder-text-muted);
+}
+
+/* ===== Buttons ===== */
+.btn-pro {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--builder-border);
+  background: #ffffff;
+  color: var(--builder-text);
+}
+
+.btn-pro:hover {
+  border-color: var(--builder-border-hover);
+  background: var(--builder-section-hover);
+}
+
+.btn-pro-primary {
+  background: var(--builder-primary);
+  color: white;
+  border: none;
+}
+
+.btn-pro-primary:hover {
+  background: #1d4ed8;
+  filter: none;
+  transform: none;
+}
+
+.btn-pro-danger {
+  background: #fff;
+  color: var(--builder-danger);
+  border-color: #fecaca;
+}
+
+/* ===== Form Controls ===== */
+.label-pro {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--builder-text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.input-pro {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid var(--builder-border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--builder-text);
+  font-size: 0.85rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+
+.input-pro:focus {
+  border-color: var(--builder-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.input-pro::placeholder {
+  color: var(--builder-text-soft);
+}
+
+select.input-pro {
+  appearance: auto;
+  cursor: pointer;
+}
+
+textarea.input-pro {
+  resize: vertical;
+  min-height: 70px;
+  line-height: 1.5;
+}
+
+/* ===== Section Cards (used in settings panels) ===== */
+.settings-card {
+  background: var(--builder-section-bg);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--builder-border);
+  box-shadow: var(--builder-card-shadow);
+}
+
+.settings-card-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--builder-text);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--builder-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ===== Color Picker Row ===== */
+.color-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--builder-border);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+}
+
+.color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.color-swatch::-webkit-color-swatch { border: none; border-radius: 6px; }
+
+/* ===== Range Slider ===== */
+.range-pro {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  appearance: none;
+  background: var(--builder-border);
+  outline: none;
+}
+
+.range-pro::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--builder-primary);
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* ===== Toggle Switch ===== */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.toggle-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--builder-text);
+}
+
+/* ===== Grid Helpers ===== */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.stack { display: flex; flex-direction: column; gap: 1rem; }
+.stack-lg { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* ===== Divider ===== */
+.divider {
+  height: 1px;
+  background: var(--builder-border);
+  margin: 0.5rem 0;
+}
+
+/* ===== Scrollbar ===== */
+.builder-sidebar ::-webkit-scrollbar,
+.canvas-wrapper ::-webkit-scrollbar {
+  width: 6px;
+}
+.builder-sidebar ::-webkit-scrollbar-thumb,
+.canvas-wrapper ::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}

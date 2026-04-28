@@ -1,0 +1,61 @@
+import { vendureDashboardPlugin } from '@vendure/dashboard/vite';
+import { join, resolve } from 'path';
+import { pathToFileURL } from 'url';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+    base: '/admin',
+    build: {
+        outDir: join(__dirname, 'dist/dashboard'),
+    },
+    server: {
+        host: '127.0.0.1',
+        proxy: {
+            '/admin-api': {
+                target: 'http://127.0.0.1:3000',
+                changeOrigin: true,
+            },
+            '/shop-api': {
+                target: 'http://127.0.0.1:3000',
+                changeOrigin: true,
+            },
+            '/assets': {
+                target: 'http://127.0.0.1:3000',
+                changeOrigin: true,
+            },
+        },
+        fs: {
+            allow: ['..'],
+        },
+    },
+    plugins: [
+        vendureDashboardPlugin({
+            // The vendureDashboardPlugin will scan your configuration in order
+            // to find any plugins which have dashboard extensions, as well as
+            // to introspect the GraphQL schema based on any API extensions
+            // and custom fields that are configured.
+            vendureConfigPath: pathToFileURL('./src/vendure-config-dashboard.ts'),
+            // Points to the location of your Vendure server.
+            api: { host: 'http://127.0.0.1', port: 3000 },
+            // When you start the Vite server, your Admin API schema will
+            // be introspected and the types will be generated in this location.
+            // These types can be used in your dashboard extensions to provide
+            // type safety when writing queries and mutations.
+            gqlOutputPath: './src/gql',
+        }),
+    ],
+    optimizeDeps: {
+        include: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
+    },
+    resolve: {
+        dedupe: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
+        alias: {
+            // This allows all plugins to reference a shared set of
+            // GraphQL types.
+            '@/gql': resolve(__dirname, './src/gql/graphql.ts'),
+            react: resolve(__dirname, 'node_modules/react'),
+            'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+            '@apollo/client': resolve(__dirname, 'node_modules/@apollo/client'),
+        },
+    },
+});

@@ -1,0 +1,533 @@
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Ctx, RequestContext, Transaction, Allow, Permission, ID, PaginatedList, AssetService, Asset, ChannelService, User, Channel, CollectionService, Collection } from '@vendure/core';
+import { DeletionResponse } from '@vendure/common/lib/generated-types';
+import { CMSService } from '../service/cms.service';
+import { Page } from '../entities/page.entity';
+import { PageSection } from '../entities/section.entity';
+import { PagePreset } from '../entities/page-preset.entity';
+import { SiteSeason } from '../entities/site-season.entity';
+
+@Resolver()
+export class CMSAdminResolver {
+    constructor(
+        private cmsService: CMSService,
+        private assetService: AssetService,
+        private channelService: ChannelService,
+        private collectionService: CollectionService,
+    ) { }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async createCmsAsset(@Ctx() ctx: RequestContext, @Args('file') file: any): Promise<Asset> {
+        const channel = await this.channelService.getDefaultChannel();
+        const superAdminCtx = new RequestContext({
+            channel,
+            apiType: 'admin',
+            isAuthorized: true,
+            authorizedAsOwnerOnly: false,
+        });
+        const res = await this.assetService.create(superAdminCtx, { file });
+        if ((res as any).errorCode) {
+            throw new Error((res as any).message || 'Asset upload failed');
+        }
+        return res as Asset;
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async pages(@Ctx() ctx: RequestContext, @Args() args: any): Promise<PaginatedList<Page>> {
+        return this.cmsService.findAll(ctx, args.options);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async page(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<Page | null> {
+        return this.cmsService.findOne(ctx, args.id);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async createPage(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<Page> {
+        return this.cmsService.createPage(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async updatePage(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<Page> {
+        return this.cmsService.updatePage(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async deletePage(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deletePage(ctx, args.id);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async createSection(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PageSection> {
+        return this.cmsService.createSection(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async updateSection(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PageSection> {
+        return this.cmsService.updateSection(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async deleteSection(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deleteSection(ctx, args.id);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.Public)
+    async initializeHomePage(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID }): Promise<Page | null> {
+        return this.cmsService.initializeHomePage(ctx, args.pageId);
+    }
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async pagePresets(@Ctx() ctx: RequestContext): Promise<PagePreset[]> {
+        return this.cmsService.findAllPresets(ctx);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createPreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
+        return this.cmsService.createPreset(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async updatePreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
+        return this.cmsService.updatePreset(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async deletePreset(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deletePreset(ctx, args.id);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async applyPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page | null> {
+        return this.cmsService.applyPreset(ctx, args.presetId, args.pageId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async savePageAsPreset(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID, name: string, description?: string }): Promise<PagePreset> {
+        return this.cmsService.savePageAsPreset(ctx, args.pageId, args.name, args.description);
+    }
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async previewPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<Page | null> {
+        return this.cmsService.previewPreset(ctx, args.presetId);
+    }
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async siteSeasons(@Ctx() ctx: RequestContext): Promise<SiteSeason[]> {
+        return this.cmsService.findAllSeasons(ctx);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createSeason(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<SiteSeason> {
+        return this.cmsService.createSeason(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async updateSeason(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<SiteSeason> {
+        return this.cmsService.updateSeason(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async deleteSeason(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deleteSeason(ctx, args.id);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async cmsFacetValues(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const { FacetValue } = await import('@vendure/core');
+        const connection = (this.cmsService as any).connection;
+        const facets = await connection.getRepository(ctx, FacetValue).find({
+            relations: ['facet']
+        });
+        
+        // Translate and map to public JSON
+        return facets.map((f: any) => ({
+            id: f.id,
+            name: f.name || f.code, // Fallback to code if name is undefined (translations)
+            code: f.code,
+            facet: {
+                name: f.facet?.name || f.facet?.code,
+                code: f.facet?.code
+            }
+        }));
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async cmsCollectionsTree(@Ctx() ctx: RequestContext): Promise<any[]> {
+        try {
+            // Use TransactionalConnection directly (same pattern as CMSService and bootstrap diagnostic)
+            const connection = (this.cmsService as any).connection;
+            const { Collection: CollectionEntity } = await import('@vendure/core');
+            const collections = await connection.getRepository(ctx, CollectionEntity).find({
+                relations: ['featuredAsset', 'parent', 'translations'],
+            });
+            console.log(`[cmsCollectionsTree admin] Found ${collections.length} collections`);
+
+            const getName = (coll: any): string => {
+                // Vendure v3: name/slug are on translations, not directly on the entity
+                if (coll.name) return coll.name;
+                const trans = coll.translations || [];
+                const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
+                return frTrans?.name || coll.slug || '';
+            };
+            const getSlug = (coll: any): string => {
+                if (coll.slug) return coll.slug;
+                const trans = coll.translations || [];
+                const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
+                return frTrans?.slug || '';
+            };
+
+            // Filter out root/technical collections (Vendure creates a root collection with no real name)
+            const filteredIds = new Set<string>();
+            const realCollections = collections.filter((c: any) => {
+                const name = getName(c);
+                const isRoot = !name || name.startsWith('_root_') || name === '__root_collection__';
+                if (isRoot) filteredIds.add(c.id);
+                return !isRoot;
+            });
+
+            // Collections whose parent was filtered out become top-level
+            const topLevel = realCollections.filter((c: any) => {
+                return !c.parentId || c.parentId === c.id || filteredIds.has(c.parentId);
+            });
+            const buildNode = (coll: any): any => {
+                const children = realCollections.filter((c: any) => c.parentId === coll.id && c.id !== coll.id);
+                return {
+                    id: coll.id,
+                    name: getName(coll),
+                    slug: getSlug(coll),
+                    featuredAsset: coll.featuredAsset || null,
+                    children: children.map(buildNode),
+                };
+            };
+            const result = topLevel.map(buildNode);
+            console.log(`[cmsCollectionsTree admin] Returning ${result.length} top-level nodes`);
+            return result;
+        } catch (error) {
+            console.error('[cmsCollectionsTree admin] Error:', error);
+            return [];
+        }
+    }
+
+    // --- Draft System ---
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async getActiveDraft(@Ctx() ctx: RequestContext): Promise<PagePreset | null> {
+        return this.cmsService.getActiveDraft(ctx);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createDraftFromPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.createDraftFromPreset(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createDraftFromCurrentPage(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID }): Promise<PagePreset> {
+        return this.cmsService.createDraftFromCurrentPage(ctx, args.pageId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async updateDraftSection(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, sectionType: string, sectionDataJson: string }): Promise<PagePreset> {
+        return this.cmsService.updateDraftSection(ctx, args.draftId, args.sectionType, args.sectionDataJson);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async publishDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, pageId: ID }): Promise<Page | null> {
+        return this.cmsService.publishDraft(ctx, args.draftId, args.pageId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createPresetFromDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, name: string, description?: string }): Promise<PagePreset> {
+        return this.cmsService.createPresetFromDraft(ctx, args.draftId, args.name, args.description);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async updatePresetFromDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.updatePresetFromDraft(ctx, args.draftId, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async archivePreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.archivePreset(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async restorePresetVersion(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.restorePresetVersion(ctx, args.presetId);
+    }
+
+    // --- SeasonSchedule ---
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async seasonSchedules(@Ctx() ctx: RequestContext): Promise<any[]> {
+        return this.cmsService.findAllSeasonSchedules(ctx);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createSeasonSchedule(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
+        return this.cmsService.createSeasonSchedule(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async updateSeasonSchedule(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
+        return this.cmsService.updateSeasonSchedule(ctx, input);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async deleteSeasonSchedule(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deleteSeasonSchedule(ctx, args.id);
+    }
+
+    // --- Habillage System ---
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async activeHabillage(@Ctx() ctx: RequestContext): Promise<PagePreset | null> {
+        return this.cmsService.getActiveHabillage(ctx);
+    }
+
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async habillages(@Ctx() ctx: RequestContext, @Args() args: { status?: string, isBackup?: boolean }): Promise<PagePreset[]> {
+        return this.cmsService.findHabillages(ctx, args.status, args.isBackup);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async createInstantHabillage(@Ctx() ctx: RequestContext, @Args() args: { name: string }): Promise<PagePreset> {
+        return this.cmsService.createInstantHabillage(ctx, args.name);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async openHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.openHabillage(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async setHabillageDefault(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.setHabillageDefault(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async unsetHabillageDefault(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.unsetHabillageDefault(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async undoHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.undoHabillage(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async redoHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        return this.cmsService.redoHabillage(ctx, args.presetId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async autoSaveHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, sectionsJson: string }): Promise<PagePreset> {
+        return this.cmsService.autoSaveHabillage(ctx, args.presetId, args.sectionsJson);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async publishHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page> {
+        return this.cmsService.publishHabillage(ctx, args.presetId, args.pageId);
+    }
+
+    @Mutation()
+    @Transaction()
+    @Allow(Permission.SuperAdmin)
+    async deleteHabillage(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        return this.cmsService.deleteHabillage(ctx, args.id);
+    }
+}
+
+@Resolver()
+export class CMSShopResolver {
+    constructor(
+        private cmsService: CMSService,
+        private collectionService: CollectionService,
+    ) { }
+
+    @Query()
+    @Allow(Permission.Public)
+    async page(@Ctx() ctx: RequestContext, @Args() args: { id?: ID, slug?: string }): Promise<Page | null> {
+        if (args.id) {
+            return this.cmsService.findOne(ctx, args.id);
+        }
+        return this.cmsService.findOneBySlug(ctx, args.slug || '');
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async activeSeason(@Ctx() ctx: RequestContext): Promise<SiteSeason | null> {
+        return this.cmsService.getActiveSeason(ctx);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async previewPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<Page | null> {
+        return this.cmsService.previewPreset(ctx, args.presetId);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async previewHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<any> {
+        return this.cmsService.previewHabillage(ctx, args.presetId);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async cmsFacetValues(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const { FacetValue } = await import('@vendure/core');
+        const connection = (this.cmsService as any).connection;
+        const facets = await connection.getRepository(ctx, FacetValue).find({
+            relations: ['facet']
+        });
+        
+        return facets.map((f: any) => ({
+            id: f.id,
+            name: f.name || f.code,
+            code: f.code,
+            facet: {
+                name: f.facet?.name || f.facet?.code,
+                code: f.facet?.code
+            }
+        }));
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async cmsCollectionsTree(@Ctx() ctx: RequestContext): Promise<any[]> {
+        try {
+            // Use TransactionalConnection directly (same pattern as CMSService and bootstrap diagnostic)
+            const connection = (this.cmsService as any).connection;
+            const { Collection: CollectionEntity } = await import('@vendure/core');
+            const collections = await connection.getRepository(ctx, CollectionEntity).find({
+                relations: ['featuredAsset', 'parent', 'translations'],
+            });
+            console.log(`[cmsCollectionsTree shop] Found ${collections.length} collections`);
+
+            const getName = (coll: any): string => {
+                // Vendure v3: name/slug are on translations, not directly on the entity
+                if (coll.name) return coll.name;
+                const trans = coll.translations || [];
+                const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
+                return frTrans?.name || coll.slug || '';
+            };
+            const getSlug = (coll: any): string => {
+                if (coll.slug) return coll.slug;
+                const trans = coll.translations || [];
+                const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
+                return frTrans?.slug || '';
+            };
+
+            // Filter out root/technical collections (Vendure creates a root collection with no real name)
+            const filteredIds = new Set<string>();
+            const realCollections = collections.filter((c: any) => {
+                const name = getName(c);
+                const isRoot = !name || name.startsWith('_root_') || name === '__root_collection__';
+                if (isRoot) filteredIds.add(c.id);
+                return !isRoot;
+            });
+
+            // Collections whose parent was filtered out become top-level
+            const topLevel = realCollections.filter((c: any) => {
+                return !c.parentId || c.parentId === c.id || filteredIds.has(c.parentId);
+            });
+            const buildNode = (coll: any): any => {
+                const children = realCollections.filter((c: any) => c.parentId === coll.id && c.id !== coll.id);
+                return {
+                    id: coll.id,
+                    name: getName(coll),
+                    slug: getSlug(coll),
+                    featuredAsset: coll.featuredAsset || null,
+                    children: children.map(buildNode),
+                };
+            };
+            const result = topLevel.map(buildNode);
+            console.log(`[cmsCollectionsTree shop] Returning ${result.length} top-level nodes`);
+            return result;
+        } catch (error) {
+            console.error('[cmsCollectionsTree shop] Error:', error);
+            return [];
+        }
+    }
+}

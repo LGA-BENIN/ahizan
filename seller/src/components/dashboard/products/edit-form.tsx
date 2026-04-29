@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageUploader from '@/components/ImageUploader';
 import { updateProductAction } from '@/app/dashboard/products/actions';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, ImageIcon, Ruler, Save, X, Trash2, Info } from 'lucide-react';
+import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditProductFormProps {
@@ -35,6 +35,20 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [facetValueIds, setFacetValueIds] = useState<string[]>([]);
+    const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
+    const [loadingFacets, setLoadingFacets] = useState(false);
+
+    // Initialize parentCategory from the tree and fetch facets
+    useEffect(() => {
+        const initialParent = findParentForCategory(initialCategoryId);
+        if (formData.parentCategory !== initialParent && formData.parentCategory === '') {
+            setFormData(prev => ({ ...prev, parentCategory: initialParent }));
+        }
+        if (initialCategoryId) {
+            fetchAllowedFacets(initialCategoryId);
+        }
+    }, [initialCategoryId]);
 
     // Determine parent category from the tree for initial selection
     const findParentForCategory = (catId: string): string => {
@@ -45,20 +59,40 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         return catId;
     };
 
-    // Initialize parentCategory from the tree
-    const initialParent = findParentForCategory(initialCategoryId);
-    if (formData.parentCategory !== initialParent && formData.parentCategory === '') {
-        setFormData(prev => ({ ...prev, parentCategory: initialParent }));
-    }
-
     const selectedParent = collectionTree?.find((c: any) => c.id === formData.parentCategory);
     const subCategories = selectedParent?.children || [];
 
     const handleParentChange = (v: string) => {
         setFormData({ ...formData, parentCategory: v, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
     };
     const handleSubCategoryChange = (v: string) => {
         setFormData({ ...formData, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
+    };
+
+    // Fetch allowed facets for a collection
+    const fetchAllowedFacets = async (collectionId: string) => {
+        if (!collectionId) { setAllowedFacets([]); return; }
+        setLoadingFacets(true);
+        try {
+            const { query } = await import('@/lib/vendure/api');
+            const { GetCollectionAllowedFacetsQuery } = await import('@/lib/vendure/queries');
+            const result = await query(GetCollectionAllowedFacetsQuery, { collectionId });
+            const mapping = (result.data as any)?.collectionAllowedFacets;
+            setAllowedFacets(mapping?.allowedFacets || []);
+        } catch (err) {
+            console.error('[EditProductForm] Failed to fetch allowed facets:', err);
+            setAllowedFacets([]);
+        } finally {
+            setLoadingFacets(false);
+        }
+    };
+
+    const toggleFacetValue = (fvId: string) => {
+        setFacetValueIds(prev => prev.includes(fvId) ? prev.filter(id => id !== fvId) : [...prev, fvId]);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -75,6 +109,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             data.append('stock', formData.stock.toString());
             data.append('category', formData.category);
             data.append('assetIds', JSON.stringify(assetIds));
+            data.append('facetValueIds', JSON.stringify(facetValueIds));
 
             const result = await updateProductAction(null, data);
 
@@ -166,6 +201,50 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                         />
                     </div>
+
+                    {/* Section: Caractéristiques (Facet Values) */}
+                    {formData.category && (
+                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-primary" />
+                            <h3 className="text-xs font-black uppercase tracking-widest">Caractéristiques</h3>
+                        </div>
+                        <div className="p-8">
+                            {loadingFacets ? (
+                                <p className="text-xs text-muted-foreground animate-pulse">Chargement des caractéristiques...</p>
+                            ) : allowedFacets.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">Aucune caractéristique définie pour cette catégorie. Le superadmin peut en configurer via le tableau de bord admin.</p>
+                            ) : (
+                                <div className="space-y-5">
+                                    {allowedFacets.map((facet: any) => (
+                                        <div key={facet.id}>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {facet.values?.map((fv: any) => {
+                                                    const isSelected = facetValueIds.includes(String(fv.id));
+                                                    return (
+                                                        <button
+                                                            key={fv.id}
+                                                            type="button"
+                                                            onClick={() => toggleFacetValue(String(fv.id))}
+                                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                                                                isSelected
+                                                                    ? 'bg-primary text-primary-foreground border-primary'
+                                                                    : 'bg-muted/30 text-foreground border-border hover:border-primary/40'
+                                                            }`}
+                                                        >
+                                                            {fv.name}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    )}
                 </div>
 
                 {/* Right Column: Pricing, Inventory & Media */}

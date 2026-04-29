@@ -16,6 +16,25 @@ import { adminApiExtensions, shopApiExtensions } from './api/api-extensions';
     },
     dashboard: './dashboard',
     compatibility: '^3.0.0',
+    configuration: (config: any) => {
+        if (!config.customFields) {
+            config.customFields = {};
+        }
+        if (!config.customFields.Collection) {
+            config.customFields.Collection = [];
+        }
+
+        config.customFields.Collection.push({
+            name: 'allowedFacetIds',
+            type: 'string',
+            list: true,
+            public: true,
+            nullable: true,
+            defaultValue: [],
+        });
+
+        return config;
+    },
 })
 export class CollectionFacetMapPlugin implements OnApplicationBootstrap {
     constructor(

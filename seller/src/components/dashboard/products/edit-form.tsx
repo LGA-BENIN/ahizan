@@ -35,20 +35,11 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [facetValueIds, setFacetValueIds] = useState<string[]>([]);
+    const [facetValueIds, setFacetValueIds] = useState<string[]>(
+        (product.facetValues || []).map((fv: any) => String(fv.id))
+    );
     const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
     const [loadingFacets, setLoadingFacets] = useState(false);
-
-    // Initialize parentCategory from the tree and fetch facets
-    useEffect(() => {
-        const initialParent = findParentForCategory(initialCategoryId);
-        if (formData.parentCategory !== initialParent && formData.parentCategory === '') {
-            setFormData(prev => ({ ...prev, parentCategory: initialParent }));
-        }
-        if (initialCategoryId) {
-            fetchAllowedFacets(initialCategoryId);
-        }
-    }, [initialCategoryId]);
 
     // Determine parent category from the tree for initial selection
     const findParentForCategory = (catId: string): string => {
@@ -57,20 +48,6 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             if (parent.children?.some((c: any) => c.id === catId)) return parent.id;
         }
         return catId;
-    };
-
-    const selectedParent = collectionTree?.find((c: any) => c.id === formData.parentCategory);
-    const subCategories = selectedParent?.children || [];
-
-    const handleParentChange = (v: string) => {
-        setFormData({ ...formData, parentCategory: v, category: v });
-        setFacetValueIds([]);
-        fetchAllowedFacets(v);
-    };
-    const handleSubCategoryChange = (v: string) => {
-        setFormData({ ...formData, category: v });
-        setFacetValueIds([]);
-        fetchAllowedFacets(v);
     };
 
     // Fetch allowed facets for a collection
@@ -91,8 +68,32 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         }
     };
 
-    const toggleFacetValue = (fvId: string) => {
-        setFacetValueIds(prev => prev.includes(fvId) ? prev.filter(id => id !== fvId) : [...prev, fvId]);
+    // Initialize parentCategory from the tree and fetch facets on mount
+    useEffect(() => {
+        const initialParent = findParentForCategory(initialCategoryId);
+        setFormData(prev => {
+            if (prev.parentCategory === '') {
+                return { ...prev, parentCategory: initialParent };
+            }
+            return prev;
+        });
+        if (initialCategoryId) {
+            fetchAllowedFacets(initialCategoryId);
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const selectedParent = collectionTree?.find((c: any) => c.id === formData.parentCategory);
+    const subCategories = selectedParent?.children || [];
+
+    const handleParentChange = (v: string) => {
+        setFormData({ ...formData, parentCategory: v, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
+    };
+    const handleSubCategoryChange = (v: string) => {
+        setFormData({ ...formData, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -215,31 +216,35 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                             ) : allowedFacets.length === 0 ? (
                                 <p className="text-xs text-muted-foreground">Aucune caractéristique définie pour cette catégorie. Le superadmin peut en configurer via le tableau de bord admin.</p>
                             ) : (
-                                <div className="space-y-5">
-                                    {allowedFacets.map((facet: any) => (
-                                        <div key={facet.id}>
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {facet.values?.map((fv: any) => {
-                                                    const isSelected = facetValueIds.includes(String(fv.id));
-                                                    return (
-                                                        <button
-                                                            key={fv.id}
-                                                            type="button"
-                                                            onClick={() => toggleFacetValue(String(fv.id))}
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                                                isSelected
-                                                                    ? 'bg-primary text-primary-foreground border-primary'
-                                                                    : 'bg-muted/30 text-foreground border-border hover:border-primary/40'
-                                                            }`}
-                                                        >
-                                                            {fv.name}
-                                                        </button>
-                                                    );
-                                                })}
+                                <div className="space-y-4">
+                                    {allowedFacets.map((facet: any) => {
+                                        const selectedFvId = facetValueIds.find((id: string) =>
+                                            facet.values?.some((fv: any) => String(fv.id) === id)
+                                        );
+                                        return (
+                                            <div key={facet.id}>
+                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
+                                                <Select
+                                                    value={selectedFvId || ''}
+                                                    onValueChange={(v) => {
+                                                        setFacetValueIds(prev => {
+                                                            const without = prev.filter(id => !facet.values?.some((fv: any) => String(fv.id) === id));
+                                                            return v ? [...without, v] : without;
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-12 rounded-xl">
+                                                        <SelectValue placeholder={`Sélectionner ${facet.name}`} />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl">
+                                                        {facet.values?.map((fv: any) => (
+                                                            <SelectItem key={String(fv.id)} value={String(fv.id)}>{fv.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

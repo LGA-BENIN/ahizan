@@ -30,6 +30,7 @@ import {
     Settings as SettingsIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { logoutAction } from '@/app/sign-in/actions';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from './theme-toggle';
@@ -45,9 +46,10 @@ import {
 interface DashboardLayoutProps {
     children: React.ReactNode;
     vendor?: any;
+    dashboardConfig?: { walletPageEnabled: boolean };
 }
 
-export function DashboardLayout({ children, vendor }: DashboardLayoutProps) {
+export function DashboardLayout({ children, vendor, dashboardConfig }: DashboardLayoutProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const pathname = usePathname();
@@ -55,13 +57,18 @@ export function DashboardLayout({ children, vendor }: DashboardLayoutProps) {
     const vendorName = vendor?.name || (vendor?.customer?.firstName ? `${vendor.customer.firstName} ${vendor.customer.lastName}` : 'Vendeur');
     const vendorEmail = vendor?.customer?.emailAddress || '';
 
-    const navigation = [
+    const allNavItems = [
         { name: 'Tableau de bord', href: '/dashboard', icon: Home },
         { name: 'Ventes', href: '/dashboard/orders', icon: ShoppingBag },
         { name: 'Produits', href: '/dashboard/products', icon: Package },
-        { name: 'Portefeuille', href: '/dashboard/wallet', icon: DollarSign },
+        { name: 'Portefeuille', href: '/dashboard/wallet', icon: DollarSign, key: 'wallet' },
         { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
     ];
+
+    const navigation = allNavItems.filter(item => {
+        if (item.key === 'wallet' && dashboardConfig?.walletPageEnabled === false) return false;
+        return true;
+    });
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -236,7 +243,10 @@ export function DashboardLayout({ children, vendor }: DashboardLayoutProps) {
                                     </Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="rounded-xl p-3 focus:bg-destructive/10 focus:text-destructive text-destructive cursor-pointer group">
+                                <DropdownMenuItem
+                                    className="rounded-xl p-3 focus:bg-destructive/10 focus:text-destructive text-destructive cursor-pointer group"
+                                    onClick={() => logoutAction()}
+                                >
                                     <div className="flex items-center gap-3 w-full">
                                         <div className="w-8 h-8 rounded-lg bg-destructive/10 text-destructive flex items-center justify-center">
                                             <LogOut className="w-4 h-4" />

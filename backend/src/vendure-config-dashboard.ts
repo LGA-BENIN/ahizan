@@ -1,4 +1,4 @@
-import { VendureConfig } from '@vendure/core';
+ import { VendureConfig, LanguageCode } from '@vendure/core';
 import { AssetServerPlugin } from '@vendure/asset-server-plugin';
 import { DashboardPlugin } from '@vendure/dashboard/plugin';
 import { GraphiqlPlugin } from '@vendure/graphiql-plugin';
@@ -11,6 +11,7 @@ import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscripti
 import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifications.plugin';
 import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
+import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
 
 // This is a LITE configuration used specifically for the Vite Dashboard build.
 // It skips the database connection and heavy background processes to reduce
@@ -29,6 +30,14 @@ export const config: VendureConfig = {
     },
     // We provide a dummy DB config because Vite only needs the schema metadata,
     // not an active connection to the database.
+    paymentOptions: {
+        paymentMethodHandlers: [],
+    },
+    customFields: {
+        Collection: [
+            { name: 'allowedFacetIds', type: 'string', list: true, nullable: true, public: true },
+        ],
+    },
     dbConnectionOptions: {
         type: 'sqlite',
         database: ':memory:',
@@ -52,5 +61,6 @@ export const config: VendureConfig = {
         AhizanNotificationsPlugin,
         CMSPlugin,
         BannerManagerPlugin,
+        CollectionFacetMapPlugin,
     ],
 };

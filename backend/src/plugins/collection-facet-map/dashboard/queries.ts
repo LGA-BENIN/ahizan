@@ -1,11 +1,11 @@
-import { gql } from 'graphql-tag';
-
-export const GET_COLLECTION_FACET_MAPPINGS = gql`
+export const GET_COLLECTION_FACET_MAPPINGS = `
     query GetCollectionFacetMappings {
         collectionFacetMappings {
             collectionId
             collectionName
             allowedFacetIds
+            ownFacetIds
+            inheritedFacetIds
             allowedFacets {
                 id
                 name
@@ -18,12 +18,14 @@ export const GET_COLLECTION_FACET_MAPPINGS = gql`
     }
 `;
 
-export const SET_COLLECTION_ALLOWED_FACETS = gql`
+export const SET_COLLECTION_ALLOWED_FACETS = `
     mutation SetCollectionAllowedFacets($collectionId: ID!, $facetIds: [ID!]!) {
         setCollectionAllowedFacets(collectionId: $collectionId, facetIds: $facetIds) {
             collectionId
             collectionName
             allowedFacetIds
+            ownFacetIds
+            inheritedFacetIds
             allowedFacets {
                 id
                 name
@@ -36,7 +38,7 @@ export const SET_COLLECTION_ALLOWED_FACETS = gql`
     }
 `;
 
-export const GET_ALL_FACETS = gql`
+export const GET_ALL_FACETS = `
     query GetAllFacets {
         facets {
             items {
@@ -47,6 +49,22 @@ export const GET_ALL_FACETS = gql`
                     name
                 }
             }
+        }
+    }
+`;
+
+export const GET_SELLER_DASHBOARD_CONFIG = `
+    query GetSellerDashboardConfig {
+        sellerDashboardConfig {
+            walletPageEnabled
+        }
+    }
+`;
+
+export const UPDATE_SELLER_DASHBOARD_CONFIG = `
+    mutation UpdateSellerDashboardConfig($walletPageEnabled: Boolean!) {
+        updateSellerDashboardConfig(walletPageEnabled: $walletPageEnabled) {
+            walletPageEnabled
         }
     }
 `;

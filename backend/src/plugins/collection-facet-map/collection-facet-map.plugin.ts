@@ -1,6 +1,7 @@
 import { PluginCommonModule, VendurePlugin, RequestContext, TransactionalConnection, Collection, FacetValue, Facet, ChannelService, Permission } from '@vendure/core';
 import { OnApplicationBootstrap } from '@nestjs/common';
-import { CollectionFacetMapResolver } from './api/collection-facet-map.resolver';
+import { CollectionFacetMapAdminResolver } from './api/collection-facet-map.resolver';
+import { CollectionFacetMapShopResolver } from './api/collection-facet-map-shop.resolver';
 import { adminApiExtensions, shopApiExtensions } from './api/api-extensions';
 
 @VendurePlugin({
@@ -8,33 +9,14 @@ import { adminApiExtensions, shopApiExtensions } from './api/api-extensions';
     providers: [],
     adminApiExtensions: {
         schema: adminApiExtensions,
-        resolvers: [CollectionFacetMapResolver],
+        resolvers: [CollectionFacetMapAdminResolver],
     },
     shopApiExtensions: {
         schema: shopApiExtensions,
-        resolvers: [CollectionFacetMapResolver],
+        resolvers: [CollectionFacetMapShopResolver],
     },
     dashboard: './dashboard',
     compatibility: '^3.0.0',
-    configuration: (config: any) => {
-        if (!config.customFields) {
-            config.customFields = {};
-        }
-        if (!config.customFields.Collection) {
-            config.customFields.Collection = [];
-        }
-
-        config.customFields.Collection.push({
-            name: 'allowedFacetIds',
-            type: 'string',
-            list: true,
-            public: true,
-            nullable: true,
-            defaultValue: [],
-        });
-
-        return config;
-    },
 })
 export class CollectionFacetMapPlugin implements OnApplicationBootstrap {
     constructor(

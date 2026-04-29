@@ -9,7 +9,6 @@ export default defineDashboardExtension({
             component: CollectionFacetMapPage,
             navMenuItem: {
                 id: 'collection-facet-map',
-                title: 'Facettes / Collections',
                 sectionId: 'catalog-section',
                 url: '/collection-facets',
             },

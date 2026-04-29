@@ -110,10 +110,6 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
         }
     };
 
-    const toggleFacetValue = (fvId: string) => {
-        setFacetValueIds(prev => prev.includes(fvId) ? prev.filter(id => id !== fvId) : [...prev, fvId]);
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isUploadingAssets) {
@@ -266,31 +262,35 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                             ) : allowedFacets.length === 0 ? (
                                 <p className="text-xs text-muted-foreground">Aucune caractéristique définie pour cette catégorie. Le superadmin peut en configurer via le tableau de bord admin.</p>
                             ) : (
-                                <div className="space-y-5">
-                                    {allowedFacets.map((facet: any) => (
-                                        <div key={facet.id}>
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {facet.values?.map((fv: any) => {
-                                                    const isSelected = facetValueIds.includes(String(fv.id));
-                                                    return (
-                                                        <button
-                                                            key={fv.id}
-                                                            type="button"
-                                                            onClick={() => toggleFacetValue(String(fv.id))}
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                                                isSelected
-                                                                    ? 'bg-primary text-primary-foreground border-primary'
-                                                                    : 'bg-muted/30 text-foreground border-border hover:border-primary/40'
-                                                            }`}
-                                                        >
-                                                            {fv.name}
-                                                        </button>
-                                                    );
-                                                })}
+                                <div className="space-y-4">
+                                    {allowedFacets.map((facet: any) => {
+                                        const selectedFvId = facetValueIds.find((id: string) =>
+                                            facet.values?.some((fv: any) => String(fv.id) === id)
+                                        );
+                                        return (
+                                            <div key={facet.id}>
+                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
+                                                <Select
+                                                    value={selectedFvId || ''}
+                                                    onValueChange={(v) => {
+                                                        setFacetValueIds(prev => {
+                                                            const without = prev.filter(id => !facet.values?.some((fv: any) => String(fv.id) === id));
+                                                            return v ? [...without, v] : without;
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-12 rounded-xl">
+                                                        <SelectValue placeholder={`Sélectionner ${facet.name}`} />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl">
+                                                        {facet.values?.map((fv: any) => (
+                                                            <SelectItem key={String(fv.id)} value={String(fv.id)}>{fv.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

@@ -41,6 +41,14 @@ export const GetMyVendorProductQuery = graphql(`
                 name
                 slug
             }
+            facetValues {
+                id
+                name
+                facet {
+                    id
+                    name
+                }
+            }
             variants {
                 id
                 price

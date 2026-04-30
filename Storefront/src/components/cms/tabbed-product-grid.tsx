@@ -159,7 +159,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             className="group bg-white rounded-xl overflow-hidden border border-border/30 hover:shadow-lg transition-all"
                         >
                             <div className="aspect-square bg-muted/10 relative overflow-hidden">
-                                {p.productAsset && (
+                                {p.productAsset?.preview && (
                                     <img
                                         src={p.productAsset.preview}
                                         alt={p.productName}

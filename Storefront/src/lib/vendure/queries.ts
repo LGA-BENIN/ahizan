@@ -462,3 +462,18 @@ export const GetCollectionProductsQuery = graphql(`
         }
     }
 `, [ProductCardFragment]);
+export const GetCollectionAllowedFacetsQuery = graphql(`
+    query GetCollectionAllowedFacets($collectionId: ID!) {
+        collectionAllowedFacets(collectionId: $collectionId) {
+            allowedFacetIds
+            allowedFacets {
+                id
+                name
+                values {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`);

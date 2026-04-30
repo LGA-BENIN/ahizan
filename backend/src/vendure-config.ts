@@ -16,6 +16,7 @@ import dns from 'dns';
 import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
 import { zoneBasedShippingCalculator } from './plugins/multivendor/shipping/zone-based-shipping.calculator';
+import { variantIdCollectionFilter } from './plugins/multivendor/collection-filters';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
@@ -100,6 +101,9 @@ export const config: VendureConfig = {
     shippingOptions: {
         shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator, zoneBasedShippingCalculator],
     },
+    catalogOptions: {
+        collectionFilters: [variantIdCollectionFilter],
+    },
     paymentOptions: {
         paymentMethodHandlers: [cashOnDeliveryHandler],
     },
@@ -131,8 +135,6 @@ export const config: VendureConfig = {
         DefaultSearchPlugin.init({
             bufferUpdates: false,
             indexStockStatus: true,
-            productRelations: ['collections', 'facetValues', 'assets'],
-            variantRelations: ['product', 'assets'],
         }),
         EmailPlugin.init({
             transport: { type: 'none' }, // Satisfy Vendure checking, we provide our own sender:

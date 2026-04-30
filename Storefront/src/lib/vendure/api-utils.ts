@@ -17,8 +17,8 @@ export function getBannerApiUrl(endpoint: string): string {
     return `${getBaseUrl()}/banner/${cleanEndpoint}`;
 }
 
-export function getAssetUrl(path: string): string {
-    if (!path) return '';
+export function getAssetUrl(path: string | null | undefined): string | undefined {
+    if (!path) return undefined;
     if (path.startsWith('http')) return encodeURI(path);
     if (path.startsWith('data:')) return path;
     

@@ -1,4 +1,5 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService } from '@vendure/core';
+import { In } from 'typeorm';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -16,6 +17,8 @@ export class VendorShopResolver {
         private orderService: OrderService,
         private assetService: AssetService,
         private eventBus: EventBus,
+        private connection: TransactionalConnection,
+        private collectionService: CollectionService,
     ) { }
 
     /**
@@ -110,6 +113,8 @@ export class VendorShopResolver {
         return this.vendorService.findOrdersForVendor(ctx, vendor.id.toString(), options);
     }
 
+
+
     /**
      * Create a new product for the authenticated vendor
      */
@@ -124,6 +129,12 @@ export class VendorShopResolver {
             throw new Error('No vendor profile found for this user');
         }
 
+        console.log(`createMyProduct: Input collectionIds:`, input.collectionIds);
+        const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, input.collectionIds || []);
+        console.log(`createMyProduct: Extracted facetIds:`, extractedFacetIds);
+        const finalFacetValueIds = Array.from(new Set([...(input.facetValueIds || []), ...extractedFacetIds]));
+        console.log(`createMyProduct: Final facetValueIds to be saved:`, finalFacetValueIds);
+
         // 1. Create Product with Collections and Assets
         const product = await this.productService.create(ctx, {
             translations: [{
@@ -134,50 +145,17 @@ export class VendorShopResolver {
             }],
             enabled: true,
             assetIds: input.assetIds,
+            facetValueIds: finalFacetValueIds,
             featuredAssetId: input.featuredAssetId,
             customFields: {
                 vendor: { id: vendor.id }
             }
         });
 
-        // 1b. Add product to collections if provided
-        if (input.collectionIds && input.collectionIds.length > 0) {
-            try {
-                const connection = (this.productService as any).connection || (this.vendorService as any).connection;
-                const queryRunner = connection.createQueryRunner();
-                await queryRunner.connect();
-                for (const collId of input.collectionIds) {
-                    await queryRunner.query(
-                        `INSERT INTO product_collections (product_id, collection_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [product.id, collId]
-                    );
-                }
-                await queryRunner.release();
-            } catch (err) {
-                console.error('[createMyProduct] Failed to add product to collections:', err);
-            }
-        }
-
-        // 1c. Add facet values if provided
-        if (input.facetValueIds && input.facetValueIds.length > 0) {
-            try {
-                const connection = (this.productService as any).connection || (this.vendorService as any).connection;
-                const queryRunner = connection.createQueryRunner();
-                await queryRunner.connect();
-                for (const fvId of input.facetValueIds) {
-                    await queryRunner.query(
-                        `INSERT INTO product_facet_values (product_id, facet_value_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [product.id, fvId]
-                    );
-                }
-                await queryRunner.release();
-            } catch (err) {
-                console.error('[createMyProduct] Failed to add facet values:', err);
-            }
-        }
+        // Collections will be assigned after the variant is created.
 
         // 2. Create Default Variant with Price & Stock
-        await this.productVariantService.create(ctx, [{
+        const variants = await this.productVariantService.create(ctx, [{
             productId: product.id,
             sku: `${vendor.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
             price: input.price,
@@ -187,8 +165,9 @@ export class VendorShopResolver {
                 name: input.name,
             }]
         }]);
+        const variant = variants[0];
 
-        // 3. Re-fetch and emit event so the search index is updated
+        // 3. Re-fetch and emit event so the search index is updated via Job Queue
         const finalProduct = await this.productService.findOne(ctx, product.id) as Product;
         this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id: product.id }));
         return finalProduct;
@@ -215,60 +194,19 @@ export class VendorShopResolver {
             throw new Error('You do not have permission to update this product');
         }
 
-        // Handle collectionIds and facetValueIds separately (not native ProductService fields)
+        // Handle collectionIds and facetValueIds separately
         const { collectionIds, facetValueIds, ...productInput } = input;
 
-        const updated = await this.productService.update(ctx, { id, ...productInput });
+        const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
+        const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
 
-        // Update collections if provided
-        if (collectionIds && Array.isArray(collectionIds)) {
-            try {
-                const connection = (this.productService as any).connection || (this.vendorService as any).connection;
-                const queryRunner = connection.createQueryRunner();
-                await queryRunner.connect();
-                // Remove existing collection associations
-                await queryRunner.query(
-                    `DELETE FROM product_collections WHERE product_id = $1`,
-                    [id]
-                );
-                // Add new collection associations
-                for (const collId of collectionIds) {
-                    await queryRunner.query(
-                        `INSERT INTO product_collections (product_id, collection_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [id, collId]
-                    );
-                }
-                await queryRunner.release();
-            } catch (err) {
-                console.error('[updateMyProduct] Failed to update product collections:', err);
-            }
-        }
+        const updated = await this.productService.update(ctx, { 
+            id, 
+            ...productInput,
+            facetValueIds: finalFacetValueIds
+        });
 
-        // Update facet values if provided
-        if (facetValueIds && Array.isArray(facetValueIds)) {
-            try {
-                const connection = (this.productService as any).connection || (this.vendorService as any).connection;
-                const queryRunner = connection.createQueryRunner();
-                await queryRunner.connect();
-                // Remove existing facet value associations
-                await queryRunner.query(
-                    `DELETE FROM product_facet_values WHERE product_id = $1`,
-                    [id]
-                );
-                // Add new facet value associations
-                for (const fvId of facetValueIds) {
-                    await queryRunner.query(
-                        `INSERT INTO product_facet_values (product_id, facet_value_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [id, fvId]
-                    );
-                }
-                await queryRunner.release();
-            } catch (err) {
-                console.error('[updateMyProduct] Failed to update product facet values:', err);
-            }
-        }
-
-        // Re-fetch and emit event so the search index is updated
+        // Re-fetch and emit event so the search index is updated via Job Queue
         const finalProduct = await this.productService.findOne(ctx, id) as Product;
         this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
         return finalProduct;
@@ -400,5 +338,62 @@ export class VendorShopResolver {
         return this.vendorService.update(ctx, vendor.id.toString(), input);
     }
 
+    /**
+     * Extracts required facet value IDs from standard collection filters.
+     * This prevents breaking admin-defined collections with explicit variant IDs.
+     */
+    private async extractFacetValuesFromCollections(ctx: RequestContext, collectionIds: string[]): Promise<string[]> {
+        if (!collectionIds || collectionIds.length === 0) return [];
+        
+        const facetValueIds = new Set<string>();
+        const processedCollectionIds = new Set<string>();
+        let currentIds = [...collectionIds];
+
+        // Walk up the collection tree to collect all facets from parents
+        while (currentIds.length > 0) {
+            console.log(`extractFacetValues: Processing IDs:`, currentIds);
+            const collections = await this.connection.getRepository(ctx, Collection).find({
+                where: { id: In(currentIds) },
+                relations: ['parent']
+            });
+            console.log(`extractFacetValues: Found ${collections.length} collections`);
+
+            currentIds = [];
+            for (const coll of collections) {
+                if (processedCollectionIds.has(coll.id.toString())) continue;
+                processedCollectionIds.add(coll.id.toString());
+                
+                // Extract facet-value-filter arguments
+                const filters = coll.filters || [];
+                console.log(`extractFacetValues: Collection ${coll.id} has ${filters.length} filters`);
+                for (const filter of filters) {
+                    if (filter.code === 'facet-value-filter') {
+                        const arg = filter.args.find(a => a.name === 'facetValueIds');
+                        if (arg && arg.value) {
+                            try {
+                                const ids = JSON.parse(arg.value);
+                                console.log(`extractFacetValues: Extracted IDs from filter:`, ids);
+                                if (Array.isArray(ids)) {
+                                    ids.forEach(id => facetValueIds.add(id));
+                                }
+                            } catch (e) { 
+                                console.error(`extractFacetValues: Error parsing facetValueIds for collection ${coll.id}`, e);
+                            }
+                        }
+                    }
+                }
+
+                // Add parent to next iteration if it's not the root
+                if (coll.parent && coll.parent.id && coll.parent.name !== '__root_collection__') {
+                    const parentId = coll.parent.id.toString();
+                    if (!processedCollectionIds.has(parentId)) {
+                        currentIds.push(parentId);
+                    }
+                }
+            }
+        }
+        
+        return Array.from(facetValueIds);
+    }
 }
 

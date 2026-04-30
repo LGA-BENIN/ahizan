@@ -310,7 +310,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
                                 ) : (
                                     <img 
-                                        src={p.assets?.[0]?.preview || ''} 
+                                        src={p.assets?.[0]?.preview || undefined} 
                                         className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-2" 
                                         alt={p.name} 
                                     />

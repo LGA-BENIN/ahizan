@@ -22,7 +22,7 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
             const repo = ctx
                 ? this.connection.getRepository(ctx, PlatformSettings)
                 : this.connection.rawConnection.getRepository(PlatformSettings);
-            settings = repo.create({
+            const newSettings = repo.create({
                 id: 'platform_settings',
                 platformName: 'Ahizan',
                 defaultCommissionRate: 10,
@@ -33,8 +33,8 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
                 emailVerificationRequired: false,
                 vendorAutoApproval: false,
                 placeholderEmailDomain: 'ahizan.com',
-            } as any);
-            return repo.save(settings);
+            });
+            return repo.save(newSettings) as Promise<PlatformSettings>;
         }
         return settings;
     }

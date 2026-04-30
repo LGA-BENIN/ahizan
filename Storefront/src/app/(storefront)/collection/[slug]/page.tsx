@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { query } from '@/lib/vendure/api';
-import { SearchProductsQuery, GetCollectionProductsQuery } from '@/lib/vendure/queries';
+import { SearchProductsQuery, GetCollectionProductsQuery, GetCollectionAllowedFacetsQuery } from '@/lib/vendure/queries';
 import { ProductGrid } from '@/components/commerce/product-grid';
 import { FacetFilters } from '@/components/commerce/facet-filters';
 import { ProductGridSkeleton } from '@/components/shared/product-grid-skeleton';
@@ -153,7 +153,6 @@ function CategoryHeader({ collection, config }: { collection: any, config: any }
             />
             <div className="container mx-auto px-8 relative z-20 mt-20">
                 <div className="max-w-3xl">
-                    <div className="inline-block px-3 py-1 bg-[#e31837] text-white text-[10px] font-black uppercase tracking-widest mb-4 rounded-sm">Collection Officielle</div>
                     <h1 className="text-6xl md:text-8xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-8 drop-shadow-2xl">
                         {collection.name}
                     </h1>
@@ -172,13 +171,21 @@ export default async function CollectionPage({params, searchParams}: PageProps<'
     const page = getCurrentPage(searchParamsResolved);
 
     const productDataPromise = getCollectionProducts(slug, searchParamsResolved);
-    const [collectionMeta, config] = await Promise.all([
+    const [collectionMeta, config, productData] = await Promise.all([
         getCollectionMetadata(slug),
-        getCategoryConfig()
+        getCategoryConfig(),
+        productDataPromise
     ]);
 
     const collection = collectionMeta.data.collection;
     if (!collection) return null;
+
+    // Fetch allowed facets for this collection from the plugin
+    const allowedFacetsResult = await query(GetCollectionAllowedFacetsQuery, {
+        collectionId: collection.id
+    });
+    const allowedFacetIds = (allowedFacetsResult as any)?.collectionAllowedFacets?.allowedFacetIds || [];
+    const allowedFacets = (allowedFacetsResult as any)?.collectionAllowedFacets?.allowedFacets || [];
 
     const parent = collection.parent;
     const children = collection.children || [];
@@ -263,23 +270,23 @@ export default async function CollectionPage({params, searchParams}: PageProps<'
                                 <span className="w-2 h-2 bg-[#e31837] rounded-full animate-pulse"></span>
                                 Filtrer par
                             </h2>
-                            <Suspense fallback={<div className="h-96 animate-pulse bg-gray-50 rounded-xl" />}>
-                                <FacetFilters productDataPromise={productDataPromise} />
-                            </Suspense>
+                            <FacetFilters 
+                                productData={productData} 
+                                allowedFacetIds={allowedFacetIds}
+                                allowedFacets={allowedFacets}
+                            />
                         </div>
                     </aside>
                 )}
 
                 {/* Product Grid */}
                 <div className={`flex-grow px-4 lg:px-0 ${isSidebarNone ? 'w-full' : ''}`}>
-                    <Suspense fallback={<ProductGridSkeleton />}>
                         <ProductGrid 
-                            productDataPromise={productDataPromise} 
+                            productData={productData} 
                             currentPage={page} 
                             take={c.productsPerPage || 12} 
                             columns={c.columnsDesktop || 4}
                         />
-                    </Suspense>
 
                     {c.descriptionPosition === 'bottom' && collection.description && (
                         <div className="mt-24 pt-12 border-t border-gray-100 text-gray-400 prose max-w-none italic text-sm" dangerouslySetInnerHTML={{ __html: collection.description }} />

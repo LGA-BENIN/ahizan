@@ -90,7 +90,7 @@ export function DenseProductCard({
             <div className={`${aspectClass} relative bg-muted/10 overflow-hidden`}>
                 {product.productAsset ? (
                     <img
-                        src={product.productAsset.preview}
+                        src={product.productAsset.preview || undefined}
                         alt={product.productName}
                         className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                     />

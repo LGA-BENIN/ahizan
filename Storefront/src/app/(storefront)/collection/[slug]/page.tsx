@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { query } from '@/lib/vendure/api';
 import { SearchProductsQuery, GetCollectionProductsQuery } from '@/lib/vendure/queries';
 import { ProductGrid } from '@/components/commerce/product-grid';
@@ -179,6 +180,10 @@ export default async function CollectionPage({params, searchParams}: PageProps<'
     const collection = collectionMeta.data.collection;
     if (!collection) return null;
 
+    const parent = collection.parent;
+    const children = collection.children || [];
+    const isRootParent = !parent || parent.slug === '__root_collection__' || parent.name?.startsWith('_root_');
+
     const c = config || {
         showBanner: true,
         bannerStyle: 'full',
@@ -194,7 +199,56 @@ export default async function CollectionPage({params, searchParams}: PageProps<'
 
     return (
         <div className="container mx-auto px-4 py-8 mt-16 min-h-screen">
+            {/* Breadcrumb navigation */}
+            {!isRootParent && parent && (
+                <nav className="mb-6 px-4 flex items-center gap-2 text-sm">
+                    <Link href={`/collection/${parent.slug}`} className="text-[#002f6c] hover:underline font-semibold">
+                        {parent.name}
+                    </Link>
+                    <span className="text-gray-300">/</span>
+                    <span className="text-gray-500 font-medium">{collection.name}</span>
+                </nav>
+            )}
+
             <CategoryHeader collection={collection} config={c} />
+
+            {/* Sub-collections grid */}
+            {children.length > 0 && (
+                <div className="mb-10 px-4">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-[#002f6c] mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-[#e31837] rounded-full"></span>
+                        Sous-collections
+                    </h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                        {children.map((child: any) => (
+                            <Link
+                                key={child.id}
+                                href={`/collection/${child.slug}`}
+                                className="group relative rounded-xl overflow-hidden border border-gray-100 bg-white hover:shadow-lg hover:border-[#002f6c]/20 transition-all"
+                            >
+                                {child.featuredAsset?.preview ? (
+                                    <div className="aspect-[4/3] overflow-hidden">
+                                        <img
+                                            src={child.featuredAsset.preview}
+                                            alt={child.name}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="aspect-[4/3] bg-gradient-to-br from-[#002f6c]/10 to-[#e31837]/10 flex items-center justify-center">
+                                        <span className="text-2xl font-black text-[#002f6c]/20 uppercase">{child.name?.charAt(0)}</span>
+                                    </div>
+                                )}
+                                <div className="p-3 text-center">
+                                    <span className="text-xs font-bold text-gray-800 group-hover:text-[#002f6c] transition-colors uppercase tracking-wide line-clamp-1">
+                                        {child.name}
+                                    </span>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {c.descriptionPosition === 'top' && !c.showBanner && collection.description && (
                 <div className="mb-12 px-4 text-gray-700 prose max-w-none border-l-2 border-gray-100 pl-8" dangerouslySetInnerHTML={{ __html: collection.description }} />

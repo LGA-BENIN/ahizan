@@ -1,4 +1,5 @@
-import { PluginCommonModule, VendurePlugin, PermissionDefinition } from '@vendure/core';
+import { PluginCommonModule, VendurePlugin, PermissionDefinition, SearchService, RequestContext, TransactionalConnection } from '@vendure/core';
+import { OnApplicationBootstrap } from '@nestjs/common';
 import { Vendor } from './entities/vendor.entity';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { OrderStatus } from './entities/order-status.entity';
@@ -162,4 +163,23 @@ ${shopApiExtensions}
         return config;
     },
 })
-export class MultivendorPlugin { }
+export class MultivendorPlugin implements OnApplicationBootstrap {
+    constructor(
+        private searchService: SearchService,
+        private connection: TransactionalConnection,
+    ) {}
+
+    async onApplicationBootstrap() {
+        // Delay reindex slightly to let the app fully initialize
+        setTimeout(async () => {
+            try {
+                const ctx = RequestContext.empty();
+                console.log('[MultivendorPlugin] Triggering search reindex on startup...');
+                await this.searchService.reindex(ctx);
+                console.log('[MultivendorPlugin] Search reindex completed.');
+            } catch (err) {
+                console.error('[MultivendorPlugin] Reindex failed:', err);
+            }
+        }, 5000);
+    }
+}

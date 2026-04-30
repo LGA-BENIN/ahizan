@@ -128,7 +128,12 @@ export const config: VendureConfig = {
         }),
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
-        DefaultSearchPlugin.init({ bufferUpdates: false, indexStockStatus: true }),
+        DefaultSearchPlugin.init({
+            bufferUpdates: false,
+            indexStockStatus: true,
+            productRelations: ['collections', 'facetValues', 'assets'],
+            variantRelations: ['product', 'assets'],
+        }),
         EmailPlugin.init({
             transport: { type: 'none' }, // Satisfy Vendure checking, we provide our own sender:
             emailSender: emailSenderNode,

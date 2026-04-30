@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent } from '@vendure/core';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -15,6 +15,7 @@ export class VendorShopResolver {
         private productVariantService: ProductVariantService,
         private orderService: OrderService,
         private assetService: AssetService,
+        private eventBus: EventBus,
     ) { }
 
     /**
@@ -187,7 +188,10 @@ export class VendorShopResolver {
             }]
         }]);
 
-        return this.productService.findOne(ctx, product.id) as Promise<Product>;
+        // 3. Re-fetch and emit event so the search index is updated
+        const finalProduct = await this.productService.findOne(ctx, product.id) as Product;
+        this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id: product.id }));
+        return finalProduct;
     }
 
     /**
@@ -264,7 +268,10 @@ export class VendorShopResolver {
             }
         }
 
-        return updated;
+        // Re-fetch and emit event so the search index is updated
+        const finalProduct = await this.productService.findOne(ctx, id) as Product;
+        this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
+        return finalProduct;
     }
 
     /**

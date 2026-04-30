@@ -439,6 +439,20 @@ export const GetCollectionProductsQuery = graphql(`
                 id
                 preview
             }
+            parent {
+                id
+                name
+                slug
+            }
+            children {
+                id
+                name
+                slug
+                featuredAsset {
+                    id
+                    preview
+                }
+            }
         }
         search(input: $input) {
             totalItems

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import ProductListTable from '@/components/dashboard/products/product-list-table';
 
 export default async function ProductListPage() {
+    // Force recompile
     const token = await getAuthToken();
 
     const [{ data: productData }, collectionsResult] = await Promise.all([

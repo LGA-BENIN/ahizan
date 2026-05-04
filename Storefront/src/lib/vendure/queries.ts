@@ -55,6 +55,44 @@ export const SearchProductsQuery = graphql(`
     }
 `, [ProductCardFragment]);
 
+export const GetProductsQuery = graphql(`
+    query GetProducts($options: ProductListOptions) {
+        products(options: $options) {
+            items {
+                id
+                name
+                slug
+                description
+                featuredAsset {
+                    id
+                    preview
+                }
+                variants {
+                    id
+                    name
+                    sku
+                    priceWithTax
+                    stockLevel
+                }
+                facetValues {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
+                collections {
+                    id
+                    name
+                    slug
+                }
+            }
+            totalItems
+        }
+    }
+`);
+
 export const GetProductDetailQuery = graphql(`
     query GetProductDetail($slug: String!) {
         product(slug: $slug) {
@@ -458,6 +496,17 @@ export const GetCollectionProductsQuery = graphql(`
             totalItems
             items {
                 ...ProductCard
+            }
+            facetValues {
+                count
+                facetValue {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
             }
         }
     }

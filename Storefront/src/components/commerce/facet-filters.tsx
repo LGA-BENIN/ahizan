@@ -22,10 +22,14 @@ interface FacetFiltersProps {
 }
 
 export function FacetFilters({ productData, allowedFacetIds, allowedFacets }: FacetFiltersProps) {
-    const searchResult = productData.data.search;
+    const searchResult = productData?.data?.search;
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const router = useRouter();
+
+    if (!searchResult) {
+        return <div className="text-sm text-gray-500">No filter data available</div>;
+    }
 
     // Group facet values by facet
     interface FacetGroup {
@@ -37,32 +41,34 @@ export function FacetFilters({ productData, allowedFacetIds, allowedFacets }: Fa
     // Initialize facet groups from allowedFacets if provided
     const facetGroups: Record<string, FacetGroup> = {};
 
+    // Build facet groups from allowedFacets (already filtered for this collection)
     if (allowedFacets && allowedFacets.length > 0) {
         allowedFacets.forEach(facet => {
             const facetId = String(facet.id);
-            // Only include if it's in the allowed list (if list exists)
-            if (!allowedFacetIds || allowedFacetIds.length === 0 || allowedFacetIds.includes(facetId)) {
-                facetGroups[facetId] = {
-                    id: facetId,
-                    name: facet.name,
-                    values: facet.values.map(v => ({
-                        id: v.id,
-                        name: v.name,
-                        count: 0
-                    }))
-                };
-            }
+            facetGroups[facetId] = {
+                id: facetId,
+                name: facet.name,
+                values: facet.values.map(v => ({
+                    id: v.id,
+                    name: v.name,
+                    count: 0
+                }))
+            };
         });
     }
 
     // Merge or Add facets from search results
-    searchResult.facetValues.forEach(item => {
+    const searchFacetValues = searchResult?.facetValues || [];
+    searchFacetValues.forEach(item => {
         const facet = item.facetValue.facet;
         const facetId = String(facet.id);
         const fv = item.facetValue;
 
-        // Check if this facet is allowed
-        const isAllowed = !allowedFacetIds || allowedFacetIds.length === 0 || allowedFacetIds.includes(facetId);
+        // FIX: Check if array exists AND has items before applying the strict include rule
+        const isAllowed = allowedFacetIds && allowedFacetIds.length > 0 
+            ? allowedFacetIds.includes(facetId) 
+            : true;
+            
         if (!isAllowed) return;
 
         if (!facetGroups[facetId]) {

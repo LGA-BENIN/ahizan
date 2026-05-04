@@ -84,12 +84,15 @@ export class VendorShopResolver {
 
         const product = await this.productService.findOne(ctx, id);
         if (!product) {
+            console.log(`myVendorProduct: Product ${id} not found by ProductService.findOne`);
             return null;
         }
 
         // Verify ownership
         const productVendor = await this.vendorService.getVendorByProductId(ctx, id);
-        if (!productVendor || productVendor.id !== vendor.id) {
+        console.log(`myVendorProduct: Checking ownership for product ${id}. Vendor from product:`, productVendor?.id, `Type:`, typeof productVendor?.id, `Authenticated vendor:`, vendor.id, `Type:`, typeof vendor.id);
+        if (!productVendor || productVendor.id.toString() !== vendor.id.toString()) {
+            console.log(`myVendorProduct: Ownership verification failed for product ${id}`);
             throw new Error('You do not have permission to view this product');
         }
 
@@ -167,7 +170,41 @@ export class VendorShopResolver {
         }]);
         const variant = variants[0];
 
-        // 3. Re-fetch and emit event so the search index is updated via Job Queue
+        // 3. Assign product to collections using raw SQL (Vendure v3 has no addProductsToCollection)
+        // Note: Vendure v3 uses collection_product_variants_product_variant (variant-based relationship)
+        console.log(`createMyProduct: variant.id = ${variant.id}, type = ${typeof variant.id}`);
+        console.log(`createMyProduct: input.collectionIds = ${JSON.stringify(input.collectionIds)}`);
+        if (input.collectionIds && input.collectionIds.length > 0) {
+            const queryRunner = this.connection.rawConnection.createQueryRunner();
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+            try {
+                for (const collectionId of input.collectionIds) {
+                    console.log(`createMyProduct: Inserting collectionId=${collectionId}, productVariantId=${variant.id}`);
+                    const result = await queryRunner.query(
+                        `INSERT INTO "collection_product_variants_product_variant" ("collectionId", "productVariantId") VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *`,
+                        [collectionId, variant.id]
+                    );
+                    console.log(`createMyProduct: Insert result:`, JSON.stringify(result));
+                }
+                await queryRunner.commitTransaction();
+                console.log(`createMyProduct: Transaction committed successfully`);
+            } catch (err) {
+                await queryRunner.rollbackTransaction();
+                console.error('createMyProduct: Error assigning collections:', err);
+                throw err;
+            } finally {
+                await queryRunner.release();
+            }
+        }
+
+        // 4. Trigger an update to force Vendure to evaluate collections now that the variant exists
+        await this.productService.update(ctx, {
+            id: product.id,
+            facetValueIds: finalFacetValueIds,
+        });
+
+        // 5. Re-fetch and emit event so the search index is updated via Job Queue
         const finalProduct = await this.productService.findOne(ctx, product.id) as Product;
         this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id: product.id }));
         return finalProduct;
@@ -199,6 +236,56 @@ export class VendorShopResolver {
 
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
+
+        // Update product collections using raw SQL (Vendure v3 has no addProductsToCollection)
+        // Note: Vendure v3 uses collection_product_variants_product_variant (variant-based relationship)
+        console.log(`updateMyProduct: collectionIds = ${JSON.stringify(collectionIds)}`);
+        if (collectionIds !== undefined) {
+            const queryRunner = this.connection.rawConnection.createQueryRunner();
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+            try {
+                // Get all variants for this product
+                const product = await this.productService.findOne(ctx, id, ['variants']);
+                if (!product || !product.variants) {
+                    throw new Error('Product or variants not found');
+                }
+
+                console.log(`updateMyProduct: Found ${product.variants.length} variants for product ${id}`);
+                
+                // First, remove all existing collection assignments for all variants of this product
+                for (const variant of product.variants) {
+                    console.log(`updateMyProduct: Deleting collections for variant ${variant.id}`);
+                    const delResult = await queryRunner.query(
+                        `DELETE FROM "collection_product_variants_product_variant" WHERE "productVariantId" = $1 RETURNING *`,
+                        [variant.id]
+                    );
+                    console.log(`updateMyProduct: Deleted rows:`, JSON.stringify(delResult));
+                }
+                
+                // Then, add the new collection assignments for all variants
+                if (collectionIds.length > 0) {
+                    for (const collectionId of collectionIds) {
+                        for (const variant of product.variants) {
+                            console.log(`updateMyProduct: Inserting collectionId=${collectionId}, productVariantId=${variant.id}`);
+                            const insResult = await queryRunner.query(
+                                `INSERT INTO "collection_product_variants_product_variant" ("collectionId", "productVariantId") VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *`,
+                                [collectionId, variant.id]
+                            );
+                            console.log(`updateMyProduct: Insert result:`, JSON.stringify(insResult));
+                        }
+                    }
+                }
+                await queryRunner.commitTransaction();
+                console.log(`updateMyProduct: Transaction committed successfully`);
+            } catch (err) {
+                await queryRunner.rollbackTransaction();
+                console.error('updateMyProduct: Error assigning collections:', err);
+                throw err;
+            } finally {
+                await queryRunner.release();
+            }
+        }
 
         const updated = await this.productService.update(ctx, { 
             id, 

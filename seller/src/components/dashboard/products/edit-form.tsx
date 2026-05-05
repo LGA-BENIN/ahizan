@@ -43,11 +43,19 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
 
     // Determine parent category from the tree for initial selection
     const findParentForCategory = (catId: string): string => {
-        for (const parent of (collectionTree || [])) {
-            if (parent.id === catId) return catId;
-            if (parent.children?.some((c: any) => c.id === catId)) return parent.id;
-        }
-        return catId;
+        const search = (nodes: any[], parentId?: string): string | null => {
+            for (const node of nodes) {
+                if (String(node.id) === String(catId)) {
+                    return parentId || String(node.id);
+                }
+                if (node.children?.length) {
+                    const found = search(node.children, String(node.id));
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        return search(collectionTree || []) || catId;
     };
 
     // Fetch allowed facets for a collection

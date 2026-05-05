@@ -17,7 +17,7 @@ import dns from 'dns';
 import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
 import { zoneBasedShippingCalculator } from './plugins/multivendor/shipping/zone-based-shipping.calculator';
-// Removed the manual variantIdCollectionFilter import to avoid conflicts
+import { variantIdCollectionFilter } from './plugins/multivendor/collection-filters';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
@@ -86,7 +86,7 @@ export const config: VendureConfig = {
     },
     catalogOptions: {
         // Using only defaults first to ensure the server starts safely
-        collectionFilters: [...defaultCollectionFilters],
+        collectionFilters: [...defaultCollectionFilters, variantIdCollectionFilter],
     },
     paymentOptions: {
         paymentMethodHandlers: [cashOnDeliveryHandler],

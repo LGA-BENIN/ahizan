@@ -60,7 +60,7 @@ function CategoryManager() {
     const collections = collectionsData?.collections?.items || [];
 
     const createMutation = useMutation({
-        mutationFn: ({ name, slug }: { name: string; slug: string }) => fetchGraphQL(
+        mutationFn: ({ name, slug, parentId }: { name: string; slug: string; parentId?: string }) => fetchGraphQL(
             `mutation CreateCollection($input: CreateCollectionInput!) {
                 createCollection(input: $input) {
                     id
@@ -68,7 +68,16 @@ function CategoryManager() {
                     slug
                 }
             }`,
-            { input: { translations: [{ languageCode: 'fr', name, slug }] } }
+            {
+                input: {
+                    translations: [{ languageCode: 'fr', name, slug }],
+                    filters: [{
+                        code: 'variant-id-filter',
+                        arguments: [{ name: 'variantIds', value: '[]' }],
+                    }],
+                    ...(parentId ? { parentId } : {}),
+                }
+            }
         ),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['collections'] });

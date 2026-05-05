@@ -17,8 +17,12 @@ export const variantIdCollectionFilter = new CollectionFilter({
         },
     },
     apply: (qb, args) => {
-        if (args.variantIds && args.variantIds.length > 0) {
-            return qb.andWhere('productVariant.id IN (:...variantIds)', { variantIds: args.variantIds });
+        // Cast to integer to ensure match with productVariant.id (integer in DB)
+        const ids = (args.variantIds || [])
+            .map((id: any) => parseInt(String(id), 10))
+            .filter((n: number) => !isNaN(n));
+        if (ids.length > 0) {
+            return qb.andWhere('productVariant.id IN (:...variantIds)', { variantIds: ids });
         }
         // If no IDs provided, return no products to avoid showing everything in a restricted collection
         return qb.andWhere('1 = 0');

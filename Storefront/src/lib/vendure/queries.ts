@@ -490,6 +490,11 @@ export const GetCollectionProductsQuery = graphql(`
                     id
                     preview
                 }
+                children {
+                    id
+                    name
+                    slug
+                }
             }
         }
         search(input: $input) {

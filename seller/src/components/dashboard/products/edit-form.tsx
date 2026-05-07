@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageUploader from '@/components/ImageUploader';
 import { updateProductAction } from '@/app/dashboard/products/actions';
@@ -10,35 +10,94 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, ImageIcon, Ruler, Save, X, Trash2, Info } from 'lucide-react';
+import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditProductFormProps {
     product: any;
-    facets: any;
+    collectionTree: any[];
 }
 
-export default function EditProductForm({ product, facets }: EditProductFormProps) {
+export default function EditProductForm({ product, collectionTree }: EditProductFormProps) {
     const router = useRouter();
     const variant = product.variants[0]; // Assuming single variant for now
+
+    const initialCategoryId = product.collections?.length > 0 ? String(product.collections[0].id) : '';
+
+    // Determine parent category from the tree at init time
+    const findParentForCategory = (catId: string, tree: any[]): string => {
+        const search = (nodes: any[], parentId?: string): string | null => {
+            for (const node of nodes) {
+                if (String(node.id) === String(catId)) {
+                    return parentId || String(node.id);
+                }
+                if (node.children?.length) {
+                    const found = search(node.children, String(node.id));
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+        return search(tree || []) || catId;
+    };
+
+    const initialParentCategory = findParentForCategory(initialCategoryId, collectionTree);
 
     const [formData, setFormData] = useState({
         name: product.name,
         description: product.description,
         price: variant?.price || 0,
         stock: variant?.stockLevel === 'IN_STOCK' ? 100 : (parseInt(variant?.stockLevel) || 0),
-        category: product.facetValues.length > 0 ? product.facetValues[0].id : '',
+        parentCategory: initialParentCategory,
+        category: initialCategoryId,
     });
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const categoryFacet = facets?.items?.find((f: any) => 
-        f.code === 'category' || 
-        f.name.toLowerCase() === 'category' || 
-        f.name.toLowerCase() === 'catégorie'
+    const [facetValueIds, setFacetValueIds] = useState<string[]>(
+        (product.facetValues || []).map((fv: any) => String(fv.id))
     );
-    const categories = categoryFacet?.values || [];
+    const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
+    const [loadingFacets, setLoadingFacets] = useState(false);
+
+    // Fetch allowed facets for a collection
+    const fetchAllowedFacets = async (collectionId: string) => {
+        if (!collectionId) { setAllowedFacets([]); return; }
+        setLoadingFacets(true);
+        try {
+            const { query } = await import('@/lib/vendure/api');
+            const { GetCollectionAllowedFacetsQuery } = await import('@/lib/vendure/queries');
+            const result = await query(GetCollectionAllowedFacetsQuery, { collectionId });
+            const mapping = (result.data as any)?.collectionAllowedFacets;
+            setAllowedFacets(mapping?.allowedFacets || []);
+        } catch (err) {
+            console.error('[EditProductForm] Failed to fetch allowed facets:', err);
+            setAllowedFacets([]);
+        } finally {
+            setLoadingFacets(false);
+        }
+    };
+
+    // Fetch facets on mount if category is already selected
+    useEffect(() => {
+        if (initialCategoryId) {
+            fetchAllowedFacets(initialCategoryId);
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const selectedParent = collectionTree?.find((c: any) => String(c.id) === String(formData.parentCategory));
+    const subCategories = selectedParent?.children || [];
+
+    const handleParentChange = (v: string) => {
+        setFormData({ ...formData, parentCategory: v, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
+    };
+    const handleSubCategoryChange = (v: string) => {
+        setFormData({ ...formData, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -54,6 +113,7 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
             data.append('stock', formData.stock.toString());
             data.append('category', formData.category);
             data.append('assetIds', JSON.stringify(assetIds));
+            data.append('facetValueIds', JSON.stringify(facetValueIds));
 
             const result = await updateProductAction(null, data);
 
@@ -101,19 +161,38 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
                     <div className="space-y-2">
                         <Label htmlFor="category">Catégorie <span className="text-destructive">*</span></Label>
                         <Select 
-                            value={formData.category} 
-                            onValueChange={val => setFormData({ ...formData, category: val })}
+                            value={formData.parentCategory} 
+                            onValueChange={handleParentChange}
                         >
                             <SelectTrigger className="h-12 rounded-xl">
                                 <SelectValue placeholder="Choisir une catégorie" />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
-                                {categories.map((cat: any) => (
-                                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                {(collectionTree || []).map((cat: any) => (
+                                    <SelectItem key={String(cat.id)} value={String(cat.id)}>{cat.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {subCategories.length > 0 && (
+                    <div className="space-y-2">
+                        <Label htmlFor="subcategory">Sous-catégorie</Label>
+                        <Select 
+                            value={formData.category !== formData.parentCategory ? formData.category : ''} 
+                            onValueChange={handleSubCategoryChange}
+                        >
+                            <SelectTrigger className="h-12 rounded-xl">
+                                <SelectValue placeholder="Choisir une sous-catégorie" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                {subCategories.map((cat: any) => (
+                                    <SelectItem key={String(cat.id)} value={String(cat.id)}>{cat.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    )}
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>
@@ -126,6 +205,54 @@ export default function EditProductForm({ product, facets }: EditProductFormProp
                             onChange={e => setFormData({ ...formData, description: e.target.value })}
                         />
                     </div>
+
+                    {/* Section: Caractéristiques (Facet Values) */}
+                    {formData.category && (
+                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-primary" />
+                            <h3 className="text-xs font-black uppercase tracking-widest">Caractéristiques</h3>
+                        </div>
+                        <div className="p-8">
+                            {loadingFacets ? (
+                                <p className="text-xs text-muted-foreground animate-pulse">Chargement des caractéristiques...</p>
+                            ) : allowedFacets.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">Aucune caractéristique définie pour cette catégorie. Le superadmin peut en configurer via le tableau de bord admin.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {allowedFacets.map((facet: any) => {
+                                        const selectedFvId = facetValueIds.find((id: string) =>
+                                            facet.values?.some((fv: any) => String(fv.id) === id)
+                                        );
+                                        return (
+                                            <div key={facet.id}>
+                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
+                                                <Select
+                                                    value={selectedFvId || ''}
+                                                    onValueChange={(v) => {
+                                                        setFacetValueIds(prev => {
+                                                            const without = prev.filter(id => !facet.values?.some((fv: any) => String(fv.id) === id));
+                                                            return v ? [...without, v] : without;
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-12 rounded-xl">
+                                                        <SelectValue placeholder={`Sélectionner ${facet.name}`} />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl">
+                                                        {facet.values?.map((fv: any) => (
+                                                            <SelectItem key={String(fv.id)} value={String(fv.id)}>{fv.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    )}
                 </div>
 
                 {/* Right Column: Pricing, Inventory & Media */}

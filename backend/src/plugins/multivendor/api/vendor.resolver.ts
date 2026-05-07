@@ -170,7 +170,8 @@ function isErrorResult(result: any): result is { message: string; errorCode: str
 export class VendorAdminResolver {
     constructor(
         private vendorService: VendorService,
-        private productService: ProductService
+        private productService: ProductService,
+        private connection: TransactionalConnection
     ) {
         console.log('VendorAdminResolver initialized with ProductService');
     }

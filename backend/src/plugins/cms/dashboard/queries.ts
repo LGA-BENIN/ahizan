@@ -9,6 +9,8 @@ export const GET_PAGES = gql`
                 title
                 type
                 isActive
+                metaTitle
+                metaDescription
             }
             totalItems
         }
@@ -23,6 +25,10 @@ export const GET_PAGE = gql`
             title
             type
             isActive
+            metaTitle
+            metaDescription
+            metaKeywords
+            ogImage
             sections {
                 id
                 type
@@ -81,6 +87,8 @@ export const UPDATE_SECTION = gql`
             id
             type
             order
+            isActive
+            dataJson
         }
     }
 `;
@@ -129,8 +137,69 @@ export const CREATE_CMS_ASSET = gql`
   }
 `;
 
-export const GET_FACET_VALUES = gql`
-  query GetCmsFacetValues {
-    cmsFacetValues
+export const GET_COLLECTIONS_TREE = gql`
+  query GetCmsCollectionsTree {
+    cmsCollectionsTree {
+      id
+      name
+      slug
+      featuredAsset {
+        id
+        preview
+      }
+      children {
+        id
+        name
+        slug
+        featuredAsset {
+          id
+          preview
+        }
+      }
+    }
   }
+`;
+
+export const GET_SEASONS = gql`
+    query GetSeasons {
+        siteSeasons {
+            id
+            name
+            startDate
+            endDate
+            isActive
+            configJson
+            preset {
+                id
+                name
+            }
+        }
+    }
+`;
+
+export const CREATE_SEASON = gql`
+    mutation CreateSeason($input: CreateSeasonInput!) {
+        createSeason(input: $input) {
+            id
+            name
+        }
+    }
+`;
+
+export const UPDATE_SEASON = gql`
+    mutation UpdateSeason($input: UpdateSeasonInput!) {
+        updateSeason(input: $input) {
+            id
+            name
+            isActive
+        }
+    }
+`;
+
+export const DELETE_SEASON = gql`
+    mutation DeleteSeason($id: ID!) {
+        deleteSeason(id: $id) {
+            result
+        }
+    }
 `;

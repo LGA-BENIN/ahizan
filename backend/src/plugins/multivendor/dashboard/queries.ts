@@ -139,27 +139,18 @@ export const SET_VENDOR_ALLOW_NEGATIVE_BALANCE = gql`
     }
 `;
 
-export const GET_FACETS = gql`
-    query GetFacets($options: FacetListOptions) {
-        facets(options: $options) {
+export const GET_COLLECTIONS = gql`
+    query GetCollections($options: CollectionListOptions) {
+        collections(options: $options) {
             items {
                 id
                 name
-                code
-                values {
+                slug
+                parent {
                     id
                     name
                 }
             }
-        }
-    }
-`;
-
-export const CREATE_FACET_VALUE = gql`
-    mutation CreateVendorFacetValue($input: CreateVendorFacetValueInput!) {
-        createVendorFacetValue(input: $input) {
-            id
-            name
         }
     }
 `;

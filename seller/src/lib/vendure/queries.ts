@@ -303,13 +303,38 @@ export const GetCustomerOrdersQuery = graphql(`
         }
     }
 `);
-export const GetFacetsQuery = graphql(`
-    query GetFacets($options: FacetListOptions) {
-        facets(options: $options) {
-            items {
+export const GetCollectionsTreeQuery = graphql(`
+    query GetCollectionsTree {
+        cmsCollectionsTree {
+            id
+            name
+            slug
+            featuredAsset {
+                id
+                preview
+            }
+            children {
                 id
                 name
-                code
+                slug
+                featuredAsset {
+                    id
+                    preview
+                }
+            }
+        }
+    }
+`);
+
+export const GetCollectionAllowedFacetsQuery = graphql(`
+    query GetCollectionAllowedFacets($collectionId: ID!) {
+        collectionAllowedFacets(collectionId: $collectionId) {
+            collectionId
+            collectionName
+            allowedFacetIds
+            allowedFacets {
+                id
+                name
                 values {
                     id
                     name
@@ -325,9 +350,10 @@ export const GetVendorProductQuery = graphql(`
             id
             name
             description
-            facetValues {
+            collections {
                 id
                 name
+                slug
             }
             variants {
                 id

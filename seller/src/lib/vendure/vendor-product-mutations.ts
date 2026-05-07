@@ -17,14 +17,10 @@ export const GetMyVendorProductsQuery = graphql(`
                 featuredAsset {
                     preview
                 }
-                facetValues {
+                collections {
                     id
                     name
-                    facet {
-                        id
-                        name
-                        code
-                    }
+                    slug
                 }
             }
             totalItems
@@ -40,13 +36,17 @@ export const GetMyVendorProductQuery = graphql(`
             description
             slug
             enabled
+            collections {
+                id
+                name
+                slug
+            }
             facetValues {
                 id
                 name
                 facet {
                     id
                     name
-                    code
                 }
             }
             variants {
@@ -91,7 +91,7 @@ export const UpdateMyProductMutation = graphql(`
             id
             name
             description
-            facetValues {
+            collections {
                 id
                 name
             }
@@ -117,17 +117,6 @@ export const UpdateMyProductVariantMutation = graphql(`
     }
 `);
 
-export const CreateVendorFacetValueMutation = graphql(`
-    mutation CreateVendorFacetValue($input: CreateVendorFacetValueInput!) {
-        createVendorFacetValue(input: $input) {
-            id
-            name
-            facet {
-                id
-            }
-        }
-    }
-`);
 
 export const UploadVendorFileMutation = graphql(`
     mutation UploadVendorFile($file: Upload!) {

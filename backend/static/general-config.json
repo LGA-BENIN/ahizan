@@ -1,12 +1,12 @@
 {
-  "logoUrl": "/assets/banners/1774524940128-revival-march-april-2026.png",
+  "logoUrl": "/assets/banners/1775558971576-LOGO AHIZAN (1).png",
   "preloader": {
     "type": "default",
     "url": "/assets/banners/1774517615659-tikcdn_beubagah_com_da49db46_376a_452d_bf3f_14136c7fad1f.mp4"
   },
   "background": {
     "type": "color",
-    "value": "#e0b6fb"
+    "value": "#ffffff"
   },
   "modal": {
     "enabled": false,
@@ -17,7 +17,7 @@
   },
   "modals": [
     {
-      "enabled": true,
+      "enabled": false,
       "type": "text",
       "value": "donc acheter non ou bien vous avez quoi",
       "link": "/eli",

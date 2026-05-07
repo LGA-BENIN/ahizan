@@ -46,13 +46,46 @@ export interface CmsPage {
 export interface ThemeSettingsData {
     primaryColor?: string;
     secondaryColor?: string;
+    accentColor?: string;
+    successColor?: string;
+    warningColor?: string;
+    dangerColor?: string;
     backgroundColor?: string;
+    surfaceColor?: string;
+    textColor?: string;
+    textMutedColor?: string;
+    borderColor?: string;
     fontFamily?: string;
+    headingFontFamily?: string;
+    baseFontSize?: string;
+    headingFontWeight?: string;
+    bodyLineHeight?: string;
     borderRadius?: string;
-    layoutMode?: 'boxed' | 'full';
-    backgroundType?: 'color' | 'image' | 'video';
+    buttonRadius?: string;
+    cardRadius?: string;
+    inputRadius?: string;
+    layoutMode?: 'boxed' | 'full' | 'wide';
+    maxWidth?: string;
+    sectionSpacing?: string;
+    containerPadding?: string;
+    backgroundType?: 'color' | 'image' | 'video' | 'gradient' | 'pattern';
     backgroundImageUrl?: string;
     backgroundVideoUrl?: string;
+    backgroundOverlay?: number;
+    backgroundFixed?: boolean;
+    backgroundBlur?: number;
+    buttonStyle?: string;
+    buttonSize?: string;
+    buttonTextTransform?: string;
+    shadowIntensity?: string;
+    animationSpeed?: string;
+    enableAnimations?: boolean;
+    enableHoverEffects?: boolean;
+    enableSmoothScroll?: boolean;
+    preloader?: { type: string; url?: string; bgColor?: string; duration?: number };
+    scrollToTop?: { enabled?: boolean; style?: string; color?: string };
+    favicon?: string;
+    cookieConsent?: any;
 }
 
 export interface TopBarData {
@@ -86,6 +119,7 @@ export interface HeaderConfData {
     vendorLinkText?: string;
     vendorLinkUrl?: string;
     helpLinks?: Array<{ label: string; link: string }>;
+    topBar?: any;
 }
 
 export interface FooterConfData {
@@ -168,7 +202,7 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
         const result = await query(
             GetPageBySlugQuery, 
             { slug }, 
-            { fetch: { next: { revalidate: 60 } } }
+            { fetch: { cache: 'no-store' } }
         ) as any;
         console.log(`[getPageContent] Raw API result for slug "${slug}":`, result);
 

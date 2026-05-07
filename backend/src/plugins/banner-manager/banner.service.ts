@@ -25,12 +25,18 @@ export interface HeroConfig {
         buttonText: string;
         buttonLink: string;
         mainTextColor: 'white' | 'black';
-        // Sidebar card descriptions
+        // Sidebar titles & descriptions
+        assistanceTitle: string;
         assistanceDesc: string;
+        assistanceLink: string;
+        whatsappTitle: string;
         whatsappDesc: string;
+        whatsappLink: string;
+        sellTitle: string;
         sellDesc: string;
+        sellLink: string;
         modalTextColor: 'white' | 'black';
-        // Flash Ad customization
+        // Flash Ad
         flashTitle: string;
         flashDiscount: string;
         flashBgType: 'color' | 'image' | 'video';
@@ -46,8 +52,10 @@ export interface HeroConfig {
         flashDesc: string;
         whatsappTitle: string;
         whatsappDesc: string;
+        whatsappLink: string;
         sellTitle: string;
         sellDesc: string;
+        sellLink: string;
         modalTextColor: 'white' | 'black';
     };
     fullwidth: {
@@ -58,10 +66,16 @@ export interface HeroConfig {
         buttonLink: string;
         bgUrl?: string;
         mainTextColor: 'white' | 'black';
-        // Badge descriptions
+        // Badge titles & descriptions
+        assistanceTitle: string;
         assistanceDesc: string;
+        assistanceLink: string;
+        whatsappTitle: string;
         whatsappDesc: string;
+        whatsappLink: string;
+        sellTitle: string;
         sellDesc: string;
+        sellLink: string;
         modalTextColor: 'white' | 'black';
     };
 }
@@ -189,9 +203,15 @@ export class BannerService {
                     buttonText: '',
                     buttonLink: '',
                     mainTextColor: 'black',
+                    assistanceTitle: 'Assistance',
                     assistanceDesc: '',
+                    assistanceLink: '',
+                    whatsappTitle: 'WhatsApp',
                     whatsappDesc: '',
+                    whatsappLink: '',
+                    sellTitle: 'Vendre ici',
                     sellDesc: '',
+                    sellLink: '',
                     modalTextColor: 'black',
                     flashTitle: '',
                     flashDiscount: '',
@@ -206,10 +226,12 @@ export class BannerService {
                     mainTextColor: 'black',
                     flashTitle: '',
                     flashDesc: '',
-                    whatsappTitle: '',
+                    whatsappTitle: 'Support',
                     whatsappDesc: '',
-                    sellTitle: '',
+                    whatsappLink: '',
+                    sellTitle: 'Vendeur',
                     sellDesc: '',
+                    sellLink: '',
                     modalTextColor: 'white'
                 },
                 fullwidth: {
@@ -220,9 +242,15 @@ export class BannerService {
                     buttonLink: '',
                     bgUrl: '',
                     mainTextColor: 'white',
+                    assistanceTitle: 'Assistance',
                     assistanceDesc: '',
+                    assistanceLink: '',
+                    whatsappTitle: 'WhatsApp',
                     whatsappDesc: '',
+                    whatsappLink: '',
+                    sellTitle: 'Vendre ici',
                     sellDesc: '',
+                    sellLink: '',
                     modalTextColor: 'white'
                 }
             };

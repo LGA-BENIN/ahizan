@@ -3,7 +3,6 @@ import { HeroSection } from '@/components/layout/hero-section';
 import { FeaturedProducts } from '@/components/commerce/featured-products';
 import { PromoBanner } from '@/components/cms/promo-banner';
 import { CategoryGrid } from '@/components/cms/category-grid';
-import { BannerSection } from '@/components/cms/banner-section';
 import { FlashDealsSection } from '@/components/cms/flash-deals-section';
 import { VendorShowcaseSection } from '@/components/cms/vendor-showcase-section';
 import { FeaturesSection } from '@/components/cms/features-section';
@@ -16,6 +15,7 @@ import { RecentlyViewedSection } from '@/components/cms/recently-viewed-section'
 import { CtaVendorSection } from '@/components/cms/cta-vendor-section';
 import { NewsletterSection } from '@/components/cms/newsletter-section';
 import { TestimonialsSection } from '@/components/cms/testimonials-section';
+import { TabbedProductGrid } from '@/components/cms/tabbed-product-grid';
 
 /**
  * Le registre fait correspondre un "type" de section provenant du CMS Backend Vendure
@@ -34,7 +34,7 @@ export const sectionRegistry: Record<string, React.ComponentType<any>> = {
     'PROMO_BANNER': PromoBanner,
     'PROMO_GRID': PromoGridSection,
     'CATEGORY_GRID': CategoryGrid,
-    'BANNER': BannerSection,
+    'CATEGORIES': CategoryGrid,
     'FLASH_DEALS': FlashDealsSection,
     'VENDOR_SHOWCASE': VendorShowcaseSection,
     'FEATURES': FeaturesSection,
@@ -45,6 +45,7 @@ export const sectionRegistry: Record<string, React.ComponentType<any>> = {
     'CTA_VENDOR': CtaVendorSection,
     'NEWSLETTER': NewsletterSection,
     'TESTIMONIALS': TestimonialsSection,
+    'TABBED_PRODUCT_GRID': TabbedProductGrid,
 };
 
 export function getSectionComponent(type: string): React.ComponentType<any> | null {

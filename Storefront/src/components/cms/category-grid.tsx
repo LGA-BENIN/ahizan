@@ -1,7 +1,8 @@
-import React from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { rawQuery } from '@/lib/vendure/raw-api';
 
 interface CategoryItem {
     name: string;
@@ -32,10 +33,16 @@ const GET_COLLECTIONS_WITH_ASSETS = `
     }
 `;
 
-async function getCollections(): Promise<CategoryItem[]> {
+async function fetchCollectionsClient(): Promise<CategoryItem[]> {
     try {
-        const data = await rawQuery(GET_COLLECTIONS_WITH_ASSETS);
-        return (data?.collections?.items || []).map((c: any) => ({
+        const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+        const res = await fetch(shopApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: GET_COLLECTIONS_WITH_ASSETS }),
+        });
+        const data = await res.json();
+        return (data?.data?.collections?.items || []).map((c: any) => ({
             name: c.name,
             slug: c.slug,
             imageUrl: c.featuredAsset?.preview || null,
@@ -47,7 +54,7 @@ async function getCollections(): Promise<CategoryItem[]> {
     }
 }
 
-export async function CategoryGrid({
+export function CategoryGrid({
     title = "Nos Collections",
     description,
     layout = 'grid',
@@ -55,8 +62,29 @@ export async function CategoryGrid({
     take = 12,
 }: CategoryGridProps) {
 
-    let categories = manualCategories?.length ? manualCategories : (await getCollections());
+    const [fetchedCategories, setFetchedCategories] = useState<CategoryItem[]>([]);
+    const [loading, setLoading] = useState(!manualCategories?.length);
+
+    useEffect(() => {
+        if (!manualCategories?.length) {
+            setLoading(true);
+            fetchCollectionsClient().then(cats => {
+                setFetchedCategories(cats);
+                setLoading(false);
+            });
+        }
+    }, [manualCategories]);
+
+    let categories = manualCategories?.length ? manualCategories : fetchedCategories;
     if (take && categories.length > take) categories = categories.slice(0, take);
+
+    if (loading) {
+        return (
+            <section className="py-14 container mx-auto px-4">
+                <div className="text-center text-muted-foreground">Chargement des collections...</div>
+            </section>
+        );
+    }
 
     if (!categories || categories.length === 0) return null;
 

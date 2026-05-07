@@ -7,6 +7,8 @@
     "dev:worker": "ts-node --transpileOnly ./src/index-worker.ts",
     "dev:dashboard": "vite --clearScreen false",
     "dev": "concurrently --kill-others npm:dev:*",
+    "run:fast": "concurrently --kill-others \"npm run dev:server\" \"npm run dev:worker\"",
+    "clean-ports": "npx kill-port 3000",
     "build": "tsc",
     "build:dashboard": "vite build",
     "start:server": "node ./dist/index.js",
@@ -18,8 +20,9 @@
   },
   "dependencies": {
     "@apollo/client": "^3.14.0",
+    "@craftjs/core": "^0.2.12",
     "@vendure/asset-server-plugin": "3.5.2",
-    "@vendure/core": "3.5.2",
+    "@vendure/core": "^3.5.2",
     "@vendure/dashboard": "3.5.2",
     "@vendure/email-plugin": "3.5.2",
     "@vendure/graphiql-plugin": "3.5.2",
@@ -28,7 +31,11 @@
     "dotenv": "17.2.3",
     "graphql-tag": "^2.12.6",
     "pg": "^8.13.1",
-    "react-router-dom": "^6.30.3"
+    "prismjs": "^1.30.0",
+    "react-router-dom": "^6.30.3",
+    "react-simple-code-editor": "^0.14.1",
+    "@tanstack/react-query": "^5.0.0",
+    "typeorm": "^0.3.28"
   },
   "devDependencies": {
     "@swc/core": "1.13.5",

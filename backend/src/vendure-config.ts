@@ -1,5 +1,6 @@
 import {
     defaultShippingCalculator,
+    defaultCollectionFilters, 
     DefaultJobQueuePlugin,
     DefaultSchedulerPlugin,
     DefaultSearchPlugin,
@@ -16,6 +17,7 @@ import dns from 'dns';
 import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
 import { zoneBasedShippingCalculator } from './plugins/multivendor/shipping/zone-based-shipping.calculator';
+import { variantIdCollectionFilter } from './plugins/multivendor/collection-filters';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
 import { TaxEnforcementPlugin } from './plugins/tax-enforcement.plugin';
 import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscription.plugin';
@@ -24,8 +26,8 @@ import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender
 import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
 import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
+import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
 
-// Force IPv4 resolution to avoid ENETUNREACH with Supabase on IPv6-capable but broken networks
 dns.setDefaultResultOrder('ipv4first');
 
 const IS_DEV = process.env.APP_ENV === 'dev';
@@ -35,31 +37,15 @@ export const emailSenderNode = new DynamicEmailSender();
 
 export const config: VendureConfig = {
     apiOptions: {
+        hostname: '127.0.0.1',
         port: serverPort,
         adminApiPath: 'admin-api',
         shopApiPath: 'shop-api',
         trustProxy: IS_DEV ? false : 1,
-        // The following options are useful in development mode,
-        // but are best turned off for production for security
-        // reasons.
         ...(IS_DEV ? {
             adminApiDebug: true,
             shopApiDebug: true,
         } : {}),
-        /*
-        middleware: [{
-            handler: (req: any, res: any, next: any) => {
-                const body_parser = require('body-parser');
-                const jsonParser = body_parser.json({ limit: '50mb' });
-                const urlencodedParser = body_parser.urlencoded({ limit: '50mb', extended: true });
-                jsonParser(req, res, (err: any) => {
-                    if (err) return next(err);
-                    urlencodedParser(req, res, next);
-                });
-            },
-            route: '/'
-        }],
-        */
         cors: {
             origin: process.env.CORS_ORIGINS
                 ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
@@ -72,9 +58,9 @@ export const config: VendureConfig = {
     },
     authOptions: {
         tokenMethod: ['bearer', 'cookie'],
-        requireVerification: false, // Disable email verification globally for MVP
+        requireVerification: false, 
         verificationTokenStrategy: new ShortCodeVerificationTokenStrategy(),
-        verificationTokenDuration: '15m', // Codes expire after 15 minutes
+        verificationTokenDuration: '15m', 
         superadminCredentials: {
             identifier: process.env.SUPERADMIN_USERNAME,
             password: process.env.SUPERADMIN_PASSWORD,
@@ -91,21 +77,29 @@ export const config: VendureConfig = {
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME || 'vendure',
         schema: process.env.DB_SCHEMA || 'public',
-        synchronize: true, // Auto-create tables for first run
+        synchronize: true, 
         logging: false,
         migrations: [path.join(__dirname, './migrations/*.+(js|ts)')],
     },
     shippingOptions: {
         shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator, zoneBasedShippingCalculator],
     },
+    catalogOptions: {
+        // Using only defaults first to ensure the server starts safely
+        collectionFilters: [...defaultCollectionFilters, variantIdCollectionFilter],
+    },
     paymentOptions: {
         paymentMethodHandlers: [cashOnDeliveryHandler],
     },
-    // When adding or altering custom field definitions, the database will
-    // need to be updated. See the "Migrations" section in README.md.
     customFields: {
         User: [
             { name: 'passwordResetCodeExpiresAt', type: 'datetime', public: false, label: [{ languageCode: LanguageCode.fr, value: 'Expiration du code de réinitialisation' }] },
+        ],
+        ProductVariant: [
+            { name: 'compareAtPrice', type: 'int', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Prix de comparaison (prix barré) en centimes' }] },
+        ],
+        Collection: [
+            { name: 'allowedFacetIds', type: 'string', list: true, nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'IDs des facettes autorisées pour cette collection' }] },
         ],
     },
     plugins: [
@@ -113,16 +107,16 @@ export const config: VendureConfig = {
         AssetServerPlugin.init({
             route: 'assets',
             assetUploadDir: path.join(__dirname, '../static/assets'),
-            // For local dev, the correct value for assetUrlPrefix should
-            // be guessed correctly, but for production it will usually need
-            // to be set manually to match your production url.
             assetUrlPrefix: IS_DEV ? undefined : (process.env.ASSET_URL_PREFIX || undefined),
         }),
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
-        DefaultSearchPlugin.init({ bufferUpdates: false, indexStockStatus: true }),
+        DefaultSearchPlugin.init({
+            bufferUpdates: false,
+            indexStockStatus: true,
+        }),
         EmailPlugin.init({
-            transport: { type: 'none' }, // Satisfy Vendure checking, we provide our own sender:
+            transport: { type: 'none' }, 
             emailSender: emailSenderNode,
             route: 'mailbox',
             handlers: defaultEmailHandlers.filter(h => h.type !== 'password-reset'),
@@ -144,5 +138,6 @@ export const config: VendureConfig = {
         AhizanNotificationsPlugin,
         CMSPlugin,
         BannerManagerPlugin,
+        CollectionFacetMapPlugin,
     ],
 };

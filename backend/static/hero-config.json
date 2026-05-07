@@ -1,11 +1,11 @@
 {
-  "selectedTemplate": "bento",
+  "selectedTemplate": "classic",
   "classic": {
-    "title": "okay na le titre est ici",
+    "title": "okay na le titre est ici uhn",
     "subtitle": "knfelawifnmawemlcaxfckùames canrcdx,mcùèasdcxa;rvc",
     "buttonText": "buy na ",
     "buttonLink": "/buy",
-    "type": "video",
+    "type": "image",
     "assistanceDesc": "contact moi si tu veut ",
     "whatsappDesc": "+229 0202920930",
     "sellDesc": "vendex et achetez na ",
@@ -13,9 +13,9 @@
     "flashDiscount": "-60%",
     "flashBgType": "image",
     "flashBgUrl": "/assets/banners/1774347287371-WhatsApp Image 2026-03-18 at 8.03.43 AM.jpeg",
-    "bgUrl": "/assets/banners/1774348182525-gooey.ai lipsync (1).mp4",
+    "bgUrl": "/assets/banners/1775559477105-LOGO AHIZAN (1).png",
     "mainTextColor": "#e31837",
-    "modalTextColor": "white"
+    "modalTextColor": "black"
   },
   "bento": {
     "mainTitle": "cerfwrf",

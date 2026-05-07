@@ -158,6 +158,7 @@ export const commonApiExtensions = `
         description: String!
         price: Int!
         stock: Int!
+        collectionIds: [ID!]
         facetValueIds: [ID!]
         assetIds: [ID!]
         featuredAssetId: ID
@@ -166,6 +167,7 @@ export const commonApiExtensions = `
     input UpdateVendorProductInput {
         name: String
         description: String
+        collectionIds: [ID!]
         facetValueIds: [ID!]
         assetIds: [ID!]
         featuredAssetId: ID
@@ -178,10 +180,6 @@ export const commonApiExtensions = `
         stock: Int
     }
 
-    input CreateVendorFacetValueInput {
-        name: String!
-        facetId: ID!
-    }
 
     # ── PlatformSettings ──
     type PlatformSettings {
@@ -293,7 +291,6 @@ export const shopApiExtensions = `
         createMyProduct(input: CreateVendorProductInput!): Product!
         updateMyProduct(id: ID!, input: UpdateVendorProductInput!): Product!
         updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
-        createVendorFacetValue(input: CreateVendorFacetValueInput!): FacetValue!
         deleteMyProduct(id: ID!): DeletionResponse!
     }
 `;
@@ -341,7 +338,6 @@ export const adminApiExtensions = `
         createMyProduct(input: CreateVendorProductInput!): Product!
         updateMyProduct(id: ID!, input: UpdateVendorProductInput!): Product!
         updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
-        createVendorFacetValue(input: CreateVendorFacetValueInput!): FacetValue!
         deleteMyProduct(id: ID!): DeletionResponse!
         uploadVendorFile(file: Upload!): Asset!
         

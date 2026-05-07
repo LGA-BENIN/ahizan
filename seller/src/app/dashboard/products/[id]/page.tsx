@@ -1,6 +1,6 @@
 import { query } from '@/lib/vendure/api';
 import { GetMyVendorProductQuery } from '@/lib/vendure/vendor-product-mutations';
-import { GetFacetsQuery } from '@/lib/vendure/queries';
+import { GetCollectionsTreeQuery } from '@/lib/vendure/queries';
 import { getAuthToken } from '@/lib/auth';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,13 +16,16 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     const token = await getAuthToken();
 
     // Parallel fetch
-    const [productResult, facetsResult] = await Promise.all([
+    const [productResult, collectionsResult] = await Promise.all([
         query(GetMyVendorProductQuery, { id }, { token }),
-        query(GetFacetsQuery, {}, { token })
+        query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
+            console.error('[EditProductPage] Failed to fetch collections:', err);
+            return { data: null };
+        })
     ]);
 
     const product = productResult.data?.myVendorProduct;
-    const facets = facetsResult.data?.facets;
+    const collectionTree = (collectionsResult?.data as any)?.cmsCollectionsTree || [];
 
     if (!product) {
         return (
@@ -50,7 +53,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
             </div>
 
             <div className="bg-card rounded-2xl md:rounded-[2.5rem] border border-border shadow-sm p-4 sm:p-10">
-                <EditProductForm product={product} facets={facets} />
+                <EditProductForm product={product} collectionTree={collectionTree} />
             </div>
         </div>
     );

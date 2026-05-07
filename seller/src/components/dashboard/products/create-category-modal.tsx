@@ -10,16 +10,16 @@ import {
     DialogTrigger,
     DialogFooter,
 } from '@/components/ui/dialog';
-import { createCategoryAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
 
 interface CreateCategoryModalProps {
-    facetId: string; // The ID of the parent Facet (e.g., "Category" facet ID)
+    parentId?: string; // Optional parent collection ID for subcategories
 }
 
-export default function CreateCategoryModal({ facetId }: CreateCategoryModalProps) {
+export default function CreateCategoryModal({ parentId }: CreateCategoryModalProps) {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
+    const [slug, setSlug] = useState('');
     const [loading, setLoading] = useState(false);
     const router = useRouter();
 
@@ -29,18 +29,48 @@ export default function CreateCategoryModal({ facetId }: CreateCategoryModalProp
 
         setLoading(true);
         try {
-            const result = await createCategoryAction(name, facetId);
-            if (result.success) {
-                toast.success('Catégorie créée avec succès');
-                setOpen(false);
-                setName('');
-                router.refresh();
-            } else {
-                toast.error('Erreur: ' + result.error);
+            // Create collection via admin API
+            const adminApiUrl = process.env.NEXT_PUBLIC_VENDURE_ADMIN_API_URL || 'http://localhost:3000/admin-api';
+            // Get auth token from cookie
+            const authToken = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('vendure-auth-token='))
+                ?.split('=')[1];
+            const res = await fetch(adminApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { 'Authorization': `Bearer ${authToken}`, 'vendure-auth-token': authToken } : {}),
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    query: `mutation CreateCollection($input: CreateCollectionInput!) {
+                        createCollection(input: $input) {
+                            id
+                            name
+                            slug
+                        }
+                    }`,
+                    variables: {
+                        input: {
+                            translations: [{ languageCode: 'fr', name, slug: slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }],
+                            parentId: parentId || null,
+                        }
+                    }
+                })
+            });
+            const data = await res.json();
+            if (data.errors) {
+                throw new Error(data.errors[0]?.message || 'GraphQL error');
             }
-        } catch (err) {
-            console.error('Error creating category:', err);
-            toast.error('Erreur inattendue');
+            toast.success('Collection créée avec succès');
+            setOpen(false);
+            setName('');
+            setSlug('');
+            router.refresh();
+        } catch (err: any) {
+            console.error('Error creating collection:', err);
+            toast.error('Erreur: ' + (err.message || 'Erreur inattendue'));
         } finally {
             setLoading(false);
         }
@@ -66,10 +96,26 @@ export default function CreateCategoryModal({ facetId }: CreateCategoryModalProp
                             id="name"
                             type="text"
                             value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            onChange={(e) => {
+                                setName(e.target.value);
+                                if (!slug) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+                            }}
                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
                             placeholder="Ex: Électronique"
                             required
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="slug" className="block text-sm font-medium text-gray-700">
+                            Slug (auto-généré)
+                        </label>
+                        <input
+                            id="slug"
+                            type="text"
+                            value={slug}
+                            onChange={(e) => setSlug(e.target.value)}
+                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="electronique"
                         />
                     </div>
                     <DialogFooter>

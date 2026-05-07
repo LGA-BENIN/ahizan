@@ -1,6 +1,7 @@
-import { VendureEntity, DeepPartial } from '@vendure/core';
-import { Entity, Column, OneToMany } from 'typeorm';
+import { VendureEntity, DeepPartial, ID } from '@vendure/core';
+import { Entity, Column, OneToMany, ManyToOne } from 'typeorm';
 import { PageSection } from './section.entity';
+import { PagePreset } from './page-preset.entity';
 
 @Entity()
 export class Page extends VendureEntity {
@@ -14,6 +15,18 @@ export class Page extends VendureEntity {
     @Column()
     title: string;
 
+    @Column({ nullable: true })
+    metaDescription: string;
+
+    @Column({ nullable: true })
+    metaTitle: string;
+
+    @Column({ nullable: true })
+    metaKeywords: string;
+
+    @Column({ nullable: true })
+    ogImage: string;
+
     @Column({ default: 'HOME' })
     type: string;
 
@@ -22,4 +35,8 @@ export class Page extends VendureEntity {
 
     @OneToMany(type => PageSection, section => section.page)
     sections: PageSection[];
+
+    // --- Draft/Habillage system ---
+    @ManyToOne(() => PagePreset, { nullable: true })
+    activePreset: PagePreset;
 }

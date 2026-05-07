@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_PRODUCTS, GET_FACETS, CREATE_FACET_VALUE } from './queries';
+import { GET_PRODUCTS, GET_COLLECTIONS } from './queries';
 
 // --- Interfaces ---
 interface Product {
@@ -46,33 +46,45 @@ async function fetchGraphQL(query: any, variables?: any) {
 function CategoryManager() {
     const queryClient = useQueryClient();
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [newCategorySlug, setNewCategorySlug] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const { data: facetsData, isLoading: isLoadingFacets, error: facetsError } = useQuery({
-        queryKey: ['facets'],
+    const { data: collectionsData, isLoading: isLoadingCollections, error: collectionsError } = useQuery({
+        queryKey: ['collections'],
         queryFn: async () => {
-            const result = await fetchGraphQL(GET_FACETS); // Fetch all to see what we have
-            console.log('Facets result:', result);
+            const result = await fetchGraphQL(GET_COLLECTIONS);
             return result;
         }
     });
 
-    // Try to find a facet with name "Category" or code "category"
-    const categoryFacet = facetsData?.facets?.items?.find((f: any) => 
-        f.name.toLowerCase() === 'category' || f.code === 'category' || f.name.toLowerCase() === 'catégorie'
-    );
-    const categories = categoryFacet?.values || [];
-    const categoryFacetId = categoryFacet?.id;
+    const collections = collectionsData?.collections?.items || [];
 
     const createMutation = useMutation({
-        mutationFn: (name: string) => fetchGraphQL(CREATE_FACET_VALUE, {
-            input: { name, facetId: categoryFacetId }
-        }),
+        mutationFn: ({ name, slug, parentId }: { name: string; slug: string; parentId?: string }) => fetchGraphQL(
+            `mutation CreateCollection($input: CreateCollectionInput!) {
+                createCollection(input: $input) {
+                    id
+                    name
+                    slug
+                }
+            }`,
+            {
+                input: {
+                    translations: [{ languageCode: 'fr', name, slug }],
+                    filters: [{
+                        code: 'variant-id-filter',
+                        arguments: [{ name: 'variantIds', value: '[]' }],
+                    }],
+                    ...(parentId ? { parentId } : {}),
+                }
+            }
+        ),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['facets'] });
+            queryClient.invalidateQueries({ queryKey: ['collections'] });
             setNewCategoryName('');
+            setNewCategorySlug('');
             setIsSubmitting(false);
-            alert('Catégorie créée avec succès!');
+            alert('Collection créée avec succès!');
         },
         onError: (error) => {
             setIsSubmitting(false);
@@ -82,56 +94,53 @@ function CategoryManager() {
 
     const handleAddCategory = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newCategoryName.trim() || !categoryFacetId) return;
+        if (!newCategoryName.trim()) return;
         setIsSubmitting(true);
-        createMutation.mutate(newCategoryName);
+        const slug = newCategorySlug || newCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        createMutation.mutate({ name: newCategoryName, slug });
     };
 
     return (
         <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Gérer les Catégories</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Gérer les Collections (Catégories)</h2>
             
             <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
                 <input 
                     type="text" 
-                    placeholder="Nom de la nouvelle catégorie..." 
+                    placeholder="Nom de la nouvelle collection..." 
                     value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    disabled={isSubmitting || isLoadingFacets || !categoryFacetId}
-                    style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', background: (!categoryFacetId && !isLoadingFacets) ? '#f3f4f6' : 'white' }}
+                    onChange={(e) => {
+                        setNewCategoryName(e.target.value);
+                        if (!newCategorySlug) setNewCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+                    }}
+                    disabled={isSubmitting}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
                 />
                 <button 
                     type="submit" 
-                    disabled={isSubmitting || isLoadingFacets || !categoryFacetId}
+                    disabled={isSubmitting || !newCategoryName.trim()}
                     style={{ 
                         padding: '8px 16px', 
                         borderRadius: '6px', 
                         background: '#4f46e5', 
                         color: 'white', 
                         border: 'none', 
-                        cursor: (isSubmitting || isLoadingFacets || !categoryFacetId) ? 'not-allowed' : 'pointer',
-                        opacity: (isSubmitting || isLoadingFacets || !categoryFacetId) ? 0.7 : 1
+                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                        opacity: isSubmitting ? 0.7 : 1
                     }}
                 >
-                    {isSubmitting ? 'Création...' : 'Ajouter une catégorie'}
+                    {isSubmitting ? 'Création...' : 'Ajouter une collection'}
                 </button>
             </form>
 
-            {!categoryFacetId && !isLoadingFacets && (
-                <div style={{ color: '#b91c1c', fontSize: '13px', marginBottom: '16px', padding: '8px', background: '#fef2f2', borderRadius: '6px', border: '1px solid #fee2e2' }}>
-                    ⚠️ Aucun facet nommé <strong>"Category"</strong> ou <strong>"catégorie"</strong> n'a été trouvé. 
-                    Veuillez en créer un dans <em>Catalogue {' > '} Facets</em> avec le code <code>category</code>.
-                </div>
-            )}
-
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {isLoadingFacets ? (
-                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Chargement des catégories...</span>
-                ) : categories.length === 0 ? (
-                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Aucune catégorie (Vérifiez qu'un facet "Category" existe).</span>
+                {isLoadingCollections ? (
+                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Chargement des collections...</span>
+                ) : collections.length === 0 ? (
+                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Aucune collection trouvée.</span>
                 ) : (
-                    categories.map((cat: any) => (
-                        <span key={cat.id} style={{ 
+                    collections.map((coll: any) => (
+                        <span key={coll.id} style={{ 
                             background: '#f3f4f6', 
                             padding: '4px 10px', 
                             borderRadius: '16px', 
@@ -139,7 +148,7 @@ function CategoryManager() {
                             color: '#4b5563',
                             border: '1px solid #e5e7eb'
                         }}>
-                            {cat.name}
+                            {coll.name}
                         </span>
                     ))
                 )}

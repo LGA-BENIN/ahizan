@@ -9,6 +9,7 @@ export default defineConfig({
         outDir: join(__dirname, 'dist/dashboard'),
     },
     server: {
+        host: '127.0.0.1',
         proxy: {
             '/admin-api': {
                 target: 'http://127.0.0.1:3000',
@@ -33,9 +34,9 @@ export default defineConfig({
             // to find any plugins which have dashboard extensions, as well as
             // to introspect the GraphQL schema based on any API extensions
             // and custom fields that are configured.
-            vendureConfigPath: pathToFileURL('./src/vendure-config.ts'),
+            vendureConfigPath: pathToFileURL('./src/vendure-config-dashboard.ts'),
             // Points to the location of your Vendure server.
-            api: { host: 'http://localhost', port: 3000 },
+            api: { host: 'http://127.0.0.1', port: 3000 },
             // When you start the Vite server, your Admin API schema will
             // be introspected and the types will be generated in this location.
             // These types can be used in your dashboard extensions to provide
@@ -44,9 +45,6 @@ export default defineConfig({
         }),
     ],
     optimizeDeps: {
-        // Force la ré-optimisation au démarrage pour éviter les erreurs
-        // vite:react-swc sur Windows avec les chemins longs dans node_modules
-        force: true,
         include: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
     },
     resolve: {

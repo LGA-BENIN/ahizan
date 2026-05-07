@@ -38,13 +38,18 @@ export function DynamicPageRenderer({ sections, fallback }: DynamicPageRendererP
         .filter(isSectionScheduledNow)
         .sort((a, b) => a.order - b.order);
 
+    // HERO always renders first (right after header), regardless of order
+    const heroSections = activeSections.filter(s => s.type === 'HERO');
+    const otherSections = activeSections.filter(s => s.type !== 'HERO');
+    const orderedSections = [...heroSections, ...otherSections];
+
     if (activeSections.length === 0) {
         return <>{fallback}</>;
     }
 
     return (
         <div className="flex flex-col w-full">
-            {activeSections.map((section) => {
+            {orderedSections.map((section) => {
                 const Component = getSectionComponent(section.type);
 
                 if (!Component) {

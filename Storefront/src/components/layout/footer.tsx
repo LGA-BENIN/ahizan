@@ -71,8 +71,8 @@ export async function Footer({ config }: { config?: FooterConfData }) {
             )}
 
             {/* Main footer: Link groups + Collections */}
-            <div className="container mx-auto px-4 py-10">
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+            <div className="container mx-auto px-3 sm:px-4 py-8 sm:py-10">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5 sm:gap-8">
                     {linkGroups.map((group, i) => (
                         <div key={i}>
                             <h4 className="text-white text-xs font-bold uppercase tracking-wider mb-4">{group.title}</h4>
@@ -110,11 +110,11 @@ export async function Footer({ config }: { config?: FooterConfData }) {
             <div className="border-t border-slate-700/50">
                 <div className="container mx-auto px-4 py-6">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-6">
+                        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                             {socials.length > 0 && (
-                                <div>
-                                    <span className="text-xs text-slate-500 uppercase font-bold mr-3">Retrouvez-nous sur</span>
-                                    <div className="inline-flex items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-xs text-slate-500 uppercase font-bold mr-1 sm:mr-3">Retrouvez-nous sur</span>
+                                    <div className="inline-flex items-center gap-2 sm:gap-3">
                                         {socials.map((s) => (
                                             <a key={s.type} href={s.url!} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all">
                                                 <SocialIcon type={s.type} />
@@ -125,7 +125,7 @@ export async function Footer({ config }: { config?: FooterConfData }) {
                             )}
                         </div>
                         {config?.paymentMethods && config.paymentMethods.length > 0 && (
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                 <span className="text-xs text-slate-500 uppercase font-bold">Paiement</span>
                                 {config.paymentMethods.map((method, i) => (
                                     <span key={i} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300">{method}</span>

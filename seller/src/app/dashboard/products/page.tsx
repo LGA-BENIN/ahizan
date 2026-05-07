@@ -1,6 +1,6 @@
 import { query } from '@/lib/vendure/api';
 import { GetMyVendorProductsQuery } from '@/lib/vendure/vendor-product-mutations';
-import { GetFacetsQuery } from '@/lib/vendure/queries';
+import { GetCollectionsTreeQuery } from '@/lib/vendure/queries';
 import { getAuthToken } from '@/lib/auth';
 import { Package, Plus } from 'lucide-react';
 import Link from 'next/link';
@@ -8,15 +8,19 @@ import { Button } from '@/components/ui/button';
 import ProductListTable from '@/components/dashboard/products/product-list-table';
 
 export default async function ProductListPage() {
+    // Force recompile
     const token = await getAuthToken();
 
-    const [{ data: productData }, { data: facetsData }] = await Promise.all([
+    const [{ data: productData }, collectionsResult] = await Promise.all([
         query(GetMyVendorProductsQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { token }),
-        query(GetFacetsQuery, { options: { filter: { name: { eq: "Category" } } } }, { token })
+        query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
+            console.error('[ProductListPage] Failed to fetch collections:', err);
+            return { data: null };
+        })
     ]);
 
     const products = (productData as any).myVendorProducts?.items || [];
-    const facets = (facetsData as any).facets;
+    const collectionTree = (collectionsResult?.data as any)?.cmsCollectionsTree || [];
 
     if (products.length === 0) {
         return (
@@ -52,7 +56,7 @@ export default async function ProductListPage() {
                 </div>
             </div>
 
-            <ProductListTable initialProducts={products} facets={facets} />
+            <ProductListTable initialProducts={products} collectionTree={collectionTree} />
         </div>
     );
 }

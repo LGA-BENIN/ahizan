@@ -1,6 +1,6 @@
 import {cacheLife, cacheTag} from 'next/cache';
 import {query} from './api';
-import {GetActiveChannelQuery, GetAvailableCountriesQuery, GetTopCollectionsQuery} from './queries';
+import {GetActiveChannelQuery, GetAvailableCountriesQuery, GetCollectionsTreeQuery} from './queries';
 
 /**
  * Get the active channel with caching enabled.
@@ -35,7 +35,7 @@ export async function getAvailableCountriesCached() {
 }
 
 /**
- * Get top-level collections with caching enabled.
+ * Get collection tree with caching enabled.
  * Collections rarely change, so we cache them for 1 day.
  */
 export async function getTopCollections() {
@@ -43,6 +43,6 @@ export async function getTopCollections() {
     cacheLife('days');
     cacheTag('collections');
 
-    const result = await query(GetTopCollectionsQuery);
-    return result.data.collections.items;
+    const result = await query(GetCollectionsTreeQuery);
+    return result.data.cmsCollectionsTree || [];
 }

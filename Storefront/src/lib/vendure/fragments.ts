@@ -20,6 +20,10 @@ export const ProductCardFragment = graphql(`
             }
         }
         currencyCode
+        description
+        collectionIds
+        facetValueIds
+        inStock
     }
 `);
 

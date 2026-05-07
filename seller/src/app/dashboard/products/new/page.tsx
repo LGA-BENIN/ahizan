@@ -1,5 +1,5 @@
 import { query } from '@/lib/vendure/api';
-import { GetFacetsQuery } from '@/lib/vendure/queries';
+import { GetCollectionsTreeQuery } from '@/lib/vendure/queries';
 import { getAuthToken } from '@/lib/auth';
 import { ArrowLeft, Plus } from 'lucide-react';
 import Link from 'next/link';
@@ -8,8 +8,11 @@ import CreateProductForm from '@/components/dashboard/products/create-form';
 export default async function NewProductPage() {
     const token = await getAuthToken();
 
-    const { data: facetsData } = await query(GetFacetsQuery, { options: { filter: { name: { eq: "Category" } } } }, { token });
-    const facets = (facetsData as any).facets;
+    const { data: collectionsData } = await query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
+        console.error('[NewProductPage] Failed to fetch collections:', err);
+        return { data: null };
+    });
+    const collectionTree = (collectionsData as any)?.cmsCollectionsTree || [];
 
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
@@ -30,7 +33,7 @@ export default async function NewProductPage() {
             </div>
 
             <div className="pt-4">
-                <CreateProductForm facets={facets} />
+                <CreateProductForm collectionTree={collectionTree} />
             </div>
         </div>
     );

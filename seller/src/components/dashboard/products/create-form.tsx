@@ -32,12 +32,12 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface CreateProductFormProps {
-    facets: any;
+    collectionTree: any[];
     onSuccess?: () => void;
     className?: string;
 }
 
-export default function CreateProductForm({ facets, onSuccess, className }: CreateProductFormProps) {
+export default function CreateProductForm({ collectionTree, onSuccess, className }: CreateProductFormProps) {
     const router = useRouter();
     const [isConfirmingCancel, setIsConfirmingCancel] = useState(false);
     const [formKey, setFormKey] = useState(0); // Used to force reset sub-components like ImageUploader
@@ -47,11 +47,15 @@ export default function CreateProductForm({ facets, onSuccess, className }: Crea
         description: '',
         price: 0,
         stock: 100,
+        parentCategory: '',
         category: '',
     });
     const [assetIds, setAssetIds] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploadingAssets, setIsUploadingAssets] = useState(false);
+    const [facetValueIds, setFacetValueIds] = useState<string[]>([]);
+    const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
+    const [loadingFacets, setLoadingFacets] = useState(false);
 
     // Force reset on mount to avoid stale data from browser cache/Next navigation
     useEffect(() => {
@@ -64,6 +68,7 @@ export default function CreateProductForm({ facets, onSuccess, className }: Crea
             description: '',
             price: 0,
             stock: 100,
+            parentCategory: '',
             category: '',
         });
         setAssetIds([]);
@@ -71,12 +76,39 @@ export default function CreateProductForm({ facets, onSuccess, className }: Crea
         setIsSubmitting(false);
     };
 
-    const categoryFacet = facets?.items?.find((f: any) => 
-        f.code === 'category' || 
-        f.name.toLowerCase() === 'category' || 
-        f.name.toLowerCase() === 'catégorie'
-    );
-    const categories = (categoryFacet?.values as any[]) || [];
+    // Get subcategories for selected parent
+    const selectedParent = collectionTree?.find((c: any) => c.id === formData.parentCategory);
+    const subCategories = selectedParent?.children || [];
+
+    // When parent changes, reset subcategory
+    const handleParentChange = (v: string) => {
+        setFormData({ ...formData, parentCategory: v, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
+    };
+    const handleSubCategoryChange = (v: string) => {
+        setFormData({ ...formData, category: v });
+        setFacetValueIds([]);
+        fetchAllowedFacets(v);
+    };
+
+    // Fetch allowed facets for a collection
+    const fetchAllowedFacets = async (collectionId: string) => {
+        if (!collectionId) { setAllowedFacets([]); return; }
+        setLoadingFacets(true);
+        try {
+            const { query } = await import('@/lib/vendure/api');
+            const { GetCollectionAllowedFacetsQuery } = await import('@/lib/vendure/queries');
+            const result = await query(GetCollectionAllowedFacetsQuery, { collectionId });
+            const mapping = (result.data as any)?.collectionAllowedFacets;
+            setAllowedFacets(mapping?.allowedFacets || []);
+        } catch (err) {
+            console.error('[CreateProductForm] Failed to fetch allowed facets:', err);
+            setAllowedFacets([]);
+        } finally {
+            setLoadingFacets(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -99,6 +131,7 @@ export default function CreateProductForm({ facets, onSuccess, className }: Crea
             data.append('stock', formData.stock.toString());
             data.append('category', formData.category);
             data.append('assetIds', JSON.stringify(assetIds));
+            data.append('facetValueIds', JSON.stringify(facetValueIds));
 
             const result = await createProductAction(null, data);
 
@@ -146,15 +179,28 @@ export default function CreateProductForm({ facets, onSuccess, className }: Crea
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Catégorie *</Label>
-                                    <Select value={formData.category} onValueChange={(v: string) => setFormData({ ...formData, category: v })}>
+                                    <Select value={formData.parentCategory} onValueChange={handleParentChange}>
                                         <SelectTrigger className="h-11 rounded-xl">
-                                            <SelectValue placeholder="Sélectionner..." />
+                                            <SelectValue placeholder="Sélectionner une catégorie..." />
                                         </SelectTrigger>
                                         <SelectContent className="rounded-xl">
-                                            {categories.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                                            {(collectionTree || []).map((c: any) => <SelectItem key={String(c.id)} value={String(c.id)}>{c.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>
+                                {subCategories.length > 0 && (
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sous-catégorie</Label>
+                                    <Select value={formData.category !== formData.parentCategory ? formData.category : ''} onValueChange={handleSubCategoryChange}>
+                                        <SelectTrigger className="h-11 rounded-xl">
+                                            <SelectValue placeholder="Sélectionner une sous-catégorie..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl">
+                                            {subCategories.map((c: any) => <SelectItem key={String(c.id)} value={String(c.id)}>{c.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description</Label>
@@ -202,6 +248,54 @@ export default function CreateProductForm({ facets, onSuccess, className }: Crea
                             </div>
                         </div>
                     </div>
+
+                    {/* Section: Caractéristiques (Facet Values) */}
+                    {formData.category && (
+                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-primary" />
+                            <h3 className="text-xs font-black uppercase tracking-widest">Caractéristiques</h3>
+                        </div>
+                        <div className="p-8">
+                            {loadingFacets ? (
+                                <p className="text-xs text-muted-foreground animate-pulse">Chargement des caractéristiques...</p>
+                            ) : allowedFacets.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">Aucune caractéristique définie pour cette catégorie. Le superadmin peut en configurer via le tableau de bord admin.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {allowedFacets.map((facet: any) => {
+                                        const selectedFvId = facetValueIds.find((id: string) =>
+                                            facet.values?.some((fv: any) => String(fv.id) === id)
+                                        );
+                                        return (
+                                            <div key={facet.id}>
+                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 block">{facet.name}</Label>
+                                                <Select
+                                                    value={selectedFvId || ''}
+                                                    onValueChange={(v) => {
+                                                        setFacetValueIds(prev => {
+                                                            const without = prev.filter(id => !facet.values?.some((fv: any) => String(fv.id) === id));
+                                                            return v ? [...without, v] : without;
+                                                        });
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-12 rounded-xl">
+                                                        <SelectValue placeholder={`Sélectionner ${facet.name}`} />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl">
+                                                        {facet.values?.map((fv: any) => (
+                                                            <SelectItem key={String(fv.id)} value={String(fv.id)}>{fv.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    )}
                 </div>
 
                 {/* Right Column: Media */}

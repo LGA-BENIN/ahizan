@@ -1,6 +1,18 @@
 import { graphql } from '@/graphql';
 import { ActiveCustomerFragment, ProductCardFragment } from './fragments';
 
+export const GetCollectionsTreeQuery = graphql(`
+    query GetCollectionsTree {
+        cmsCollectionsTree {
+            id
+            name
+            slug
+            featuredAsset { id preview }
+            children { id name slug featuredAsset { id preview } }
+        }
+    }
+`);
+
 export const GetTopCollectionsQuery = graphql(`
     query GetTopCollections {
         collections(options: { filter: { parentId: { eq: "1" } } }) {
@@ -42,6 +54,44 @@ export const SearchProductsQuery = graphql(`
         }
     }
 `, [ProductCardFragment]);
+
+export const GetProductsQuery = graphql(`
+    query GetProducts($options: ProductListOptions) {
+        products(options: $options) {
+            items {
+                id
+                name
+                slug
+                description
+                featuredAsset {
+                    id
+                    preview
+                }
+                variants {
+                    id
+                    name
+                    sku
+                    priceWithTax
+                    stockLevel
+                }
+                facetValues {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
+                collections {
+                    id
+                    name
+                    slug
+                }
+            }
+            totalItems
+        }
+    }
+`);
 
 export const GetProductDetailQuery = graphql(`
     query GetProductDetail($slug: String!) {
@@ -427,12 +477,57 @@ export const GetCollectionProductsQuery = graphql(`
                 id
                 preview
             }
+            parent {
+                id
+                name
+                slug
+            }
+            children {
+                id
+                name
+                slug
+                featuredAsset {
+                    id
+                    preview
+                }
+                children {
+                    id
+                    name
+                    slug
+                }
+            }
         }
         search(input: $input) {
             totalItems
             items {
                 ...ProductCard
             }
+            facetValues {
+                count
+                facetValue {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
+            }
         }
     }
 `, [ProductCardFragment]);
+export const GetCollectionAllowedFacetsQuery = graphql(`
+    query GetCollectionAllowedFacets($collectionId: ID!) {
+        collectionAllowedFacets(collectionId: $collectionId) {
+            allowedFacetIds
+            allowedFacets {
+                id
+                name
+                values {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`);

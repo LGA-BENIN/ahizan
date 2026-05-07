@@ -25,6 +25,61 @@ export const commonApiExtensions = gql`
         thumbnail: String
         sectionsJson: String!
         isBuiltIn: Boolean!
+        isDefault: Boolean!
+        isDraft: Boolean!
+        isBackup: Boolean!
+        draftOwnerId: ID
+        draftSessionId: String
+        status: String!
+        version: Int!
+        publishedAt: DateTime
+        previousPresetId: ID
+        sourcePresetId: ID
+        changeHistory: String
+        historyPointer: Int!
+    }
+
+    type SeasonSchedule implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        name: String!
+        startAt: DateTime
+        endAt: DateTime
+        priority: Int!
+        isActive: Boolean!
+        preset: PagePreset
+    }
+
+    type HabillagePreviewSection {
+        id: String!
+        type: String!
+        title: String
+        description: String
+        layout: String
+        order: Int!
+        isActive: Boolean!
+        dataJson: String
+    }
+
+    type HabillagePreview {
+        id: ID!
+        name: String!
+        isDefault: Boolean!
+        isBackup: Boolean!
+        sections: [HabillagePreviewSection!]!
+    }
+
+    type SiteSeason implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        name: String!
+        startDate: DateTime
+        endDate: DateTime
+        isActive: Boolean!
+        preset: PagePreset
+        configJson: String
     }
 
     type Page implements Node {
@@ -33,9 +88,22 @@ export const commonApiExtensions = gql`
         updatedAt: DateTime!
         slug: String!
         title: String!
+        metaDescription: String
+        metaTitle: String
+        metaKeywords: String
+        ogImage: String
         type: String!
         isActive: Boolean!
         sections: [PageSection!]!
+        activePreset: PagePreset
+    }
+
+    type CollectionTreeNode {
+        id: ID!
+        name: String!
+        slug: String!
+        featuredAsset: Asset
+        children: [CollectionTreeNode!]!
     }
 
     type PageList implements PaginatedList {
@@ -70,6 +138,10 @@ export const adminApiExtensions = gql`
     input CreatePageInput {
         slug: String!
         title: String!
+        metaDescription: String
+        metaTitle: String
+        metaKeywords: String
+        ogImage: String
         type: String
         isActive: Boolean
     }
@@ -78,6 +150,10 @@ export const adminApiExtensions = gql`
         id: ID!
         slug: String
         title: String
+        metaDescription: String
+        metaTitle: String
+        metaKeywords: String
+        ogImage: String
         type: String
         isActive: Boolean
     }
@@ -113,6 +189,12 @@ export const adminApiExtensions = gql`
         description: String
         thumbnail: String
         sectionsJson: String!
+        isDraft: Boolean
+        isBackup: Boolean
+        draftOwnerId: ID
+        draftSessionId: String
+        status: String
+        sourcePresetId: ID
     }
 
     input UpdatePresetInput {
@@ -121,13 +203,65 @@ export const adminApiExtensions = gql`
         description: String
         thumbnail: String
         sectionsJson: String
+        isDraft: Boolean
+        isBackup: Boolean
+        isDefault: Boolean
+        draftOwnerId: ID
+        draftSessionId: String
+        status: String
+        changeHistory: String
+        historyPointer: Int
+    }
+
+    input CreateSeasonScheduleInput {
+        name: String!
+        startAt: DateTime
+        endAt: DateTime
+        priority: Int
+        presetId: ID
+    }
+
+    input UpdateSeasonScheduleInput {
+        id: ID!
+        name: String
+        startAt: DateTime
+        endAt: DateTime
+        priority: Int
+        presetId: ID
+    }
+
+    input CreateSeasonInput {
+        name: String!
+        startDate: DateTime
+        endDate: DateTime
+        isActive: Boolean
+        presetId: ID
+        configJson: String
+    }
+
+    input UpdateSeasonInput {
+        id: ID!
+        name: String
+        startDate: DateTime
+        endDate: DateTime
+        isActive: Boolean
+        presetId: ID
+        configJson: String
     }
 
     extend type Query {
         pages(options: PageListOptions): PageList!
         page(id: ID!): Page
         pagePresets: [PagePreset!]!
+        previewPreset(presetId: ID!): Page
+        siteSeasons: [SiteSeason!]!
+        seasonSchedules: [SeasonSchedule!]!
+        getActiveDraft: PagePreset
         cmsFacetValues: [JSON!]!
+        cmsCollectionsTree: [CollectionTreeNode!]!
+        # Habillage system
+        activeHabillage: PagePreset
+        habillages(status: String, isBackup: Boolean): [PagePreset!]!
     }
 
     extend type Mutation {
@@ -144,6 +278,32 @@ export const adminApiExtensions = gql`
         deletePreset(id: ID!): DeletionResponse!
         applyPreset(presetId: ID!, pageId: ID!): Page!
         savePageAsPreset(pageId: ID!, name: String!, description: String): PagePreset!
+        createSeason(input: CreateSeasonInput!): SiteSeason!
+        updateSeason(input: UpdateSeasonInput!): SiteSeason!
+        deleteSeason(id: ID!): DeletionResponse!
+        # Draft system
+        createDraftFromPreset(presetId: ID!): PagePreset!
+        createDraftFromCurrentPage(pageId: ID!): PagePreset!
+        updateDraftSection(draftId: ID!, sectionType: String!, sectionDataJson: String!): PagePreset!
+        publishDraft(draftId: ID!, pageId: ID!): Page!
+        createPresetFromDraft(draftId: ID!, name: String!, description: String): PagePreset!
+        updatePresetFromDraft(draftId: ID!, presetId: ID!): PagePreset!
+        archivePreset(presetId: ID!): PagePreset!
+        restorePresetVersion(presetId: ID!): PagePreset!
+        # Habillage system
+        createInstantHabillage(name: String!): PagePreset!
+        openHabillage(presetId: ID!): PagePreset!
+        setHabillageDefault(presetId: ID!): PagePreset!
+        unsetHabillageDefault(presetId: ID!): PagePreset!
+        undoHabillage(presetId: ID!): PagePreset!
+        redoHabillage(presetId: ID!): PagePreset!
+        autoSaveHabillage(presetId: ID!, sectionsJson: String!): PagePreset!
+        publishHabillage(presetId: ID!, pageId: ID!): Page!
+        deleteHabillage(id: ID!): DeletionResponse!
+        # SeasonSchedule
+        createSeasonSchedule(input: CreateSeasonScheduleInput!): SeasonSchedule!
+        updateSeasonSchedule(input: UpdateSeasonScheduleInput!): SeasonSchedule!
+        deleteSeasonSchedule(id: ID!): DeletionResponse!
     }
 `;
 
@@ -152,6 +312,10 @@ export const shopApiExtensions = gql`
 
     extend type Query {
         page(slug: String!): Page
+        previewPreset(presetId: ID!): Page
+        previewHabillage(presetId: ID!): HabillagePreview
+        activeSeason: SiteSeason
         cmsFacetValues: [JSON!]!
+        cmsCollectionsTree: [CollectionTreeNode!]!
     }
 `;

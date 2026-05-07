@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { 
     Search, 
     Filter, 
-    MoreVertical, 
+    Pencil,
     Circle, 
     Package, 
     ArrowRight,
@@ -155,8 +155,12 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Link href={`/dashboard/products/${product.id}`}>
-                                                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-muted font-bold">
-                                                        <MoreVertical className="h-4 w-4" />
+                                                    <Button
+                                                        variant="ghost"
+                                                        className="h-9 px-3 rounded-xl hover:bg-muted font-bold flex items-center gap-2"
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                        <span className="text-xs uppercase tracking-wider">Modifier</span>
                                                     </Button>
                                                 </Link>
                                                 <DeleteProductDialog productId={product.id} productName={product.name} />

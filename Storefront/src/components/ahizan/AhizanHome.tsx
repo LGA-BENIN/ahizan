@@ -71,6 +71,12 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
                 const html = (s.data?.htmlContent || s.data?.customHtml || s.data?.html || '').toLowerCase();
                 if (html.includes('hello ahizan') || html.trim() === '') return false;
             }
+
+            // Safely remove the "Acheter par catégorie" section as requested
+            if (s.type === 'CATEGORIES' && s.data?.title === 'Acheter par catégorie') {
+                return false;
+            }
+            
             return true;
         })
         .sort((a, b) => (a.order || 0) - (b.order || 0));

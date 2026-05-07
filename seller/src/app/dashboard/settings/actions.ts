@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { mutate } from '@/lib/vendure/api';
 import { UpdateCustomerPasswordMutation, UpdateMyVendorProfileMutation } from '@/lib/vendure/mutations';
 
@@ -39,6 +40,7 @@ export async function changePasswordAction(
             return { error: updateResult.message || 'Échec de la mise à jour du mot de passe.' };
         }
 
+        revalidatePath('/dashboard/settings');
         return { success: true };
     } catch (error: any) {
         console.error('Password change error:', error);
@@ -97,6 +99,7 @@ export async function updateVendorProfileAction(
              return { error: 'Échec de la mise à jour du profil.' };
         }
 
+        revalidatePath('/dashboard/settings');
         return { success: true };
     } catch (error: any) {
         console.error('Vendor profile update error:', error);

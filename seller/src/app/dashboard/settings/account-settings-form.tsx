@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { updateVendorProfileAction, changePasswordAction } from './actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ interface AccountSettingsFormProps {
 }
 
 export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
+    const router = useRouter();
     const [profileState, profileAction, isProfilePending] = useActionState<any, FormData>(updateVendorProfileAction, undefined);
     const [passwordState, passwordAction, isPasswordPending] = useActionState<any, FormData>(changePasswordAction, undefined);
     const [activeTab, setActiveTab] = useState('general');
@@ -41,19 +43,21 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
     useEffect(() => {
         if (profileState?.success) {
             toast.success('Profil mis à jour avec succès');
+            router.refresh();
         } else if (profileState?.error) {
             toast.error(profileState.error);
         }
-    }, [profileState]);
+    }, [profileState, router]);
 
     useEffect(() => {
         if (passwordState?.success) {
             toast.success('Mot de passe mis à jour avec succès');
+            router.refresh();
             // Reset form could be handled here if needed
         } else if (passwordState?.error) {
             toast.error(passwordState.error);
         }
-    }, [passwordState]);
+    }, [passwordState, router]);
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

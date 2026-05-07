@@ -338,20 +338,7 @@ export class CMSService {
             })
         });
 
-        // 4. Category Grid
-        await this.createSection(ctx, {
-            pageId,
-            type: 'CATEGORY_GRID',
-            title: '📦 Nos Collections',
-            order: 4,
-            isActive: true,
-            dataJson: JSON.stringify({
-                title: "Acheter par catégorie",
-                layout: "grid",
-                categories: []
-            })
-        });
-
+        
         // 5. Featured Products
         await this.createSection(ctx, {
             pageId,

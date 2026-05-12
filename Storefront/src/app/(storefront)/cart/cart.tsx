@@ -1,17 +1,21 @@
-import {CartItems} from "@/app/cart/cart-items";
-import {OrderSummary} from "@/app/cart/order-summary";
-import {PromotionCode} from "@/app/cart/promotion-code";
+import {CartItems} from "@/app/(storefront)/cart/cart-items";
+import {OrderSummary} from "@/app/(storefront)/cart/order-summary";
+import {PromotionCode} from "@/app/(storefront)/cart/promotion-code";
 import {query} from "@/lib/vendure/api";
 import {GetActiveOrderQuery} from "@/lib/vendure/queries";
 
 export async function Cart() {
     "use cache: private"
 
-    const {data} = await query(GetActiveOrderQuery, {}, {
-        useAuthToken: true,
-    });
-
-    const activeOrder = data.activeOrder;
+    let activeOrder = null;
+    try {
+        const {data} = await query(GetActiveOrderQuery, {}, {
+            useAuthToken: true,
+        });
+        activeOrder = data.activeOrder;
+    } catch (e) {
+        console.warn('[Cart] Backend unavailable during prerendering');
+    }
 
     // Handle empty cart case
     if (!activeOrder || activeOrder.lines.length === 0) {

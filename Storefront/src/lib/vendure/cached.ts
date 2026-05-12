@@ -10,8 +10,13 @@ export async function getActiveChannelCached() {
     'use cache';
     cacheLife('hours');
 
-    const result = await query(GetActiveChannelQuery);
-    return result.data.activeChannel;
+    try {
+        const result = await query(GetActiveChannelQuery);
+        return result.data.activeChannel;
+    } catch (e) {
+        console.warn('[getActiveChannelCached] Backend unavailable, returning default channel');
+        return { id: 'default', code: 'default-channel', currencyCode: 'XOF' };
+    }
 }
 
 /**
@@ -23,15 +28,20 @@ export async function getAvailableCountriesCached() {
     cacheLife('max');
     cacheTag('countries');
 
-    const result = await query(GetAvailableCountriesQuery);
-    const countries = result.data.availableCountries || [];
-    
-    // Fallback for Benin if the list is empty or doesn't contain it
-    if (countries.length === 0) {
-        return [{ code: 'BJ', name: 'Bénin' }];
+    try {
+        const result = await query(GetAvailableCountriesQuery);
+        const countries = result.data.availableCountries || [];
+        
+        // Fallback for Benin if the list is empty or doesn't contain it
+        if (countries.length === 0) {
+            return [{ id: 'BJ', code: 'BJ', name: 'Bénin' }];
+        }
+        
+        return countries;
+    } catch (e) {
+        console.warn('[getAvailableCountriesCached] Backend unavailable, returning default country');
+        return [{ id: 'BJ', code: 'BJ', name: 'Bénin' }];
     }
-    
-    return countries;
 }
 
 /**
@@ -43,6 +53,11 @@ export async function getTopCollections() {
     cacheLife('days');
     cacheTag('collections');
 
-    const result = await query(GetCollectionsTreeQuery);
-    return result.data.cmsCollectionsTree || [];
+    try {
+        const result = await query(GetCollectionsTreeQuery);
+        return result.data.cmsCollectionsTree || [];
+    } catch (e) {
+        console.warn('[getTopCollections] Backend unavailable, returning empty collections');
+        return [];
+    }
 }

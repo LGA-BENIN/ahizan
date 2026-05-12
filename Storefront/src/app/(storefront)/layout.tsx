@@ -20,15 +20,27 @@ import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
  * Moved to a separate component to be wrapped in Suspense, avoiding the "Blocking Route" error.
  */
 async function DynamicBranding({ children }: { children: React.ReactNode }) {
-    const homePage = await getPageContent('home');
+    // Fetch CMS content with graceful fallback for prerendering
+    let homePage = null;
+    try {
+        homePage = await getPageContent('home');
+    } catch (e) {
+        console.warn('[DynamicBranding] CMS unavailable during prerendering, using defaults');
+    }
     const sections = homePage?.sections || [];
     const footer = sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
 
-    // Fetch user and cart data
-    const [customer, order] = await Promise.all([
-        getActiveCustomer(),
-        getActiveOrder()
-    ]);
+    // Fetch user and cart data with graceful fallback
+    let customer = null;
+    let order = null;
+    try {
+        [customer, order] = await Promise.all([
+            getActiveCustomer(),
+            getActiveOrder()
+        ]);
+    } catch (e) {
+        console.warn('[DynamicBranding] Auth data unavailable during prerendering');
+    }
 
     // We no longer fetch the old legacy REST general-config. 
     // Everything is now strictly piloted by the backend CMS pages.

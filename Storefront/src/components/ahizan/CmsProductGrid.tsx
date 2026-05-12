@@ -148,8 +148,8 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                                 product={p}
                                 showDiscountBadge={config.showDiscount !== false}
                                 showStrikethroughPrice={config.showDiscount !== false}
-                                showAddToCartButton={config.showAddToCart}
-                                imageRatio={config.imageRatio || '4:3'}
+                                showAddToCartButton={(config as any).showAddToCart !== false}
+                                imageRatio={(config as any).imageRatio || '4:3'}
                             />
                         );
                     }

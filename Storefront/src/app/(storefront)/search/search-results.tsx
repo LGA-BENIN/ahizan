@@ -16,24 +16,29 @@ export async function SearchResults({searchParams}: SearchResultsProps) {
     const searchParamsResolved = await searchParams;
     const page = getCurrentPage(searchParamsResolved);
 
-    const productDataPromise = query(SearchProductsQuery, {
-        input: buildSearchInput({searchParams: searchParamsResolved})
-    });
-
+    let productData;
+    try {
+        productData = await query(SearchProductsQuery, {
+            input: buildSearchInput({searchParams: searchParamsResolved})
+        });
+    } catch (e) {
+        console.warn('[SearchResults] Backend unavailable, using empty results');
+        productData = { data: { search: { items: [], totalItems: 0, facetValues: [] } } };
+    }
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Filters Sidebar */}
             <aside className="lg:col-span-1">
                 <Suspense fallback={<div className="h-64 animate-pulse bg-muted rounded-lg"/>}>
-                    <FacetFilters productDataPromise={productDataPromise}/>
+                    <FacetFilters productData={productData}/>
                 </Suspense>
             </aside>
 
             {/* Product Grid */}
             <div className="lg:col-span-3">
                 <Suspense fallback={<ProductGridSkeleton/>}>
-                    <ProductGrid productDataPromise={productDataPromise} currentPage={page} take={12}/>
+                    <ProductGrid productData={productData} currentPage={page} take={12}/>
                 </Suspense>
             </div>
         </div>

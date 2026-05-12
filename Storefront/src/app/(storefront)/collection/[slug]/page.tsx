@@ -8,10 +8,15 @@ import { SITE_NAME } from '@/lib/metadata';
 import Link from 'next/link';
 
 async function getCollectionMetadata(slug: string) {
-    return query(GetCollectionProductsQuery, {
-        slug,
-        input: { take: 100, collectionSlug: slug, groupByProduct: true },
-    });
+    try {
+        return await query(GetCollectionProductsQuery, {
+            slug,
+            input: { take: 100, collectionSlug: slug, groupByProduct: true },
+        });
+    } catch (e) {
+        console.warn(`[getCollectionMetadata] Backend unavailable for slug ${slug}`);
+        return { data: { collection: null, search: { items: [], totalItems: 0, facetValues: [] } } };
+    }
 }
 
 async function getCollectionAllowedFacets(slug: string) {
@@ -61,15 +66,21 @@ export default async function CollectionPage({ params, searchParams }: any) {
 
         // 2. Try Vendure's native search API with collectionSlug first
         const searchInput = buildSearchInput({ searchParams: searchParamsResolved, collectionSlug: slug });
-        const searchResult = await query(GetCollectionProductsQuery, {
-            slug,
-            input: searchInput,
-        });
+        let searchResult;
+        try {
+            searchResult = await query(GetCollectionProductsQuery, {
+                slug,
+                input: searchInput,
+            });
+        } catch (e) {
+            console.warn('[CollectionPage] Search query failed, using empty results');
+            searchResult = { data: { search: { items: [], totalItems: 0, facetValues: [] } } };
+        }
 
         const searchData = searchResult?.data?.search;
         let totalItems = searchData?.totalItems || 0;
         let products = searchData?.items || [];
-        let facetValues = searchData?.facetValues || [];
+        let facetValues: any[] = searchData?.facetValues || [];
 
         console.log(`[CollectionPage] slug=${slug} collectionId=${collection.id} searchTotalItems=${totalItems}`);
 
@@ -109,21 +120,8 @@ export default async function CollectionPage({ params, searchParams }: any) {
 
                 if (collectionProducts.length > 0) {
                     totalItems = collectionProducts.length;
-                    products = collectionProducts.map((p: any) => ({
-                        productId: p.id,
-                        productName: p.name,
-                        slug: p.slug,
-                        productAsset: p.featuredAsset,
-                        priceWithTax: p.variants?.[0]?.priceWithTax ? {
-                            __typename: 'SinglePrice',
-                            value: p.variants[0].priceWithTax
-                        } : null,
-                        currencyCode: 'XOF',
-                        description: p.description,
-                        collectionIds: (p.collections || []).map((c: any) => c.id),
-                        facetValueIds: (p.facetValues || []).map((fv: any) => fv.id),
-                        inStock: p.variants?.some((v: any) => v.stockLevel && v.stockLevel !== 'OUT_OF_STOCK')
-                    }));
+                    // Use products as-is to preserve fragment types
+                    products = collectionProducts as any;
 
                     // Build facet values from allowed facets + product counts
                     const facetValueCounts = new Map<string, number>();

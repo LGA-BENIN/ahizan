@@ -28,7 +28,12 @@ import { unstable_noStore as noStore } from "next/cache";
 async function HomeContent() {
     // Opt out of caching so CMS updates show immediately
     noStore();
-    const page = await getPageContent('home');
+    let page = null;
+    try {
+        page = await getPageContent('home');
+    } catch (e) {
+        console.warn('[HomeContent] CMS unavailable during prerendering');
+    }
     const sections = page?.sections || [];
 
     return <AhizanHome sections={sections} />;

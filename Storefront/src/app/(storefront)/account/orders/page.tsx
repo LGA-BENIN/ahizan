@@ -31,21 +31,28 @@ export default async function OrdersPage(props: PageProps<'/account/orders'>) {
     const currentPage = parseInt(Array.isArray(pageParam) ? pageParam[0] : pageParam || '1', 10);
     const skip = (currentPage - 1) * ITEMS_PER_PAGE;
 
-    const {data} = await query(
-        GetCustomerOrdersQuery,
-        {
-            options: {
-                take: ITEMS_PER_PAGE,
-                skip,
-                filter: {
-                    state: {
-                        notEq: 'AddingItems',
+    let data;
+    try {
+        const result = await query(
+            GetCustomerOrdersQuery,
+            {
+                options: {
+                    take: ITEMS_PER_PAGE,
+                    skip,
+                    filter: {
+                        state: {
+                            notEq: 'AddingItems',
+                        },
                     },
                 },
             },
-        },
-        {useAuthToken: true}
-    );
+            {useAuthToken: true}
+        );
+        data = result.data;
+    } catch (e) {
+        console.warn('[OrdersPage] Backend unavailable during prerendering');
+        return redirect('/sign-in');
+    }
 
     if (!data.activeCustomer) {
         return redirect('/sign-in');

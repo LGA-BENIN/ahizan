@@ -28,9 +28,14 @@ async function getProductData(slug: string) {
     // cacheTag(`product-${slug}`);
 
     console.log(`[getProductData] Fetching for slug: "${slug}"`);
-    const result = await query(GetProductDetailQuery, { slug });
-    console.log(`[getProductData] Result for "${slug}":`, result.data.product ? 'FOUND' : 'NOT FOUND');
-    return result;
+    try {
+        const result = await query(GetProductDetailQuery, { slug });
+        console.log(`[getProductData] Result for "${slug}":`, result.data.product ? 'FOUND' : 'NOT FOUND');
+        return result;
+    } catch (e) {
+        console.warn(`[getProductData] Backend unavailable for slug ${slug}`);
+        return { data: { product: null } };
+    }
 }
 
 export async function generateMetadata({

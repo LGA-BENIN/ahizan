@@ -12,7 +12,7 @@ export async function getActiveChannelCached() {
 
     try {
         const result = await query(GetActiveChannelQuery);
-        return result.data.activeChannel;
+        return result.data.activeChannel as any;
     } catch (e) {
         console.warn('[getActiveChannelCached] Backend unavailable, returning default channel');
         return { id: 'default', code: 'default-channel', currencyCode: 'XOF' };
@@ -30,7 +30,7 @@ export async function getAvailableCountriesCached() {
 
     try {
         const result = await query(GetAvailableCountriesQuery);
-        const countries = result.data.availableCountries || [];
+        const countries = (result.data.availableCountries as any[]) || [];
         
         // Fallback for Benin if the list is empty or doesn't contain it
         if (countries.length === 0) {
@@ -48,14 +48,14 @@ export async function getAvailableCountriesCached() {
  * Get collection tree with caching enabled.
  * Collections rarely change, so we cache them for 1 day.
  */
-export async function getTopCollections() {
+export async function getTopCollections(): Promise<any[]> {
     'use cache';
     cacheLife('days');
     cacheTag('collections');
 
     try {
         const result = await query(GetCollectionsTreeQuery);
-        return result.data.cmsCollectionsTree || [];
+        return (result.data.cmsCollectionsTree as any[]) || [];
     } catch (e) {
         console.warn('[getTopCollections] Backend unavailable, returning empty collections');
         return [];

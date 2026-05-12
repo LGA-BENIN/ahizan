@@ -28,11 +28,18 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
     const {code} = params;
     const activeCustomer = await getActiveCustomer();
 
-    const {data} = await query(
-        GetOrderDetailQuery,
-        {code},
-        {useAuthToken: true, fetch: {}}
-    );
+    let data;
+    try {
+        const result = await query(
+            GetOrderDetailQuery,
+            {code},
+            {useAuthToken: true, fetch: {}}
+        );
+        data = result.data;
+    } catch (e) {
+        console.warn('[OrderDetailPage] Backend unavailable during prerendering');
+        return redirect('/account/orders');
+    }
 
     if (!data.orderByCode) {
         return redirect('/account/orders');

@@ -1,7 +1,7 @@
 'use client'
 
 import {ComponentProps, useTransition} from "react";
-import {logoutAction} from "@/app/sign-in/actions";
+import {logoutAction} from "@/app/(storefront)/sign-in/actions";
 import {useRouter} from "next/navigation";
 
 interface LoginButtonProps extends ComponentProps<'button'> {

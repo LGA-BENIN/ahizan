@@ -19,6 +19,11 @@ export default async function RejectedPage() {
         }
     } catch (e: any) {
         console.error("Rejected page check failed:", e.message);
+        // Fallback: ne pas rediriger pendant le build
+        if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
+            console.log('Build time - skipping redirect');
+            return <RejectedContent initialReason={null} />;
+        }
         redirectPath = '/sign-in';
     }
 

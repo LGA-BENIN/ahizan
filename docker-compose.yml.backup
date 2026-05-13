@@ -16,50 +16,22 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
-      - CORS_ORIGINS=${CORS_ORIGINS}
-      - STOREFRONT_URL=https://ahizan.com
       # Autres variables Vendure
-    labels:
-      - "VIRTUAL_HOST=api.ahizan.com,administrator.ahizan.com"
-      - "VIRTUAL_PORT=3000"
     networks:
       - web
       - internal
 
-  storefront:
+  frontend:
     build:
       context: .
-      dockerfile: docker/storefront/Dockerfile
-    container_name: ahizan_storefront
+      dockerfile: docker/frontend/Dockerfile
+    container_name: ahizan_frontend
     restart: unless-stopped
     ports:
       - "3000"
     env_file: .env
     environment:
       - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
-      - NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
-    labels:
-      - "VIRTUAL_HOST=ahizan.com,www.ahizan.com"
-      - "VIRTUAL_PORT=3000"
-    networks:
-      - web
-      - internal
-
-  seller:
-    build:
-      context: .
-      dockerfile: docker/seller/Dockerfile
-    container_name: ahizan_seller
-    restart: unless-stopped
-    ports:
-      - "3000"
-    env_file: .env
-    environment:
-      - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
-      - NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
-    labels:
-      - "VIRTUAL_HOST=seller.ahizan.com"
-      - "VIRTUAL_PORT=3000"
     networks:
       - web
       - internal
@@ -88,7 +60,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
-      - internal
+      - web
     # Pas de port mapping nécessaire, communication interne Docker uniquement
 
 volumes:

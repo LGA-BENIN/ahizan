@@ -5,7 +5,13 @@ import Link from "next/link";
 import { getMyVendorProfile } from "@/lib/vendure/data";
 
 export default async function RejectedPage() {
-    const vendor = await getMyVendorProfile();
+    let vendor = null;
+    try {
+        vendor = await getMyVendorProfile();
+    } catch (error) {
+        // Fallback pendant le prerendering
+        console.log('Failed to fetch vendor profile during build, using fallback');
+    }
 
     if (!vendor) {
         return (

@@ -5,9 +5,12 @@ export const LivePreview = () => {
     const [viewPort, setViewPort] = useState<'desktop' | 'mobile'>('desktop');
     const { activeHabillage, previewVersion } = useEditor();
 
+    // Get storefront URL from environment variable
+    const storefrontUrl = import.meta.env.VITE_STOREFRONT_URL || 'https://ahizan.com';
+    
     // Only show preview when a habillage is active
     const previewUrl = activeHabillage 
-        ? `http://localhost:3001/preview?presetId=${activeHabillage.id}&v=${previewVersion}`
+        ? `${storefrontUrl}/preview?presetId=${activeHabillage.id}&v=${previewVersion}`
         : '';
 
     return (

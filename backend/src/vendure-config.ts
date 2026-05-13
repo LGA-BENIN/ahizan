@@ -37,7 +37,7 @@ export const emailSenderNode = new DynamicEmailSender();
 
 export const config: VendureConfig = {
     apiOptions: {
-        hostname: '127.0.0.1',
+        hostname: '0.0.0.0',
         port: serverPort,
         adminApiPath: 'admin-api',
         shopApiPath: 'shop-api',

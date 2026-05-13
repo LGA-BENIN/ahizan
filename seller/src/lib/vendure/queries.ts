@@ -522,3 +522,76 @@ export const GetOrderDetailQuery = graphql(`
         }
     }
 `);
+
+export const SearchProductsQuery = graphql(`
+    query SearchProducts($input: SearchInput!) {
+        search(input: $input) {
+            totalItems
+            items {
+                ...ProductCard
+            }
+            facetValues {
+                count
+                facetValue {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
+            }
+        }
+    }
+`, [ProductCardFragment]);
+
+export const GetCollectionProductsQuery = graphql(`
+    query GetCollectionProducts($slug: String!, $input: SearchInput!) {
+        collection(slug: $slug) {
+            id
+            name
+            slug
+            description
+            featuredAsset {
+                id
+                preview
+            }
+            parent {
+                id
+                name
+                slug
+            }
+            children {
+                id
+                name
+                slug
+                featuredAsset {
+                    id
+                    preview
+                }
+                children {
+                    id
+                    name
+                    slug
+                }
+            }
+        }
+        search(input: $input) {
+            totalItems
+            items {
+                ...ProductCard
+            }
+            facetValues {
+                count
+                facetValue {
+                    id
+                    name
+                    facet {
+                        id
+                        name
+                    }
+                }
+            }
+        }
+    }
+`, [ProductCardFragment]);

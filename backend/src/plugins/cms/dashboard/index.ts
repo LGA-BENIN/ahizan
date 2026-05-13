@@ -1,11 +1,11 @@
 import { defineDashboardExtension } from '@vendure/dashboard';
-import { LandingPageBuilder } from './landing-page-builder';
+import { UniversalBuilder } from './UniversalBuilder/UniversalBuilder';
 
 export default defineDashboardExtension({
     routes: [
         {
             path: 'builder',
-            component: LandingPageBuilder,
+            component: UniversalBuilder,
             navMenuItem: {
                 id: 'cms-builder',
                 sectionId: 'cms-section',

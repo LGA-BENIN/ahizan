@@ -5,6 +5,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
     base: '/admin',
+    define: {
+        'import.meta.env.VITE_STOREFRONT_URL': JSON.stringify(process.env.STOREFRONT_URL || 'https://ahizan.com'),
+    },
     build: {
         outDir: join(__dirname, 'dist/dashboard'),
     },
@@ -36,7 +39,8 @@ export default defineConfig({
             // and custom fields that are configured.
             vendureConfigPath: pathToFileURL('./src/vendure-config-dashboard.ts'),
             // Points to the location of your Vendure server.
-            api: { host: 'http://127.0.0.1', port: 3000 },
+            // For production, use the public URL
+            api: { host: 'https://administrator.ahizan.com', port: 443 },
             // When you start the Vite server, your Admin API schema will
             // be introspected and the types will be generated in this location.
             // These types can be used in your dashboard extensions to provide

@@ -1,6 +1,6 @@
-import {CartItems} from "@/app/cart/cart-items";
-import {OrderSummary} from "@/app/cart/order-summary";
-import {PromotionCode} from "@/app/cart/promotion-code";
+import {CartItems} from "./cart-items";
+import {OrderSummary} from "./order-summary";
+import {PromotionCode} from "./promotion-code";
 import {query} from "@/lib/vendure/api";
 import {GetActiveOrderQuery} from "@/lib/vendure/queries";
 

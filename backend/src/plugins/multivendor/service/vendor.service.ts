@@ -104,7 +104,9 @@ export class VendorService implements OnApplicationBootstrap {
         address?: string;
         description?: string;
         logoId?: string;
+        logo?: any; // Upload
         coverImageId?: string;
+        coverImage?: any; // Upload
         zone?: string;
         deliveryInfo?: string;
         returnPolicy?: string;
@@ -228,6 +230,18 @@ export class VendorService implements OnApplicationBootstrap {
         }
 
         // Handle File Uploads
+        if (input.logo) {
+            const asset = await this.assetService.create(adminCtx, { file: input.logo, tags: ['vendor-logo'] });
+            if (!(asset as any).errorCode) {
+                vendor.logo = asset as Asset;
+            }
+        }
+        if (input.coverImage) {
+            const asset = await this.assetService.create(adminCtx, { file: input.coverImage, tags: ['vendor-cover'] });
+            if (!(asset as any).errorCode) {
+                vendor.coverImage = asset as Asset;
+            }
+        }
         if (input.rccmFile) {
             const asset = await this.assetService.create(adminCtx, { file: input.rccmFile, tags: ['vendor-doc', 'rccm'] });
             if (!(asset as any).errorCode) {
@@ -305,7 +319,7 @@ export class VendorService implements OnApplicationBootstrap {
         return newVendor;
     }
 
-    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; coverImageId?: string; rejectionReason?: string; dynamicDetails?: any }): Promise<Vendor> {
+    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; logo?: any; coverImageId?: string; coverImage?: any; rejectionReason?: string; dynamicDetails?: any }): Promise<Vendor> {
         const vendor = await this.findOne(ctx, id);
         if (!vendor) {
             throw new Error(`Vendor with id ${id} not found`);
@@ -332,8 +346,20 @@ export class VendorService implements OnApplicationBootstrap {
         if (input.logoId) {
             updated.logo = await this.connection.getEntityOrThrow(ctx, Asset, input.logoId);
         }
+        if (input.logo) {
+            const asset = await this.assetService.create(ctx, { file: input.logo, tags: ['vendor-logo'] });
+            if (!(asset as any).errorCode) {
+                updated.logo = asset as Asset;
+            }
+        }
         if (input.coverImageId) {
             updated.coverImage = await this.connection.getEntityOrThrow(ctx, Asset, input.coverImageId);
+        }
+        if (input.coverImage) {
+            const asset = await this.assetService.create(ctx, { file: input.coverImage, tags: ['vendor-cover'] });
+            if (!(asset as any).errorCode) {
+                updated.coverImage = asset as Asset;
+            }
         }
 
         const savedVendor = await this.connection.getRepository(ctx, Vendor).save(updated);

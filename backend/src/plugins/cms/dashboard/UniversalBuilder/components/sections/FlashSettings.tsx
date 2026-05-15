@@ -309,10 +309,21 @@ function CollectionSelector({ selectedIds, onSelectionChange }: { selectedIds: s
         fetchCollections();
     }, []);
 
-    const toggleCollection = (id: string) => {
-        const newIds = selectedIds.includes(id)
-            ? selectedIds.filter((sid: string) => sid !== id)
-            : [...selectedIds, id];
+    const toggleCollection = (id: string, children: any[] = []) => {
+        let newIds = [...selectedIds];
+        const isSelected = selectedIds.includes(id);
+
+        if (isSelected) {
+            // Remove parent and all children
+            const idsToRemove = [id, ...children.map(c => c.id)];
+            newIds = newIds.filter((sid: string) => !idsToRemove.includes(sid));
+        } else {
+            // Add parent and all children
+            const idsToAdd = [id, ...children.map(c => c.id)];
+            idsToAdd.forEach(addId => {
+                if (!newIds.includes(addId)) newIds.push(addId);
+            });
+        }
         onSelectionChange(newIds);
     };
 
@@ -328,7 +339,7 @@ function CollectionSelector({ selectedIds, onSelectionChange }: { selectedIds: s
                     <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--builder-text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>{node.name}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         <button
-                            onClick={() => toggleCollection(node.id)}
+                            onClick={() => toggleCollection(node.id, node.children || [])}
                             style={{
                                 padding: '4px 10px',
                                 borderRadius: '6px',

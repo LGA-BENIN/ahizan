@@ -168,13 +168,43 @@ export default async function CollectionPage({ params, searchParams }: any) {
 
         return (
             <div className="container mx-auto px-4 py-8 mt-16 min-h-screen">
-                <div className="mb-12 border-b pb-6">
-                    <h1 className="text-5xl font-black text-gray-900 uppercase tracking-tighter">
+                <div className="mb-8 md:mb-12 border-b pb-6">
+                    {/* Breadcrumbs */}
+                    <nav className="flex text-xs md:text-sm text-gray-500 mb-4 whitespace-nowrap overflow-x-auto pb-2 scrollbar-hide">
+                        <Link href="/" className="hover:text-red-600 font-medium shrink-0">Accueil</Link>
+                        <span className="mx-2 shrink-0">/</span>
+                        {collection.parent && collection.parent.name !== '__root_collection__' && (
+                            <>
+                                <Link href={`/collection/${collection.parent.slug}`} className="hover:text-red-600 font-medium shrink-0">
+                                    {collection.parent.name}
+                                </Link>
+                                <span className="mx-2 shrink-0">/</span>
+                            </>
+                        )}
+                        <span className="text-gray-900 font-bold shrink-0">{collection.name}</span>
+                    </nav>
+
+                    <h1 className="text-3xl md:text-5xl font-black text-gray-900 uppercase tracking-tighter">
                         {collection.name}
                     </h1>
-                    <p className="text-gray-500 mt-2">
+                    <p className="text-gray-500 mt-2 text-sm md:text-base">
                         {totalItems} produit{totalItems !== 1 ? 's' : ''} dans cette catégorie
                     </p>
+
+                    {/* Subcategories */}
+                    {collection.children && collection.children.length > 0 && (
+                        <div className="mt-6 flex overflow-x-auto gap-2 pb-2 scrollbar-hide">
+                            {collection.children.map((child: any) => (
+                                <Link 
+                                    key={child.id} 
+                                    href={`/collection/${child.slug}`}
+                                    className="shrink-0 px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-800 font-bold text-xs md:text-sm rounded-full transition-colors border border-gray-200 shadow-sm"
+                                >
+                                    {child.name}
+                                </Link>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-col lg:flex-row gap-12">

@@ -22,7 +22,16 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const router = useRouter();
     const variant = product.variants[0]; // Assuming single variant for now
 
-    const initialCategoryId = product.collections?.length > 0 ? product.collections[0].id : '';
+    let initialCategoryId = '';
+    if (product.collections?.length > 0) {
+        // Find if any product collection is a subcategory in the tree
+        const subCategoryColl = product.collections.find((coll: any) => {
+            return collectionTree?.some((parent: any) => 
+                parent.children?.some((child: any) => String(child.id) === String(coll.id))
+            );
+        });
+        initialCategoryId = subCategoryColl ? String(subCategoryColl.id) : String(product.collections[0].id);
+    }
 
     const [formData, setFormData] = useState({
         name: product.name,
@@ -38,6 +47,8 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const [facetValueIds, setFacetValueIds] = useState<string[]>(
         (product.facetValues || []).map((fv: any) => String(fv.id))
     );
+    console.log('[EditProductForm] Initial product facetValues:', product.facetValues);
+    console.log('[EditProductForm] Initial facetValueIds:', facetValueIds);
     const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
     const [loadingFacets, setLoadingFacets] = useState(false);
 
@@ -67,6 +78,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             const { GetCollectionAllowedFacetsQuery } = await import('@/lib/vendure/queries');
             const result = await query(GetCollectionAllowedFacetsQuery, { collectionId });
             const mapping = (result.data as any)?.collectionAllowedFacets;
+            console.log('[EditProductForm] Fetched allowedFacets mapping:', mapping);
             setAllowedFacets(mapping?.allowedFacets || []);
         } catch (err) {
             console.error('[EditProductForm] Failed to fetch allowed facets:', err);
@@ -90,15 +102,19 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const selectedParent = collectionTree?.find((c: any) => c.id === formData.parentCategory);
+    const selectedParent = collectionTree?.find((c: any) => String(c.id) === String(formData.parentCategory));
     const subCategories = selectedParent?.children || [];
 
     const handleParentChange = (v: string) => {
+        if (!v || v === formData.parentCategory) return;
+        console.log('[EditProductForm] handleParentChange called with:', v);
         setFormData({ ...formData, parentCategory: v, category: v });
         setFacetValueIds([]);
         fetchAllowedFacets(v);
     };
     const handleSubCategoryChange = (v: string) => {
+        if (!v || v === formData.category) return;
+        console.log('[EditProductForm] handleSubCategoryChange called with:', v);
         setFormData({ ...formData, category: v });
         setFacetValueIds([]);
         fetchAllowedFacets(v);

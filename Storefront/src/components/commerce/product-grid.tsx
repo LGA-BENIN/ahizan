@@ -6,19 +6,26 @@ import {SearchProductsQuery} from "@/lib/vendure/queries";
 import {getActiveChannel} from '@/lib/vendure/actions';
 
 interface ProductGridProps {
-    productData: {
+    productData?: {
         data: ResultOf<typeof SearchProductsQuery>;
         token?: string;
     };
+    productDataPromise?: Promise<{
+        data: ResultOf<typeof SearchProductsQuery>;
+        token?: string;
+    }>;
     currentPage: number;
     take: number;
     columns?: number;
 }
 
-export async function ProductGrid({productData, currentPage, take, columns = 3}: ProductGridProps) {
+export async function ProductGrid({productData, productDataPromise, currentPage, take, columns = 3}: ProductGridProps) {
     const channel = await getActiveChannel();
 
-    const searchResult = productData.data.search;
+    const resolvedData = productData || (productDataPromise ? await productDataPromise : null);
+    if (!resolvedData) return null;
+
+    const searchResult = resolvedData.data.search;
     const totalPages = Math.ceil(searchResult.totalItems / take);
 
     if (!searchResult.items.length) {

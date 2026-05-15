@@ -38,7 +38,7 @@ export async function CartItems({activeOrder}: { activeOrder: ActiveOrder | null
                         Add some items to your cart to get started
                     </p>
                     <Button asChild>
-                        <Link href="/">Continue Shopping</Link>
+                        <Link href="/search">Continuer vos achats</Link>
                     </Button>
                 </div>
             </div>

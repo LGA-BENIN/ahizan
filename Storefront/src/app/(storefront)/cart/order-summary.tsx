@@ -62,7 +62,7 @@ export async function OrderSummary({activeOrder}: { activeOrder: ActiveOrder }) 
             </Button>
 
             <Button variant="outline" className="w-full mt-2" asChild>
-                <Link href="/">Continue Shopping</Link>
+                <Link href="/search">Continuer vos achats</Link>
             </Button>
         </div>
     );

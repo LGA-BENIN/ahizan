@@ -60,6 +60,8 @@ export const commonApiExtensions = `
         description: String
         logoId: ID
         coverImageId: ID
+        logo: Upload
+        coverImage: Upload
         zone: String
         deliveryInfo: String
         returnPolicy: String
@@ -91,6 +93,8 @@ export const commonApiExtensions = `
         description: String
         logoId: ID
         coverImageId: ID
+        logo: Upload
+        coverImage: Upload
         zone: String
         deliveryInfo: String
         returnPolicy: String

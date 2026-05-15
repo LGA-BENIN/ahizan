@@ -3,6 +3,12 @@ import { join, resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { defineConfig } from 'vite';
 
+// En local (dev), on pointe vers le serveur local.
+// En production/Docker, on pointe vers le sous-domaine public.
+const IS_DOCKER = process.env.DOCKER === 'true' || process.env.NODE_ENV === 'production';
+const apiHost = IS_DOCKER ? 'https://administrator.ahizan.com' : 'http://127.0.0.1';
+const apiPort = IS_DOCKER ? 443 : 3000;
+
 export default defineConfig({
     base: '/admin',
     define: {
@@ -38,9 +44,9 @@ export default defineConfig({
             // to introspect the GraphQL schema based on any API extensions
             // and custom fields that are configured.
             vendureConfigPath: pathToFileURL('./src/vendure-config-dashboard.ts'),
-            // Points to the location of your Vendure server.
-            // For production, use the public URL
-            api: { host: 'https://administrator.ahizan.com', port: 443 },
+            // En local => http://127.0.0.1:3000
+            // En Docker/Production => https://administrator.ahizan.com:443
+            api: { host: apiHost, port: apiPort },
             // When you start the Vite server, your Admin API schema will
             // be introspected and the types will be generated in this location.
             // These types can be used in your dashboard extensions to provide

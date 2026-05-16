@@ -5,15 +5,15 @@ import {CartSkeleton} from "@/components/shared/skeletons/cart-skeleton";
 import {noIndexRobots} from '@/lib/metadata';
 
 export const metadata: Metadata = {
-    title: 'Shopping Cart',
-    description: 'Review items in your shopping cart.',
+    title: 'Panier',
+    description: 'Consultez les articles de votre panier.',
     robots: noIndexRobots(),
 };
 
 export default function CartPage(_props: PageProps<'/cart'>) {
     return (
-        <div className="container mx-auto px-4 py-20">
-            <h1 className="text-3xl font-bold mb-8">Shopping Cart</h1>
+        <div className="container mx-auto px-6 md:px-12 lg:px-20 py-10 md:py-12 min-h-[60vh]">
+            <h1 className="text-2xl md:text-3xl font-bold mb-6 tracking-tight">Mon Panier</h1>
 
             <Suspense fallback={<CartSkeleton />}>
                 <Cart/>

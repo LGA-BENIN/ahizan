@@ -29,7 +29,7 @@ export async function NavbarCollections() {
                             )}
                         </div>
                         {collection.children?.length > 0 && (
-                            <div className="absolute top-full left-0 hidden group-hover/nav:block bg-white border border-border/60 rounded-xl shadow-lg py-2 min-w-[180px] z-50">
+                            <div className="absolute top-full left-0 hidden group-hover/nav:block bg-popover border border-border/60 rounded-xl shadow-lg py-2 min-w-[180px] z-50">
                                 {collection.children.map((sub: any) => (
                                     <Link
                                         key={sub.slug}

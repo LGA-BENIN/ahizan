@@ -123,41 +123,50 @@ export function FacetFilters({ productData, allowedFacetIds, allowedFacets }: Fa
     const hasActiveFilters = selectedFacets.length > 0;
 
     return (
-        <div className="space-y-6 text-foreground">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                <h2 className="font-bold text-sm uppercase tracking-wider text-[#002f6c]">Filters</h2>
+        <div className="space-y-8 text-foreground">
+            <div className="flex items-center justify-between border-b pb-4">
+                <h2 className="font-black text-xs uppercase tracking-[0.2em] text-muted-foreground/80">Filtres</h2>
                 {hasActiveFilters && (
                     <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={clearFilters}
-                        className="h-7 px-2 text-[10px] uppercase font-bold text-[#e31837] hover:bg-red-50"
+                        className="h-8 px-3 text-[10px] uppercase font-black text-primary hover:bg-primary/5 rounded-lg"
                     >
-                        Clear all
+                        Réinitialiser
                     </Button>
                 )}
             </div>
 
+            {activeFacetGroups.length === 0 && !hasActiveFilters && (
+                <div className="text-xs text-muted-foreground font-medium italic py-4">
+                    Aucun filtre disponible pour cette sélection.
+                </div>
+            )}
+
             {activeFacetGroups.map((facet) => (
-                <div key={facet.id} className="space-y-3">
-                    <h3 className="font-black text-[10px] uppercase tracking-widest text-gray-400">{facet.name}</h3>
-                    <div className="space-y-2">
+                <div key={facet.id} className="space-y-4">
+                    <h3 className="font-black text-[11px] uppercase tracking-widest text-foreground/70 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        {facet.name}
+                    </h3>
+                    <div className="space-y-3 pl-1">
                         {facet.values.map((value) => {
                             const isChecked = selectedFacets.includes(value.id);
                             return (
-                                <div key={value.id} className="flex items-center space-x-2 group">
+                                <div key={value.id} className="flex items-center space-x-3 group">
                                     <Checkbox
                                         id={value.id}
                                         checked={isChecked}
                                         onCheckedChange={() => toggleFacet(value.id)}
-                                        className="border-gray-300 data-[state=checked]:bg-[#002f6c] data-[state=checked]:border-[#002f6c]"
+                                        className="w-5 h-5 rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all"
                                     />
                                     <Label
                                         htmlFor={value.id}
-                                        className="text-xs font-bold text-gray-700 cursor-pointer flex items-center justify-between w-full group-hover:text-[#002f6c] transition-colors"
+                                        className="text-sm font-bold text-muted-foreground cursor-pointer flex items-center justify-between w-full group-hover:text-foreground transition-colors"
                                     >
-                                        <span>{value.name}</span>
-                                        <span className="text-[10px] font-medium text-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-full">
+                                        <span className={isChecked ? "text-foreground" : ""}>{value.name}</span>
+                                        <span className="text-[10px] font-black tabular-nums bg-muted/50 px-2 py-0.5 rounded-md min-w-[24px] text-center">
                                             {value.count}
                                         </span>
                                     </Label>

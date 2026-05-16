@@ -118,15 +118,15 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
 
             if (result.success) {
                 setIsAdded(true);
-                toast.success('Added to cart', {
-                    description: `${product.name} has been added to your cart`,
+                toast.success('Ajouté au panier', {
+                    description: `${product.name} a été ajouté à votre panier`,
                 });
 
                 // Reset the added state after 2 seconds
                 setTimeout(() => setIsAdded(false), 2000);
             } else {
-                toast.error('Error', {
-                    description: result.error || 'Failed to add item to cart',
+                toast.error('Erreur', {
+                    description: result.error || 'Échec de l\'ajout de l\'article au panier',
                 });
             }
         });
@@ -136,35 +136,47 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
     const canAddToCart = selectedVariant && isInStock;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 text-foreground">
             {/* Product Title */}
             <div>
-                <h1 className="text-3xl font-bold">{product.name}</h1>
+                <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
                 {selectedVariant && (
-                    <p className="text-2xl font-bold mt-2">
-                        <Price value={selectedVariant.priceWithTax}/>
-                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                        <p className="text-2xl font-bold text-primary">
+                            <Price value={selectedVariant.priceWithTax}/>
+                        </p>
+                        {isInStock ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                En stock
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                Rupture de stock
+                            </span>
+                        )}
+                    </div>
                 )}
             </div>
 
             {/* Product Description */}
-            <div className="prose prose-sm max-w-none">
+            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed line-clamp-3">
                 <div dangerouslySetInnerHTML={{__html: product.description}}/>
             </div>
 
             {/* Option Groups */}
             {product.optionGroups.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-4 pt-4 border-t">
                     {product.optionGroups.map((group) => (
-                        <div key={group.id} className="space-y-3">
-                            <Label className="text-base font-semibold">
+                        <div key={group.id} className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
                                 {group.name}
                             </Label>
                             <RadioGroup
                                 value={selectedOptions[group.id] || ''}
                                 onValueChange={(value) => handleOptionChange(group.id, value)}
                             >
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {group.options.map((option) => (
                                         <div key={option.id}>
                                             <RadioGroupItem
@@ -174,7 +186,7 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
                                             />
                                             <Label
                                                 htmlFor={option.id}
-                                                className="flex items-center justify-center rounded-md border-2 border-muted bg-popover px-4 py-3 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary cursor-pointer transition-colors"
+                                                className="flex items-center justify-center rounded-lg border border-input bg-background px-3 py-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all font-semibold text-xs text-center"
                                             >
                                                 {option.name}
                                             </Label>
@@ -187,40 +199,29 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
                 </div>
             )}
 
-            {/* Stock Status */}
-            {selectedVariant && (
-                <div className="text-sm">
-                    {isInStock ? (
-                        <span className="text-green-600 font-medium">In Stock</span>
-                    ) : (
-                        <span className="text-destructive font-medium">Out of Stock</span>
-                    )}
-                </div>
-            )}
-
             {/* Add to Cart Button */}
             <div className="pt-4">
                 <Button
                     size="lg"
-                    className="w-full"
+                    className="w-full h-11 rounded-xl font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90"
                     disabled={!canAddToCart || isPending}
                     onClick={handleAddToCart}
                 >
                     {isAdded ? (
                         <>
                             <CheckCircle2 className="mr-2 h-5 w-5"/>
-                            Added to Cart
+                            Ajouté au panier
                         </>
                     ) : (
                         <>
                             <ShoppingCart className="mr-2 h-5 w-5"/>
                             {isPending
-                                ? 'Adding...'
+                                ? 'Ajout en cours...'
                                 : !selectedVariant && product.optionGroups.length > 0
-                                    ? 'Select Options'
+                                    ? 'Choisir des options'
                                     : !isInStock
-                                        ? 'Out of Stock'
-                                        : 'Add to Cart'}
+                                        ? 'Rupture de stock'
+                                        : 'Ajouter au panier'}
                         </>
                     )}
                 </Button>
@@ -228,8 +229,8 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
 
             {/* SKU */}
             {selectedVariant && (
-                <div className="text-xs text-muted-foreground">
-                    SKU: {selectedVariant.sku}
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold pt-4">
+                    REF: {selectedVariant.sku}
                 </div>
             )}
         </div>

@@ -50,8 +50,8 @@ export default async function CheckoutPage(_props: PageProps<'/checkout'>) {
         paymentMethodsRes.data.eligiblePaymentMethods?.filter((m) => m.isEligible) || [];
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold mb-8">Checkout</h1>
+        <div className="container mx-auto px-6 md:px-12 lg:px-20 py-8 md:py-12">
+            <h1 className="text-2xl md:text-3xl font-bold mb-8 tracking-tight">Paiement & Livraison</h1>
             <CheckoutProvider
                 order={activeOrder}
                 addresses={addresses}

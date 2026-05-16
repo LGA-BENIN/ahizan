@@ -27,21 +27,21 @@ export function ProductCard({product: productProp}: ProductCardProps) {
                         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                        No image
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                        Aucune image
                     </div>
                 )}
             </div>
-            <div className="p-4 space-y-2">
-                <h3 className="font-medium line-clamp-2 group-hover:text-primary transition-colors">
+            <div className="p-3 space-y-1">
+                <h3 className="text-sm font-semibold line-clamp-2 group-hover:text-primary transition-colors">
                     {product.productName}
                 </h3>
-                <Suspense fallback={<div className="h-8 w-36 rounded bg-muted"></div>}>
-                    <p className="text-lg font-bold">
+                <Suspense fallback={<div className="h-5 w-24 rounded bg-muted"></div>}>
+                    <p className="text-sm font-bold text-primary">
                         {product.priceWithTax.__typename === 'PriceRange' ? (
                             product.priceWithTax.min !== product.priceWithTax.max ? (
                                 <>
-                                    from <Price value={product.priceWithTax.min}/>
+                                    à partir de <Price value={product.priceWithTax.min}/>
                                 </>
                             ) : (
                                 <Price value={product.priceWithTax.min}/>

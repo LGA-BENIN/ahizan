@@ -28,21 +28,21 @@ function getErrorMessage(error: SetCustomerForOrderResult) {
     case 'EMAIL_CONFLICT':
       return (
         <>
-          An account already exists with this email.{' '}
-          <Link href="/sign-in?redirectTo=/checkout" className="underline hover:no-underline">
-            Sign in
+          Un compte existe déjà avec cet email.{' '}
+          <Link href="/sign-in?redirectTo=/checkout" className="underline hover:no-underline font-bold">
+            Se connecter
           </Link>{' '}
-          to continue.
+          pour continuer.
         </>
       );
     case 'GUEST_CHECKOUT_DISABLED':
-      return 'Guest checkout is not enabled. Please sign in or create an account.';
+      return 'La commande en tant qu\'invité n\'est pas activée. Veuillez vous connecter ou créer un compte.';
     case 'NO_ACTIVE_ORDER':
       return (
         <>
-          Your cart is empty.{' '}
-          <Link href="/" className="underline hover:no-underline">
-            Continue shopping
+          Votre panier est vide.{' '}
+          <Link href="/" className="underline hover:no-underline font-bold">
+            Continuer vos achats
           </Link>
         </>
       );
@@ -77,69 +77,76 @@ export default function ContactStep({ onComplete }: ContactStepProps) {
       }
     } catch (err) {
       console.error('Error setting customer:', err);
-      setError({ success: false, errorCode: 'UNKNOWN', message: 'An unexpected error occurred' });
+      setError({ success: false, errorCode: 'UNKNOWN', message: 'Une erreur inattendue s\'est produite' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Already have an account?{' '}
-        <Link href="/sign-in?redirectTo=/checkout" className="text-primary underline hover:no-underline">
-          Sign in
-        </Link>
-      </p>
+    <div className="space-y-8 py-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-muted-foreground">
+          Vous avez déjà un compte ?{' '}
+          <Link href="/sign-in?redirectTo=/checkout" className="text-primary font-black underline hover:no-underline decoration-2">
+            Se connecter
+          </Link>
+        </p>
+      </div>
 
       {error && !error.success && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="rounded-xl bg-destructive/10 border-destructive/20 text-destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{getErrorMessage(error)}</AlertDescription>
+          <AlertDescription className="font-bold">{getErrorMessage(error)}</AlertDescription>
         </Alert>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <FieldGroup>
-          <div className="grid grid-cols-2 gap-4">
+        <FieldGroup className="space-y-6">
+          <div className="grid grid-cols-2 gap-6">
             <Field className="col-span-2">
-              <FieldLabel htmlFor="emailAddress">Email Address *</FieldLabel>
+              <FieldLabel htmlFor="emailAddress" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Adresse Email *</FieldLabel>
               <Input
                 id="emailAddress"
                 type="email"
+                placeholder="votre@email.com"
+                className="h-10 rounded-lg focus-visible:ring-primary"
                 {...register('emailAddress', {
-                  required: 'Email is required',
+                  required: 'L\'email est requis',
                   pattern: {
                     value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Invalid email address',
+                    message: 'Adresse email invalide',
                   },
                 })}
               />
-              <FieldError>{errors.emailAddress?.message}</FieldError>
+              <FieldError className="font-bold text-xs text-destructive">{errors.emailAddress?.message}</FieldError>
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="firstName">First Name *</FieldLabel>
+            <Field className="col-span-2 sm:col-span-1">
+              <FieldLabel htmlFor="firstName" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Prénom *</FieldLabel>
               <Input
                 id="firstName"
-                {...register('firstName', { required: 'First name is required' })}
+                placeholder="Jean"
+                className="h-10 rounded-lg focus-visible:ring-primary"
+                {...register('firstName', { required: 'Le prénom est requis' })}
               />
-              <FieldError>{errors.firstName?.message}</FieldError>
+              <FieldError className="font-bold text-xs text-destructive">{errors.firstName?.message}</FieldError>
             </Field>
 
-            <Field>
-              <FieldLabel htmlFor="lastName">Last Name *</FieldLabel>
+            <Field className="col-span-2 sm:col-span-1">
+              <FieldLabel htmlFor="lastName" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Nom *</FieldLabel>
               <Input
                 id="lastName"
-                {...register('lastName', { required: 'Last name is required' })}
+                placeholder="Dupont"
+                className="h-10 rounded-lg focus-visible:ring-primary"
+                {...register('lastName', { required: 'Le nom est requis' })}
               />
-              <FieldError>{errors.lastName?.message}</FieldError>
+              <FieldError className="font-bold text-xs text-destructive">{errors.lastName?.message}</FieldError>
             </Field>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full mt-4">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Continue
+          <Button type="submit" disabled={loading} className="w-full h-11 rounded-lg font-semibold transition-all active:scale-[0.98] mt-4">
+            {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Continuer vers la livraison'}
           </Button>
         </FieldGroup>
       </form>

@@ -66,49 +66,50 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
     }
 
     return (
-        <div className="container mx-auto px-4 py-16">
-            <div className="max-w-3xl mx-auto">
+        <div className="container mx-auto px-4 py-12">
+            <div className="max-w-2xl mx-auto">
                 <div className="text-center mb-8">
-                    <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4"/>
-                    <h1 className="text-3xl font-bold mb-2">Order Confirmed!</h1>
-                    <p className="text-muted-foreground">
-                        Thank you for your order. Your order number is
-                        <span className="font-semibold">{order.code}</span>
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 dark:bg-green-500/20 mb-4 border border-green-500/20">
+                        <CheckCircle2 className="h-8 w-8 text-green-500"/>
+                    </div>
+                    <h1 className="text-2xl font-bold tracking-tight mb-2">Commande Confirmée !</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Merci pour votre achat. Votre numéro de commande est{' '}
+                        <span className="font-bold text-foreground">{order.code}</span>
                     </p>
                 </div>
 
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle>Order Summary</CardTitle>
+                <Card className="mb-6 rounded-xl border shadow-sm">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Récapitulatif de la commande</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {order.lines.map((line) => (
-                            <div key={line.id} className="flex gap-4 items-center">
+                            <div key={line.id} className="flex gap-3 items-center">
                                 {line.productVariant.product.featuredAsset && (
-                                    <div className="flex-shrink-0">
+                                    <div className="flex-shrink-0 relative">
                                         <Image
                                             src={line.productVariant.product.featuredAsset.preview}
                                             alt={line.productVariant.name}
-                                            width={80}
-                                            height={80}
-                                            className="rounded object-cover h-20 w-20 object-center"
+                                            width={56}
+                                            height={56}
+                                            className="rounded-lg object-cover h-14 w-14"
                                         />
+                                        <div className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                            {line.quantity}
+                                        </div>
                                     </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-medium">{line.productVariant.product.name}</p>
+                                    <p className="text-sm font-medium line-clamp-1">{line.productVariant.product.name}</p>
                                     {line.productVariant.name !== line.productVariant.product.name && (
-                                        <p className="text-sm text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground mt-0.5">
                                             {line.productVariant.name}
                                         </p>
                                     )}
                                 </div>
-                                <div className="text-center w-16">
-                                    <p className="text-sm text-muted-foreground">Qty</p>
-                                    <p className="font-medium">{line.quantity}</p>
-                                </div>
-                                <div className="text-right w-24">
-                                    <p className="font-semibold">
+                                <div className="text-right flex-shrink-0">
+                                    <p className="text-sm font-semibold">
                                         <Price value={line.linePriceWithTax} currencyCode={order.currencyCode}/>
                                     </p>
                                 </div>
@@ -117,22 +118,22 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
 
                         <Separator/>
 
-                        <div className="flex justify-between font-bold text-lg">
-                            <span>Total</span>
-                            <span>
-                <Price value={order.totalWithTax} currencyCode={order.currencyCode}/>
-              </span>
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-muted-foreground">Total</span>
+                            <span className="text-lg font-bold text-primary">
+                                <Price value={order.totalWithTax} currencyCode={order.currencyCode}/>
+                            </span>
                         </div>
                     </CardContent>
                 </Card>
 
                 {order.shippingAddress && (
-                    <Card className="mb-6">
-                        <CardHeader>
-                            <CardTitle>Shipping Address</CardTitle>
+                    <Card className="mb-6 rounded-xl border shadow-sm">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Adresse de livraison</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="font-medium">{order.shippingAddress.fullName}</p>
+                            <p className="font-medium text-sm">{order.shippingAddress.fullName}</p>
                             <p className="text-sm text-muted-foreground mt-1">
                                 {order.shippingAddress.streetLine1}
                                 {order.shippingAddress.streetLine2 && `, ${order.shippingAddress.streetLine2}`}
@@ -146,11 +147,9 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
                     </Card>
                 )}
 
-                <div className="flex gap-4">
-                    <Button asChild className="flex-1">
-                        <Link href="/">Continue Shopping</Link>
-                    </Button>
-                </div>
+                <Button asChild className="w-full h-11 rounded-lg font-semibold">
+                    <Link href="/">Continuer mes achats</Link>
+                </Button>
             </div>
         </div>
     );

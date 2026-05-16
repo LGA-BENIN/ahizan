@@ -32,7 +32,7 @@ export function AhizanPreloader({ config }: { config: any }) {
     const mediaUrl = config?.preloader?.url ? getAssetUrl(config.preloader.url) : null;
 
     return (
-        <div className={`fixed inset-0 z-[99999] flex items-center justify-center bg-white transition-opacity duration-700 ${isFading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`fixed inset-0 z-[99999] flex items-center justify-center bg-background transition-opacity duration-700 ${isFading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             {type === 'default' && (
                 <div className="flex gap-4 items-center justify-center overflow-hidden w-full px-10">
                     {['A', 'H', 'I', 'Z', 'A', 'N'].map((char, i) => (
@@ -50,7 +50,7 @@ export function AhizanPreloader({ config }: { config: any }) {
             {type === 'image' && mediaUrl && (
                 <div className="flex flex-col items-center gap-6">
                     <img src={mediaUrl} className="max-w-[240px] h-auto object-contain animate-pulse" alt="Loading..." />
-                    <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="w-48 h-1 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-[#002f6c] w-full animate-ahizan-rush opacity-30"></div>
                     </div>
                 </div>

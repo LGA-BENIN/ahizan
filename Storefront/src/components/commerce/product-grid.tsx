@@ -31,7 +31,7 @@ export async function ProductGrid({productData, productDataPromise, currentPage,
     if (!searchResult.items.length) {
         return (
             <div className="text-center py-12">
-                <p className="text-muted-foreground">No products found</p>
+                <p className="text-muted-foreground text-sm">Aucun produit trouvé</p>
             </div>
         );
     }
@@ -47,12 +47,12 @@ export async function ProductGrid({productData, productDataPromise, currentPage,
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                    {searchResult.totalItems} {searchResult.totalItems === 1 ? 'product' : 'products'}
+                    {searchResult.totalItems} {searchResult.totalItems === 1 ? 'produit' : 'produits'}
                 </p>
                 <SortDropdown/>
             </div>
 
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${gridCols} gap-6`}>
+            <div className={`grid grid-cols-2 sm:grid-cols-3 ${gridCols} gap-3 sm:gap-4`}>
                 {searchResult.items.map((product, i) => (
                     <ProductCard key={'product-grid-item' + i} product={product}/>
                 ))}

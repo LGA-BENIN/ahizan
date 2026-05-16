@@ -102,7 +102,7 @@ export async function FeaturedProducts({
                 <div className="space-y-4">
                     {products.map((product: any) => (
                         <Link key={product.productId} href={`/product/${product.slug}`}
-                            className="group flex items-center gap-4 bg-white rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
+                            className="group flex items-center gap-4 bg-card rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
                             <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
                                 <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
                                     className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
@@ -118,7 +118,7 @@ export async function FeaturedProducts({
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                     {products.map((product: any) => (
                         <Link key={product.productId} href={`/product/${product.slug}`}
-                            className="group relative bg-white rounded-2xl p-3 md:p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit">
+                            className="group relative bg-card rounded-2xl p-3 md:p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit">
                             <div className="aspect-square relative mb-3 overflow-hidden rounded-xl bg-muted">
                                 <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
                                     className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />

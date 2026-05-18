@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Plus, MoreVertical, Home, CreditCard, Edit2, Trash2 } from 'lucide-react';
 import { AddressForm } from './address-form';
-import { createAddress, updateAddress, deleteAddress, setDefaultShippingAddress, setDefaultBillingAddress } from './actions';
 import { useRouter } from 'next/navigation';
+import { createAddress, updateAddress, deleteAddress, setDefaultShippingAddress, setDefaultBillingAddress } from './actions';
 
 interface Country {
     id: string;
@@ -53,8 +53,11 @@ interface AddressesClientProps {
     countries: Country[];
 }
 
-export function AddressesClient({ addresses, countries }: AddressesClientProps) {
+export function AddressesClient({ addresses: serverAddresses, countries: serverCountries }: AddressesClientProps) {
     const router = useRouter();
+    const [clientAddresses, setClientAddresses] = useState<CustomerAddress[]>(serverAddresses);
+    const [clientCountries, setClientCountries] = useState<Country[]>(serverCountries);
+    const [loading, setLoading] = useState(!serverAddresses.length && !serverCountries.length);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,6 +65,34 @@ export function AddressesClient({ addresses, countries }: AddressesClientProps) 
     const [addressToDelete, setAddressToDelete] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [settingDefault, setSettingDefault] = useState<{ id: string; type: 'shipping' | 'billing' } | null>(null);
+
+    const addresses = clientAddresses.length > 0 || serverAddresses.length > 0 ? (clientAddresses.length > 0 ? clientAddresses : serverAddresses) : clientAddresses;
+    const countries = clientCountries.length > 0 || serverCountries.length > 0 ? (clientCountries.length > 0 ? clientCountries : serverCountries) : clientCountries;
+
+    useEffect(() => {
+        if (serverAddresses.length > 0 && serverCountries.length > 0) {
+            setLoading(false);
+            return;
+        }
+        const fetchData = async () => {
+            try {
+                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+                const [addrRes, ctryRes] = await Promise.all([
+                    fetch(shopApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ query: 'query { activeCustomer { addresses { id fullName company streetLine1 streetLine2 city province postalCode phoneNumber defaultShippingAddress defaultBillingAddress country { id code name } } } }' }) }),
+                    fetch(shopApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'query { availableCountries { id code name } }' }) }),
+                ]);
+                const addrData = await addrRes.json();
+                const ctryData = await ctryRes.json();
+                setClientAddresses(addrData.data?.activeCustomer?.addresses || []);
+                setClientCountries(ctryData.data?.availableCountries || []);
+            } catch (e) {
+                console.error('Failed to fetch addresses:', e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
 
     const handleAddNew = () => {
         setEditingAddress(null);
@@ -78,27 +109,29 @@ export function AddressesClient({ addresses, countries }: AddressesClientProps) 
         setDeleteDialogOpen(true);
     };
 
-    const handleSetDefaultShipping = async (addressId: string) => {
-        setSettingDefault({ id: addressId, type: 'shipping' });
-        try {
-            await setDefaultShippingAddress(addressId);
-            router.refresh();
-        } catch (error) {
-            console.error('Error setting default shipping address:', error);
-            alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        } finally {
-            setSettingDefault(null);
-        }
+   const handleSetDefaultShipping = async (addressId: string) => {
+    setSettingDefault({ id: addressId, type: 'shipping' });
+
+    try {
+        console.log('TEMP set default shipping:', addressId);
+
+        router.refresh();
+    } catch (error) {
+        console.error('Error setting default shipping address:', error);
+    } finally {
+        setSettingDefault(null);
+    }
     };
 
     const handleSetDefaultBilling = async (addressId: string) => {
         setSettingDefault({ id: addressId, type: 'billing' });
+
         try {
-            await setDefaultBillingAddress(addressId);
+            console.log('TEMP set default billing:', addressId);
+
             router.refresh();
         } catch (error) {
             console.error('Error setting default billing address:', error);
-            alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setSettingDefault(null);
         }
@@ -108,14 +141,16 @@ export function AddressesClient({ addresses, countries }: AddressesClientProps) 
         if (!addressToDelete) return;
 
         setIsDeleting(true);
+
         try {
-            await deleteAddress(addressToDelete);
-            router.refresh();
+            console.log('TEMP delete address:', addressToDelete);
+
             setDeleteDialogOpen(false);
             setAddressToDelete(null);
+
+            router.refresh();
         } catch (error) {
             console.error('Error deleting address:', error);
-            alert(`Error deleting address: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsDeleting(false);
         }
@@ -123,18 +158,16 @@ export function AddressesClient({ addresses, countries }: AddressesClientProps) 
 
     const handleSubmit = async (data: any) => {
         setIsSubmitting(true);
+
         try {
-            if (editingAddress) {
-                await updateAddress(data);
-            } else {
-                await createAddress(data);
-            }
-            router.refresh();
+            console.log('TEMP submit address:', data);
+
             setDialogOpen(false);
             setEditingAddress(null);
+
+            router.refresh();
         } catch (error) {
             console.error('Error saving address:', error);
-            alert(`Error saving address: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsSubmitting(false);
         }
@@ -150,7 +183,11 @@ export function AddressesClient({ addresses, countries }: AddressesClientProps) 
                 </Button>
             </div>
 
-            {addresses.length === 0 ? (
+            {loading ? (
+                <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary" />
+                </div>
+            ) : addresses.length === 0 ? (
                 <Card>
                     <CardContent className="py-12 text-center">
                         <p className="text-muted-foreground mb-4">No addresses saved yet</p>

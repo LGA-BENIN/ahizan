@@ -18,10 +18,8 @@ const SocialIcon = ({ type }: { type: string }) => {
 };
 
 export async function Footer({ config }: { config?: FooterConfData }) {
-    'use cache'
-    cacheLife('hours');
 
-    const collections = await getTopCollections();
+    const collections = (await getTopCollections()) as Array<{ id: string; name: string; slug: string; featuredAsset?: { id: string; preview: string } | null; children?: Array<{ id: string; name: string; slug: string; featuredAsset?: { id: string; preview: string } | null }> | null }>;
     const siteName = "AHIZAN";
     const showNewsletter = config?.showNewsletter !== false;
 
@@ -41,27 +39,27 @@ export async function Footer({ config }: { config?: FooterConfData }) {
     ].filter(s => s.url);
 
     return (
-        <footer className="mt-auto bg-slate-900 text-slate-300">
+        <footer className="mt-auto bg-neutral-900 dark:bg-neutral-950 text-neutral-300">
             {/* Top section: Newsletter + App */}
             {showNewsletter && (
-                <div className="border-b border-slate-700/50">
+                <div className="border-b border-neutral-700/50">
                     <div className="container mx-auto px-4 py-8">
                         <div className="flex flex-col md:flex-row justify-between items-start gap-8">
                             <div className="flex-1">
                                 <h3 className="text-white font-bold text-lg mb-1">{config?.newsletterTitle || `NOUVEAU SUR ${siteName} ?`}</h3>
-                                <p className="text-slate-400 text-sm">{config?.newsletterSubtitle || "Inscrivez-vous pour recevoir nos offres exclusives et nouveautés."}</p>
+                                <p className="text-neutral-400 text-sm">{config?.newsletterSubtitle || "Inscrivez-vous pour recevoir nos offres exclusives et nouveautés."}</p>
                                 <div className="flex gap-2 mt-4 max-w-md">
-                                    <input type="email" placeholder="Entrez votre adresse email" className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-primary" />
+                                    <input type="email" placeholder="Entrez votre adresse email" className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 outline-none focus:border-primary" />
                                     <button className="bg-primary text-white px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors flex-shrink-0">S&apos;abonner</button>
                                 </div>
                             </div>
                             {(config?.appStoreUrl || config?.playStoreUrl) && (
                                 <div className="text-right">
                                     <p className="text-white font-bold text-sm mb-2">{siteName} DANS VOTRE POCHE !</p>
-                                    <p className="text-slate-400 text-xs mb-3">Téléchargez notre application gratuite</p>
+                                    <p className="text-neutral-400 text-xs mb-3">Téléchargez notre application gratuite</p>
                                     <div className="flex gap-2 justify-end">
-                                        {config?.appStoreUrl && <a href={config.appStoreUrl} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white hover:bg-slate-700">App Store</a>}
-                                        {config?.playStoreUrl && <a href={config.playStoreUrl} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white hover:bg-slate-700">Google Play</a>}
+                                        {config?.appStoreUrl && <a href={config.appStoreUrl} className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white hover:bg-neutral-700">App Store</a>}
+                                        {config?.playStoreUrl && <a href={config.playStoreUrl} className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-white hover:bg-neutral-700">Google Play</a>}
                                     </div>
                                 </div>
                             )}
@@ -79,7 +77,7 @@ export async function Footer({ config }: { config?: FooterConfData }) {
                             <ul className="space-y-2.5">
                                 {group.links.map((link, j) => (
                                     <li key={j}>
-                                        <Link href={link.link} className="text-slate-400 text-sm hover:text-white transition-colors">{link.label}</Link>
+                                        <Link href={link.link} className="text-neutral-400 text-sm hover:text-white transition-colors">{link.label}</Link>
                                     </li>
                                 ))}
                             </ul>
@@ -92,7 +90,7 @@ export async function Footer({ config }: { config?: FooterConfData }) {
                         <ul className="space-y-2.5">
                             {collections.slice(0, 8).map((col) => (
                                 <li key={col.id}>
-                                    <Link href={`/collection/${col.slug}`} className="text-slate-400 text-sm hover:text-white transition-colors">{col.name}</Link>
+                                    <Link href={`/collection/${col.slug}`} className="text-neutral-400 text-sm hover:text-white transition-colors">{col.name}</Link>
                                 </li>
                             ))}
                         </ul>
@@ -101,22 +99,22 @@ export async function Footer({ config }: { config?: FooterConfData }) {
                     {/* About column */}
                     <div>
                         <h4 className="text-white text-xs font-bold uppercase tracking-wider mb-4">À PROPOS</h4>
-                        <p className="text-slate-400 text-sm leading-relaxed">{config?.about || `${siteName} est votre marketplace de confiance pour le shopping en ligne.`}</p>
+                        <p className="text-neutral-400 text-sm leading-relaxed">{config?.about || `${siteName} est votre marketplace de confiance pour le shopping en ligne.`}</p>
                     </div>
                 </div>
             </div>
 
             {/* Social + Payment */}
-            <div className="border-t border-slate-700/50">
+            <div className="border-t border-neutral-700/50">
                 <div className="container mx-auto px-4 py-6">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                             {socials.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-xs text-slate-500 uppercase font-bold mr-1 sm:mr-3">Retrouvez-nous sur</span>
+                                    <span className="text-xs text-neutral-500 uppercase font-bold mr-1 sm:mr-3">Retrouvez-nous sur</span>
                                     <div className="inline-flex items-center gap-2 sm:gap-3">
                                         {socials.map((s) => (
-                                            <a key={s.type} href={s.url!} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all">
+                                            <a key={s.type} href={s.url!} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-700 transition-all">
                                                 <SocialIcon type={s.type} />
                                             </a>
                                         ))}
@@ -126,9 +124,9 @@ export async function Footer({ config }: { config?: FooterConfData }) {
                         </div>
                         {config?.paymentMethods && config.paymentMethods.length > 0 && (
                             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                                <span className="text-xs text-slate-500 uppercase font-bold">Paiement</span>
+                                <span className="text-xs text-neutral-500 uppercase font-bold">Paiement</span>
                                 {config.paymentMethods.map((method, i) => (
-                                    <span key={i} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300">{method}</span>
+                                    <span key={i} className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-slate-300">{method}</span>
                                 ))}
                             </div>
                         )}
@@ -138,11 +136,11 @@ export async function Footer({ config }: { config?: FooterConfData }) {
 
             {/* Brands */}
             {config?.brands && config.brands.length > 0 && (
-                <div className="border-t border-slate-700/50">
+                <div className="border-t border-neutral-700/50">
                     <div className="container mx-auto px-4 py-4">
-                        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
+                        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-neutral-500">
                             {config.brands.map((brand, i) => (
-                                <span key={i} className="hover:text-slate-300 cursor-pointer">{brand}</span>
+                                <span key={i} className="hover:text-neutral-300 cursor-pointer">{brand}</span>
                             ))}
                         </div>
                     </div>
@@ -150,9 +148,9 @@ export async function Footer({ config }: { config?: FooterConfData }) {
             )}
 
             {/* Copyright */}
-            <div className="border-t border-slate-700/50">
+            <div className="border-t border-neutral-700/50">
                 <div className="container mx-auto px-4 py-4 text-center">
-                    <p className="text-xs text-slate-500">{config?.copyrightText || `© ${new Date().getFullYear()} ${siteName}. Tous droits réservés.`}</p>
+                    <p className="text-xs text-neutral-500">{config?.copyrightText || `© ${new Date().getFullYear()} ${siteName}. Tous droits réservés.`}</p>
                 </div>
             </div>
         </footer>

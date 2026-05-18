@@ -141,6 +141,28 @@ export async function transitionToArrangingPayment() {
     log(`Current token from cookies: ${currentToken?.substring(0, 10)}...`);
     
     try {
+        // DIAGNOSTIC: Check order details before transition
+        const orderCheck = await query(
+            GetActiveOrderForCheckoutQuery,
+            {},
+            { useAuthToken: true, token: currentToken }
+        );
+        const activeOrder = orderCheck.data?.activeOrder;
+        log(`Pre-transition order state: ${activeOrder?.state || 'NO_ACTIVE_ORDER'}`);
+        if (activeOrder) {
+            log(`Order code: ${activeOrder.code}`);
+            log(`Has customer: ${!!activeOrder.customer}, email: ${activeOrder.customer?.emailAddress || 'N/A'}`);
+            log(`Has shippingAddress: ${!!activeOrder.shippingAddress}, streetLine1: ${activeOrder.shippingAddress?.streetLine1 || 'N/A'}`);
+            log(`Has shippingLines: ${activeOrder.shippingLines?.length || 0}`);
+            log(`Has billingAddress: ${!!activeOrder.billingAddress}`);
+            const orderAny = activeOrder as any;
+            log(`Custom fields: ${JSON.stringify(orderAny.customFields || {})}`);
+            log(`Total lines: ${orderAny.lines?.length || 0}`);
+            if (orderAny.lines && orderAny.lines.length > 0) {
+                log(`First line product: ${orderAny.lines[0].productVariant?.product?.name || 'N/A'}`);
+            }
+        }
+
         const result = await mutate(
             TransitionOrderToStateMutation,
             { state: 'ArrangingPayment' },

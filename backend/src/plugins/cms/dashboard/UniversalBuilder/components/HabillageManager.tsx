@@ -103,7 +103,6 @@ export const HabillageManager = ({ onOpenInEditor }: { onOpenInEditor?: (presetI
     };
 
     const handleDelete = async (id: string, isDefault: boolean) => {
-        if (isDefault) return alert('Impossible de supprimer l\'habillage par défaut');
         if (!confirm('Supprimer cet habillage définitivement ?')) return;
         try {
             await gql(DELETE_HABILLAGE, { id });
@@ -230,7 +229,7 @@ export const HabillageManager = ({ onOpenInEditor }: { onOpenInEditor?: (presetI
                 )}
                 {h.status === 'archived' ? (
                     <Button variant="outline" size="sm" onClick={() => handleRestore(h.id)}>♻️</Button>
-                ) : !h.isDefault && (
+                ) : (
                     <Button variant="destructive" size="sm" onClick={() => handleDelete(h.id, h.isDefault)}>🗑️</Button>
                 )}
             </div>

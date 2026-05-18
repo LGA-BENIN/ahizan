@@ -11,9 +11,6 @@ interface RelatedProductsProps {
 }
 
 async function getRelatedProducts(collectionSlug: string, currentProductId: string) {
-    'use cache'
-    cacheLife('hours')
-    cacheTag(`related-products-${collectionSlug}`)
 
     const result = await query(GetCollectionProductsQuery, {
         slug: collectionSlug,
@@ -43,7 +40,7 @@ export async function RelatedProducts({ collectionSlug, currentProductId }: Rela
 
     return (
         <ProductCarousel
-            title="Related Products"
+            title="Produits similaires"
             products={products}
         />
     );

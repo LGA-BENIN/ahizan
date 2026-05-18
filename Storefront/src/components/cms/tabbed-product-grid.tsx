@@ -13,6 +13,7 @@ interface TabConfig {
     icon?: string;
     filterType: string;
     collectionSlug?: string;
+    collectionIds?: string[];
     facetValueIds?: string[];
     take: number;
 }
@@ -49,6 +50,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
         const take = tab.take || 10;
         const collectionSlug = tab.collectionSlug || '';
+        const collectionIds = tab.collectionIds || [];
 
         const searchQuery = `
             query GetTabProducts($input: SearchInput!) {
@@ -70,35 +72,59 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             }
         `;
 
-        const input: any = {
-            groupByProduct: true,
-            take,
+        const fetchForCollection = async (collectionId?: string) => {
+            const input: any = {
+                groupByProduct: true,
+                take,
+            };
+
+            if (collectionId) {
+                input.collectionId = String(collectionId);
+            } else if (collectionSlug) {
+                input.collectionSlug = collectionSlug;
+            }
+
+            if (tab.filterType === 'BEST_SELLERS') {
+                input.sort = { price: 'DESC' };
+            }
+
+            if (tab.facetValueIds && tab.facetValueIds.length > 0) {
+                input.facetValueIds = tab.facetValueIds;
+            }
+
+            try {
+                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+                const res = await fetch(shopApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: searchQuery, variables: { input } }),
+                });
+                const data = await res.json();
+                return data.data?.search?.items || [];
+            } catch (err) {
+                console.error('Error fetching tab products:', err);
+                return [];
+            }
         };
 
-        if (collectionSlug) {
-            input.collectionSlug = collectionSlug;
-        }
-
-        if (tab.filterType === 'BEST_SELLERS') {
-            input.sort = { price: 'DESC' };
-        }
-
-        if (tab.facetValueIds && tab.facetValueIds.length > 0) {
-            input.facetValueIds = tab.facetValueIds;
-        }
-
         try {
-            const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
-            const res = await fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: searchQuery, variables: { input } }),
-            });
-            const data = await res.json();
-            setProductsMap(prev => ({ ...prev, [tab.id]: data.data?.search?.items || [] }));
-        } catch (err) {
-            console.error('Error fetching tab products:', err);
-            setProductsMap(prev => ({ ...prev, [tab.id]: [] }));
+            if (collectionIds.length > 0) {
+                const promises = collectionIds.map((id: string) => fetchForCollection(id));
+                const results = await Promise.all(promises);
+                let items = results.flat();
+                
+                // Deduplicate
+                const seen = new Set();
+                items = items.filter((item: any) => {
+                    if (seen.has(item.productId)) return false;
+                    seen.add(item.productId);
+                    return true;
+                });
+                setProductsMap(prev => ({ ...prev, [tab.id]: items }));
+            } else {
+                const items = await fetchForCollection();
+                setProductsMap(prev => ({ ...prev, [tab.id]: items }));
+            }
         } finally {
             setLoadingMap(prev => ({ ...prev, [tab.id]: false }));
         }

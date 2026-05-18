@@ -15,8 +15,11 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 # Copie du reste du code source
 COPY backend/ .
 
-# Compilation (si TypeScript)
+# Compilation TypeScript
 RUN if [ -f tsconfig.json ]; then npm run build; fi
+
+# Compilation du Dashboard Admin UI
+RUN npm run build:dashboard
 
 EXPOSE 3000
 

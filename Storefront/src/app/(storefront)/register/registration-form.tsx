@@ -19,14 +19,14 @@ import {
 import Link from 'next/link';
 
 const registrationSchema = z.object({
-    emailAddress: z.string().email('Please enter a valid email address'),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
+    emailAddress: z.string().email('Veuillez entrer une adresse email valide'),
+    firstName: z.string().min(1, 'Le prénom est requis'),
+    lastName: z.string().min(1, 'Le nom est requis'),
     phoneNumber: z.string().optional(),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
     confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
+    message: "Les mots de passe ne correspondent pas",
     path: ["confirmPassword"],
 });
 
@@ -78,45 +78,47 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
         : '/sign-in';
 
     return (
-        <Card>
+        <Card className="rounded-xl border shadow-sm">
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)}>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-4 p-5 pt-6">
                         <FormField
                             control={form.control}
                             name="emailAddress"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Email Address</FormLabel>
+                                    <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Adresse Email</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="email"
-                                            placeholder="you@example.com"
+                                            placeholder="votre@email.com"
                                             disabled={isPending}
+                                            className="h-10 rounded-lg"
                                             {...field}
                                         />
                                     </FormControl>
-                                    <FormMessage />
+                                    <FormMessage className="font-bold text-xs" />
                                 </FormItem>
                             )}
                         />
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-6">
                             <FormField
                                 control={form.control}
                                 name="firstName"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>First Name</FormLabel>
+                                        <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Prénom</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="text"
-                                                placeholder="John"
+                                                placeholder="Jean"
                                                 disabled={isPending}
+                                                className="h-10 rounded-lg"
                                                 {...field}
                                             />
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="font-bold text-xs" />
                                     </FormItem>
                                 )}
                             />
@@ -126,16 +128,17 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
                                 name="lastName"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Last Name</FormLabel>
+                                        <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Nom</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="text"
-                                                placeholder="Doe"
+                                                placeholder="Dupont"
                                                 disabled={isPending}
+                                                className="h-10 rounded-lg"
                                                 {...field}
                                             />
                                         </FormControl>
-                                        <FormMessage />
+                                        <FormMessage className="font-bold text-xs" />
                                     </FormItem>
                                 )}
                             />
@@ -146,75 +149,79 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
                             name="phoneNumber"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Téléphone (Optionnel)</FormLabel>
+                                    <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Téléphone (Optionnel)</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="tel"
-                                            placeholder="ex: 97123456 ou +22997123456"
+                                            placeholder="ex: 97123456"
                                             disabled={isPending}
+                                            className="h-10 rounded-lg"
                                             {...field}
                                         />
                                     </FormControl>
-                                    <p className="text-xs text-muted-foreground">L'indicatif +229 sera ajouté automatiquement si absent.</p>
-                                    <FormMessage />
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">L'indicatif +229 sera ajouté automatiquement si absent.</p>
+                                    <FormMessage className="font-bold text-xs" />
                                 </FormItem>
                             )}
                         />
 
-                        <FormField
-                            control={form.control}
-                            name="password"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Password</FormLabel>
-                                    <FormControl>
-                                        <Input
-                                            type="password"
-                                            placeholder="••••••••"
-                                            disabled={isPending}
-                                            {...field}
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <FormField
+                                control={form.control}
+                                name="password"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Mot de passe</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="password"
+                                                placeholder="••••••••"
+                                                disabled={isPending}
+                                                className="h-10 rounded-lg"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="font-bold text-xs" />
+                                    </FormItem>
+                                )}
+                            />
 
-                        <FormField
-                            control={form.control}
-                            name="confirmPassword"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Confirm Password</FormLabel>
-                                    <FormControl>
-                                        <Input
-                                            type="password"
-                                            placeholder="••••••••"
-                                            disabled={isPending}
-                                            {...field}
-                                        />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                            <FormField
+                                control={form.control}
+                                name="confirmPassword"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Confirmation</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="password"
+                                                placeholder="••••••••"
+                                                disabled={isPending}
+                                                className="h-10 rounded-lg"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                        <FormMessage className="font-bold text-xs" />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
                         {serverError && (
-                            <div className="text-sm text-destructive">
+                            <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/10 text-sm text-destructive">
                                 {serverError}
                             </div>
                         )}
 
-                        <Button type="submit" className="w-full" disabled={isPending}>
-                            {isPending ? 'Creating account...' : 'Create Account'}
+                        <Button type="submit" className="w-full h-11 rounded-lg font-semibold transition-all active:scale-[0.98]" disabled={isPending}>
+                            {isPending ? 'Création en cours...' : 'Créer mon compte'}
                         </Button>
                     </CardContent>
-                    <CardFooter className="flex flex-col space-y-4 mt-4">
-
-                        <div className="text-sm text-center text-muted-foreground">
-                            Already have an account?{' '}
-                            <Link href={signInHref} className="hover:text-primary underline">
-                                Sign in
+                    <CardFooter className="flex flex-col p-5 pt-4 border-t">
+                        <div className="text-muted-foreground font-medium text-sm text-center">
+                            Vous avez déjà un compte ?{' '}
+                            <Link href={signInHref} className="text-primary font-black hover:underline underline-offset-4">
+                                Se connecter
                             </Link>
                         </div>
                     </CardFooter>

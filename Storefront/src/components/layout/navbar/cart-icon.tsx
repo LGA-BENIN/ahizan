@@ -14,7 +14,7 @@ export function CartIcon({cartItemCount}: CartIconProps) {
         <Button 
             variant="ghost" 
             asChild 
-            className="relative flex items-center gap-2 h-11 px-3 md:px-4 rounded-xl hover:bg-muted/50 transition-all font-bold text-secondary group shadow-sm bg-white/50"
+            className="relative flex items-center gap-2 h-11 px-3 md:px-4 rounded-xl hover:bg-muted/50 transition-all font-bold text-secondary group shadow-sm bg-muted/30"
         >
             <Link href="/cart">
                 <div className="relative">

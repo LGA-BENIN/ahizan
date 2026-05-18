@@ -27,7 +27,7 @@ export function SearchInput({ placeholder }: { placeholder?: string }) {
             <Input
                 type="search"
                 placeholder={placeholder || "Rechercher des produits..."}
-                className="pl-11 pr-24 w-full h-11 md:h-12 rounded-xl border-2 border-border/60 bg-white focus:border-primary focus:ring-0 transition-all duration-300 placeholder:text-muted-foreground/60 font-medium"
+                className="pl-11 pr-24 w-full h-11 md:h-12 rounded-xl border-2 border-border/60 bg-background focus:border-primary focus:ring-0 transition-all duration-300 placeholder:text-muted-foreground/60 font-medium"
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 disabled={isPending}

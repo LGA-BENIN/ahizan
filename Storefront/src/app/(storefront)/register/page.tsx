@@ -5,44 +5,40 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
-    title: 'Create Account',
-    description: 'Create a new account to start shopping with us.',
+    title: 'Créer un compte',
+    description: 'Créez un nouveau compte pour commencer vos achats chez nous.',
 };
 
 function RegistrationFormSkeleton() {
     return (
-        <Card>
-            <CardContent className="space-y-4 pt-6">
-                <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Skeleton className="h-4 w-20" />
-                        <Skeleton className="h-10 w-full" />
-                    </div>
-                    <div className="space-y-2">
-                        <Skeleton className="h-4 w-20" />
-                        <Skeleton className="h-10 w-full" />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-10 w-full" />
-                </div>
-                <div className="space-y-2">
-                    <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-10 w-full" />
-                </div>
-                <div className="space-y-2">
+        <Card className="border-2 rounded-3xl overflow-hidden shadow-xl shadow-muted/20">
+            <CardContent className="space-y-6 p-8 pt-10">
+                <div className="space-y-3">
                     <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
                 </div>
+                <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-12 w-full rounded-xl" />
+                    </div>
+                    <div className="space-y-3">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-12 w-full rounded-xl" />
+                    </div>
+                </div>
+                <div className="space-y-3">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                </div>
+                <div className="space-y-3">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                </div>
+                <Skeleton className="h-14 w-full rounded-2xl mt-4" />
             </CardContent>
-            <CardFooter className="flex flex-col space-y-4 mt-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-4 w-44 mx-auto" />
+            <CardFooter className="flex flex-col p-8 pt-0">
+                <Skeleton className="h-4 w-48 mx-auto" />
             </CardFooter>
         </Card>
     );
@@ -57,12 +53,12 @@ async function RegisterContent({searchParams}: {searchParams: Promise<Record<str
 
 export default async function RegisterPage({searchParams}: PageProps<'/register'>) {
     return (
-        <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="flex min-h-[60vh] items-center justify-center px-4 py-12">
             <div className="w-full max-w-md space-y-6">
                 <div className="space-y-2 text-center">
-                    <h1 className="text-3xl font-bold">Create Account</h1>
-                    <p className="text-muted-foreground">
-                        Sign up to start shopping with us
+                    <h1 className="text-2xl font-bold tracking-tight">Créer un compte</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Inscrivez-vous pour profiter d'une expérience shopping personnalisée.
                     </p>
                 </div>
                 <Suspense fallback={<RegistrationFormSkeleton />}>

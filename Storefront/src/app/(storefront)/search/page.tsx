@@ -12,27 +12,29 @@ export async function generateMetadata({
     const searchQuery = resolvedParams.q as string | undefined;
 
     const title = searchQuery
-        ? `Search results for "${searchQuery}"`
-        : 'Search Products';
+        ? `Résultats de recherche pour "${searchQuery}"`
+        : 'Rechercher des produits';
 
     return {
         title,
         description: searchQuery
-            ? `Find products matching "${searchQuery}" at ${SITE_NAME}`
-            : `Search our product catalog at ${SITE_NAME}`,
+            ? `Trouvez des produits correspondant à "${searchQuery}" sur ${SITE_NAME}`
+            : `Parcourez notre catalogue de produits sur ${SITE_NAME}`,
         robots: noIndexRobots(),
     };
 }
 
 export default async function SearchPage({searchParams}: PageProps<'/search'>) {
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-12 min-h-[60vh]">
             <Suspense fallback={<SearchTermSkeleton/>}>
                 <SearchTerm searchParams={searchParams}/>
             </Suspense>
-            <Suspense fallback={<SearchResultsSkeleton />}>
-                <SearchResults searchParams={searchParams}/>
-            </Suspense>
+            <div className="mt-8">
+                <Suspense fallback={<SearchResultsSkeleton />}>
+                    <SearchResults searchParams={searchParams}/>
+                </Suspense>
+            </div>
         </div>
     );
 }

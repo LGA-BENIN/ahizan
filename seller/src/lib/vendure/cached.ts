@@ -7,8 +7,6 @@ import {GetActiveChannelQuery, GetAvailableCountriesQuery, GetTopCollectionsQuer
  * Channel configuration rarely changes, so we cache it for 1 hour.
  */
 export async function getActiveChannelCached() {
-    'use cache';
-    cacheLife('hours');
 
     const result = await query(GetActiveChannelQuery);
     return result.data.activeChannel;
@@ -19,9 +17,6 @@ export async function getActiveChannelCached() {
  * Countries list never changes, so we cache it with max duration.
  */
 export async function getAvailableCountriesCached() {
-    'use cache';
-    cacheLife('max');
-    cacheTag('countries');
 
     const result = await query(GetAvailableCountriesQuery);
     const countries = result.data.availableCountries || [];
@@ -39,9 +34,6 @@ export async function getAvailableCountriesCached() {
  * Collections rarely change, so we cache them for 1 day.
  */
 export async function getTopCollections() {
-    'use cache';
-    cacheLife('days');
-    cacheTag('collections');
 
     const result = await query(GetTopCollectionsQuery);
     return result.data.collections.items;

@@ -82,11 +82,13 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
 
     // When parent changes, reset subcategory
     const handleParentChange = (v: string) => {
+        if (!v || v === formData.parentCategory) return;
         setFormData({ ...formData, parentCategory: v, category: v });
         setFacetValueIds([]);
         fetchAllowedFacets(v);
     };
     const handleSubCategoryChange = (v: string) => {
+        if (!v || v === formData.category) return;
         setFormData({ ...formData, category: v });
         setFacetValueIds([]);
         fetchAllowedFacets(v);

@@ -8,8 +8,6 @@ import {
 import {NavbarLink} from '@/components/layout/navbar/navbar-link';
 
 export async function NavbarCollections() {
-    "use cache";
-    cacheLife('days');
 
     const collections = await getTopCollections();
 

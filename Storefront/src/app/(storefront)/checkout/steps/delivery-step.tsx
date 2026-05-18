@@ -44,58 +44,69 @@ export default function DeliveryStep({ onComplete }: DeliveryStepProps) {
 
   if (shippingMethods.length === 0) {
     return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground">No shipping methods available. Please check your address.</p>
+      <div className="text-center py-12 bg-muted/20 rounded-2xl border border-dashed border-border">
+        <Truck className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" />
+        <p className="text-muted-foreground font-medium">Aucun mode de livraison disponible pour cette adresse.</p>
+        <p className="text-xs text-muted-foreground mt-2 italic">Veuillez vérifier votre adresse de livraison.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h3 className="font-semibold">Select shipping method</h3>
+    <div className="space-y-8 py-4">
+      <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground/60">Choisissez votre mode de livraison</h3>
 
-      <RadioGroup value={selectedMethodId || ''} onValueChange={setSelectedMethodId}>
+      <RadioGroup value={selectedMethodId || ''} onValueChange={setSelectedMethodId} className="grid gap-4">
         {shippingMethods.map((method) => (
-          <Label key={method.id} htmlFor={method.id} className="cursor-pointer">
-            <Card className="p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 flex-1">
-                  <RadioGroupItem value={method.id} id={method.id} />
-                  <Truck className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">{method.name}</p>
-                    {method.description && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {method.description}
-                      </p>
-                    )}
+          <div key={method.id} className="relative group">
+            <RadioGroupItem value={method.id} id={method.id} className="sr-only" />
+            <Label htmlFor={method.id} className="cursor-pointer block">
+              <Card className={`p-6 rounded-2xl border-2 transition-all group-hover:shadow-md ${
+                selectedMethodId === method.id 
+                  ? 'border-primary bg-primary/5 shadow-sm' 
+                  : 'border-muted bg-card hover:border-primary/40'
+              }`}>
+                <div className="flex items-center justify-between gap-6">
+                  <div className="flex items-center gap-5 flex-1">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                      selectedMethodId === method.id ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
+                    }`}>
+                        <Truck className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-black text-lg tracking-tight leading-tight">{method.name}</p>
+                      {method.description && (
+                        <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-wider">
+                          {method.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-xl font-black ${method.priceWithTax === 0 ? 'text-green-600' : 'text-foreground'}`}>
+                      {method.priceWithTax === 0
+                        ? 'GRATUIT'
+                        : (method.priceWithTax / 100).toLocaleString('fr-FR', {
+                            style: 'currency',
+                            currency: 'XOF',
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0,
+                          })}
+                    </p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="font-semibold">
-                    {method.priceWithTax === 0
-                      ? 'GRATUIT'
-                      : (method.priceWithTax / 100).toLocaleString('fr-FR', {
-                          style: 'currency',
-                          currency: 'XOF',
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0,
-                        })}
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </Label>
+              </Card>
+            </Label>
+          </div>
         ))}
       </RadioGroup>
 
       <Button
         onClick={handleContinue}
         disabled={!selectedMethodId || submitting}
-        className="w-full"
+        className="w-full h-11 rounded-lg font-semibold transition-all active:scale-[0.98] mt-4"
       >
-        {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Continue to payment
+        {submitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Continuer vers le paiement'}
       </Button>
     </div>
   );

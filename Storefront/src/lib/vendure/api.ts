@@ -102,7 +102,6 @@ Variables: ${JSON.stringify(variables)}
 \n`);
     } catch(e) {}
 
-    const hasRevalidate = fetchOptions?.next && 'revalidate' in (fetchOptions.next as any);
     const response = await fetch(VENDURE_API_URL!, {
         ...fetchOptions,
         method: 'POST',
@@ -111,7 +110,6 @@ Variables: ${JSON.stringify(variables)}
             query: print(document),
             variables: variables || {},
         }),
-        ...(hasRevalidate ? {} : { cache: 'no-store' as RequestCache }),
         ...(tags && {next: {tags}}),
     });
 

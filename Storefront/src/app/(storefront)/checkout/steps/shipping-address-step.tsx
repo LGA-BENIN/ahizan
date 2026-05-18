@@ -141,71 +141,93 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
 
   if (isGuest) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8 py-4">
         <form onSubmit={handleSubmit(onSubmitGuestAddress)}>
-          <FieldGroup>
-            <div className="grid grid-cols-2 gap-4">
+          <FieldGroup className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
               <Field className="col-span-2">
-                <FieldLabel htmlFor="fullName">Full Name *</FieldLabel>
+                <FieldLabel htmlFor="fullName" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Nom Complet *</FieldLabel>
                 <Input
                   id="fullName"
-                  {...register('fullName', { required: 'Full name is required' })}
+                  placeholder="Jean Dupont"
+                  className="h-10 rounded-lg focus-visible:ring-primary"
+                  {...register('fullName', { required: 'Le nom complet est requis' })}
                 />
-                <FieldError>{errors.fullName?.message}</FieldError>
+                <FieldError className="font-bold text-xs text-destructive">{errors.fullName?.message}</FieldError>
+              </Field>
+
+              <Field className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="company" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Entreprise (Optionnel)</FieldLabel>
+                <Input id="company" placeholder="Nom de l'entreprise" className="h-10 rounded-lg" {...register('company')} />
+              </Field>
+
+              <Field className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="phoneNumber" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Numéro de téléphone *</FieldLabel>
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="+229 00 00 00 00"
+                  className="h-10 rounded-lg focus-visible:ring-primary"
+                  {...register('phoneNumber', { required: 'Le numéro de téléphone est requis' })}
+                />
+                <FieldError className="font-bold text-xs text-destructive">{errors.phoneNumber?.message}</FieldError>
               </Field>
 
               <Field className="col-span-2">
-                <FieldLabel htmlFor="company">Company</FieldLabel>
-                <Input id="company" {...register('company')} />
-              </Field>
-
-              <Field className="col-span-2">
-                <FieldLabel htmlFor="streetLine1">Street Address *</FieldLabel>
+                <FieldLabel htmlFor="streetLine1" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Adresse *</FieldLabel>
                 <Input
                   id="streetLine1"
-                  {...register('streetLine1', { required: 'Street address is required' })}
+                  placeholder="Rue, quartier, maison..."
+                  className="h-10 rounded-lg focus-visible:ring-primary"
+                  {...register('streetLine1', { required: 'L\'adresse est requise' })}
                 />
-                <FieldError>{errors.streetLine1?.message}</FieldError>
+                <FieldError className="font-bold text-xs text-destructive">{errors.streetLine1?.message}</FieldError>
               </Field>
 
               <Field className="col-span-2">
-                <FieldLabel htmlFor="streetLine2">Apartment, suite, etc.</FieldLabel>
-                <Input id="streetLine2" {...register('streetLine2')} />
+                <FieldLabel htmlFor="streetLine2" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Appartement, suite, etc. (Optionnel)</FieldLabel>
+                <Input id="streetLine2" placeholder="Ex: Appt 4B" className="h-10 rounded-lg" {...register('streetLine2')} />
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="city">City *</FieldLabel>
+              <Field className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="city" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Ville *</FieldLabel>
                 <Input
                   id="city"
-                  {...register('city', { required: 'City is required' })}
+                  placeholder="Cotonou"
+                  className="h-10 rounded-lg focus-visible:ring-primary"
+                  {...register('city', { required: 'La ville est requise' })}
                 />
-                <FieldError>{errors.city?.message}</FieldError>
+                <FieldError className="font-bold text-xs text-destructive">{errors.city?.message}</FieldError>
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="province">State/Province</FieldLabel>
+              <Field className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="province" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Département / Province</FieldLabel>
                 <Input
                   id="province"
+                  placeholder="Littoral"
+                  className="h-10 rounded-lg"
                   {...register('province')}
                 />
-                <FieldError>{errors.province?.message}</FieldError>
+                <FieldError className="font-bold text-xs text-destructive">{errors.province?.message}</FieldError>
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="postalCode">Postal Code *</FieldLabel>
+              <Field className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="postalCode" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Code Postal *</FieldLabel>
                 <Input
                   id="postalCode"
-                  {...register('postalCode', { required: 'Postal code is required' })}
+                  placeholder="00000"
+                  className="h-10 rounded-lg focus-visible:ring-primary"
+                  {...register('postalCode', { required: 'Le code postal est requis' })}
                 />
-                <FieldError>{errors.postalCode?.message}</FieldError>
+                <FieldError className="font-bold text-xs text-destructive">{errors.postalCode?.message}</FieldError>
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="countryCode">Country *</FieldLabel>
+              <Field className="col-span-2 sm:col-span-1">
+                <FieldLabel htmlFor="countryCode" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Pays *</FieldLabel>
                 <Controller
                   name="countryCode"
                   control={control}
-                  rules={{ required: 'Country is required' }}
+                  rules={{ required: 'Le pays est requis' }}
                   render={({ field }) => (
                     <CountrySelect
                       countries={countries}
@@ -215,37 +237,27 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
                     />
                   )}
                 />
-                <FieldError>{errors.countryCode?.message}</FieldError>
-              </Field>
-
-              <Field className="col-span-2">
-                <FieldLabel htmlFor="phoneNumber">Phone Number *</FieldLabel>
-                <Input
-                  id="phoneNumber"
-                  type="tel"
-                  {...register('phoneNumber', { required: 'Phone number is required' })}
-                />
-                <FieldError>{errors.phoneNumber?.message}</FieldError>
+                <FieldError className="font-bold text-xs text-destructive">{errors.countryCode?.message}</FieldError>
               </Field>
             </div>
 
-            <div className="flex items-center space-x-2 mt-4">
+            <div className="flex items-center space-x-3 mt-4 bg-muted/30 p-4 rounded-xl border border-dashed">
               <Checkbox
                 id="same-billing-guest"
                 checked={useSameForBilling}
                 onCheckedChange={(checked) => setUseSameForBilling(checked === true)}
+                className="w-5 h-5 rounded-md"
               />
               <label
                 htmlFor="same-billing-guest"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                className="text-sm font-bold leading-none cursor-pointer"
               >
-                Use same address for billing
+                Utiliser la même adresse pour la facturation
               </label>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full mt-4">
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Continue
+            <Button type="submit" disabled={loading} className="w-full h-11 rounded-lg font-semibold shadow-xl shadow-primary/10 transition-all active:scale-[0.98] mt-4">
+              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Continuer vers le mode de livraison'}
             </Button>
           </FieldGroup>
         </form>
@@ -254,28 +266,42 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 py-4">
       {addresses.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="font-semibold">Select a saved address</h3>
-          <RadioGroup value={selectedAddressId || ''} onValueChange={setSelectedAddressId}>
+        <div className="space-y-6">
+          <h3 className="font-black text-xs uppercase tracking-widest text-muted-foreground/60">Sélectionnez une adresse enregistrée</h3>
+          <RadioGroup value={selectedAddressId || ''} onValueChange={setSelectedAddressId} className="grid gap-4">
             {addresses.map((address) => (
-              <div key={address.id} className="flex items-start space-x-3">
-                <RadioGroupItem value={address.id} id={address.id} className="mt-1" />
-                <Label htmlFor={address.id} className="flex-1 cursor-pointer">
-                  <Card className="p-4">
-                    <div className="leading-tight space-y-0">
-                      <p className="font-medium">{address.fullName}</p>
-                      {address.company && <p className="text-sm text-muted-foreground">{address.company}</p>}
-                      <p className="text-sm text-muted-foreground">
-                        {address.streetLine1}
-                        {address.streetLine2 && `, ${address.streetLine2}`}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {address.city}, {address.province} {address.postalCode}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{address.country.name}</p>
-                      <p className="text-sm text-muted-foreground">{address.phoneNumber}</p>
+              <div key={address.id} className="relative group">
+                <RadioGroupItem value={address.id} id={address.id} className="sr-only" />
+                <Label htmlFor={address.id} className="flex-1 cursor-pointer block">
+                  <Card className={`p-6 rounded-2xl border-2 transition-all group-hover:shadow-md ${
+                    selectedAddressId === address.id 
+                      ? 'border-primary bg-primary/5 shadow-sm' 
+                      : 'border-muted bg-card hover:border-primary/40'
+                  }`}>
+                    <div className="flex items-start justify-between">
+                        <div className="leading-relaxed space-y-1">
+                            <p className="font-black text-lg tracking-tight">{address.fullName}</p>
+                            {address.company && <p className="text-sm font-bold text-primary uppercase tracking-wider">{address.company}</p>}
+                            <p className="text-sm font-medium text-muted-foreground">
+                                {address.streetLine1}
+                                {address.streetLine2 && `, ${address.streetLine2}`}
+                            </p>
+                            <p className="text-sm font-medium text-muted-foreground">
+                                {address.city}, {address.province} {address.postalCode}
+                            </p>
+                            <p className="text-sm font-bold text-foreground/80">{address.country.name}</p>
+                            <p className="text-sm font-bold text-foreground mt-2 flex items-center gap-2">
+                                <span className="text-[10px] bg-muted px-2 py-0.5 rounded uppercase tracking-tighter">Tel</span>
+                                {address.phoneNumber}
+                            </p>
+                        </div>
+                        {selectedAddressId === address.id && (
+                            <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                        )}
                     </div>
                   </Card>
                 </Label>
@@ -283,108 +309,125 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
             ))}
           </RadioGroup>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3 bg-muted/30 p-4 rounded-xl border border-dashed">
             <Checkbox
               id="same-billing"
               checked={useSameForBilling}
               onCheckedChange={(checked) => setUseSameForBilling(checked === true)}
+              className="w-5 h-5 rounded-md"
             />
             <label
               htmlFor="same-billing"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              className="text-sm font-bold cursor-pointer"
             >
-              Use same address for billing
+              Utiliser la même adresse pour la facturation
             </label>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <Button
               onClick={handleSelectExistingAddress}
               disabled={!selectedAddressId || loading}
-              className="flex-1"
+              className="flex-1 h-11 rounded-lg font-semibold shadow-xl shadow-primary/10"
             >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Continue with selected address
+              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Continuer avec l\'adresse sélectionnée'}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button type="button" variant="outline">
-                  Add new address
+                <Button type="button" variant="outline" className="h-14 px-8 rounded-2xl font-bold border-2">
+                  Nouvelle adresse
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-8">
                 <form onSubmit={handleSubmit(onSaveNewAddress)}>
-                  <DialogHeader>
-                    <DialogTitle>Add new address</DialogTitle>
-                    <DialogDescription>
-                      Fill in the form below to add a new shipping address
+                  <DialogHeader className="mb-8">
+                    <DialogTitle className="text-2xl font-black tracking-tight">Ajouter une nouvelle adresse</DialogTitle>
+                    <DialogDescription className="text-base font-medium">
+                      Remplissez le formulaire ci-dessous pour ajouter une adresse de livraison.
                     </DialogDescription>
                   </DialogHeader>
 
-                  <FieldGroup className="my-6">
-                    <div className="grid grid-cols-2 gap-4">
+                  <FieldGroup className="space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
                       <Field className="col-span-2">
-                        <FieldLabel htmlFor="fullName">Full Name</FieldLabel>
+                        <FieldLabel htmlFor="fullName" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Nom Complet</FieldLabel>
                         <Input
                           id="fullName"
+                          placeholder="Jean Dupont"
+                          className="h-10 rounded-lg"
                           {...register('fullName')}
                         />
-                        <FieldError>{errors.fullName?.message}</FieldError>
+                        <FieldError className="font-bold text-xs text-destructive">{errors.fullName?.message}</FieldError>
+                      </Field>
+
+                      <Field className="col-span-2 sm:col-span-1">
+                        <FieldLabel htmlFor="company" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Entreprise</FieldLabel>
+                        <Input id="company" className="h-10 rounded-lg" {...register('company')} />
+                      </Field>
+
+                      <Field className="col-span-2 sm:col-span-1">
+                        <FieldLabel htmlFor="phoneNumber" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Numéro de téléphone</FieldLabel>
+                        <Input
+                          id="phoneNumber"
+                          type="tel"
+                          className="h-10 rounded-lg"
+                          {...register('phoneNumber')}
+                        />
+                        <FieldError className="font-bold text-xs text-destructive">{errors.phoneNumber?.message}</FieldError>
                       </Field>
 
                       <Field className="col-span-2">
-                        <FieldLabel htmlFor="company">Company</FieldLabel>
-                        <Input id="company" {...register('company')} />
-                      </Field>
-
-                      <Field className="col-span-2">
-                        <FieldLabel htmlFor="streetLine1">Street Address *</FieldLabel>
+                        <FieldLabel htmlFor="streetLine1" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Adresse *</FieldLabel>
                         <Input
                           id="streetLine1"
-                          {...register('streetLine1', { required: 'Street address is required' })}
+                          className="h-10 rounded-lg"
+                          {...register('streetLine1', { required: 'L\'adresse est requise' })}
                         />
-                        <FieldError>{errors.streetLine1?.message}</FieldError>
+                        <FieldError className="font-bold text-xs text-destructive">{errors.streetLine1?.message}</FieldError>
                       </Field>
 
                       <Field className="col-span-2">
-                        <FieldLabel htmlFor="streetLine2">Apartment, suite, etc.</FieldLabel>
-                        <Input id="streetLine2" {...register('streetLine2')} />
+                        <FieldLabel htmlFor="streetLine2" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Appartement, suite, etc.</FieldLabel>
+                        <Input id="streetLine2" className="h-10 rounded-lg" {...register('streetLine2')} />
                       </Field>
 
-                      <Field>
-                        <FieldLabel htmlFor="city">City</FieldLabel>
+                      <Field className="col-span-2 sm:col-span-1">
+                        <FieldLabel htmlFor="city" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Ville</FieldLabel>
                         <Input
                           id="city"
+                          className="h-10 rounded-lg"
                           {...register('city')}
                         />
-                        <FieldError>{errors.city?.message}</FieldError>
+                        <FieldError className="font-bold text-xs text-destructive">{errors.city?.message}</FieldError>
                       </Field>
 
-                      <Field>
-                        <FieldLabel htmlFor="province">State/Province</FieldLabel>
+                      <Field className="col-span-2 sm:col-span-1">
+                        <FieldLabel htmlFor="province" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Province / Département</FieldLabel>
                         <Input
                           id="province"
+                          className="h-10 rounded-lg"
                           {...register('province')}
                         />
-                        <FieldError>{errors.province?.message}</FieldError>
+                        <FieldError className="font-bold text-xs text-destructive">{errors.province?.message}</FieldError>
                       </Field>
 
-                      <Field>
-                        <FieldLabel htmlFor="postalCode">Postal Code</FieldLabel>
+                      <Field className="col-span-2 sm:col-span-1">
+                        <FieldLabel htmlFor="postalCode" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Code Postal</FieldLabel>
                         <Input
                           id="postalCode"
+                          className="h-10 rounded-lg"
                           {...register('postalCode')}
                         />
-                        <FieldError>{errors.postalCode?.message}</FieldError>
+                        <FieldError className="font-bold text-xs text-destructive">{errors.postalCode?.message}</FieldError>
                       </Field>
 
-                      <Field>
-                        <FieldLabel htmlFor="countryCode">Country *</FieldLabel>
+                      <Field className="col-span-2 sm:col-span-1">
+                        <FieldLabel htmlFor="countryCode" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Pays *</FieldLabel>
                         <Controller
                           name="countryCode"
                           control={control}
-                          rules={{ required: 'Country is required' }}
+                          rules={{ required: 'Le pays est requis' }}
                           render={({ field }) => (
                             <CountrySelect
                               countries={countries}
@@ -394,28 +437,17 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
                             />
                           )}
                         />
-                        <FieldError>{errors.countryCode?.message}</FieldError>
-                      </Field>
-
-                      <Field className="col-span-2">
-                        <FieldLabel htmlFor="phoneNumber">Phone Number</FieldLabel>
-                        <Input
-                          id="phoneNumber"
-                          type="tel"
-                          {...register('phoneNumber')}
-                        />
-                        <FieldError>{errors.phoneNumber?.message}</FieldError>
+                        <FieldError className="font-bold text-xs text-destructive">{errors.countryCode?.message}</FieldError>
                       </Field>
                     </div>
                   </FieldGroup>
 
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
-                      Cancel
+                  <DialogFooter className="mt-10 gap-3">
+                    <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} disabled={saving} className="h-12 rounded-xl font-bold">
+                      Annuler
                     </Button>
-                    <Button type="submit" disabled={saving}>
-                      {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Save address
+                    <Button type="submit" disabled={saving} className="h-12 px-8 rounded-xl font-black">
+                      {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Enregistrer l\'adresse'}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -427,78 +459,95 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
 
       {addresses.length === 0 && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-8">
             <form onSubmit={handleSubmit(onSaveNewAddress)}>
-              <DialogHeader>
-                <DialogTitle>Add shipping address</DialogTitle>
-                <DialogDescription>
-                  Fill in the form below to add your shipping address
+              <DialogHeader className="mb-8">
+                <DialogTitle className="text-2xl font-black tracking-tight">Ajouter une adresse de livraison</DialogTitle>
+                <DialogDescription className="text-base font-medium">
+                  Remplissez le formulaire ci-dessous pour ajouter votre adresse de livraison.
                 </DialogDescription>
               </DialogHeader>
 
-              <FieldGroup className="my-6">
-                <div className="grid grid-cols-2 gap-4">
+              <FieldGroup className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
                   <Field className="col-span-2">
-                    <FieldLabel htmlFor="fullName">Full Name</FieldLabel>
+                    <FieldLabel htmlFor="fullName" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Nom Complet</FieldLabel>
                     <Input
                       id="fullName"
+                      placeholder="Jean Dupont"
+                      className="h-10 rounded-lg"
                       {...register('fullName')}
                     />
-                    <FieldError>{errors.fullName?.message}</FieldError>
+                    <FieldError className="font-bold text-xs text-destructive">{errors.fullName?.message}</FieldError>
+                  </Field>
+
+                  <Field className="col-span-2 sm:col-span-1">
+                    <FieldLabel htmlFor="company" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Entreprise</FieldLabel>
+                    <Input id="company" className="h-10 rounded-lg" {...register('company')} />
+                  </Field>
+
+                  <Field className="col-span-2 sm:col-span-1">
+                    <FieldLabel htmlFor="phoneNumber" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Numéro de téléphone</FieldLabel>
+                    <Input
+                      id="phoneNumber"
+                      type="tel"
+                      className="h-10 rounded-lg"
+                      {...register('phoneNumber')}
+                    />
+                    <FieldError className="font-bold text-xs text-destructive">{errors.phoneNumber?.message}</FieldError>
                   </Field>
 
                   <Field className="col-span-2">
-                    <FieldLabel htmlFor="company">Company</FieldLabel>
-                    <Input id="company" {...register('company')} />
-                  </Field>
-
-                  <Field className="col-span-2">
-                    <FieldLabel htmlFor="streetLine1">Street Address *</FieldLabel>
+                    <FieldLabel htmlFor="streetLine1" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Adresse *</FieldLabel>
                     <Input
                       id="streetLine1"
-                      {...register('streetLine1', { required: 'Street address is required' })}
+                      className="h-10 rounded-lg"
+                      {...register('streetLine1', { required: 'L\'adresse est requise' })}
                     />
-                    <FieldError>{errors.streetLine1?.message}</FieldError>
+                    <FieldError className="font-bold text-xs text-destructive">{errors.streetLine1?.message}</FieldError>
                   </Field>
 
                   <Field className="col-span-2">
-                    <FieldLabel htmlFor="streetLine2">Apartment, suite, etc.</FieldLabel>
-                    <Input id="streetLine2" {...register('streetLine2')} />
+                    <FieldLabel htmlFor="streetLine2" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Appartement, suite, etc.</FieldLabel>
+                    <Input id="streetLine2" className="h-10 rounded-lg" {...register('streetLine2')} />
                   </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="city">City</FieldLabel>
+                  <Field className="col-span-2 sm:col-span-1">
+                    <FieldLabel htmlFor="city" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Ville</FieldLabel>
                     <Input
                       id="city"
+                      className="h-10 rounded-lg"
                       {...register('city')}
                     />
-                    <FieldError>{errors.city?.message}</FieldError>
+                    <FieldError className="font-bold text-xs text-destructive">{errors.city?.message}</FieldError>
                   </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="province">State/Province</FieldLabel>
+                  <Field className="col-span-2 sm:col-span-1">
+                    <FieldLabel htmlFor="province" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Province / Département</FieldLabel>
                     <Input
                       id="province"
+                      className="h-10 rounded-lg"
                       {...register('province')}
                     />
-                    <FieldError>{errors.province?.message}</FieldError>
+                    <FieldError className="font-bold text-xs text-destructive">{errors.province?.message}</FieldError>
                   </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="postalCode">Postal Code</FieldLabel>
+                  <Field className="col-span-2 sm:col-span-1">
+                    <FieldLabel htmlFor="postalCode" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Code Postal</FieldLabel>
                     <Input
                       id="postalCode"
+                      className="h-10 rounded-lg"
                       {...register('postalCode')}
                     />
-                    <FieldError>{errors.postalCode?.message}</FieldError>
+                    <FieldError className="font-bold text-xs text-destructive">{errors.postalCode?.message}</FieldError>
                   </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="countryCode">Country *</FieldLabel>
+                  <Field className="col-span-2 sm:col-span-1">
+                    <FieldLabel htmlFor="countryCode" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Pays *</FieldLabel>
                     <Controller
                       name="countryCode"
                       control={control}
-                      rules={{ required: 'Country is required' }}
+                      rules={{ required: 'Le pays est requis' }}
                       render={({ field }) => (
                         <CountrySelect
                           countries={countries}
@@ -508,25 +557,14 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
                         />
                       )}
                     />
-                    <FieldError>{errors.countryCode?.message}</FieldError>
-                  </Field>
-
-                  <Field className="col-span-2">
-                    <FieldLabel htmlFor="phoneNumber">Phone Number</FieldLabel>
-                    <Input
-                      id="phoneNumber"
-                      type="tel"
-                      {...register('phoneNumber')}
-                    />
-                    <FieldError>{errors.phoneNumber?.message}</FieldError>
+                    <FieldError className="font-bold text-xs text-destructive">{errors.countryCode?.message}</FieldError>
                   </Field>
                 </div>
               </FieldGroup>
 
-              <DialogFooter>
-                <Button type="submit" disabled={saving} className="w-full">
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save address
+              <DialogFooter className="mt-8">
+                <Button type="submit" disabled={saving} className="w-full h-11 rounded-lg font-semibold">
+                  {saving ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Enregistrer l\'adresse'}
                 </Button>
               </DialogFooter>
             </form>

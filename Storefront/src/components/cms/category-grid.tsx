@@ -102,7 +102,7 @@ export function CategoryGrid({
                 <div className="space-y-3">
                     {categories.map((cat) => (
                         <Link key={cat.slug} href={`/collection/${cat.slug}`}
-                            className="group flex items-center gap-4 bg-white rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
+                            className="group flex items-center gap-4 bg-card rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
                             <div className="w-16 h-16 flex-shrink-0 overflow-hidden rounded-lg bg-muted relative">
                                 {cat.imageUrl ? (
                                     <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover" />
@@ -122,7 +122,7 @@ export function CategoryGrid({
                     {categories.map((cat) => (
                         <Link key={cat.slug} href={`/collection/${cat.slug}`}
                             className="group flex flex-col items-center text-center space-y-4">
-                            <div className="relative w-28 h-28 md:w-36 md:h-36 bg-white rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-500 border border-muted group-hover:border-primary/20 p-1.5">
+                            <div className="relative w-28 h-28 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-2 transition-all duration-500 border border-muted group-hover:border-primary/20 p-1.5">
                                 <div className="relative w-full h-full rounded-2xl overflow-hidden bg-muted">
                                     {cat.imageUrl ? (
                                         <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-700" />

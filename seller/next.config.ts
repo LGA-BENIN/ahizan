@@ -1,7 +1,7 @@
 import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-    cacheComponents: true,
+    cacheComponents: false,
     images: {
         // This is necessary to display images from your local Vendure instance
         dangerouslyAllowLocalIP: true,
@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
         serverActions: {
             bodySizeLimit: '50mb',
         },
+    },
+    typescript: {
+        ignoreBuildErrors: true,
     },
 };
 

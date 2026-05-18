@@ -1,10 +1,21 @@
+import 'dotenv/config';
 import { vendureDashboardPlugin } from '@vendure/dashboard/vite';
 import { join, resolve } from 'path';
 import { pathToFileURL } from 'url';
 import { defineConfig } from 'vite';
 
+// En local (dev), on pointe vers le serveur local.
+// En production/Docker, on pointe vers le sous-domaine public.
+const IS_DEV = process.env.APP_ENV === 'dev';
+const IS_DOCKER = !IS_DEV && (process.env.DOCKER === 'true' || process.env.NODE_ENV === 'production');
+const apiHost = process.env.API_HOST || (IS_DOCKER ? 'https://administrator.ahizan.com' : 'http://127.0.0.1');
+const apiPort = process.env.API_PORT ? parseInt(process.env.API_PORT, 10) : (IS_DOCKER ? 443 : 3000);
+
 export default defineConfig({
     base: '/admin',
+    define: {
+        'import.meta.env.VITE_STOREFRONT_URL': JSON.stringify(process.env.STOREFRONT_URL || 'https://ahizan.com'),
+    },
     build: {
         outDir: join(__dirname, 'dist/dashboard'),
     },
@@ -35,8 +46,9 @@ export default defineConfig({
             // to introspect the GraphQL schema based on any API extensions
             // and custom fields that are configured.
             vendureConfigPath: pathToFileURL('./src/vendure-config-dashboard.ts'),
-            // Points to the location of your Vendure server.
-            api: { host: 'http://127.0.0.1', port: 3000 },
+            // En local => http://127.0.0.1:3000
+            // En Docker/Production => https://administrator.ahizan.com:443
+            api: { host: apiHost, port: apiPort },
             // When you start the Vite server, your Admin API schema will
             // be introspected and the types will be generated in this location.
             // These types can be used in your dashboard extensions to provide

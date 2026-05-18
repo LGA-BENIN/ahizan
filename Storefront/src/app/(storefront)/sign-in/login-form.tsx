@@ -19,8 +19,8 @@ import {
 import Link from 'next/link';
 
 const loginSchema = z.object({
-    username: z.email('Please enter a valid email address'),
-    password: z.string().min(1, 'Password is required'),
+    username: z.email('Veuillez entrer une adresse email valide'),
+    password: z.string().min(1, 'Le mot de passe est requis'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -64,25 +64,26 @@ export function LoginForm({redirectTo}: LoginFormProps) {
         : '/register';
 
     return (
-        <Card>
+        <Card className="rounded-xl border shadow-sm">
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)}>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-4 p-5 pt-6">
                         <FormField
                             control={form.control}
                             name="username"
                             render={({field}) => (
                                 <FormItem>
-                                    <FormLabel>Email</FormLabel>
+                                    <FormLabel className="text-xs font-semibold text-muted-foreground">Adresse Email</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="email"
-                                            placeholder="you@example.com"
+                                            placeholder="votre@email.com"
                                             disabled={isPending}
+                                            className="h-10 rounded-lg"
                                             {...field}
                                         />
                                     </FormControl>
-                                    <FormMessage/>
+                                    <FormMessage className="text-xs" />
                                 </FormItem>
                             )}
                         />
@@ -93,12 +94,12 @@ export function LoginForm({redirectTo}: LoginFormProps) {
                             render={({field}) => (
                                 <FormItem>
                                     <div className="flex items-center justify-between">
-                                        <FormLabel>Password</FormLabel>
+                                        <FormLabel className="text-xs font-semibold text-muted-foreground">Mot de passe</FormLabel>
                                         <Link
                                             href="/forgot-password"
-                                            className="text-muted-foreground hover:text-primary text-sm"
+                                            className="text-muted-foreground hover:text-primary text-xs font-bold transition-colors"
                                         >
-                                            Forgot password?
+                                            Mot de passe oublié ?
                                         </Link>
                                     </div>
 
@@ -107,28 +108,29 @@ export function LoginForm({redirectTo}: LoginFormProps) {
                                             type="password"
                                             placeholder="••••••••"
                                             disabled={isPending}
+                                            className="h-10 rounded-lg"
                                             {...field}
                                         />
                                     </FormControl>
-                                    <FormMessage/>
+                                    <FormMessage className="text-xs" />
                                 </FormItem>
                             )}
                         />
 
                         {serverError && (
-                            <div className="text-sm text-destructive">
+                            <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/10 text-sm text-destructive">
                                 {serverError}
                             </div>
                         )}
-                        <Button type="submit" className="w-full" disabled={isPending}>
-                            {isPending ? 'Signing in...' : 'Sign In'}
+                        <Button type="submit" className="w-full h-11 rounded-lg font-semibold transition-all active:scale-[0.98]" disabled={isPending}>
+                            {isPending ? 'Connexion en cours...' : 'Se connecter'}
                         </Button>
                     </CardContent>
-                    <CardFooter className="flex flex-col space-y-4 mt-2">
-                        <div className="text-muted-foreground text-sm text-center">
-                            Don&apos;t have an account?{' '}
-                            <Link href={registerHref} className="hover:text-primary underline">
-                                Register
+                    <CardFooter className="flex flex-col p-5 pt-4 border-t">
+                        <div className="text-muted-foreground font-medium text-sm text-center">
+                            Vous n&apos;avez pas de compte ?{' '}
+                            <Link href={registerHref} className="text-primary font-black hover:underline underline-offset-4">
+                                Créer un compte
                             </Link>
                         </div>
                     </CardFooter>

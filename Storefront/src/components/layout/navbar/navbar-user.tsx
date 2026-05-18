@@ -27,7 +27,7 @@ export function NavbarUser() {
                 <DropdownMenuTrigger asChild>
                     <Button 
                         variant="ghost" 
-                        className="flex items-center gap-2 h-11 px-3 md:px-4 rounded-xl hover:bg-muted/50 transition-all font-bold text-secondary group shadow-sm bg-white/50"
+                        className="flex items-center gap-2 h-11 px-3 md:px-4 rounded-xl hover:bg-muted/50 transition-all font-bold text-secondary group shadow-sm bg-muted/30"
                     >
                         <User className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
                         <div className="hidden lg:flex flex-col items-start gap-0.5">
@@ -86,7 +86,7 @@ export function NavbarUser() {
                 <DropdownMenuTrigger asChild>
                     <Button 
                         variant="ghost" 
-                        className="hidden sm:flex items-center gap-2 h-11 px-3 md:px-4 rounded-xl hover:bg-muted/50 transition-all font-bold text-secondary group shadow-sm bg-white/50"
+                        className="hidden sm:flex items-center gap-2 h-11 px-3 md:px-4 rounded-xl hover:bg-muted/50 transition-all font-bold text-secondary group shadow-sm bg-muted/30"
                     >
                         <HelpCircle className="h-5 w-5 text-primary group-hover:scale-110 transition-transform" />
                         <span className="hidden lg:inline text-[13px]">Aide</span>

@@ -437,9 +437,6 @@ export class CMSService {
 
     async deletePreset(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
         const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, id);
-        if (preset.isDefault) {
-            throw new Error("Impossible de supprimer l'habillage par défaut");
-        }
         await this.connection.getRepository(ctx, PagePreset).remove(preset);
         return { result: 'DELETED' as any };
     }
@@ -1064,9 +1061,6 @@ export class CMSService {
 
     async deleteHabillage(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
         const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, id);
-        if (preset.isDefault) {
-            throw new Error("Impossible de supprimer l'habillage par défaut");
-        }
         await this.connection.getRepository(ctx, PagePreset).remove(preset);
         return { result: 'DELETED' as any };
     }

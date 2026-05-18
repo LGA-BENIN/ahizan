@@ -17,6 +17,8 @@ interface CmsProductGridProps {
         cardStyle?: string;
         showPrice?: boolean;
         showDiscount?: boolean;
+        showAddToCart?: boolean;
+        imageRatio?: string;
         bgType?: string;
         bgColor?: string;
         bgImageUrl?: string;

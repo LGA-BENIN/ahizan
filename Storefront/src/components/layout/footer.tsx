@@ -18,10 +18,8 @@ const SocialIcon = ({ type }: { type: string }) => {
 };
 
 export async function Footer({ config }: { config?: FooterConfData }) {
-    'use cache'
-    cacheLife('hours');
 
-    const collections = await getTopCollections();
+    const collections = (await getTopCollections()) as Array<{ id: string; name: string; slug: string; featuredAsset?: { id: string; preview: string } | null; children?: Array<{ id: string; name: string; slug: string; featuredAsset?: { id: string; preview: string } | null }> | null }>;
     const siteName = "AHIZAN";
     const showNewsletter = config?.showNewsletter !== false;
 

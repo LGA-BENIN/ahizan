@@ -3,8 +3,6 @@ import Link from "next/link";
 
 
 async function Copyright() {
-    'use cache'
-    cacheLife('days');
 
     return (
         <div className="text-muted-foreground">
@@ -14,8 +12,6 @@ async function Copyright() {
 }
 
 export async function Footer() {
-    'use cache'
-    cacheLife('days');
 
     return (
         <footer className="border-t border-border mt-auto bg-card">

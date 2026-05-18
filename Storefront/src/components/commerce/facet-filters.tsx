@@ -9,10 +9,14 @@ import { Button } from '@/components/ui/button';
 import {SearchProductsQuery} from "@/lib/vendure/queries";
 
 interface FacetFiltersProps {
-    productData: {
+    productData?: {
         data: ResultOf<typeof SearchProductsQuery>;
         token?: string;
     };
+    productDataPromise?: Promise<{
+        data: ResultOf<typeof SearchProductsQuery>;
+        token?: string;
+    }>;
     allowedFacetIds?: string[];
     allowedFacets?: Array<{
         id: string;
@@ -21,8 +25,9 @@ interface FacetFiltersProps {
     }>;
 }
 
-export function FacetFilters({ productData, allowedFacetIds, allowedFacets }: FacetFiltersProps) {
-    const searchResult = productData?.data?.search;
+export function FacetFilters({ productData, productDataPromise, allowedFacetIds, allowedFacets }: FacetFiltersProps) {
+    const resolvedData = productData || (productDataPromise ? use(productDataPromise) : null);
+    const searchResult = resolvedData?.data?.search;
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const router = useRouter();

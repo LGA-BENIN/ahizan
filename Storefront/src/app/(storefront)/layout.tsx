@@ -14,28 +14,23 @@ import { getPageContent, ThemeSettingsData, FooterConfData, HeaderConfData } fro
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
 
-// Metadata and viewport are now in the root layout.
-/**
- * Component that handles the dynamic background and preloader based on CMS and Banner configs.
- * Moved to a separate component to be wrapped in Suspense, avoiding the "Blocking Route" error.
- */
+// Force dynamic rendering to prevent static generation issues during build
+export const dynamic = 'force-dynamic';
+
 async function DynamicBranding({ children }: { children: React.ReactNode }) {
+
     const homePage = await getPageContent('home');
     const sections = homePage?.sections || [];
     const footer = sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
 
-    // Fetch user and cart data
+    // Because of 'use cache: private', this will now safely wait for a real user request!
     const [customer, order] = await Promise.all([
         getActiveCustomer(),
         getActiveOrder()
     ]);
 
-    // We no longer fetch the old legacy REST general-config. 
-    // Everything is now strictly piloted by the backend CMS pages.
-
     const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
 
-    // --- Robust Background Selection ---
     let bgType = 'color';
     let bgValue = '#ffffff';
 
@@ -50,7 +45,6 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
 
     const maxW = theme?.layoutMode === 'full' ? '100%' : theme?.layoutMode === 'wide' ? '1440px' : (theme?.maxWidth || '1280px');
     const themeStyles = {
-        // Core brand colors
         '--primary': theme?.primaryColor || "#0f172a",
         '--brand-primary': theme?.primaryColor || "#0f172a",
         '--brand-secondary': theme?.secondaryColor || "#f59e0b",
@@ -58,24 +52,20 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
         '--success': theme?.successColor || "#059669",
         '--warning': theme?.warningColor || "#d97706",
         '--danger': theme?.dangerColor || "#dc2626",
-        // Surface / text colors
         '--background': theme?.backgroundColor || "#ffffff",
         '--surface': theme?.surfaceColor || "#f8fafc",
         '--foreground': theme?.textColor || "#1e293b",
         '--muted-foreground': theme?.textMutedColor || "#64748b",
         '--border': theme?.borderColor || "#e2e8f0",
-        // Typography
         '--font-family': theme?.fontFamily || "Inter, sans-serif",
         '--heading-font': theme?.headingFontFamily || theme?.fontFamily || "Inter, sans-serif",
         '--base-font-size': theme?.baseFontSize || "16px",
         '--heading-weight': theme?.headingFontWeight || "800",
         '--body-line-height': theme?.bodyLineHeight || "1.6",
-        // Border radii
         '--radius': theme?.borderRadius || "8px",
         '--button-radius': theme?.buttonRadius || "8px",
         '--card-radius': theme?.cardRadius || "12px",
         '--input-radius': theme?.inputRadius || "8px",
-        // Layout
         '--content-max-width': maxW,
         '--section-spacing': theme?.sectionSpacing || "48px",
         '--container-padding': theme?.containerPadding || "16px",
@@ -87,8 +77,6 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
             style={themeStyles}
         >
             <ThemeProvider>
-                
-                {/* Global Background Layer */}
                 <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
                     {bgType === 'color' && (
                         <div className="absolute inset-0" style={{ background: bgValue }} />
@@ -105,7 +93,7 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                             muted
                             loop
                             playsInline
-                            key={bgValue} // Force re-render if URL changes
+                            key={bgValue}
                             className="absolute min-w-full min-h-full object-cover opacity-60"
                         >
                             <source src={getAssetUrl(bgValue)} type="video/mp4" />
@@ -113,9 +101,7 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     )}
                 </div>
 
-                {/* Sticky Header */}
                 <div className="sticky top-0 z-50 w-full shadow-sm">
-                    {/* Handled top bar banner directly via header config down */}
                     <TopFlashBanner config={headerConfig?.topBar} />
                     <AhizanNavbar 
                         config={headerConfig} 

@@ -11,9 +11,6 @@ interface RelatedProductsProps {
 }
 
 async function getRelatedProducts(collectionSlug: string, currentProductId: string) {
-    'use cache'
-    cacheLife('hours')
-    cacheTag(`related-products-${collectionSlug}`)
 
     const result = await query(GetCollectionProductsQuery, {
         slug: collectionSlug,

@@ -8,8 +8,12 @@ export async function setAuthToken(token: string) {
 }
 
 export async function getAuthToken(): Promise<string | undefined> {
-    const cookieStore = await cookies();
-    return cookieStore.get(AUTH_TOKEN_COOKIE)?.value;
+    try {
+        const cookieStore = await cookies();
+        return cookieStore.get(AUTH_TOKEN_COOKIE)?.value;
+    } catch {
+        return undefined;
+    }
 }
 
 export async function removeAuthToken() {

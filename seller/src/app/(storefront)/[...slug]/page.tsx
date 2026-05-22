@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getPage } from '@/lib/cms';
 import { sectionRegistry } from '@/components/sections/section-registry';
-import { connection } from 'next/server';
 
 // Routes handled by other page files — skip CMS lookup for these
 const KNOWN_APP_ROUTES = [
@@ -26,13 +25,7 @@ export default async function DynamicCMSPage({ params }: PageProps) {
         notFound();
     }
 
-    let page = null;
-    try {
-        page = await getPage(slugString);
-    } catch (error) {
-        // Fallback pendant le prerendering
-        console.log('Failed to fetch page during build, using fallback');
-    }
+    const page = await getPage(slugString);
 
     if (!page) {
         notFound();

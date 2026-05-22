@@ -25,11 +25,8 @@ export default async function PendingPage() {
         }
     } catch (e: any) {
         console.error("Pending page check failed:", e.message);
-        // Fallback: ne pas rediriger pendant le build
-        if (typeof window === 'undefined' && process.env.NODE_ENV === 'production') {
-            console.log('Build time - skipping redirect');
-            return <PendingContent />;
-        }
+        // If unauthorized or error, we might want to redirect to sign-in
+        // but let's be careful not to loop if it's just a temporary failure.
         redirectPath = '/sign-in';
     }
 

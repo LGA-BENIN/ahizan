@@ -11,32 +11,24 @@ interface RelatedProductsProps {
 }
 
 async function getRelatedProducts(collectionSlug: string, currentProductId: string) {
-    'use cache'
-    cacheLife('hours')
-    cacheTag(`related-products-${collectionSlug}`)
 
-    try {
-        const result = await query(GetCollectionProductsQuery, {
-            slug: collectionSlug,
-            input: {
-                collectionSlug: collectionSlug,
-                take: 13, // Fetch extra to account for filtering out current product
-                skip: 0,
-                groupByProduct: true
-            }
-        });
+    const result = await query(GetCollectionProductsQuery, {
+        slug: collectionSlug,
+        input: {
+            collectionSlug: collectionSlug,
+            take: 13, // Fetch extra to account for filtering out current product
+            skip: 0,
+            groupByProduct: true
+        }
+    });
 
-        // Filter out the current product and limit to 12
-        return result.data.search.items
-            .filter(item => {
-                const product = readFragment(ProductCardFragment, item);
-                return product.productId !== currentProductId;
-            })
-            .slice(0, 12);
-    } catch (e) {
-        console.warn('[getRelatedProducts] Backend unavailable, returning empty list');
-        return [];
-    }
+    // Filter out the current product and limit to 12
+    return result.data.search.items
+        .filter(item => {
+            const product = readFragment(ProductCardFragment, item);
+            return product.productId !== currentProductId;
+        })
+        .slice(0, 12);
 }
 
 export async function RelatedProducts({ collectionSlug, currentProductId }: RelatedProductsProps) {
@@ -48,7 +40,7 @@ export async function RelatedProducts({ collectionSlug, currentProductId }: Rela
 
     return (
         <ProductCarousel
-            title="Related Products"
+            title="Produits similaires"
             products={products}
         />
     );

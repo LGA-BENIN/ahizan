@@ -10,9 +10,18 @@ export async function SearchTerm({searchParams}: SearchTermProps) {
 
     return (
         <div className="mb-6">
-            <h1 className="text-3xl font-bold">
-                {searchTerm ? `Search results for "${searchTerm}"` : 'Search'}
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+                {searchTerm ? (
+                    <>
+                        Résultats pour <span className="text-primary">"{searchTerm}"</span>
+                    </>
+                ) : 'Rechercher'}
             </h1>
+            {searchTerm && (
+                <p className="text-sm text-muted-foreground mt-2">
+                    Nous avons trouvé les produits suivants correspondant à votre recherche.
+                </p>
+            )}
         </div>
     )
 }
@@ -20,7 +29,7 @@ export async function SearchTerm({searchParams}: SearchTermProps) {
 export function SearchTermSkeleton() {
     return (
         <div className="mb-6">
-            <div className="h-9 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-6 w-48 bg-muted rounded animate-pulse" />
         </div>
     )
 }

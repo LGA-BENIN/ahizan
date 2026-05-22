@@ -63,10 +63,15 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
 
     const handleChange = (field: string, value: any) => setConfig({ ...config, [field]: value });
 
-    const toggleCollection = (id: string) => {
+    const toggleCollection = (id: string, slug?: string) => {
         const current = config.collectionIds || [];
         const newIds = current.includes(id) ? current.filter((cid: string) => cid !== id) : [...current, id];
-        handleChange('collectionIds', newIds);
+        
+        setConfig({
+            ...config,
+            collectionIds: newIds,
+            collectionSlug: newIds.length > 0 ? (slug || collections.find(c => c.id === newIds[0])?.slug || '') : ''
+        });
     };
 
     return (
@@ -99,14 +104,8 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
             <div className="settings-card">
                 <div className="settings-card-header">📦 Source des produits</div>
                 <div className="grid-2">
-                    <div>
-                        <Label htmlFor="pg-collection">Collection</Label>
-                        <Select id="pg-collection" value={config.collectionSlug} onChange={(e) => handleChange('collectionSlug', e.target.value)}>
-                            <option value="">Tous les produits</option>
-                            {collections.map((c: any) => (
-                                <option key={c.id} value={c.slug}>{c.name}</option>
-                            ))}
-                        </Select>
+                    <div style={{ visibility: 'hidden', height: 0, overflow: 'hidden' }}>
+                        {/* Removed duplicate collection selector */}
                     </div>
                     <div>
                         <Label htmlFor="pg-take">Produits à afficher</Label>
@@ -142,7 +141,7 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
                                         <Button
                                             variant={(config.collectionIds || []).includes(node.id) ? 'default' : 'outline'}
                                             size="sm"
-                                            onClick={() => toggleCollection(node.id)}
+                                            onClick={() => toggleCollection(node.id, node.slug)}
                                         >
                                             {node.name}
                                         </Button>
@@ -151,7 +150,7 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
                                                 key={child.id}
                                                 variant={(config.collectionIds || []).includes(child.id) ? 'default' : 'outline'}
                                                 size="sm"
-                                                onClick={() => toggleCollection(child.id)}
+                                                onClick={() => toggleCollection(child.id, child.slug)}
                                             >
                                                 {child.name}
                                             </Button>

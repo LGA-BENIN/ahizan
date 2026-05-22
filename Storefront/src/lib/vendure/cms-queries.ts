@@ -201,8 +201,7 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
     try {
         const result = await query(
             GetPageBySlugQuery, 
-            { slug }, 
-            { fetch: { cache: 'no-store' } }
+            { slug }
         ) as any;
         console.log(`[getPageContent] Raw API result for slug "${slug}":`, result);
 

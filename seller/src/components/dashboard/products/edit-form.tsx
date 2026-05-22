@@ -22,10 +22,38 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const router = useRouter();
     const variant = product.variants[0]; // Assuming single variant for now
 
-    const initialCategoryId = product.collections?.length > 0 ? String(product.collections[0].id) : '';
+    let initialCategoryId = '';
+    if (product.collections?.length > 0) {
+        // Find if any product collection is a subcategory in the tree
+        const subCategoryColl = product.collections.find((coll: any) => {
+            return collectionTree?.some((parent: any) => 
+                parent.children?.some((child: any) => String(child.id) === String(coll.id))
+            );
+        });
+        initialCategoryId = subCategoryColl ? String(subCategoryColl.id) : String(product.collections[0].id);
+    }
 
-    // Determine parent category from the tree at init time
-    const findParentForCategory = (catId: string, tree: any[]): string => {
+    const [formData, setFormData] = useState({
+        name: product.name,
+        description: product.description,
+        price: variant?.price || 0,
+        stock: variant?.stockLevel === 'IN_STOCK' ? 100 : (parseInt(variant?.stockLevel) || 0),
+        parentCategory: '',
+        category: initialCategoryId,
+    });
+    const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
+    const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [facetValueIds, setFacetValueIds] = useState<string[]>(
+        (product.facetValues || []).map((fv: any) => String(fv.id))
+    );
+    console.log('[EditProductForm] Initial product facetValues:', product.facetValues);
+    console.log('[EditProductForm] Initial facetValueIds:', facetValueIds);
+    const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
+    const [loadingFacets, setLoadingFacets] = useState(false);
+
+    // Determine parent category from the tree for initial selection
+    const findParentForCategory = (catId: string): string => {
         const search = (nodes: any[], parentId?: string): string | null => {
             for (const node of nodes) {
                 if (String(node.id) === String(catId)) {
@@ -38,27 +66,8 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             }
             return null;
         };
-        return search(tree || []) || catId;
+        return search(collectionTree || []) || catId;
     };
-
-    const initialParentCategory = findParentForCategory(initialCategoryId, collectionTree);
-
-    const [formData, setFormData] = useState({
-        name: product.name,
-        description: product.description,
-        price: variant?.price || 0,
-        stock: variant?.stockLevel === 'IN_STOCK' ? 100 : (parseInt(variant?.stockLevel) || 0),
-        parentCategory: initialParentCategory,
-        category: initialCategoryId,
-    });
-    const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
-    const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [facetValueIds, setFacetValueIds] = useState<string[]>(
-        (product.facetValues || []).map((fv: any) => String(fv.id))
-    );
-    const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
-    const [loadingFacets, setLoadingFacets] = useState(false);
 
     // Fetch allowed facets for a collection
     const fetchAllowedFacets = async (collectionId: string) => {
@@ -69,6 +78,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             const { GetCollectionAllowedFacetsQuery } = await import('@/lib/vendure/queries');
             const result = await query(GetCollectionAllowedFacetsQuery, { collectionId });
             const mapping = (result.data as any)?.collectionAllowedFacets;
+            console.log('[EditProductForm] Fetched allowedFacets mapping:', mapping);
             setAllowedFacets(mapping?.allowedFacets || []);
         } catch (err) {
             console.error('[EditProductForm] Failed to fetch allowed facets:', err);
@@ -78,8 +88,15 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         }
     };
 
-    // Fetch facets on mount if category is already selected
+    // Initialize parentCategory from the tree and fetch facets on mount
     useEffect(() => {
+        const initialParent = findParentForCategory(initialCategoryId);
+        setFormData(prev => {
+            if (prev.parentCategory === '') {
+                return { ...prev, parentCategory: initialParent };
+            }
+            return prev;
+        });
         if (initialCategoryId) {
             fetchAllowedFacets(initialCategoryId);
         }
@@ -89,11 +106,15 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const subCategories = selectedParent?.children || [];
 
     const handleParentChange = (v: string) => {
+        if (!v || v === formData.parentCategory) return;
+        console.log('[EditProductForm] handleParentChange called with:', v);
         setFormData({ ...formData, parentCategory: v, category: v });
         setFacetValueIds([]);
         fetchAllowedFacets(v);
     };
     const handleSubCategoryChange = (v: string) => {
+        if (!v || v === formData.category) return;
+        console.log('[EditProductForm] handleSubCategoryChange called with:', v);
         setFormData({ ...formData, category: v });
         setFacetValueIds([]);
         fetchAllowedFacets(v);

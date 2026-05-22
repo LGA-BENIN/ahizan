@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidateTag, revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { mutate } from '@/lib/vendure/api';
 import { CreateMyProductMutation, UpdateMyProductMutation, UpdateMyProductVariantMutation, UploadVendorFileMutation, DeleteMyProductMutation } from '@/lib/vendure/vendor-product-mutations';
 
@@ -15,7 +15,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
 
     try {
         console.log(`[ACTION] Creating product: ${name}`);
-        
+        // @ts-expect-error - collectionIds/facetValueIds not yet in generated GraphQL types
         const { data } = await mutate(CreateMyProductMutation, {
             input: {
                 name,
@@ -49,9 +49,8 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
 
     try {
-        console.log(`[updateProductAction] id=${id}, name=${name}, category=${collectionId}, facetValueIds=${JSON.stringify(facetValueIds)}, assetIds=${JSON.stringify(assetIds)}`);
-        
-        const result = await mutate(UpdateMyProductMutation, {
+        // @ts-expect-error - collectionIds/facetValueIds not yet in generated GraphQL types
+        await mutate(UpdateMyProductMutation, {
             id,
             input: {
                 name,
@@ -62,10 +61,9 @@ export async function updateProductAction(prevState: any, formData: FormData) {
                 featuredAssetId: assetIds[0],
             },
         }, { useAuthToken: true });
-        console.log(`[updateProductAction] Result:`, JSON.stringify(result.data));
 
         if (variantId && (price !== undefined || stock !== undefined)) {
-           
+            // @ts-expect-error - generated types mismatch
             await mutate(UpdateMyProductVariantMutation, {
                 input: {
                     id: variantId,
@@ -75,7 +73,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
             }, { useAuthToken: true });
         }
 
-        revalidatePath('/dashboard/products', 'page');
+        // revalidateTag('vendor-products');
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e.message };
@@ -84,12 +82,12 @@ export async function updateProductAction(prevState: any, formData: FormData) {
 
 export async function deleteProductAction(id: string) {
     try {
-       
+        // @ts-expect-error - generated types mismatch
         await mutate(DeleteMyProductMutation, {
             id,
         }, { useAuthToken: true });
 
-        revalidatePath('/dashboard/products', 'page');
+        revalidateTag('vendor-products');
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e.message };

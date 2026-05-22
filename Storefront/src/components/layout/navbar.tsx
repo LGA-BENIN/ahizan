@@ -28,7 +28,7 @@ export function Navbar({ config }: { config?: HeaderConfData }) {
     return (
         <header className="sticky top-0 z-[100] w-full shadow-sm">
             {/* Row 1: Vendor link + secondary nav (Thin Top Bar) */}
-            <div className="border-b border-border/40 bg-white">
+            <div className="border-b border-border/40 bg-background">
                 <div className="container mx-auto px-4 md:px-6 flex items-center justify-end h-9">
                     <div className="flex items-center gap-6">
                         {helpLinks.map((link, i) => (
@@ -42,7 +42,7 @@ export function Navbar({ config }: { config?: HeaderConfData }) {
             </div>
 
             {/* Row 2: Main Navigation with Glassmorphism */}
-            <div className="bg-white/85 backdrop-blur-xl border-b border-border/50">
+            <div className="bg-background/85 backdrop-blur-xl border-b border-border/50">
                 <div className="container mx-auto px-4 md:px-6">
                     <div className="flex items-center gap-4 md:gap-8 h-16 md:h-18">
                         {/* Mobile menu */}
@@ -110,7 +110,7 @@ export function Navbar({ config }: { config?: HeaderConfData }) {
             </div>
 
             {/* Row 3: Categories navigation (Clean Bottom Bar) */}
-            <div className="bg-white/80 backdrop-blur-md border-b border-border/30 hidden md:block">
+            <div className="bg-background/80 backdrop-blur-md border-b border-border/30 hidden md:block">
                 <div className="container mx-auto px-4 md:px-6">
                     <div className="flex items-center gap-2 h-11 overflow-x-auto no-scrollbar py-0.5">
                         <Suspense>

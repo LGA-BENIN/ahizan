@@ -20,9 +20,6 @@ import {
 } from '@/lib/metadata';
 
 async function getProductData(slug: string) {
-    'use cache';
-    cacheLife('hours');
-    cacheTag(`product-${slug}`);
 
     return await query(GetProductDetailQuery, { slug });
 }

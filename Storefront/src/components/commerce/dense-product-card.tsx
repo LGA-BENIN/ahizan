@@ -84,7 +84,7 @@ export function DenseProductCard({
     return (
         <Link
             href={`/product/${product.slug}`}
-            className="group bg-white rounded-lg border border-border/30 overflow-hidden hover:shadow-md transition-all duration-200"
+            className="group bg-card rounded-lg border border-border/30 overflow-hidden hover:shadow-md transition-all duration-200"
         >
             {/* Image */}
             <div className={`${aspectClass} relative bg-muted/10 overflow-hidden`}>
@@ -125,7 +125,7 @@ export function DenseProductCard({
                     <Button
                         size="icon"
                         variant="outline"
-                        className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 bg-white/90 hover:bg-white"
+                        className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 bg-card/90 hover:bg-card"
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();

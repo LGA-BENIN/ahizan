@@ -107,7 +107,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                             return (
                                 <Link
                                     key={cat.id}
-                                    href={`/search?facets=${cat.id}`}
+                                    href={`/collection/${cat.slug}`}
                                     className={`group flex flex-col items-center justify-center overflow-hidden transition-all duration-200 ${
                                         isElevated ? 'p-3 sm:p-5 hover:-translate-y-1 hover:shadow-xl' :
                                         isBold ? 'p-2 sm:p-3 hover:-translate-y-0.5 hover:shadow-lg' :
@@ -393,6 +393,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                             label: config.title || 'Produits',
                             filterType: config.filterType || 'LATEST',
                             collectionSlug: config.collectionSlug,
+                            collectionIds: config.collectionIds,
                             facetValueIds: config.facetValueIds,
                             take: config.take || 8,
                         }]}

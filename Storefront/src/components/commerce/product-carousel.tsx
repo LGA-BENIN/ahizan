@@ -15,9 +15,9 @@ export function ProductCarousel({title, products}: ProductCarouselClientProps) {
     const id = useId();
 
     return (
-        <section className="py-12 md:py-16">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl md:text-4xl font-bold mb-8">{title}</h2>
+        <section className="py-8 md:py-10 border-t border-border/40 mt-10">
+            <div className="container mx-auto px-6 md:px-12 lg:px-20">
+                <h2 className="text-xl font-bold mb-6 tracking-tight">{title}</h2>
                 <Carousel
                     opts={{
                         align: "start",

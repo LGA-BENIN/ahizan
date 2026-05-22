@@ -1,31 +1,20 @@
 import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-    cacheComponents: true,
+    cacheComponents: false,
     images: {
-        // This is necessary to display images from your local Vendure instance
         dangerouslyAllowLocalIP: true,
         remotePatterns: [
-            {
-                hostname: 'readonlydemo.vendure.io',
-            },
-            {
-                hostname: 'demo.vendure.io'
-            },
-            {
-                hostname: 'localhost'
-            },
-            {
-                hostname: '127.0.0.1'
-            },
-            {
-                hostname: 'images.unsplash.com'
-            }
+            { hostname: 'readonlydemo.vendure.io' },
+            { hostname: 'demo.vendure.io' },
+            { hostname: 'localhost' },
+            { hostname: '127.0.0.1' },
+            { hostname: 'images.unsplash.com' }
         ],
     },
-    experimental: {
-        rootParams: true
-    }
+    turbopack: {
+        root: __dirname,
+    },
 };
 
 export default nextConfig;

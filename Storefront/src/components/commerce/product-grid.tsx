@@ -6,25 +6,32 @@ import {SearchProductsQuery} from "@/lib/vendure/queries";
 import {getActiveChannel} from '@/lib/vendure/actions';
 
 interface ProductGridProps {
-    productData: {
+    productData?: {
         data: ResultOf<typeof SearchProductsQuery>;
         token?: string;
     };
+    productDataPromise?: Promise<{
+        data: ResultOf<typeof SearchProductsQuery>;
+        token?: string;
+    }>;
     currentPage: number;
     take: number;
     columns?: number;
 }
 
-export async function ProductGrid({productData, currentPage, take, columns = 3}: ProductGridProps) {
+export async function ProductGrid({productData, productDataPromise, currentPage, take, columns = 3}: ProductGridProps) {
     const channel = await getActiveChannel();
 
-    const searchResult = productData.data.search;
+    const resolvedData = productData || (productDataPromise ? await productDataPromise : null);
+    if (!resolvedData) return null;
+
+    const searchResult = resolvedData.data.search;
     const totalPages = Math.ceil(searchResult.totalItems / take);
 
     if (!searchResult.items.length) {
         return (
             <div className="text-center py-12">
-                <p className="text-muted-foreground">No products found</p>
+                <p className="text-muted-foreground text-sm">Aucun produit trouvé</p>
             </div>
         );
     }
@@ -40,12 +47,12 @@ export async function ProductGrid({productData, currentPage, take, columns = 3}:
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                    {searchResult.totalItems} {searchResult.totalItems === 1 ? 'product' : 'products'}
+                    {searchResult.totalItems} {searchResult.totalItems === 1 ? 'produit' : 'produits'}
                 </p>
                 <SortDropdown/>
             </div>
 
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${gridCols} gap-6`}>
+            <div className={`grid grid-cols-2 sm:grid-cols-3 ${gridCols} gap-3 sm:gap-4`}>
                 {searchResult.items.map((product, i) => (
                     <ProductCard key={'product-grid-item' + i} product={product}/>
                 ))}

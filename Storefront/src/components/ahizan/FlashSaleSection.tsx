@@ -63,14 +63,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         setLoading(true);
         
         if (isFilterMode) {
-            const searchInput: any = {
-                groupByProduct: true,
-                take: activeFlash.filterCriteria?.take || 50
-            };
-
-            if (activeFlash.filterCriteria?.facetValueIds?.length > 0) {
-                searchInput.facetValueIds = activeFlash.filterCriteria.facetValueIds.map((id: any) => String(id));
-            }
+            const collectionIds = activeFlash.filterCriteria?.collectionIds || [];
+            const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
 
             const searchQuery = `
                 query GetFlashProducts($input: SearchInput!) {
@@ -92,19 +86,52 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 }
             `;
 
-            const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
-            fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    query: searchQuery, 
-                    variables: { input: searchInput } 
+            const fetchForCollection = (collectionId?: string) => {
+                const searchInput: any = {
+                    groupByProduct: true,
+                    take: activeFlash.filterCriteria?.take || 50
+                };
+                if (collectionId) {
+                    searchInput.collectionId = String(collectionId);
+                }
+
+                if (activeFlash.filterCriteria?.facetValueIds?.length > 0) {
+                    searchInput.facetValueIds = activeFlash.filterCriteria.facetValueIds.map((id: any) => String(id));
+                }
+
+                return fetch(shopApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        query: searchQuery, 
+                        variables: { input: searchInput } 
+                    })
                 })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.errors) return;
-                let items = data.data?.search?.items || [];
+                .then(res => res.json())
+                .then(data => {
+                    if (data.errors) return [];
+                    return data.data?.search?.items || [];
+                })
+                .catch(err => {
+                    console.error('Fetch error:', err);
+                    return [];
+                });
+            };
+
+            const promises = collectionIds.length > 0 
+                ? collectionIds.map((id: string) => fetchForCollection(id))
+                : [fetchForCollection()];
+
+            Promise.all(promises).then(results => {
+                let items = results.flat();
+                
+                // Deduplicate items by productId
+                const seen = new Set();
+                items = items.filter(item => {
+                    if (seen.has(item.productId)) return false;
+                    seen.add(item.productId);
+                    return true;
+                });
                 
                 if (activeFlash.filterCriteria) {
                     const { minPrice, maxPrice, minDiscount } = activeFlash.filterCriteria;

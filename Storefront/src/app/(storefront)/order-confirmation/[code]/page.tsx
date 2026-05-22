@@ -4,8 +4,8 @@ import {OrderConfirmation} from './order-confirmation';
 import {noIndexRobots} from '@/lib/metadata';
 
 export const metadata: Metadata = {
-    title: 'Order Confirmation',
-    description: 'Your order has been placed successfully.',
+    title: 'Confirmation de commande',
+    description: 'Votre commande a été passée avec succès.',
     robots: noIndexRobots(),
 };
 

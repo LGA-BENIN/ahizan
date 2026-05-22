@@ -222,32 +222,18 @@ export class VendorShopResolver {
         }
 
         // Handle collectionIds and facetValueIds separately
-        const { collectionIds, facetValueIds, name, description, ...productInput } = input;
+        const { collectionIds, facetValueIds, ...productInput } = input;
 
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
 
-        // Build translations if name or description is provided
-        // Vendure's ProductService.update() requires name/description inside translations, NOT top-level
-        const updateInput: any = {
-            id,
-            ...productInput,
-            facetValueIds: finalFacetValueIds,
-        };
-        if (name !== undefined || description !== undefined) {
-            const existingProduct = await this.productService.findOne(ctx, id);
-            const existingTranslation = existingProduct?.translations?.[0];
-            updateInput.translations = [{
-                languageCode: ctx.languageCode,
-                name: name ?? existingTranslation?.name,
-                slug: name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : existingTranslation?.slug,
-                description: description ?? existingTranslation?.description,
-            }];
-        }
-
         // 1. Update the product FIRST (facets, name, description, assets)
         // This triggers Vendure's internal collection re-evaluation
-        const updated = await this.productService.update(ctx, updateInput);
+        const updated = await this.productService.update(ctx, { 
+            id, 
+            ...productInput,
+            facetValueIds: finalFacetValueIds
+        });
 
         // 2. Get variants AFTER update (Vendure may have re-evaluated collections here)
         console.log(`updateMyProduct: collectionIds = ${JSON.stringify(collectionIds)}`);

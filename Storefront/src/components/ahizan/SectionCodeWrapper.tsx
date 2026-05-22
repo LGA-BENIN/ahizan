@@ -57,13 +57,14 @@ export function SectionCodeWrapper({ config, sectionId, children }: SectionCodeW
                 data-section-id={sectionId}
                 data-code-override="true"
                 className={`section-code-${scopeId}`}
+                suppressHydrationWarning
             >
                 {customCSS && (
-                    <style dangerouslySetInnerHTML={{
+                    <style suppressHydrationWarning dangerouslySetInnerHTML={{
                         __html: customCSS.replace(/:scope/g, `.section-code-${scopeId}`)
                     }} />
                 )}
-                <div dangerouslySetInnerHTML={{ __html: overrideHTML }} />
+                <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: overrideHTML }} />
             </div>
         );
     }
@@ -74,18 +75,19 @@ export function SectionCodeWrapper({ config, sectionId, children }: SectionCodeW
             ref={sectionRef}
             data-section-id={sectionId}
             className={`section-code-${scopeId}`}
+            suppressHydrationWarning
         >
             {customCSS && (
-                <style dangerouslySetInnerHTML={{
+                <style suppressHydrationWarning dangerouslySetInnerHTML={{
                     __html: customCSS.replace(/:scope/g, `.section-code-${scopeId}`)
                 }} />
             )}
             {htmlBefore && (
-                <div dangerouslySetInnerHTML={{ __html: htmlBefore }} />
+                <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: htmlBefore }} />
             )}
             {children}
             {htmlAfter && (
-                <div dangerouslySetInnerHTML={{ __html: htmlAfter }} />
+                <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: htmlAfter }} />
             )}
         </div>
     );

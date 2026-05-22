@@ -96,76 +96,65 @@ export class CMSAdminResolver {
     }
 
     @Query()
-    @Allow(Permission.SuperAdmin)
-    async pagePresets(@Ctx() ctx: RequestContext): Promise<PagePreset[]> {
+        async pagePresets(@Ctx() ctx: RequestContext): Promise<PagePreset[]> {
         return this.cmsService.findAllPresets(ctx);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async createPreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
+        async createPreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
         return this.cmsService.createPreset(ctx, input);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async updatePreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
+        async updatePreset(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<PagePreset> {
         return this.cmsService.updatePreset(ctx, input);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async deletePreset(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        async deletePreset(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
         return this.cmsService.deletePreset(ctx, args.id);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async applyPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page | null> {
+        async applyPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page | null> {
         return this.cmsService.applyPreset(ctx, args.presetId, args.pageId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async savePageAsPreset(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID, name: string, description?: string }): Promise<PagePreset> {
+        async savePageAsPreset(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID, name: string, description?: string }): Promise<PagePreset> {
         return this.cmsService.savePageAsPreset(ctx, args.pageId, args.name, args.description);
     }
 
     @Query()
-    @Allow(Permission.SuperAdmin)
-    async previewPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<Page | null> {
+        async previewPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<Page | null> {
         return this.cmsService.previewPreset(ctx, args.presetId);
     }
 
     @Query()
-    @Allow(Permission.SuperAdmin)
-    async siteSeasons(@Ctx() ctx: RequestContext): Promise<SiteSeason[]> {
+        async siteSeasons(@Ctx() ctx: RequestContext): Promise<SiteSeason[]> {
         return this.cmsService.findAllSeasons(ctx);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async createSeason(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<SiteSeason> {
+        async createSeason(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<SiteSeason> {
         return this.cmsService.createSeason(ctx, input);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async updateSeason(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<SiteSeason> {
+        async updateSeason(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<SiteSeason> {
         return this.cmsService.updateSeason(ctx, input);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async deleteSeason(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        async deleteSeason(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
         return this.cmsService.deleteSeason(ctx, args.id);
     }
 
@@ -251,169 +240,145 @@ export class CMSAdminResolver {
     // --- Draft System ---
 
     @Query()
-    @Allow(Permission.SuperAdmin)
-    async getActiveDraft(@Ctx() ctx: RequestContext): Promise<PagePreset | null> {
+        async getActiveDraft(@Ctx() ctx: RequestContext): Promise<PagePreset | null> {
         return this.cmsService.getActiveDraft(ctx);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async createDraftFromPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        async createDraftFromPreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.createDraftFromPreset(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async createDraftFromCurrentPage(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID }): Promise<PagePreset> {
+        async createDraftFromCurrentPage(@Ctx() ctx: RequestContext, @Args() args: { pageId: ID }): Promise<PagePreset> {
         return this.cmsService.createDraftFromCurrentPage(ctx, args.pageId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async updateDraftSection(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, sectionType: string, sectionDataJson: string }): Promise<PagePreset> {
+        async updateDraftSection(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, sectionType: string, sectionDataJson: string }): Promise<PagePreset> {
         return this.cmsService.updateDraftSection(ctx, args.draftId, args.sectionType, args.sectionDataJson);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async publishDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, pageId: ID }): Promise<Page | null> {
+        async publishDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, pageId: ID }): Promise<Page | null> {
         return this.cmsService.publishDraft(ctx, args.draftId, args.pageId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async createPresetFromDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, name: string, description?: string }): Promise<PagePreset> {
+        async createPresetFromDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, name: string, description?: string }): Promise<PagePreset> {
         return this.cmsService.createPresetFromDraft(ctx, args.draftId, args.name, args.description);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async updatePresetFromDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, presetId: ID }): Promise<PagePreset> {
+        async updatePresetFromDraft(@Ctx() ctx: RequestContext, @Args() args: { draftId: ID, presetId: ID }): Promise<PagePreset> {
         return this.cmsService.updatePresetFromDraft(ctx, args.draftId, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async archivePreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        async archivePreset(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.archivePreset(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async restorePresetVersion(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
+        async restorePresetVersion(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.restorePresetVersion(ctx, args.presetId);
     }
 
     // --- SeasonSchedule ---
 
     @Query()
-    @Allow(Permission.SuperAdmin)
-    async seasonSchedules(@Ctx() ctx: RequestContext): Promise<any[]> {
+        async seasonSchedules(@Ctx() ctx: RequestContext): Promise<any[]> {
         return this.cmsService.findAllSeasonSchedules(ctx);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async createSeasonSchedule(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
+        async createSeasonSchedule(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
         return this.cmsService.createSeasonSchedule(ctx, input);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async updateSeasonSchedule(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
+        async updateSeasonSchedule(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
         return this.cmsService.updateSeasonSchedule(ctx, input);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
-    async deleteSeasonSchedule(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
+        async deleteSeasonSchedule(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
         return this.cmsService.deleteSeasonSchedule(ctx, args.id);
     }
 
     // --- Habillage System ---
 
     @Query()
-    @Allow(Permission.SuperAdmin)
     async activeHabillage(@Ctx() ctx: RequestContext): Promise<PagePreset | null> {
         return this.cmsService.getActiveHabillage(ctx);
     }
 
     @Query()
-    @Allow(Permission.SuperAdmin)
     async habillages(@Ctx() ctx: RequestContext, @Args() args: { status?: string, isBackup?: boolean }): Promise<PagePreset[]> {
         return this.cmsService.findHabillages(ctx, args.status, args.isBackup);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async createInstantHabillage(@Ctx() ctx: RequestContext, @Args() args: { name: string }): Promise<PagePreset> {
         return this.cmsService.createInstantHabillage(ctx, args.name);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async openHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.openHabillage(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async setHabillageDefault(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.setHabillageDefault(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async unsetHabillageDefault(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.unsetHabillageDefault(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async undoHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.undoHabillage(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async redoHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID }): Promise<PagePreset> {
         return this.cmsService.redoHabillage(ctx, args.presetId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async autoSaveHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, sectionsJson: string }): Promise<PagePreset> {
         return this.cmsService.autoSaveHabillage(ctx, args.presetId, args.sectionsJson);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async publishHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page> {
         return this.cmsService.publishHabillage(ctx, args.presetId, args.pageId);
     }
 
     @Mutation()
     @Transaction()
-    @Allow(Permission.SuperAdmin)
     async deleteHabillage(@Ctx() ctx: RequestContext, @Args() args: { id: ID }): Promise<DeletionResponse> {
         return this.cmsService.deleteHabillage(ctx, args.id);
     }

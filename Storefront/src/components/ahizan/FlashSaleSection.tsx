@@ -13,6 +13,8 @@ interface FlashSaleSectionProps {
     config: any;
 }
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps) {
     const [flashProducts, setFlashProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -235,11 +237,16 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 }`}
                 style={{ 
                     backgroundColor: activeFlash.isSimpleMode ? 'transparent' : (activeFlash.bgColor || '#000'),
-                    backgroundImage: !activeFlash.isSimpleMode && activeFlash?.bgImageUrl ? `url(${getAssetUrl(activeFlash.bgImageUrl)})` : 'none',
+                    backgroundImage: (!activeFlash.isSimpleMode && activeFlash?.bgImageUrl && !isGif(activeFlash.bgImageUrl)) ? `url(${getAssetUrl(activeFlash.bgImageUrl)})` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                 }}
             >
+                {/* GIF Background */}
+                {!activeFlash.isSimpleMode && activeFlash?.bgImageUrl && isGif(activeFlash.bgImageUrl) && (
+                    <img src={getAssetUrl(activeFlash.bgImageUrl)} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
+                )}
+
                 {/* Overlay for better text readability (Styled Mode Only) */}
                 {!activeFlash.isSimpleMode && <div className="absolute inset-x-0 inset-y-0 bg-black/40 z-0" />}
 

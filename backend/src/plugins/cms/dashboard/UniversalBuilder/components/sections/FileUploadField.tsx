@@ -10,7 +10,7 @@ interface FileUploadFieldProps {
 
 import { getBackendBaseUrl } from '../../../lib/utils';
 
-export const FileUploadField = ({ label, value, onChange, accept = 'image/*,video/mp4', placeholder = 'Upload or enter URL' }: FileUploadFieldProps) => {
+export const FileUploadField = ({ label, value, onChange, accept = 'image/*,video/mp4,image/gif', placeholder = 'Upload or enter URL' }: FileUploadFieldProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);

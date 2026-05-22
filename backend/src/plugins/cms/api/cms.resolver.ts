@@ -1,5 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { Ctx, RequestContext, Transaction, Allow, Permission, ID, PaginatedList, AssetService, Asset, ChannelService, User, Channel, CollectionService, Collection } from '@vendure/core';
+import { Ctx, RequestContext, Transaction, Allow, Permission, ID, PaginatedList, AssetService, Asset, ChannelService, User, Channel, CollectionService, Collection, TransactionalConnection } from '@vendure/core';
 import { DeletionResponse } from '@vendure/common/lib/generated-types';
 import { CMSService } from '../service/cms.service';
 import { Page } from '../entities/page.entity';
@@ -14,6 +14,7 @@ export class CMSAdminResolver {
         private assetService: AssetService,
         private channelService: ChannelService,
         private collectionService: CollectionService,
+        private connection: TransactionalConnection,
     ) { }
 
     @Mutation()
@@ -27,6 +28,44 @@ export class CMSAdminResolver {
             isAuthorized: true,
             authorizedAsOwnerOnly: false,
         });
+
+        // Check if file is a GIF - if so, skip Sharp processing to preserve animation
+        const isGif = file.mimetype === 'image/gif' || file.filename?.toLowerCase().endsWith('.gif');
+
+        if (isGif) {
+            // For GIFs, we need to save the file directly without processing
+            // This is a workaround to preserve GIF animation
+            const fs = require('fs');
+            const path = require('path');
+            const assetsDir = path.join(__dirname, '../../../static/assets');
+            const uniqueName = `${Date.now()}-${file.filename}`;
+            const filePath = path.join(assetsDir, uniqueName);
+
+            // Ensure directory exists
+            if (!fs.existsSync(assetsDir)) {
+                fs.mkdirSync(assetsDir, { recursive: true });
+            }
+
+            // Write file directly
+            const buffer = await file.buffer;
+            fs.writeFileSync(filePath, buffer);
+
+            // Create asset record manually
+            const asset = new Asset();
+            asset.name = file.filename;
+            asset.type = 'IMAGE' as any;
+            asset.mimeType = 'image/gif';
+            asset.source = `/assets/${uniqueName}`;
+            asset.preview = `/assets/${uniqueName}`;
+            asset.fileSize = buffer.length;
+            asset.width = 0; // Will be 0 for unprocessed GIFs
+            asset.height = 0;
+            asset.focalPoint = { x: 0.5, y: 0.5 };
+
+            const savedAsset = await this.connection.getRepository(superAdminCtx, Asset).save(asset);
+            return savedAsset;
+        }
+
         const res = await this.assetService.create(superAdminCtx, { file });
         if ((res as any).errorCode) {
             throw new Error((res as any).message || 'Asset upload failed');

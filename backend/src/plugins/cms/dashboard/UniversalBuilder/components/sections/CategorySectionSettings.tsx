@@ -384,7 +384,7 @@ export const CategorySectionSettings = ({ data, onSave }: CategorySectionSetting
                                                         label=""
                                                         value={catImg}
                                                         onChange={(url) => handleCollectionMediaChange(coll.slug, url)}
-                                                        accept="image/*"
+                                                        accept="image/*,image/gif"
                                                         placeholder="Télécharger l'image de la catégorie"
                                                     />
                                                 </div>
@@ -405,7 +405,7 @@ export const CategorySectionSettings = ({ data, onSave }: CategorySectionSetting
                                                         label=""
                                                         value={heroImg}
                                                         onChange={(url) => handleHeroIconChange(coll.slug, url)}
-                                                        accept="image/*"
+                                                        accept="image/*,image/gif"
                                                         placeholder="Télécharger l'icône/image hero"
                                                     />
                                                 </div>

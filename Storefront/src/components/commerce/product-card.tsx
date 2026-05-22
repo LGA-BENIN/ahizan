@@ -9,8 +9,12 @@ interface ProductCardProps {
     product: FragmentOf<typeof ProductCardFragment>;
 }
 
+const isGif = (url: string | undefined | null) => url?.toLowerCase().endsWith('.gif');
+
 export function ProductCard({product: productProp}: ProductCardProps) {
     const product = readFragment(ProductCardFragment, productProp);
+    const imageUrl = product.productAsset?.preview;
+    const isImageGif = isGif(imageUrl);
 
     return (
         <Link
@@ -18,14 +22,22 @@ export function ProductCard({product: productProp}: ProductCardProps) {
             className="group block bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow"
         >
             <div className="aspect-square relative bg-muted">
-                {product.productAsset ? (
-                    <Image
-                        src={product.productAsset.preview}
-                        alt={product.productName}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    />
+                {imageUrl ? (
+                    isImageGif ? (
+                        <img
+                            src={imageUrl}
+                            alt={product.productName}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                    ) : (
+                        <Image
+                            src={imageUrl}
+                            alt={product.productName}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        />
+                    )
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                         Aucune image

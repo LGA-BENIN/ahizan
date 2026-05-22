@@ -53,7 +53,9 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                 link: '',
                 fontWeight: '600',
                 textAlign: 'center',
-                animationType: 'none'
+                animationType: 'none',
+                imageUrl: '',
+                displayMode: 'text'
             },
             categoryBar: {
                 enabled: false,
@@ -101,7 +103,7 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                         <input className="input-pro" value={config.siteName} onChange={(e) => handleChange('siteName', e.target.value)} />
                     </div>
                     <div>
-                        <FileUploadField label="Logo du site" value={config.logoUrl} onChange={(v) => handleChange('logoUrl', v)} accept="image/*" />
+                        <FileUploadField label="Logo du site" value={config.logoUrl} onChange={(v) => handleChange('logoUrl', v)} accept="image/*,image/gif" />
                     </div>
                 </div>
                 <div className="grid-3" style={{ marginTop: '1rem' }}>
@@ -215,9 +217,24 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                 {config.topBar?.enabled && (
                     <div className="stack" style={{ marginTop: '1rem' }}>
                         <div>
-                            <label className="label-pro">Texte de l'annonce</label>
-                            <input className="input-pro" value={config.topBar?.text} onChange={(e) => handleNestedChange('topBar', 'text', e.target.value)} />
+                            <label className="label-pro">Mode d'affichage</label>
+                            <select className="input-pro" value={config.topBar?.displayMode || 'text'} onChange={(e) => handleNestedChange('topBar', 'displayMode', e.target.value)}>
+                                <option value="text">Texte uniquement</option>
+                                <option value="image">Image/GIF uniquement</option>
+                                <option value="both">Texte + Image/GIF</option>
+                            </select>
                         </div>
+                        {(config.topBar?.displayMode === 'text' || config.topBar?.displayMode === 'both') && (
+                            <div>
+                                <label className="label-pro">Texte de l'annonce</label>
+                                <input className="input-pro" value={config.topBar?.text} onChange={(e) => handleNestedChange('topBar', 'text', e.target.value)} />
+                            </div>
+                        )}
+                        {(config.topBar?.displayMode === 'image' || config.topBar?.displayMode === 'both') && (
+                            <div>
+                                <FileUploadField label="Image/GIF de l'annonce" value={config.topBar?.imageUrl} onChange={(v) => handleNestedChange('topBar', 'imageUrl', v)} accept="image/*,image/gif" />
+                            </div>
+                        )}
                         <div className="grid-3">
                             <ColorField label="Arrière-plan" value={config.topBar?.bgColor} onChange={(v) => handleNestedChange('topBar', 'bgColor', v)} />
                             <ColorField label="Couleur du texte" value={config.topBar?.textColor} onChange={(v) => handleNestedChange('topBar', 'textColor', v)} />

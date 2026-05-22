@@ -15,6 +15,8 @@ import { Card } from '@/components/ui/card';
 
 import { HeaderConfData } from "@/lib/vendure/cms-queries";
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 export function Navbar({ config }: { config?: HeaderConfData }) {
     const logoUrl = config?.logoUrl || "/vendure.svg";
     const siteName = config?.siteName || "AHIZAN";
@@ -24,6 +26,7 @@ export function Navbar({ config }: { config?: HeaderConfData }) {
     const vendorLinkText = config?.vendorLinkText || "Vendez sur AHIZAN";
     const vendorLinkUrl = config?.vendorLinkUrl || "/register";
     const helpLinks = config?.helpLinks || [{ label: 'Aide', link: '/help' }];
+    const isLogoGif = isGif(logoUrl);
 
     return (
         <header className="sticky top-0 z-[100] w-full shadow-sm">
@@ -53,7 +56,11 @@ export function Navbar({ config }: { config?: HeaderConfData }) {
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-2 flex-shrink-0 group hover:scale-[1.02] transition-transform">
                             {logoUrl && logoUrl !== '/vendure.svg' ? (
-                                <Image src={logoUrl} alt={siteName} width={130} height={45} className="h-9 w-auto drop-shadow-sm" />
+                                isLogoGif ? (
+                                    <img src={logoUrl} alt={siteName} className="h-9 w-auto drop-shadow-sm" />
+                                ) : (
+                                    <Image src={logoUrl} alt={siteName} width={130} height={45} className="h-9 w-auto drop-shadow-sm" />
+                                )
                             ) : (
                                 <span className="text-2xl md:text-3xl font-black tracking-tighter text-primary drop-shadow-sm uppercase">Ahizan</span>
                             )}

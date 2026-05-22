@@ -85,7 +85,7 @@ export const ModalSettings = ({ data, onSave }: ModalSettingsProps) => {
 
                     {m.type === 'image' && (
                         <div style={{ marginBottom: '1rem' }}>
-                            <FileUploadField label="Image promotionnelle" value={m.value} onChange={(v) => updateField(idx, 'value', v)} accept="image/*" />
+                            <FileUploadField label="Image promotionnelle" value={m.value} onChange={(v) => updateField(idx, 'value', v)} accept="image/*,image/gif" />
                             <div style={{ marginTop: '0.5rem' }}>
                                 <label className="label-pro">URL de redirection (destination du clic)</label>
                                 <input className="input-pro" value={m.link || ''} onChange={(e) => updateField(idx, 'link', e.target.value)} placeholder="https://..." />

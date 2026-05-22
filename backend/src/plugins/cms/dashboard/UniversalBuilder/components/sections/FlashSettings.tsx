@@ -189,7 +189,7 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                         </div>
                     </div>
                     {sv.bgType === 'image' && (
-                        <div style={{ marginTop: '1rem' }}><FileUploadField label="Image d'arrière-plan" value={sv.bgImageUrl} onChange={(v) => updateVersion(sv.id, { bgImageUrl: v })} accept="image/*" /></div>
+                        <div style={{ marginTop: '1rem' }}><FileUploadField label="Image d'arrière-plan" value={sv.bgImageUrl} onChange={(v) => updateVersion(sv.id, { bgImageUrl: v })} accept="image/*,image/gif" /></div>
                     )}
                 </div>
 

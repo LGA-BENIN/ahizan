@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import {
     Home,
@@ -42,6 +43,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import Image from 'next/image';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -53,9 +55,18 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const pathname = usePathname();
+    const { theme, resolvedTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
     
     const vendorName = vendor?.name || (vendor?.customer?.firstName ? `${vendor.customer.firstName} ${vendor.customer.lastName}` : 'Vendeur');
     const vendorEmail = vendor?.customer?.emailAddress || '';
+
+    // Avoid hydration mismatch by waiting for mount
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    const isDark = mounted && (theme === 'dark' || resolvedTheme === 'dark');
 
     const allNavItems = [
         { name: 'Tableau de bord', href: '/dashboard', icon: Home },
@@ -77,15 +88,30 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
             {/* Brand / Logo & Collapse */}
             <div className="flex items-center justify-between mb-10 px-2 group">
                 <div className="flex items-center gap-3 cursor-pointer pr-2">
-                     <div className="w-10 h-10 bg-brand-navy rounded-2xl flex items-center justify-center shadow-lg shadow-brand-navy/20 group-hover:scale-110 transition-transform text-white font-bold text-sm">
-                        AH
-                     </div>
-                     {(isSidebarOpen || mobile) && (
-                        <div className="flex flex-col animate-in fade-in slide-in-from-left-2 duration-500">
-                            <span className="font-bold text-lg tracking-tight">AHIZAN</span>
-                            <span className="text-[10px] text-brand-red font-bold uppercase tracking-widest">Seller Hub</span>
+                     <div className="flex flex-col items-center gap-1">
+                        <div className={cn(
+                            "rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform overflow-hidden",
+                            (isSidebarOpen || mobile) ? "w-20 h-14" : "w-14 h-14"
+                        )}>
+                            {mounted ? (
+                                <img
+                                    src={isDark ? '/logo-dark.png' : '/logo-light.png'}
+                                    alt="AHIZAN Logo"
+                                    className="w-full h-full object-contain"
+                                />
+                            ) : (
+                                <div className={cn(
+                                    "bg-brand-navy rounded-2xl flex items-center justify-center text-white font-bold",
+                                    (isSidebarOpen || mobile) ? "w-20 h-14 text-lg" : "w-14 h-14 text-lg"
+                                )}>
+                                    AH
+                                </div>
+                            )}
                         </div>
-                     )}
+                        {(isSidebarOpen || mobile) && mounted && (
+                            <span className="text-[10px] text-brand-red font-bold uppercase tracking-widest animate-in fade-in slide-in-from-top-2 duration-500">Seller Hub</span>
+                        )}
+                     </div>
                 </div>
                 {!mobile && (
                     <button

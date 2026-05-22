@@ -21,6 +21,8 @@ interface HeroSliderProps {
     height?: 'sm' | 'md' | 'lg' | 'full';
 }
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 const heightMap: Record<string, string> = {
     sm: 'h-[30vh] min-h-[250px]',
     md: 'h-[45vh] min-h-[350px]',
@@ -59,22 +61,38 @@ export function HeroSlider({
     if (!slides || slides.length === 0) return null;
 
     const slide = slides[current];
+    const isSlideGif = isGif(slide.imageUrl);
 
     return (
         <section className={`relative overflow-hidden ${heightMap[height] || heightMap.md}`}>
-            {slides.map((s, i) => (
-                <div
-                    key={i}
-                    className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                    style={{
-                        backgroundImage: `url(${s.imageUrl})`,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                    }}
-                >
-                    <div className="absolute inset-0" style={{ backgroundColor: s.overlayColor || 'rgba(0,0,0,0.4)' }} />
-                </div>
-            ))}
+            {slides.map((s, i) => {
+                const isCurrentGif = isGif(s.imageUrl);
+                return (
+                    <div
+                        key={i}
+                        className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                    >
+                        {isCurrentGif ? (
+                            <img
+                                src={s.imageUrl}
+                                alt={s.title || 'Slide'}
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            <div
+                                style={{
+                                    backgroundImage: `url(${s.imageUrl})`,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                    width: '100%',
+                                    height: '100%',
+                                }}
+                            />
+                        )}
+                        <div className="absolute inset-0" style={{ backgroundColor: s.overlayColor || 'rgba(0,0,0,0.4)' }} />
+                    </div>
+                );
+            })}
 
             <div className={`relative z-20 h-full container mx-auto px-4 flex flex-col justify-center ${alignMap[slide.textAlign || 'center']}`}>
                 <div className="max-w-2xl space-y-4">

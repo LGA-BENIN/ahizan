@@ -231,15 +231,91 @@ export class VendorService implements OnApplicationBootstrap {
 
         // Handle File Uploads
         if (input.logo) {
-            const asset = await this.assetService.create(adminCtx, { file: input.logo, tags: ['vendor-logo'] });
-            if (!(asset as any).errorCode) {
-                vendor.logo = asset as Asset;
+            // Check if file is a GIF - if so, skip Sharp processing to preserve animation
+            const isGif = input.logo.mimetype === 'image/gif' || input.logo.filename?.toLowerCase().endsWith('.gif');
+
+            if (isGif) {
+                // For GIFs, we need to save the file directly without processing
+                const fs = require('fs');
+                const path = require('path');
+                const assetsDir = path.join(__dirname, '../../../static/assets');
+                const uniqueName = `${Date.now()}-${input.logo.filename}`;
+                const filePath = path.join(assetsDir, uniqueName);
+
+                // Ensure directory exists
+                if (!fs.existsSync(assetsDir)) {
+                    fs.mkdirSync(assetsDir, { recursive: true });
+                }
+
+                // Write file directly
+                const buffer = await input.logo.buffer;
+                fs.writeFileSync(filePath, buffer);
+
+                // Create asset record manually
+                const asset = new Asset();
+                asset.name = input.logo.filename;
+                asset.type = 'IMAGE' as any;
+                asset.mimeType = 'image/gif';
+                asset.source = `/assets/${uniqueName}`;
+                asset.preview = `/assets/${uniqueName}`;
+                asset.fileSize = buffer.length;
+                asset.width = 0;
+                asset.height = 0;
+                asset.focalPoint = { x: 0.5, y: 0.5 };
+
+                const savedAsset = await this.connection.getRepository(adminCtx, Asset).save(asset);
+                if (!(savedAsset as any).errorCode) {
+                    vendor.logo = savedAsset as Asset;
+                }
+            } else {
+                const asset = await this.assetService.create(adminCtx, { file: input.logo, tags: ['vendor-logo'] });
+                if (!(asset as any).errorCode) {
+                    vendor.logo = asset as Asset;
+                }
             }
         }
         if (input.coverImage) {
-            const asset = await this.assetService.create(adminCtx, { file: input.coverImage, tags: ['vendor-cover'] });
-            if (!(asset as any).errorCode) {
-                vendor.coverImage = asset as Asset;
+            // Check if file is a GIF - if so, skip Sharp processing to preserve animation
+            const isGif = input.coverImage.mimetype === 'image/gif' || input.coverImage.filename?.toLowerCase().endsWith('.gif');
+
+            if (isGif) {
+                // For GIFs, we need to save the file directly without processing
+                const fs = require('fs');
+                const path = require('path');
+                const assetsDir = path.join(__dirname, '../../../static/assets');
+                const uniqueName = `${Date.now()}-${input.coverImage.filename}`;
+                const filePath = path.join(assetsDir, uniqueName);
+
+                // Ensure directory exists
+                if (!fs.existsSync(assetsDir)) {
+                    fs.mkdirSync(assetsDir, { recursive: true });
+                }
+
+                // Write file directly
+                const buffer = await input.coverImage.buffer;
+                fs.writeFileSync(filePath, buffer);
+
+                // Create asset record manually
+                const asset = new Asset();
+                asset.name = input.coverImage.filename;
+                asset.type = 'IMAGE' as any;
+                asset.mimeType = 'image/gif';
+                asset.source = `/assets/${uniqueName}`;
+                asset.preview = `/assets/${uniqueName}`;
+                asset.fileSize = buffer.length;
+                asset.width = 0;
+                asset.height = 0;
+                asset.focalPoint = { x: 0.5, y: 0.5 };
+
+                const savedAsset = await this.connection.getRepository(adminCtx, Asset).save(asset);
+                if (!(savedAsset as any).errorCode) {
+                    vendor.coverImage = savedAsset as Asset;
+                }
+            } else {
+                const asset = await this.assetService.create(adminCtx, { file: input.coverImage, tags: ['vendor-cover'] });
+                if (!(asset as any).errorCode) {
+                    vendor.coverImage = asset as Asset;
+                }
             }
         }
         if (input.rccmFile) {
@@ -347,18 +423,94 @@ export class VendorService implements OnApplicationBootstrap {
             updated.logo = await this.connection.getEntityOrThrow(ctx, Asset, input.logoId);
         }
         if (input.logo) {
-            const asset = await this.assetService.create(ctx, { file: input.logo, tags: ['vendor-logo'] });
-            if (!(asset as any).errorCode) {
-                updated.logo = asset as Asset;
+            // Check if file is a GIF - if so, skip Sharp processing to preserve animation
+            const isGif = input.logo.mimetype === 'image/gif' || input.logo.filename?.toLowerCase().endsWith('.gif');
+
+            if (isGif) {
+                // For GIFs, we need to save the file directly without processing
+                const fs = require('fs');
+                const path = require('path');
+                const assetsDir = path.join(__dirname, '../../../static/assets');
+                const uniqueName = `${Date.now()}-${input.logo.filename}`;
+                const filePath = path.join(assetsDir, uniqueName);
+
+                // Ensure directory exists
+                if (!fs.existsSync(assetsDir)) {
+                    fs.mkdirSync(assetsDir, { recursive: true });
+                }
+
+                // Write file directly
+                const buffer = await input.logo.buffer;
+                fs.writeFileSync(filePath, buffer);
+
+                // Create asset record manually
+                const asset = new Asset();
+                asset.name = input.logo.filename;
+                asset.type = 'IMAGE' as any;
+                asset.mimeType = 'image/gif';
+                asset.source = `/assets/${uniqueName}`;
+                asset.preview = `/assets/${uniqueName}`;
+                asset.fileSize = buffer.length;
+                asset.width = 0;
+                asset.height = 0;
+                asset.focalPoint = { x: 0.5, y: 0.5 };
+
+                const savedAsset = await this.connection.getRepository(ctx, Asset).save(asset);
+                if (!(savedAsset as any).errorCode) {
+                    updated.logo = savedAsset as Asset;
+                }
+            } else {
+                const asset = await this.assetService.create(ctx, { file: input.logo, tags: ['vendor-logo'] });
+                if (!(asset as any).errorCode) {
+                    updated.logo = asset as Asset;
+                }
             }
         }
         if (input.coverImageId) {
             updated.coverImage = await this.connection.getEntityOrThrow(ctx, Asset, input.coverImageId);
         }
         if (input.coverImage) {
-            const asset = await this.assetService.create(ctx, { file: input.coverImage, tags: ['vendor-cover'] });
-            if (!(asset as any).errorCode) {
-                updated.coverImage = asset as Asset;
+            // Check if file is a GIF - if so, skip Sharp processing to preserve animation
+            const isGif = input.coverImage.mimetype === 'image/gif' || input.coverImage.filename?.toLowerCase().endsWith('.gif');
+
+            if (isGif) {
+                // For GIFs, we need to save the file directly without processing
+                const fs = require('fs');
+                const path = require('path');
+                const assetsDir = path.join(__dirname, '../../../static/assets');
+                const uniqueName = `${Date.now()}-${input.coverImage.filename}`;
+                const filePath = path.join(assetsDir, uniqueName);
+
+                // Ensure directory exists
+                if (!fs.existsSync(assetsDir)) {
+                    fs.mkdirSync(assetsDir, { recursive: true });
+                }
+
+                // Write file directly
+                const buffer = await input.coverImage.buffer;
+                fs.writeFileSync(filePath, buffer);
+
+                // Create asset record manually
+                const asset = new Asset();
+                asset.name = input.coverImage.filename;
+                asset.type = 'IMAGE' as any;
+                asset.mimeType = 'image/gif';
+                asset.source = `/assets/${uniqueName}`;
+                asset.preview = `/assets/${uniqueName}`;
+                asset.fileSize = buffer.length;
+                asset.width = 0;
+                asset.height = 0;
+                asset.focalPoint = { x: 0.5, y: 0.5 };
+
+                const savedAsset = await this.connection.getRepository(ctx, Asset).save(asset);
+                if (!(savedAsset as any).errorCode) {
+                    updated.coverImage = savedAsset as Asset;
+                }
+            } else {
+                const asset = await this.assetService.create(ctx, { file: input.coverImage, tags: ['vendor-cover'] });
+                if (!(asset as any).errorCode) {
+                    updated.coverImage = asset as Asset;
+                }
             }
         }
 

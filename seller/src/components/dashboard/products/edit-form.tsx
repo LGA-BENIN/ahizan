@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ImageUploader from '@/components/ImageUploader';
+import ImageUploader, { type UploadedAsset } from '@/components/ImageUploader';
 import { updateProductAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag } from 'lucide-react';
+import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditProductFormProps {
@@ -43,6 +43,9 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     });
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
+    const [featuredAssetId, setFeaturedAssetId] = useState<string | null>(
+        product.featuredAsset?.id || (product.assets.length > 0 ? product.assets[0].id : null)
+    );
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [facetValueIds, setFacetValueIds] = useState<string[]>(
         (product.facetValues || []).map((fv: any) => String(fv.id))
@@ -134,6 +137,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             data.append('stock', formData.stock.toString());
             data.append('category', formData.category);
             data.append('assetIds', JSON.stringify(assetIds));
+            data.append('featuredAssetId', featuredAssetId || '');
             data.append('facetValueIds', JSON.stringify(facetValueIds));
 
             const result = await updateProductAction(null, data);
@@ -156,6 +160,10 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const removeAsset = (assetId: string) => {
         setAssetIds(assetIds.filter(id => id !== assetId));
         setPreviewImages(previewImages.filter((a: any) => a.id !== assetId));
+        if (featuredAssetId === assetId) {
+            const remaining = assetIds.filter(id => id !== assetId);
+            setFeaturedAssetId(remaining.length > 0 ? remaining[0] : null);
+        }
     };
 
     return (
@@ -310,29 +318,49 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                         </div>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         <div className="flex items-center gap-2 text-primary font-bold text-lg mb-2">
                             <ImageIcon className="w-5 h-5" />
                             <h2>Galerie Photos</h2>
                         </div>
                         
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {previewImages.map((asset: any) => (
-                                <div key={asset.id} className="group relative aspect-square rounded-xl overflow-hidden border">
+                                <div key={asset.id} className="group relative aspect-[4/3] rounded-2xl overflow-hidden border-2 shadow-md">
                                     <img src={asset.preview} alt="Produit" className="w-full h-full object-cover" />
                                     <button 
                                         type="button"
-                                        onClick={() => removeAsset(asset.id)}
-                                        className="absolute inset-0 bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => setFeaturedAssetId(asset.id)}
+                                        className={`absolute top-2 left-2 p-2 rounded-full shadow-lg transition-all ${
+                                            featuredAssetId === asset.id 
+                                                ? 'bg-brand-navy text-white' 
+                                                : 'bg-white/90 text-muted-foreground hover:bg-white'
+                                        }`}
+                                        title={featuredAssetId === asset.id ? 'Image principale' : 'Définir comme principale'}
                                     >
-                                        <Trash2 className="w-5 h-5" />
+                                        <Star className={`w-4 h-4 ${featuredAssetId === asset.id ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => removeAsset(asset.id)}
+                                        className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-md p-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
                             ))}
                         </div>
                         
-                        <div className="p-4 rounded-2xl md:rounded-[2rem] border-2 border-dashed border-muted bg-muted/20">
-                            <ImageUploader onImageUploaded={(id) => setAssetIds(prev => [...prev, id])} />
+                        <div className="p-6 rounded-2xl border-2 border-dashed border-muted bg-muted/20">
+                            <ImageUploader 
+                                assets={previewImages}
+                                featuredAssetId={featuredAssetId}
+                                onAssetsChange={(newAssets) => {
+                                    setPreviewImages(newAssets);
+                                    setAssetIds(newAssets.map(a => a.id));
+                                }}
+                                onFeaturedChange={setFeaturedAssetId}
+                            />
                         </div>
                     </div>
                 </div>

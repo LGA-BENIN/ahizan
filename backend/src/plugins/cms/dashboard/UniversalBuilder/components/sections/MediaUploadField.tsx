@@ -10,7 +10,7 @@ interface MediaUploadFieldProps {
 
 import { getBackendBaseUrl } from '../../../lib/utils';
 
-export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({ label, value, onChange, placeholder = "/assets/...", accept = "image/*,video/*" }) => {
+export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({ label, value, onChange, placeholder = "/assets/...", accept = "image/*,video/*,image/gif" }) => {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);

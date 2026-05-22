@@ -180,7 +180,7 @@ export const PromoSettings = ({ data, onSave }: PromoSettingsProps) => {
                                         <ColorField label="Couleur badge" value={banner.badgeColor} onChange={(v) => ub('badgeColor', v)} />
                                     </div>
                                     {banner.bgType === 'image' && (
-                                        <FileUploadField label="Image de bannière" value={banner.bgImageUrl} onChange={(v) => ub('bgImageUrl', v)} accept="image/*" />
+                                        <FileUploadField label="Image de bannière" value={banner.bgImageUrl} onChange={(v) => ub('bgImageUrl', v)} accept="image/*,image/gif" />
                                     )}
                                     {banner.bgType === 'video' && (
                                         <FileUploadField label="Vidéo de bannière" value={banner.bgVideoUrl} onChange={(v) => ub('bgVideoUrl', v)} accept="video/mp4,video/webm" />

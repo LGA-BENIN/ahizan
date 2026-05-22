@@ -312,7 +312,7 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                         {config.backgroundType === 'video' ? (
                             <FileUploadField label="Vidéo d'arrière-plan" value={config.backgroundVideoUrl} onChange={(v) => handleChange('backgroundVideoUrl', v)} accept="video/mp4,video/webm" />
                         ) : (
-                            <FileUploadField label="Image d'arrière-plan" value={config.backgroundImageUrl} onChange={(v) => handleChange('backgroundImageUrl', v)} accept="image/*" />
+                            <FileUploadField label="Image d'arrière-plan" value={config.backgroundImageUrl} onChange={(v) => handleChange('backgroundImageUrl', v)} accept="image/*,image/gif" />
                         )}
                         <div className="grid-2">
                             <div>

@@ -2,6 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
+
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
 export function TopFlashBanner({ config }: { config?: any }) {
     if (!config || !config.enabled) {
@@ -15,12 +18,17 @@ export function TopFlashBanner({ config }: { config?: any }) {
         fontSize = '12px',
         height = '36px',
         link,
-        animationType = 'none'
+        animationType = 'none',
+        imageUrl,
+        displayMode = 'text'
     } = config;
+
+    const isImageGif = isGif(imageUrl);
+    const animClass = animationType === 'marquee' ? 'animate-[marquee_15s_linear_infinite] whitespace-nowrap' : animationType === 'fade' ? 'animate-pulse' : '';
 
     const bannerContent = (
         <div 
-            className={`w-full flex items-center justify-center overflow-hidden`}
+            className={`w-full flex items-center justify-center overflow-hidden relative`}
             style={{ 
                 backgroundColor: bgColor, 
                 color: textColor, 
@@ -29,12 +37,34 @@ export function TopFlashBanner({ config }: { config?: any }) {
                 minHeight: height
             }}
         >
-            <div className={`max-w-[1400px] mx-auto px-4 w-full text-center font-medium
-                ${animationType === 'marquee' ? 'animate-[marquee_15s_linear_infinite] whitespace-nowrap' : ''}
-                ${animationType === 'fade' ? 'animate-pulse' : ''}
-            `}>
-                <span dangerouslySetInnerHTML={{ __html: text || '' }} />
-            </div>
+            {/* GIF Background */}
+            {(displayMode === 'image' || displayMode === 'both') && imageUrl && (
+                <>
+                    {isImageGif ? (
+                        <img 
+                            src={getAssetUrl(imageUrl)} 
+                            alt="" 
+                            className="absolute inset-0 w-full h-full object-cover z-0"
+                        />
+                    ) : (
+                        <div 
+                            className="absolute inset-0 w-full h-full z-0"
+                            style={{
+                                backgroundImage: `url(${getAssetUrl(imageUrl)})`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                            }}
+                        />
+                    )}
+                    <div className="absolute inset-0 bg-black/20 z-0" />
+                </>
+            )}
+
+            {(displayMode === 'text' || displayMode === 'both') && (
+                <div className={`max-w-[1400px] mx-auto px-4 w-full text-center font-medium relative z-10 ${animClass}`}>
+                    <span dangerouslySetInnerHTML={{ __html: text || '' }} />
+                </div>
+            )}
         </div>
     );
 

@@ -8,10 +8,13 @@ interface PromoBannerProps {
     promoConfig: any;
 }
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 export function PromoBanner({ promoConfig }: PromoBannerProps) {
     if (!promoConfig.showPromoBanner) return null;
 
     const banner = promoConfig.promoBanner;
+    const isBgGif = isGif(banner.bgUrl);
 
     return (
         <div className="rounded-xl overflow-hidden shadow-md animate-in zoom-in-95 duration-700">
@@ -19,7 +22,7 @@ export function PromoBanner({ promoConfig }: PromoBannerProps) {
                 className="h-28 md:h-44 flex flex-col md:flex-row items-center justify-between px-6 md:px-16 overflow-hidden relative group cursor-pointer"
                 style={{ 
                     backgroundColor: (banner.bgType === 'color' || !banner.bgType) ? (banner.bgColor || '#e31837') : 'transparent',
-                    backgroundImage: (banner.bgType === 'image' || banner.type === 'image') && banner.bgUrl ? `url("${getAssetUrl(banner.bgUrl)}")` : 'none',
+                    backgroundImage: ((banner.bgType === 'image' || banner.type === 'image') && banner.bgUrl && !isBgGif) ? `url("${getAssetUrl(banner.bgUrl)}")` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                 }}
@@ -29,6 +32,11 @@ export function PromoBanner({ promoConfig }: PromoBannerProps) {
                     <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0">
                         <source src={getAssetUrl(banner.bgUrl)} type="video/mp4" />
                     </video>
+                )}
+
+                {/* GIF Background */}
+                {(banner.bgType === 'image' || banner.type === 'image') && banner.bgUrl && isBgGif && (
+                    <img src={getAssetUrl(banner.bgUrl)} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
                 )}
 
                 {/* Gradient overlay for readability */}

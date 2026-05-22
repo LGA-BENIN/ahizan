@@ -345,6 +345,43 @@ export class VendorShopResolver {
         if (!vendor) {
             throw new Error('No vendor profile found for this user');
         }
+
+        // Check if file is a GIF - if so, skip Sharp processing to preserve animation
+        const isGif = args.file.mimetype === 'image/gif' || args.file.filename?.toLowerCase().endsWith('.gif');
+
+        if (isGif) {
+            // For GIFs, we need to save the file directly without processing
+            const fs = require('fs');
+            const path = require('path');
+            const assetsDir = path.join(__dirname, '../../../../static/assets');
+            const uniqueName = `${Date.now()}-${args.file.filename}`;
+            const filePath = path.join(assetsDir, uniqueName);
+
+            // Ensure directory exists
+            if (!fs.existsSync(assetsDir)) {
+                fs.mkdirSync(assetsDir, { recursive: true });
+            }
+
+            // Write file directly
+            const buffer = await args.file.buffer;
+            fs.writeFileSync(filePath, buffer);
+
+            // Create asset record manually
+            const asset = new Asset();
+            asset.name = args.file.filename;
+            asset.type = 'IMAGE' as any;
+            asset.mimeType = 'image/gif';
+            asset.source = `/assets/${uniqueName}`;
+            asset.preview = `/assets/${uniqueName}`;
+            asset.fileSize = buffer.length;
+            asset.width = 0;
+            asset.height = 0;
+            asset.focalPoint = { x: 0.5, y: 0.5 };
+
+            const savedAsset = await this.connection.getRepository(ctx, Asset).save(asset);
+            return savedAsset;
+        }
+
         return this.assetService.create(ctx, {
             file: args.file,
             tags: ['vendor', `vendorId:${vendor.id}`]

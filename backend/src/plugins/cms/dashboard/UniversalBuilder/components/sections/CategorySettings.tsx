@@ -269,7 +269,7 @@ export const CategorySettings = ({ data, onSave }: CategorySettingsProps) => {
                                             label=""
                                             value={currentImg}
                                             onChange={(url) => handleCollectionMediaChange(coll.slug, url)}
-                                            accept="image/*"
+                                            accept="image/*,image/gif"
                                             placeholder="Aucune image"
                                         />
                                     </div>

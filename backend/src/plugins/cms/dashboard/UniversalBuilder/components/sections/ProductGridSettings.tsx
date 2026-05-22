@@ -228,7 +228,7 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
                     </div>
                 ) : (
                     <div className="mt-4">
-                        <FileUploadField label="Image d'arrière-plan" value={config.bgImageUrl} onChange={(v) => handleChange('bgImageUrl', v)} accept="image/*" />
+                        <FileUploadField label="Image d'arrière-plan" value={config.bgImageUrl} onChange={(v) => handleChange('bgImageUrl', v)} accept="image/*,image/gif" />
                     </div>
                 )}
             </div>

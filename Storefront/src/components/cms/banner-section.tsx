@@ -21,6 +21,8 @@ interface BannerSectionProps {
     subtitle?: string;
 }
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 export function BannerSection({
     title,
     description,
@@ -39,31 +41,42 @@ export function BannerSection({
 
     const isHexColor = backgroundColor.startsWith('#') || backgroundColor.startsWith('rgb');
 
-    const renderBanner = (banner: BannerItem, isSingle: boolean) => (
-        <div
-            key={banner.imageUrl}
-            className={`relative w-full ${isSingle ? 'aspect-[21/9] min-h-[400px]' : 'aspect-square'} overflow-hidden rounded-[2rem] group/banner shadow-xl border border-muted`}
-            style={isHexColor ? { backgroundColor } : undefined}
-        >
-            <Image
-                src={banner.imageUrl}
-                alt={banner.title || "Banner"}
-                fill
-                className="object-cover transition-transform duration-1000 group-hover/banner:scale-110"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent flex flex-col justify-center px-8 md:px-20 text-white text-left">
-                <div className="max-w-2xl space-y-4">
-                    {banner.title && <h2 className="text-3xl md:text-6xl font-black mb-2 tracking-tighter uppercase italic leading-none">{banner.title}</h2>}
-                    {banner.subtitle && <p className="text-sm md:text-xl font-medium opacity-90 mb-6 leading-relaxed max-w-lg">{banner.subtitle}</p>}
-                    {(banner.link || ctaText) && (
-                        <Button asChild size="lg" className="w-fit rounded-full px-10 py-7 text-lg font-black bg-white text-black hover:bg-white/90 border-none transition-all hover:scale-105 shadow-2xl">
-                            <Link href={banner.link || '#'}>{ctaText}</Link>
-                        </Button>
-                    )}
+    const renderBanner = (banner: BannerItem, isSingle: boolean) => {
+        const isBannerGif = isGif(banner.imageUrl);
+        return (
+            <div
+                key={banner.imageUrl}
+                className={`relative w-full ${isSingle ? 'aspect-[21/9] min-h-[400px]' : 'aspect-square'} overflow-hidden rounded-[2rem] group/banner shadow-xl border border-muted`}
+                style={isHexColor ? { backgroundColor } : undefined}
+            >
+                {isBannerGif ? (
+                    <img
+                        src={banner.imageUrl}
+                        alt={banner.title || "Banner"}
+                        className="w-full h-full object-cover transition-transform duration-1000 group-hover/banner:scale-110"
+                    />
+                ) : (
+                    <Image
+                        src={banner.imageUrl}
+                        alt={banner.title || "Banner"}
+                        fill
+                        className="object-cover transition-transform duration-1000 group-hover/banner:scale-110"
+                    />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent flex flex-col justify-center px-8 md:px-20 text-white text-left">
+                    <div className="max-w-2xl space-y-4">
+                        {banner.title && <h2 className="text-3xl md:text-6xl font-black mb-2 tracking-tighter uppercase italic leading-none">{banner.title}</h2>}
+                        {banner.subtitle && <p className="text-sm md:text-xl font-medium opacity-90 mb-6 leading-relaxed max-w-lg">{banner.subtitle}</p>}
+                        {(banner.link || ctaText) && (
+                            <Button asChild size="lg" className="w-fit rounded-full px-10 py-7 text-lg font-black bg-white text-black hover:bg-white/90 border-none transition-all hover:scale-105 shadow-2xl">
+                                <Link href={banner.link || '#'}>{ctaText}</Link>
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <section className={`container mx-auto px-4 py-16 ${!isHexColor ? backgroundColor : ''}`} style={isHexColor ? { backgroundColor } : undefined}>

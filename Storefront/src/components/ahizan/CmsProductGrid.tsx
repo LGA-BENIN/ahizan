@@ -26,6 +26,8 @@ interface CmsProductGridProps {
     };
 }
 
+const isGif = (url: string | undefined) => url?.toLowerCase().endsWith('.gif');
+
 export function CmsProductGrid({ config }: CmsProductGridProps) {
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -103,8 +105,9 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
     };
     const gridClass = colClasses[columns] || colClasses[4];
 
+    const isBgGif = isGif(config.bgImageUrl);
     const bgStyle: any = {};
-    if (config.bgType === 'image' && config.bgImageUrl) {
+    if (config.bgType === 'image' && config.bgImageUrl && !isBgGif) {
         bgStyle.backgroundImage = `url(${config.bgImageUrl})`;
         bgStyle.backgroundSize = 'cover';
         bgStyle.backgroundPosition = 'center';
@@ -113,7 +116,11 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
     }
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 rounded-xl p-4 md:p-6" style={bgStyle}>
+        <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 rounded-xl p-4 md:p-6 relative overflow-hidden" style={bgStyle}>
+            {/* GIF Background */}
+            {config.bgType === 'image' && config.bgImageUrl && isBgGif && (
+                <img src={config.bgImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
+            )}
             {/* Section Header */}
             {config.headerStyle === 'centered' ? (
                 <div className="text-center mb-6 pb-4 border-b border-border/30">

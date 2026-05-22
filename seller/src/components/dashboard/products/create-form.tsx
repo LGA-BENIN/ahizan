@@ -3,7 +3,7 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ImageUploader from '@/components/ImageUploader';
+import ImageUploader, { type UploadedAsset } from '@/components/ImageUploader';
 import { createProductAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -50,7 +50,8 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
         parentCategory: '',
         category: '',
     });
-    const [assetIds, setAssetIds] = useState<string[]>([]);
+    const [assets, setAssets] = useState<UploadedAsset[]>([]);
+    const [featuredAssetId, setFeaturedAssetId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploadingAssets, setIsUploadingAssets] = useState(false);
     const [facetValueIds, setFacetValueIds] = useState<string[]>([]);
@@ -71,7 +72,8 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
             parentCategory: '',
             category: '',
         });
-        setAssetIds([]);
+        setAssets([]);
+        setFeaturedAssetId(null);
         setFormKey(prev => prev + 1);
         setIsSubmitting(false);
     };
@@ -132,7 +134,8 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
             data.append('price', formData.price.toString());
             data.append('stock', formData.stock.toString());
             data.append('category', formData.category);
-            data.append('assetIds', JSON.stringify(assetIds));
+            data.append('assetIds', JSON.stringify(assets.map(a => a.id)));
+            data.append('featuredAssetId', featuredAssetId || '');
             data.append('facetValueIds', JSON.stringify(facetValueIds));
 
             const result = await createProductAction(null, data);
@@ -311,7 +314,10 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                             <div className="p-4 rounded-xl border border-muted bg-muted/5 flex flex-col items-center justify-center gap-4 transition-colors hover:border-brand-navy/20">
                                 <ImageUploader 
                                     key={formKey}
-                                    onImageUploaded={(id) => setAssetIds((prev: string[]) => [...prev, id])} 
+                                    assets={assets}
+                                    featuredAssetId={featuredAssetId}
+                                    onAssetsChange={setAssets}
+                                    onFeaturedChange={setFeaturedAssetId}
                                     onUploadingChange={setIsUploadingAssets}
                                 />
                                 {isUploadingAssets && (
@@ -322,23 +328,7 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                 )}
                             </div>
 
-                            {assetIds.length > 0 && (
-                                <div className="grid grid-cols-3 gap-2 mt-4">
-                                    {assetIds.map((id, index) => (
-                                        <div key={id} className="relative aspect-square rounded-lg overflow-hidden border border-border bg-muted/30 group">
-                                            <div className="absolute inset-0 flex items-center justify-center text-[8px] font-black uppercase opacity-20">Img {index+1}</div>
-                                            <button 
-                                                type="button"
-                                                onClick={() => setAssetIds((prev: string[]) => prev.filter(aid => aid !== id))}
-                                                className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
+                            
                             <div className="pt-6 border-t border-border mt-8 flex flex-col gap-3">
                                 <Button
                                     type="submit"

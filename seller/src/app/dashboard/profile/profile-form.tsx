@@ -134,7 +134,7 @@ export function ProfileForm({ profile, fields }: ProfileFormProps) {
                                         id={field.name}
                                         name={field.name}
                                         type="file"
-                                        accept="image/*,application/pdf"
+                                        accept="image/*,image/gif,application/pdf"
                                         required={false}
                                         className="block w-full"
                                     />

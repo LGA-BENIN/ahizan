@@ -11,6 +11,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const stock = parseInt(formData.get('stock') as string);
     const collectionId = formData.get('category') as string;
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
+    const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
 
     try {
@@ -25,7 +26,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
                 collectionIds: collectionId ? [collectionId] : [],
                 facetValueIds,
                 assetIds,
-                featuredAssetId: assetIds[0],
+                featuredAssetId: featuredAssetId || assetIds[0],
             },
         }, { useAuthToken: true });
 
@@ -46,6 +47,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const stock = formData.get('stock') ? parseInt(formData.get('stock') as string) : undefined;
     const collectionId = formData.get('category') as string;
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
+    const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
 
     try {
@@ -58,7 +60,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
                 collectionIds: collectionId ? [collectionId] : [],
                 facetValueIds,
                 assetIds,
-                featuredAssetId: assetIds[0],
+                featuredAssetId: featuredAssetId || assetIds[0],
             },
         }, { useAuthToken: true });
 

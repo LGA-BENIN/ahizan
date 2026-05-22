@@ -13,6 +13,8 @@ interface ProductImageCarouselProps {
     }>;
 }
 
+const isGif = (url: string) => url.toLowerCase().endsWith('.gif');
+
 export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -32,18 +34,29 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
         setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
     };
 
+    const currentImage = images[currentIndex];
+    const isCurrentGif = isGif(currentImage.source);
+
     return (
         <div className="space-y-3">
             {/* Main Image */}
             <div className="relative aspect-square bg-muted rounded-xl overflow-hidden group border border-border/40 shadow-sm">
-                <Image
-                    src={images[currentIndex].source}
-                    alt={`Product image ${currentIndex + 1}`}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    sizes="(max-width: 320px) 100vw, 320px"
-                    priority={currentIndex === 0}
-                />
+                {isCurrentGif ? (
+                    <img
+                        src={currentImage.source}
+                        alt={`Product image ${currentIndex + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                ) : (
+                    <Image
+                        src={currentImage.source}
+                        alt={`Product image ${currentIndex + 1}`}
+                        fill
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        sizes="(max-width: 320px) 100vw, 320px"
+                        priority={currentIndex === 0}
+                    />
+                )}
 
                 {/* Navigation Arrows */}
                 {images.length > 1 && (
@@ -78,25 +91,36 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
             {/* Thumbnail Grid */}
             {images.length > 1 && (
                 <div className="flex flex-wrap gap-2 justify-center">
-                    {images.map((image, index) => (
-                        <button
-                            key={image.id}
-                            onClick={() => setCurrentIndex(index)}
-                            className={`w-12 h-12 relative rounded-lg overflow-hidden border-2 transition-all ${
-                                index === currentIndex
-                                    ? 'border-primary shadow-sm scale-105'
-                                    : 'border-transparent hover:border-muted-foreground/50 opacity-70 hover:opacity-100'
-                            }`}
-                        >
-                            <Image
-                                src={image.preview}
-                                alt={`Thumbnail ${index + 1}`}
-                                fill
-                                className="object-cover"
-                                sizes="48px"
-                            />
-                        </button>
-                    ))}
+                    {images.map((image, index) => {
+                        const isThumbnailGif = isGif(image.preview);
+                        return (
+                            <button
+                                key={image.id}
+                                onClick={() => setCurrentIndex(index)}
+                                className={`w-12 h-12 relative rounded-lg overflow-hidden border-2 transition-all ${
+                                    index === currentIndex
+                                        ? 'border-primary shadow-sm scale-105'
+                                        : 'border-transparent hover:border-muted-foreground/50 opacity-70 hover:opacity-100'
+                                }`}
+                            >
+                                {isThumbnailGif ? (
+                                    <img
+                                        src={image.preview}
+                                        alt={`Thumbnail ${index + 1}`}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <Image
+                                        src={image.preview}
+                                        alt={`Thumbnail ${index + 1}`}
+                                        fill
+                                        className="object-cover"
+                                        sizes="48px"
+                                    />
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             )}
         </div>

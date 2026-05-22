@@ -152,7 +152,7 @@ export default function ResubmitForm({ profile, fields }: ResubmitFormProps) {
                                                     id={field.name}
                                                     name={field.name}
                                                     type="file"
-                                                    accept="image/*,application/pdf"
+                                                    accept="image/*,image/gif,application/pdf"
                                                     // On resubmit, file fields are never strictly required
                                                     // (the existing file is kept if no new one is uploaded)
                                                     required={false}

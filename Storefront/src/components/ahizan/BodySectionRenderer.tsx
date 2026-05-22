@@ -16,6 +16,8 @@ interface Props {
     globalPromoConfig: any;
 }
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 /**
  * Strict body-section renderer.
  * Each case renders ONLY if the section has meaningful data.
@@ -192,30 +194,37 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
 
         case 'CTA_VENDOR': {
             if (!config.title && !config.description && !config.buttonText) return null;
+            const isBgGif = isGif(config.bgImageUrl);
             return (
                 <section className={`${wrapper} mt-8 md:mt-10`}>
                     <div
                         className="rounded-xl sm:rounded-2xl md:rounded-3xl overflow-hidden relative p-5 sm:p-8 md:p-14 text-center shadow-xl"
                         style={{
-                            background: config.bgImageUrl
+                            background: config.bgImageUrl && !isBgGif
                                 ? `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)), url(${getAssetUrl(config.bgImageUrl)})`
                                 : 'linear-gradient(135deg, var(--primary, #0f172a) 0%, #1e40af 100%)',
                             backgroundSize: 'cover',
                             backgroundPosition: 'center',
                         }}
                     >
-                        <h2 className="text-lg sm:text-2xl md:text-4xl font-black text-white tracking-tight mb-2 sm:mb-3">
-                            {config.title || 'Rejoignez-nous en tant que vendeur'}
-                        </h2>
-                        <p className="text-white/90 text-xs sm:text-sm md:text-base max-w-2xl mx-auto mb-4 sm:mb-6 md:mb-8 font-medium">
-                            {config.description || 'Développez votre activité sur notre marketplace'}
-                        </p>
-                        <a
-                            href={config.buttonLink || '/vendor/register'}
-                            className="inline-flex items-center gap-2 bg-white text-secondary font-black px-4 sm:px-6 md:px-10 py-2.5 sm:py-3 md:py-4 rounded-xl hover:scale-105 active:scale-95 transition-transform shadow-lg text-xs sm:text-sm md:text-base"
-                        >
-                            {config.buttonText || 'Devenir vendeur'} →
-                        </a>
+                        {config.bgImageUrl && isBgGif && (
+                            <img src={getAssetUrl(config.bgImageUrl)} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
+                        )}
+                        {config.bgImageUrl && <div className="absolute inset-0 bg-black/50 z-0" />}
+                        <div className="relative z-10">
+                            <h2 className="text-lg sm:text-2xl md:text-4xl font-black text-white tracking-tight mb-2 sm:mb-3">
+                                {config.title || 'Rejoignez-nous en tant que vendeur'}
+                            </h2>
+                            <p className="text-white/90 text-xs sm:text-sm md:text-base max-w-2xl mx-auto mb-4 sm:mb-6 md:mb-8 font-medium">
+                                {config.description || 'Développez votre activité sur notre marketplace'}
+                            </p>
+                            <a
+                                href={config.buttonLink || '/vendor/register'}
+                                className="inline-flex items-center gap-2 bg-white text-secondary font-black px-4 sm:px-6 md:px-10 py-2.5 sm:py-3 md:py-4 rounded-xl hover:scale-105 active:scale-95 transition-transform shadow-lg text-xs sm:text-sm md:text-base"
+                            >
+                                {config.buttonText || 'Devenir vendeur'} →
+                            </a>
+                        </div>
                     </div>
                 </section>
             );

@@ -61,11 +61,11 @@ export default function RegisterPage() {
     useEffect(() => {
         const fetchFieldsAndProfile = async () => {
             try {
-                const { data } = await query(GET_REGISTRATION_FIELDS);
-                setFields(data.registrationFields || []);
+                const result = await query(GET_REGISTRATION_FIELDS, {}, {}) as any;
+                setFields(result?.data?.registrationFields || []);
 
                 if (isResubmit) {
-                    const { data: profileData } = await query(gql`
+                    const profileResult = await query(gql`
                         query GetMyVendorProfileForResubmit {
                             myVendorProfile {
                                 name
@@ -85,15 +85,15 @@ export default function RegisterPage() {
                                 dynamicDetails
                             }
                         }
-                    `, {}, { useAuthToken: true });
+                    `, {}, { useAuthToken: true }) as any;
 
-                    if (profileData.myVendorProfile) {
-                        // Pre-fill logic will rely on defaultValues if using react-hook-form, 
+                    if (profileResult?.data?.myVendorProfile) {
+                        // Pre-fill logic will rely on defaultValues if using react-hook-form,
                         // but here we are using standard form submission.
                         // We will set state to control input values or use defaultValue props.
                         // For simplicity in this server action setup, we might need to populate input defaultValues via JS or state.
                         // Let's store profile in state to access in render.
-                        setPreFilledProfile(profileData.myVendorProfile);
+                        setPreFilledProfile(profileResult.data.myVendorProfile);
                     }
                 }
             } catch (error) {
@@ -182,7 +182,7 @@ export default function RegisterPage() {
                                                 id={field.name}
                                                 name={field.name}
                                                 type="file"
-                                                accept="image/*,application/pdf"
+                                                accept="image/*,image/gif,application/pdf"
                                                 required={field.required && !isResubmit} // Allow skipping if resubmitting and file exists? Complex to detect, keeping required for now unless handled backend
                                                 className="block w-full"
                                             />
@@ -253,7 +253,7 @@ export default function RegisterPage() {
 
                 <p className="mt-10 text-center text-sm text-muted-foreground">
                     Déjà vendeur ?{' '}
-                    <Link href="/vendor/login" className="font-semibold leading-6 text-primary hover:text-primary/80">
+                    <Link href="/sign-in" className="font-semibold leading-6 text-primary hover:text-primary/80">
                         Connectez-vous ici
                     </Link>
                 </p>

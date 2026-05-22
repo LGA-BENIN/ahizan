@@ -7,6 +7,8 @@ interface QuickLinksProps {
     promoConfig: any;
 }
 
+const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
 export function QuickLinks({ promoConfig }: QuickLinksProps) {
     // Support both old single banner and new multi-banner
     const activeBanners = (promoConfig.promoBanners || [])
@@ -61,6 +63,8 @@ function BraderieBanner({ promoBanner }: { promoBanner: any }) {
         padding = '24px 32px',
     } = promoBanner;
 
+    const isBgGif = isGif(bgImageUrl);
+
     // Build background style — use auto height on phones so content doesn't overflow
     const bgStyle: React.CSSProperties = {
         minHeight: height,
@@ -75,7 +79,7 @@ function BraderieBanner({ promoBanner }: { promoBanner: any }) {
         bgStyle.backgroundColor = bgColor;
     } else if (bgType === 'gradient') {
         bgStyle.background = bgGradient || bgStyle.backgroundColor;
-    } else if (bgType === 'image' && bgImageUrl) {
+    } else if (bgType === 'image' && bgImageUrl && !isBgGif) {
         bgStyle.backgroundImage = `url("${getAssetUrl(bgImageUrl)}")`;
         bgStyle.backgroundSize = 'cover';
         bgStyle.backgroundPosition = 'center';
@@ -95,6 +99,15 @@ function BraderieBanner({ promoBanner }: { promoBanner: any }) {
                     >
                         <source src={getAssetUrl(bgVideoUrl)} type="video/mp4" />
                     </video>
+                )}
+
+                {/* GIF background */}
+                {bgType === 'image' && bgImageUrl && isBgGif && (
+                    <img
+                        src={getAssetUrl(bgImageUrl)}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover z-0"
+                    />
                 )}
 
                 {/* Overlay for image/video */}

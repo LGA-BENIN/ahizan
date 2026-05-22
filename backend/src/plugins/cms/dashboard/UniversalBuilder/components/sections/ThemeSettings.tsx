@@ -53,7 +53,8 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
             enableSmoothScroll: true,
             preloader: { type: 'default', url: '', bgColor: '#ffffff', duration: 2 },
             scrollToTop: { enabled: true, style: 'circle', color: '#0f172a' },
-            favicon: ''
+            favicon: '',
+            defaultProductImage: ''
         };
         setConfig({ ...defaults, ...data });
     }, [data]);
@@ -402,6 +403,9 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                         <label className="label-pro">URL du Favicon</label>
                         <input className="input-pro" value={config.favicon} onChange={(e) => handleChange('favicon', e.target.value)} placeholder="/favicon.ico" />
                     </div>
+                </div>
+                <div style={{ marginTop: '1rem' }}>
+                    <FileUploadField label="Image par défaut pour produits sans image" value={config.defaultProductImage} onChange={(v) => handleChange('defaultProductImage', v)} accept="image/*,image/gif" />
                 </div>
             </div>
 

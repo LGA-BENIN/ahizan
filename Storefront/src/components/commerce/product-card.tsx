@@ -1,9 +1,13 @@
+"use client";
+
 import Image from 'next/image';
 import {FragmentOf, readFragment} from '@/graphql';
 import {ProductCardFragment} from '@/lib/vendure/fragments';
 import {Price} from '@/components/commerce/price';
 import {Suspense} from "react";
 import Link from "next/link";
+import { useThemeSettings } from '@/components/providers/theme-provider';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface ProductCardProps {
     product: FragmentOf<typeof ProductCardFragment>;
@@ -13,8 +17,12 @@ const isGif = (url: string | undefined | null) => url?.toLowerCase().endsWith('.
 
 export function ProductCard({product: productProp}: ProductCardProps) {
     const product = readFragment(ProductCardFragment, productProp);
+    const themeSettings = useThemeSettings();
     const imageUrl = product.productAsset?.preview;
     const isImageGif = isGif(imageUrl);
+    const defaultImage = themeSettings?.defaultProductImage;
+    const displayImageUrl = imageUrl || defaultImage;
+    const isDisplayGif = isGif(displayImageUrl);
 
     return (
         <Link
@@ -22,16 +30,16 @@ export function ProductCard({product: productProp}: ProductCardProps) {
             className="group block bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow"
         >
             <div className="aspect-square relative bg-muted">
-                {imageUrl ? (
-                    isImageGif ? (
+                {displayImageUrl ? (
+                    isDisplayGif ? (
                         <img
-                            src={imageUrl}
+                            src={getAssetUrl(displayImageUrl)}
                             alt={product.productName}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                     ) : (
                         <Image
-                            src={imageUrl}
+                            src={getAssetUrl(displayImageUrl) as string}
                             alt={product.productName}
                             fill
                             className="object-cover group-hover:scale-105 transition-transform duration-300"

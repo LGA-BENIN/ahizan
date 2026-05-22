@@ -1,16 +1,29 @@
 "use client";
 
 import {ThemeProvider as NextThemesProvider} from "next-themes";
+import { createContext, useContext, ReactNode } from "react";
 
-export function ThemeProvider({children}: {children: React.ReactNode}) {
+export interface ThemeSettings {
+    defaultProductImage?: string;
+}
+
+const ThemeSettingsContext = createContext<ThemeSettings | undefined>(undefined);
+
+export function useThemeSettings() {
+    return useContext(ThemeSettingsContext);
+}
+
+export function ThemeProvider({children, themeSettings}: {children: React.ReactNode; themeSettings?: ThemeSettings}) {
     return (
-        <NextThemesProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-        >
-            {children}
-        </NextThemesProvider>
+        <ThemeSettingsContext.Provider value={themeSettings}>
+            <NextThemesProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+            >
+                {children}
+            </NextThemesProvider>
+        </ThemeSettingsContext.Provider>
     );
 }

@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useThemeSettings } from '@/components/providers/theme-provider';
 
 interface FlashSaleSectionProps {
     config: any;
@@ -19,6 +20,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     const [flashProducts, setFlashProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [timeLeft, setTimeLeft] = useState({ h: '00', m: '00', s: '00' });
+    const themeSettings = useThemeSettings();
+    const defaultImage = themeSettings?.defaultProductImage;
 
     useEffect(() => {
         if (!activeFlash?.endTime) return;
@@ -344,7 +347,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
                                 ) : (
                                     <img 
-                                        src={p.assets?.[0]?.preview || undefined} 
+                                        src={getAssetUrl(p.assets?.[0]?.preview || defaultImage)} 
                                         className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-2" 
                                         alt={p.name} 
                                     />

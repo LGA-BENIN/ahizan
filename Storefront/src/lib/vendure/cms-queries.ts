@@ -85,6 +85,7 @@ export interface ThemeSettingsData {
     preloader?: { type: string; url?: string; bgColor?: string; duration?: number };
     scrollToTop?: { enabled?: boolean; style?: string; color?: string };
     favicon?: string;
+    defaultProductImage?: string;
     cookieConsent?: any;
 }
 

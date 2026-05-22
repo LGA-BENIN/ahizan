@@ -76,7 +76,7 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
             className="flex flex-col min-h-screen relative overflow-x-hidden"
             style={themeStyles}
         >
-            <ThemeProvider>
+            <ThemeProvider themeSettings={{ defaultProductImage: theme?.defaultProductImage }}>
                 <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
                     {bgType === 'color' && (
                         <div className="absolute inset-0" style={{ background: bgValue }} />

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Star } from "lucide-react";
+import { useThemeSettings } from '@/components/providers/theme-provider';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface DenseProductCardProps {
     product: any;
@@ -47,8 +49,11 @@ export function DenseProductCard({
     imageRatio = '4:3',
     facetMap,
 }: DenseProductCardProps) {
+    const themeSettings = useThemeSettings();
     const price = getPrice(product);
     const maxPrice = getMaxPrice(product);
+    const defaultImage = themeSettings?.defaultProductImage;
+    const imageUrl = product.productAsset?.preview || defaultImage;
 
     // Determine discount percentage
     let discountPercent: number | null = null;
@@ -88,9 +93,9 @@ export function DenseProductCard({
         >
             {/* Image */}
             <div className={`${aspectClass} relative bg-muted/10 overflow-hidden`}>
-                {product.productAsset ? (
+                {imageUrl ? (
                     <img
-                        src={product.productAsset.preview || undefined}
+                        src={getAssetUrl(imageUrl)}
                         alt={product.productName}
                         className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                     />

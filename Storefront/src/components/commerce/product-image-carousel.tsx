@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useThemeSettings } from '@/components/providers/theme-provider';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface ProductImageCarouselProps {
     images: Array<{
@@ -17,8 +19,12 @@ const isGif = (url: string) => url.toLowerCase().endsWith('.gif');
 
 export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const themeSettings = useThemeSettings();
+    const defaultImage = themeSettings?.defaultProductImage;
 
-    if (!images || images.length === 0) {
+    const displayImages = images && images.length > 0 ? images : (defaultImage ? [{ id: 'default', preview: defaultImage, source: defaultImage }] : []);
+
+    if (!displayImages || displayImages.length === 0) {
         return (
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
                 <span className="text-muted-foreground">No images available</span>
@@ -27,14 +33,14 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
     }
 
     const goToPrevious = () => {
-        setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+        setCurrentIndex((prev) => (prev === 0 ? displayImages.length - 1 : prev - 1));
     };
 
     const goToNext = () => {
-        setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+        setCurrentIndex((prev) => (prev === displayImages.length - 1 ? 0 : prev + 1));
     };
 
-    const currentImage = images[currentIndex];
+    const currentImage = displayImages[currentIndex];
     const isCurrentGif = isGif(currentImage.source);
 
     return (
@@ -43,13 +49,13 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
             <div className="relative aspect-square bg-muted rounded-xl overflow-hidden group border border-border/40 shadow-sm">
                 {isCurrentGif ? (
                     <img
-                        src={currentImage.source}
+                        src={getAssetUrl(currentImage.source)}
                         alt={`Product image ${currentIndex + 1}`}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                 ) : (
                     <Image
-                        src={currentImage.source}
+                        src={getAssetUrl(currentImage.source) as string}
                         alt={`Product image ${currentIndex + 1}`}
                         fill
                         className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -59,7 +65,7 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
                 )}
 
                 {/* Navigation Arrows */}
-                {images.length > 1 && (
+                {displayImages.length > 1 && (
                     <>
                         <Button
                             variant="ghost"
@@ -81,17 +87,17 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
                 )}
 
                 {/* Image Counter */}
-                {images.length > 1 && (
+                {displayImages.length > 1 && (
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-background/60 backdrop-blur-sm px-2 py-0.5 rounded-full text-[10px] font-bold border border-border/20 shadow-sm">
-                        {currentIndex + 1} / {images.length}
+                        {currentIndex + 1} / {displayImages.length}
                     </div>
                 )}
             </div>
 
             {/* Thumbnail Grid */}
-            {images.length > 1 && (
+            {displayImages.length > 1 && (
                 <div className="flex flex-wrap gap-2 justify-center">
-                    {images.map((image, index) => {
+                    {displayImages.map((image, index) => {
                         const isThumbnailGif = isGif(image.preview);
                         return (
                             <button
@@ -105,13 +111,13 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
                             >
                                 {isThumbnailGif ? (
                                     <img
-                                        src={image.preview}
+                                        src={getAssetUrl(image.preview)}
                                         alt={`Thumbnail ${index + 1}`}
                                         className="w-full h-full object-cover"
                                     />
                                 ) : (
                                     <Image
-                                        src={image.preview}
+                                        src={getAssetUrl(image.preview) as string}
                                         alt={`Thumbnail ${index + 1}`}
                                         fill
                                         className="object-cover"

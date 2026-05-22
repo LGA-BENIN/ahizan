@@ -6,6 +6,8 @@ import { DenseProductCard } from "@/components/commerce/dense-product-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useThemeSettings } from '@/components/providers/theme-provider';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface TabConfig {
     id: string;
@@ -43,6 +45,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
     const [activeTab, setActiveTab] = useState(props.tabs?.[props.defaultTabIndex || 0]?.id || '');
     const [productsMap, setProductsMap] = useState<Record<string, any[]>>({});
     const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
+    const themeSettings = useThemeSettings();
+    const defaultImage = themeSettings?.defaultProductImage;
 
     const fetchProducts = useCallback(async (tab: TabConfig) => {
         if (!tab) return;
@@ -185,12 +189,16 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             className="group bg-white rounded-xl overflow-hidden border border-border/30 hover:shadow-lg transition-all"
                         >
                             <div className="aspect-square bg-muted/10 relative overflow-hidden">
-                                {p.productAsset?.preview && (
+                                {(p.productAsset?.preview || defaultImage) ? (
                                     <img
-                                        src={p.productAsset.preview}
+                                        src={getAssetUrl(p.productAsset?.preview || defaultImage)}
                                         alt={p.productName}
                                         className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
                                     />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                        Aucune image
+                                    </div>
                                 )}
                             </div>
                             <div className="p-3">

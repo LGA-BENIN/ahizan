@@ -8,6 +8,7 @@ import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
 import { MobileCategorySidebar } from "@/components/ahizan/MobileCategorySidebar";
 import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { SITE_NAME, SITE_URL } from "@/lib/metadata";
 import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
 import { CookieConsent } from "@/components/ahizan/cookie-consent";
@@ -78,8 +79,9 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
             className="flex flex-col min-h-screen relative overflow-x-hidden"
             style={themeStyles}
         >
-            <ThemeProvider themeSettings={{ defaultProductImage: theme?.defaultProductImage }}>
-                <MobileMenuProvider>
+            <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
+                <ThemeProvider themeSettings={{ defaultProductImage: theme?.defaultProductImage }}>
+                    <MobileMenuProvider>
                     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
                         {bgType === 'color' && (
                             <div className="absolute inset-0" style={{ background: bgValue }} />
@@ -129,7 +131,8 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     </Suspense>
                     <CookieConsent config={theme?.cookieConsent} />
                 </MobileMenuProvider>
-            </ThemeProvider>
+                </ThemeProvider>
+            </NextThemesProvider>
         </div>
     );
 }

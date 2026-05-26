@@ -6,7 +6,6 @@ import { Search, User, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu } f
 import { useState, useRef, useEffect } from "react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
-import { ThemeSwitcher } from "@/components/layout/navbar/theme-switcher";
 
 export function AhizanNavbar({ 
     config, 
@@ -199,8 +198,6 @@ export function AhizanNavbar({
                                 {vendorLinkText}
                             </Link>
                         )}
-
-                        <ThemeSwitcher />
 
                         {showAccountIcon && (
                             <Link href={isLoggedIn ? "/account" : "/sign-in"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">

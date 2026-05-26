@@ -3,11 +3,19 @@
 import React from 'react';
 import Link from 'next/link';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { useMobileMenu } from '@/contexts/mobile-menu-context';
 
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
 export function TopFlashBanner({ config }: { config?: any }) {
+    const { mobileMenuOpen } = useMobileMenu();
+
     if (!config || !config.enabled) {
+        return null;
+    }
+
+    // Hide banner on mobile when menu is open
+    if (mobileMenuOpen) {
         return null;
     }
 

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
 import { AhizanPreloader } from "@/components/ahizan/Preloader";
 import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
+import { MobileCategorySidebar } from "@/components/ahizan/MobileCategorySidebar";
 import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SITE_NAME, SITE_URL } from "@/lib/metadata";
@@ -13,6 +14,7 @@ import { CookieConsent } from "@/components/ahizan/cookie-consent";
 import { getPageContent, ThemeSettingsData, FooterConfData, HeaderConfData } from "@/lib/vendure/cms-queries";
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
+import { MobileMenuProvider, MobileMenuHeader } from "@/contexts/mobile-menu-context";
 
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
@@ -77,49 +79,56 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
             style={themeStyles}
         >
             <ThemeProvider themeSettings={{ defaultProductImage: theme?.defaultProductImage }}>
-                <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                    {bgType === 'color' && (
-                        <div className="absolute inset-0" style={{ background: bgValue }} />
-                    )}
-                    {bgType === 'image' && bgValue && (
-                        <div
-                            className="absolute inset-0 bg-cover bg-center bg-fixed"
-                            style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
-                        />
-                    )}
-                    {bgType === 'video' && bgValue && (
-                        <video
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            key={bgValue}
-                            className="absolute min-w-full min-h-full object-cover opacity-60"
-                        >
-                            <source src={getAssetUrl(bgValue)} type="video/mp4" />
-                        </video>
-                    )}
-                </div>
+                <MobileMenuProvider>
+                    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                        {bgType === 'color' && (
+                            <div className="absolute inset-0" style={{ background: bgValue }} />
+                        )}
+                        {bgType === 'image' && bgValue && (
+                            <div
+                                className="absolute inset-0 bg-cover bg-center bg-fixed"
+                                style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
+                            />
+                        )}
+                        {bgType === 'video' && bgValue && (
+                            <video
+                                autoPlay
+                                muted
+                                loop
+                                playsInline
+                                key={bgValue}
+                                className="absolute min-w-full min-h-full object-cover opacity-60"
+                            >
+                                <source src={getAssetUrl(bgValue)} type="video/mp4" />
+                            </video>
+                        )}
+                    </div>
 
-                <div className="sticky top-0 z-50 w-full shadow-sm">
-                    <TopFlashBanner config={headerConfig?.topBar} />
-                    <AhizanNavbar 
-                        config={headerConfig} 
-                        customer={customer}
-                        order={order}
-                    />
-                </div>
+                    <MobileMenuHeader>
+                        <div className="sticky top-0 z-50 w-full shadow-sm">
+                            <TopFlashBanner config={headerConfig?.topBar} />
+                            <AhizanNavbar
+                                config={headerConfig}
+                                customer={customer}
+                                order={order}
+                            />
+                        </div>
+                    </MobileMenuHeader>
 
-                <main className="relative z-10 flex-grow w-full mx-auto">
-                    {children}
-                </main>
+                    {/* Global mobile category sidebar - available on all pages */}
+                    <MobileCategorySidebar />
 
-                <Footer config={footer} />
-                <Toaster />
-                <Suspense fallback={null}>
-                    <GlobalPopupProvider />
-                </Suspense>
-                <CookieConsent config={theme?.cookieConsent} />
+                    <main className="relative z-10 flex-grow w-full mx-auto">
+                        {children}
+                    </main>
+
+                    <Footer config={footer} />
+                    <Toaster />
+                    <Suspense fallback={null}>
+                        <GlobalPopupProvider />
+                    </Suspense>
+                    <CookieConsent config={theme?.cookieConsent} />
+                </MobileMenuProvider>
             </ThemeProvider>
         </div>
     );

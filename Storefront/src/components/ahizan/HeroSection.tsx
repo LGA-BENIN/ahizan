@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { 
-    Smartphone, 
-    Headset, 
-    Phone, 
+import {
+    Smartphone,
+    Headset,
+    Phone,
     Store,
     ChevronLeft,
     ChevronRight,
@@ -15,6 +15,7 @@ import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useMobileMenu } from "@/contexts/mobile-menu-context";
 
 interface HeroSectionProps {
     heroConfig: any;
@@ -26,12 +27,20 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
     const template = heroConfig?.selectedTemplate || 'classic';
     const config = heroConfig?.[template] || {};
     const [hoveredCat, setHoveredCat] = useState<any>(null);
+    const { setPromoConfig } = useMobileMenu();
 
     const hClass = "h-[200px] sm:h-[260px] md:h-[340px]";
 
+    // Share promoConfig with mobile sidebar via context
+    useEffect(() => {
+        if (promoConfig) {
+            setPromoConfig(promoConfig);
+        }
+    }, [promoConfig, setPromoConfig]);
+
     return (
-        <div className="flex flex-col lg:flex-row gap-3 md:gap-4">
-            {/* Left Sidebar - Categories */}
+        <div className="flex flex-col lg:flex-row gap-3 md:gap-4 relative">
+            {/* Left Sidebar - Categories (Desktop only, mobile is in MobileCategorySidebar) */}
             {heroConfig.showSidebar && (
                 <aside 
                     className={`hidden lg:flex w-60 border border-border/60 rounded-2xl self-stretch bg-white shadow-sm relative z-50`}
@@ -84,19 +93,27 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
                     </div>
                     {/* Mega-menu style subcategory flyout rendered outside the overflow container */}
                     {hoveredCat && hoveredCat.children?.length > 0 && (
-                        <div className="absolute left-full top-0 ml-2 bg-white border border-border/60 rounded-xl shadow-xl py-4 px-6 min-w-[250px] min-h-full z-[100] flex flex-col animate-in fade-in slide-in-from-left-2 duration-200">
+                        <div className="absolute left-full top-0 ml-2 bg-white border border-border/60 rounded-xl shadow-xl py-4 px-5 min-w-[280px] max-w-[400px] max-h-[500px] overflow-y-auto z-[100] flex flex-col animate-in fade-in slide-in-from-left-2 duration-200">
                             <div className="pb-3 border-b border-border/40 mb-3">
                                 <span className="font-bold text-[14px] text-foreground">{hoveredCat.name}</span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 content-start">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 content-start">
                                 {hoveredCat.children.map((sub: any) => (
                                     <Link
                                         key={sub.id}
                                         href={`/collection/${sub.slug}`}
-                                        className="flex items-center gap-2 py-1.5 text-[13px] text-foreground/80 hover:text-primary transition-colors whitespace-nowrap"
+                                        className="group/sub flex items-start gap-2 p-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200 border border-transparent hover:border-border/30"
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                                        <span className="font-medium">{sub.name}</span>
+                                        <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            {sub.icon ? (
+                                                <span className="text-foreground/70 group-hover/sub:text-primary transition-colors">{sub.icon}</span>
+                                            ) : (
+                                                <div className="w-2 h-2 rounded-full bg-primary/40 group-hover/sub:bg-primary transition-colors" />
+                                            )}
+                                        </div>
+                                        <span className="text-[13px] text-foreground/80 group-hover/sub:text-primary font-medium leading-snug break-words">
+                                            {sub.name}
+                                        </span>
                                     </Link>
                                 ))}
                             </div>

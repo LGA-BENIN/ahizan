@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, User, HelpCircle, ShoppingCart, ChevronDown, Heart, X } from "lucide-react";
+import { Search, User, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
+import { useMobileMenu } from "@/contexts/mobile-menu-context";
+import { ThemeSwitcher } from "@/components/layout/navbar/theme-switcher";
 
 export function AhizanNavbar({ 
     config, 
@@ -16,9 +18,17 @@ export function AhizanNavbar({
     order?: any;
 }) {
     const router = useRouter();
+    const { mobileMenuOpen, setMobileMenuOpen, setLogoUrl } = useMobileMenu();
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
+
+    // Set logo URL in context when config changes
+    useEffect(() => {
+        if (config?.logoUrl) {
+            setLogoUrl(config.logoUrl);
+        }
+    }, [config?.logoUrl, setLogoUrl]);
 
     const handleSearch = () => {
         const q = searchQuery.trim();
@@ -92,8 +102,8 @@ export function AhizanNavbar({
             )}
 
             {/* Main Header */}
-            <div 
-                className={`w-full ${headerShadow ? 'shadow-sm' : ''} sticky top-0 z-50 animate-in slide-in-from-top-2 duration-500`}
+            <div
+                className={`w-full ${headerShadow ? 'shadow-sm' : ''} sticky top-0 z-50 animate-in slide-in-from-top-2 duration-500 ${mobileMenuOpen ? 'hidden lg:block' : ''}`}
                 style={{
                     backgroundColor: headerBgColor,
                     color: headerTextColor,
@@ -104,6 +114,15 @@ export function AhizanNavbar({
                     className="max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 flex items-center gap-3 sm:gap-6 md:gap-12"
                     style={{ height: headerHeight, minHeight: '56px' }}
                 >
+                    {/* Mobile Menu Toggle Button */}
+                    <button
+                        onClick={() => setMobileMenuOpen(true)}
+                        className="lg:hidden p-2 rounded-xl border border-border/50 bg-muted/10 hover:bg-muted/30 transition-colors"
+                        aria-label="Open menu"
+                    >
+                        <Menu className="w-5 h-5 text-foreground" />
+                    </button>
+
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-1 flex-shrink-0">
                         {logoUrl ? (
@@ -180,6 +199,8 @@ export function AhizanNavbar({
                                 {vendorLinkText}
                             </Link>
                         )}
+
+                        <ThemeSwitcher />
 
                         {showAccountIcon && (
                             <Link href={isLoggedIn ? "/account" : "/sign-in"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">

@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import Link from 'next/link';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 import {
     Dialog,
     DialogContent,
@@ -79,7 +80,7 @@ export function PopupSection({
                     {imageUrl && (
                         <div className="relative h-64 w-full">
                             <Image
-                                src={imageUrl}
+                                src={getAssetUrl(imageUrl) || imageUrl}
                                 alt={title}
                                 fill
                                 className="object-cover"

@@ -2,6 +2,8 @@ import { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
     cacheComponents: false,
+    devIndicators: false,
+    allowedDevOrigins: ['seller.ahizan.com'],
     images: {
         // This is necessary to display images from your local Vendure instance
         dangerouslyAllowLocalIP: true,
@@ -16,10 +18,22 @@ const nextConfig: NextConfig = {
                 hostname: 'localhost'
             },
             {
+                hostname: 'api.ahizan.com'
+            },
+            {
+                hostname: 'media.ahizan.com'
+            },
+            {
+                hostname: 'ahizan_backend'
+            },
+            {
                 hostname: 'images.unsplash.com'
             },
             {
                 hostname: '**.unsplash.com'
+            },
+            {
+                hostname: 'ahizan_backend'
             }
         ],
     },
@@ -27,6 +41,7 @@ const nextConfig: NextConfig = {
         rootParams: true,
         serverActions: {
             bodySizeLimit: '50mb',
+            allowedOrigins: ['seller.ahizan.com', 'localhost:3000'],
         },
     },
     typescript: {

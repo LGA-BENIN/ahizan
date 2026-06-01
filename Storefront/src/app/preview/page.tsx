@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CmsSection, ThemeSettingsData, HeaderConfData, FooterConfData } from "@/lib/vendure/cms-queries";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
+import { MobileMenuProvider } from "@/contexts/mobile-menu-context";
 
 interface PreviewSection {
     id: string;
@@ -46,9 +47,12 @@ function PreviewContent() {
             return;
         }
 
+        setError("");
+        setLoading(true);
+
         const fetchPreview = async () => {
             try {
-                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
 
                 const res = await fetch(shopApiUrl, {
                     method: "POST",
@@ -244,12 +248,14 @@ function PreviewContent() {
 
 export default function PreviewPage() {
     return (
-        <Suspense fallback={
-            <div className="fixed inset-0 z-[9999] bg-white flex items-center justify-center">
-                <Skeleton className="w-12 h-12 rounded-full" />
-            </div>
-        }>
-            <PreviewContent />
-        </Suspense>
+        <MobileMenuProvider>
+            <Suspense fallback={
+                <div className="fixed inset-0 z-[9999] bg-white flex items-center justify-center">
+                    <Skeleton className="w-12 h-12 rounded-full" />
+                </div>
+            }>
+                <PreviewContent />
+            </Suspense>
+        </MobileMenuProvider>
     );
 }

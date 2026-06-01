@@ -16,6 +16,7 @@ import { getPageContent, ThemeSettingsData, FooterConfData, HeaderConfData } fro
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
 import { MobileMenuProvider, MobileMenuHeader } from "@/contexts/mobile-menu-context";
+import { getTopCollections } from "@/lib/vendure/cached";
 
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
@@ -27,10 +28,25 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
     const footer = sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
 
     // Because of 'use cache: private', this will now safely wait for a real user request!
-    const [customer, order] = await Promise.all([
+    const [customer, order, collectionsTree] = await Promise.all([
         getActiveCustomer(),
-        getActiveOrder()
+        getActiveOrder(),
+        getTopCollections()
     ]);
+    
+    // We only keep the required fields to reduce payload size, same structure as client used to do
+    const collections = ((collectionsTree as any[]) || []).map((coll: any) => ({
+        id: coll.id,
+        name: coll.name,
+        slug: coll.slug,
+        featuredAsset: coll.featuredAsset,
+        children: (coll.children || []).map((child: any) => ({
+            id: child.id,
+            name: child.name,
+            slug: child.slug,
+            featuredAsset: child.featuredAsset
+        }))
+    }));
 
     const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
 
@@ -118,7 +134,7 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     </MobileMenuHeader>
 
                     {/* Global mobile category sidebar - available on all pages */}
-                    <MobileCategorySidebar />
+                    <MobileCategorySidebar categories={collections} />
 
                     <main className="relative z-10 flex-grow w-full mx-auto">
                         {children}

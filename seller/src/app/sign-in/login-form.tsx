@@ -19,7 +19,7 @@ import {
 import Link from 'next/link';
 
 const loginSchema = z.object({
-    username: z.email('Please enter a valid email address'),
+    username: z.string().min(1, 'Username/Email is required'),
     password: z.string().min(1, 'Password is required'),
 });
 
@@ -84,8 +84,8 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
                                         <Input
-                                            type="email"
-                                            placeholder="you@example.com"
+                                            type="text"
+                                            placeholder="email or username"
                                             disabled={isPending}
                                             {...field}
                                         />

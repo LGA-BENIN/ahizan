@@ -18,7 +18,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - STOREFRONT_URL=https://ahizan.com
-      - ASSET_URL_PREFIX=https://media.ahizan.com
+      - ASSET_URL_PREFIX=https://api.ahizan.com/assets/
       # Autres variables Vendure
     labels:
       - "VIRTUAL_HOST=api.ahizan.com,administrator.ahizan.com"
@@ -26,6 +26,8 @@ services:
     networks:
       - web
       - internal
+    volumes:
+      - ./backend/static/assets:/usr/src/app/static/assets
 
   storefront:
     build:

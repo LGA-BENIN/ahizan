@@ -48,11 +48,7 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
     useEffect(() => {
         const fetchOptions = async () => {
             try {
-                const [collData, treeData] = await Promise.all([
-                    fetchGraphQL(`query GetCollections { collections { items { id name slug } } }`),
-                    fetchGraphQL(`query GetCmsCollectionsTree { cmsCollectionsTree { id name slug children { id name slug } } }`)
-                ]);
-                setCollections(collData?.collections?.items || []);
+                const treeData = await fetchGraphQL(`query GetCmsCollectionsTree { cmsCollectionsTree { id name slug children { id name slug } } }`);
                 setCollectionTree(treeData?.cmsCollectionsTree || []);
             } catch (err) {
                 console.error('Failed to fetch options:', err);
@@ -67,10 +63,31 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
         const current = config.collectionIds || [];
         const newIds = current.includes(id) ? current.filter((cid: string) => cid !== id) : [...current, id];
         
+        let firstSlug = '';
+        if (newIds.length > 0) {
+            if (newIds[0] === id && slug) {
+                firstSlug = slug;
+            } else {
+                const findSlug = (nodes: any[]): string => {
+                    for (const n of nodes) {
+                        if (n.id === newIds[0]) return n.slug;
+                        if (n.children) {
+                            const res = findSlug(n.children);
+                            if (res) return res;
+                        }
+                    }
+                    return '';
+                };
+                firstSlug = findSlug(collectionTree);
+            }
+        }
+        
         setConfig({
             ...config,
             collectionIds: newIds,
-            collectionSlug: newIds.length > 0 ? (slug || collections.find(c => c.id === newIds[0])?.slug || '') : ''
+            collectionSlug: firstSlug,
+            // Also automatically set filterType to COLLECTION so it actually filters on storefront
+            filterType: newIds.length > 0 ? 'COLLECTION' : 'LATEST'
         });
     };
 

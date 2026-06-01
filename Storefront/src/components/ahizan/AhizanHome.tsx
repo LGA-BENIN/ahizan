@@ -6,6 +6,7 @@ import { HomeModal } from "./HomeModal";
 import { BodySectionRenderer } from "./BodySectionRenderer";
 import { SectionCodeWrapper } from "./SectionCodeWrapper";
 import { CmsSection } from "@/lib/vendure/cms-queries";
+import { getShopApiUrl } from "@/lib/vendure/api-utils";
 
 export function AhizanHome({ sections }: { sections: CmsSection[] }) {
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
@@ -24,7 +25,7 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
                 }
             `;
             try {
-                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+                const shopApiUrl = getShopApiUrl();
                 const res = await fetch(shopApiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

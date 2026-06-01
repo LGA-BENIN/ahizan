@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { ChevronRight, ChevronLeft } from "lucide-react";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useThemeSettings } from '@/components/providers/theme-provider';
-import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
 
 interface TabConfig {
     id: string;
@@ -38,7 +39,7 @@ function formatCFA(price: number): string {
         currency: 'XOF',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-    }).format(price / 100);
+    }).format(price);
 }
 
 export function TabbedProductGrid(props: TabbedProductGridProps) {
@@ -47,6 +48,15 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
     const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
     const themeSettings = useThemeSettings();
     const defaultImage = themeSettings?.defaultProductImage;
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollContainerRef.current) {
+            const { current } = scrollContainerRef;
+            const scrollAmount = current.clientWidth * 0.8;
+            current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+        }
+    };
 
     const fetchProducts = useCallback(async (tab: TabConfig) => {
         if (!tab) return;
@@ -97,14 +107,51 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             }
 
             try {
-                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+                const shopApiUrl = getShopApiUrl();
                 const res = await fetch(shopApiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery, variables: { input } }),
                 });
                 const data = await res.json();
-                return data.data?.search?.items || [];
+                let items = data.data?.search?.items || [];
+                
+                // Fallback for when Vendure search index is empty but collection has direct variants
+                if (items.length === 0 && collectionSlug) {
+                    const fallbackQuery = `
+                        query GetFallback($slug: String!, $take: Int!) {
+                            collection(slug: $slug) {
+                                productVariants(options: { take: $take }) {
+                                    items {
+                                        product { id name slug assets { preview } }
+                                        priceWithTax
+                                        currencyCode
+                                    }
+                                }
+                            }
+                        }
+                    `;
+                    const fallbackRes = await fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: fallbackQuery, variables: { slug: collectionSlug, take } }),
+                    });
+                    const fallbackData = await fallbackRes.json();
+                    const variants = fallbackData.data?.collection?.productVariants?.items || [];
+                    if (variants.length > 0) {
+                        items = variants.map((v: any) => ({
+                            productId: v.product.id,
+                            productName: v.product.name,
+                            slug: v.product.slug,
+                            productAsset: v.product.assets?.[0],
+                            priceWithTax: { value: v.priceWithTax },
+                            currencyCode: v.currencyCode,
+                            inStock: true
+                        }));
+                    }
+                }
+                
+                return items;
             } catch (err) {
                 console.error('Error fetching tab products:', err);
                 return [];
@@ -162,6 +209,23 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         const loading = loadingMap[tab.id] ?? true;
 
         if (loading) {
+            if (props.layout === 'carousel') {
+                return (
+                    <div className={`flex overflow-x-auto snap-x snap-mandatory no-scrollbar ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'} pb-4`}>
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div key={i} className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px]">
+                                <Card className="overflow-hidden h-full">
+                                    <Skeleton className="aspect-[4/3] w-full" />
+                                    <CardContent className="p-2 space-y-2">
+                                        <Skeleton className="h-3 w-3/4" />
+                                        <Skeleton className="h-4 w-1/2" />
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
             return (
                 <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'}`}>
                     {Array.from({ length: tab.take || 10 }).map((_, i) => (
@@ -173,6 +237,78 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             </CardContent>
                         </Card>
                     ))}
+                </div>
+            );
+        }
+
+        if (products.length === 0) {
+            return (
+                <div className="text-center py-12 text-muted-foreground text-sm bg-muted/20 rounded-xl border border-border/30">
+                    Aucun produit disponible dans cette sélection pour le moment.
+                </div>
+            );
+        }
+
+        if (props.layout === 'carousel') {
+            return (
+                <div className="relative group/carousel">
+                    {/* Left Navigation Arrow */}
+                    <button 
+                        onClick={() => scroll('left')}
+                        className="absolute left-0 top-1/2 -translate-y-1/2 -ml-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la gauche"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    {/* Right Navigation Arrow */}
+                    <button 
+                        onClick={() => scroll('right')}
+                        className="absolute right-0 top-1/2 -translate-y-1/2 -mr-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la droite"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+
+                    <div 
+                        ref={scrollContainerRef}
+                        className={`flex overflow-x-auto snap-x snap-mandatory no-scrollbar ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'} pb-4`}
+                    >
+                        {products.map((p: any) => (
+                            <div key={p.productId} className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px]">
+                                {props.cardStyle === 'dense' ? (
+                                    <DenseProductCard product={p} />
+                                ) : (
+                                    <Link
+                                        href={`/product/${p.slug}`}
+                                        className="group bg-white rounded-xl overflow-hidden border border-border/30 hover:shadow-lg transition-all block h-full"
+                                    >
+                                        <div className="aspect-square bg-muted/10 relative overflow-hidden">
+                                            {(p.productAsset?.preview || defaultImage) ? (
+                                                <img
+                                                    src={getAssetUrl(p.productAsset?.preview || defaultImage)}
+                                                    alt={p.productName}
+                                                    className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                                    Aucune image
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="p-3 flex flex-col justify-between" style={{ height: 'calc(100% - auto)' }}>
+                                            <h3 className="font-semibold text-xs md:text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                                                {p.productName}
+                                            </h3>
+                                            <span className="font-black text-sm text-primary">
+                                                {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
+                                            </span>
+                                        </div>
+                                    </Link>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }

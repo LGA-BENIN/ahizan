@@ -2,7 +2,6 @@ const AUTH_TOKEN_COOKIE = process.env.VENDURE_AUTH_TOKEN_COOKIE || 'vendure-auth
 
 export async function setAuthToken(token: string) {
     const isSecure = process.env.NODE_ENV === 'production';
-    // const isSecure = false; // FORCE FALSE FOR DEBUGGING IF NEEDED
     console.log(`Setting auth token cookie: ${AUTH_TOKEN_COOKIE}=${token.substring(0, 10)}... (secure: ${isSecure})`);
 
     if (typeof window === 'undefined') {
@@ -12,7 +11,7 @@ export async function setAuthToken(token: string) {
             name: AUTH_TOKEN_COOKIE,
             value: token,
             httpOnly: true,
-            secure: false, // Force false for localhost debugging
+            secure: isSecure,
             sameSite: 'lax',
             path: '/',
             maxAge: 60 * 60 * 24 * 30, // 30 days

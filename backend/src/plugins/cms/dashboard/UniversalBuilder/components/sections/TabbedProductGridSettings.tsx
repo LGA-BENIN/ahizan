@@ -62,15 +62,11 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
         setConfig({ ...defaults, ...data });
     }, [data]);
 
-    // Fetch collections
+    // Fetch collections for selection
     useEffect(() => {
         const fetchOptions = async () => {
             try {
-                const [collData, treeData] = await Promise.all([
-                    fetchGraphQL(`query GetCollections { collections { items { id name slug } } }`),
-                    fetchGraphQL(`query GetCmsCollectionsTree { cmsCollectionsTree { id name slug children { id name slug } } }`)
-                ]);
-                setCollections(collData?.collections?.items || []);
+                const treeData = await fetchGraphQL(`query GetCmsCollectionsTree { cmsCollectionsTree { id name slug children { id name slug } } }`);
                 setCollectionTree(treeData?.cmsCollectionsTree || []);
             } catch (err) {
                 console.error('Failed to fetch options:', err);
@@ -83,10 +79,31 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
 
     const tabs: TabConfig[] = config.tabs || [];
 
-    const updateTab = (idx: number, field: string, value: any) => {
-        const newTabs = [...tabs];
-        newTabs[idx] = { ...newTabs[idx], [field]: value };
-        handleChange('tabs', newTabs);
+    const updateTab = (index: number, field: string, value: any) => {
+        const newTabs = [...config.tabs];
+        newTabs[index] = { ...newTabs[index], [field]: value };
+        
+        // Auto-update collectionSlug if we're setting collectionIds
+        if (field === 'collectionIds' && Array.isArray(value)) {
+            let firstSlug = '';
+            if (value.length > 0) {
+                const findSlug = (nodes: any[]): string => {
+                    for (const n of nodes) {
+                        if (n.id === value[0]) return n.slug;
+                        if (n.children) {
+                            const res = findSlug(n.children);
+                            if (res) return res;
+                        }
+                    }
+                    return '';
+                };
+                firstSlug = findSlug(collectionTree);
+            }
+            newTabs[index].collectionSlug = firstSlug;
+            newTabs[index].filterType = value.length > 0 ? 'COLLECTION' : 'LATEST';
+        }
+        
+        setConfig({ ...config, tabs: newTabs });
     };
 
     const addTab = () => {

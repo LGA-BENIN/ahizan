@@ -26,6 +26,7 @@ import { Plus, MoreVertical, Home, CreditCard, Edit2, Trash2 } from 'lucide-reac
 import { AddressForm } from './address-form';
 import { useRouter } from 'next/navigation';
 import { createAddress, updateAddress, deleteAddress, setDefaultShippingAddress, setDefaultBillingAddress } from './actions';
+import { getShopApiUrl } from '@/lib/vendure/api-utils';
 
 interface Country {
     id: string;
@@ -76,7 +77,7 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
         }
         const fetchData = async () => {
             try {
-                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+                const shopApiUrl = getShopApiUrl();
                 const [addrRes, ctryRes] = await Promise.all([
                     fetch(shopApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ query: 'query { activeCustomer { addresses { id fullName company streetLine1 streetLine2 city province postalCode phoneNumber defaultShippingAddress defaultBillingAddress country { id code name } } } }' }) }),
                     fetch(shopApiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'query { availableCountries { id code name } }' }) }),

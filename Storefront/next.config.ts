@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
             { hostname: 'demo.vendure.io' },
             { hostname: 'localhost' },
             { hostname: '127.0.0.1' },
+            { hostname: 'api.ahizan.com' },
+            { hostname: 'media.ahizan.com' },
+            { hostname: 'ahizan_backend' },
             { hostname: 'images.unsplash.com' }
         ],
     },

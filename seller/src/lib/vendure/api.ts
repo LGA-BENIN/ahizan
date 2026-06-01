@@ -84,6 +84,8 @@ export async function query<TResult, TVariables>(
     if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
         headers[VENDURE_AUTH_TOKEN_HEADER] = authToken; // Explicitly add the token header as well
+    } else {
+        headers[VENDURE_AUTH_TOKEN_HEADER] = ''; // Force Vendure to use Bearer token mode instead of cookies
     }
 
     // Set the channel token header (use provided channelToken or default)

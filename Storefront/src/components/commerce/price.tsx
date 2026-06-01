@@ -16,7 +16,7 @@ export function Price({value, currencyCode = 'XOF'}: PriceProps) {
                 currency: currencyCode,
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 0,
-            }).format(value / 100)}
+            }).format(value)}
         </>
     );
 }

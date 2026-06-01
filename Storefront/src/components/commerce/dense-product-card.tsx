@@ -24,7 +24,7 @@ function formatCFA(price: number): string {
         currency: 'XOF',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-    }).format(price / 100);
+    }).format(price);
 }
 
 function getPrice(product: any): number {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Clock, ChevronRight, Zap } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Clock, ChevronRight, ChevronLeft, Zap } from "lucide-react";
 import Link from "next/link";
-import { getAssetUrl } from "@/lib/vendure/api-utils";
+import { getAssetUrl, getShopApiUrl } from "@/lib/vendure/api-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,19 @@ const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps) {
     const [flashProducts, setFlashProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState({ h: '00', m: '00', s: '00' });
     const themeSettings = useThemeSettings();
     const defaultImage = themeSettings?.defaultProductImage;
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollContainerRef.current) {
+            const { current } = scrollContainerRef;
+            const scrollAmount = current.clientWidth * 0.8;
+            current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+        }
+    };
 
     useEffect(() => {
         if (!activeFlash?.endTime) return;
@@ -69,58 +79,111 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         
         if (isFilterMode) {
             const collectionIds = activeFlash.filterCriteria?.collectionIds || [];
-            const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
-
-            const searchQuery = `
-                query GetFlashProducts($input: SearchInput!) {
-                    search(input: $input) {
-                        items {
-                            productId
-                            productName
-                            slug
-                            productAsset {
-                                id
-                                preview
-                            }
-                            priceWithTax {
-                                ... on PriceRange { min max }
-                                ... on SinglePrice { value }
-                            }
-                        }
-                    }
-                }
-            `;
+            const shopApiUrl = getShopApiUrl();
 
             const fetchForCollection = (collectionId?: string) => {
-                const searchInput: any = {
-                    groupByProduct: true,
-                    take: activeFlash.filterCriteria?.take || 50
-                };
+                const take = activeFlash.filterCriteria?.take || 50;
+                
                 if (collectionId) {
-                    searchInput.collectionId = String(collectionId);
-                }
-
-                if (activeFlash.filterCriteria?.facetValueIds?.length > 0) {
-                    searchInput.facetValueIds = activeFlash.filterCriteria.facetValueIds.map((id: any) => String(id));
-                }
-
-                return fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        query: searchQuery, 
-                        variables: { input: searchInput } 
+                    const collectionQuery = `
+                        query GetCollectionProducts($id: ID!, $take: Int!) {
+                            collection(id: $id) {
+                                productVariants(options: { take: $take }) {
+                                    items {
+                                        priceWithTax
+                                        product {
+                                            id
+                                            name
+                                            slug
+                                            assets {
+                                                id
+                                                preview
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    `;
+                    return fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            query: collectionQuery, 
+                            variables: { id: String(collectionId), take } 
+                        })
                     })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.errors) return [];
-                    return data.data?.search?.items || [];
-                })
-                .catch(err => {
-                    console.error('Fetch error:', err);
-                    return [];
-                });
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.errors) {
+                            console.error('GraphQL errors:', data.errors);
+                            throw new Error(data.errors[0]?.message || 'GraphQL Error');
+                        }
+                        if (!data.data?.collection?.productVariants?.items) return [];
+                        const items = data.data.collection.productVariants.items;
+                        const seen = new Set();
+                        return items.reduce((acc: any[], item: any) => {
+                            if (!seen.has(item.product.id)) {
+                                seen.add(item.product.id);
+                                acc.push({
+                                    productId: item.product.id,
+                                    productName: item.product.name,
+                                    slug: item.product.slug,
+                                    productAsset: item.product.assets?.[0],
+                                    priceWithTax: { value: item.priceWithTax }
+                                });
+                            }
+                            return acc;
+                        }, []);
+                    })
+                    .catch(err => {
+                        console.error('Fetch error:', err);
+                        setErrorMsg(err.message);
+                        return [];
+                    });
+                } else {
+                    const productsQuery = `
+                        query GetProducts($options: ProductListOptions) {
+                            products(options: $options) {
+                                items {
+                                    id
+                                    name
+                                    slug
+                                    assets {
+                                        id
+                                        preview
+                                    }
+                                    variants {
+                                        priceWithTax
+                                    }
+                                }
+                            }
+                        }
+                    `;
+                    return fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            query: productsQuery, 
+                            variables: { options: { take } } 
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.errors || !data.data?.products?.items) return [];
+                        return data.data.products.items.map((prod: any) => ({
+                            productId: prod.id,
+                            productName: prod.name,
+                            slug: prod.slug,
+                            productAsset: prod.assets?.[0],
+                            priceWithTax: { value: prod.variants?.[0]?.priceWithTax || 0 }
+                        }));
+                    })
+                    .catch(err => {
+                        console.error('Fetch error:', err);
+                        return [];
+                    });
+                }
             };
 
             const promises = collectionIds.length > 0 
@@ -139,20 +202,14 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 });
                 
                 if (activeFlash.filterCriteria) {
-                    const { minPrice, maxPrice, minDiscount } = activeFlash.filterCriteria;
+                    const { minPrice, maxPrice } = activeFlash.filterCriteria;
                     
                     items = items.filter((item: any) => {
                         const price = item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0;
-                        const priceInFcfa = price / 100;
+                        const priceInFcfa = price;
 
-                        if (minPrice && priceInFcfa < minPrice) return false;
-                        if (maxPrice && priceInFcfa > maxPrice) return false;
-                        
-                        if (minDiscount > 0) {
-                            const listPrice = price * 1.25; 
-                            const discount = Math.round((1 - price / listPrice) * 100);
-                            if (discount < minDiscount) return false;
-                        }
+                        if (minPrice > 0 && priceInFcfa < minPrice) return false;
+                        if (maxPrice > 0 && priceInFcfa > maxPrice) return false;
 
                         return true;
                     });
@@ -175,10 +232,14 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 })));
                 setLoading(false);
             })
-            .catch(err => { console.error(`Fetch error for flash sale ${activeFlash.id}:`, err); setLoading(false); });
+            .catch(err => { 
+                console.error(`Fetch error for flash sale ${activeFlash.id}:`, err); 
+                setErrorMsg(err.message);
+                setLoading(false); 
+            });
 
         } else if (activeFlash.selectionType === 'MANUAL' && activeFlash.manualProductIds?.length > 0) {
-            const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+            const shopApiUrl = getShopApiUrl();
             fetch(shopApiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -230,7 +291,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     if (!activeFlash.title && !activeFlash.subtitle && !activeFlash.endTime && flashProducts.length === 0 && !loading) return null;
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 relative group/carousel">
             {/* Header section */}
             <div 
                 className={`flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-4 overflow-hidden relative ${
@@ -314,18 +375,43 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 )}
             </div>
 
-            {/* Product Grid */}
-            <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4 ${
-                activeFlash.isSimpleMode 
-                ? '' 
-                : 'bg-white/50 backdrop-blur-sm border-x border-b border-border/30 rounded-b-2xl p-2 sm:p-3 md:p-4'
-            }`}>
-                {flashProducts.length === 0 && !loading && (
-                    <div className="col-span-full text-center py-8 text-muted-foreground text-sm">
+            {/* Left/Right Navigation Arrows (Desktop) */}
+            <button 
+                onClick={() => scroll('left')}
+                className="absolute left-0 top-[60%] -translate-y-1/2 -ml-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                aria-label="Défiler vers la gauche"
+            >
+                <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <button 
+                onClick={() => scroll('right')}
+                className="absolute right-0 top-[60%] -translate-y-1/2 -mr-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                aria-label="Défiler vers la droite"
+            >
+                <ChevronRight className="w-5 h-5" />
+            </button>
+
+            {/* Product Carousel */}
+            <div 
+                ref={scrollContainerRef}
+                className={`flex overflow-x-auto snap-x snap-mandatory no-scrollbar gap-2 sm:gap-3 md:gap-4 pb-2 ${
+                    activeFlash.isSimpleMode 
+                    ? 'pt-4' 
+                    : 'bg-white/50 backdrop-blur-sm border-x border-b border-border/30 rounded-b-2xl p-2 sm:p-3 md:p-4'
+                }`}
+            >
+                {errorMsg && (
+                    <div className="w-full flex-shrink-0 text-center py-8 text-red-500 font-bold text-sm">
+                        Erreur de chargement: {errorMsg}
+                    </div>
+                )}
+                {flashProducts.length === 0 && !loading && !errorMsg && (
+                    <div className="w-full flex-shrink-0 text-center py-8 text-muted-foreground text-sm">
                         Aucun produit en vente flash pour le moment
                     </div>
                 )}
-                {(loading ? [1, 2, 3, 4, 5, 6] : flashProducts).map((p: any, i) => {
+                {(loading ? [1, 2, 3, 4, 5, 6, 7, 8] : flashProducts).map((p: any, i) => {
                     const isPlaceholder = typeof p === 'number';
                     const price = isPlaceholder ? (199 + i * 50) : (p.variants?.[0]?.price || 0);
                     const listPrice = isPlaceholder ? (350 + i * 50) : (p.variants?.[0]?.listPrice || price * 1.5);
@@ -336,7 +422,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         <Link
                             key={isPlaceholder ? i : p.id}
                             href={isPlaceholder ? "#" : `/product/${p.slug}`}
-                            className="group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
+                            className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
                         >
                             <div className="relative aspect-square bg-muted/10 overflow-hidden flex items-center justify-center">
                                 <Badge className="absolute top-2 left-2 bg-primary text-white font-black text-[10px] px-1.5 py-0.5 z-10 rounded-sm">
@@ -362,10 +448,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 <div className="mt-auto space-y-1 sm:space-y-1.5">
                                     <div className="flex items-baseline gap-1">
                                         <span className="font-black text-xs sm:text-sm md:text-base text-primary tracking-tight">
-                                            {isPlaceholder ? price : (price / 100).toLocaleString()} <span className="text-[7px] sm:text-[8px] font-bold">XOF</span>
+                                            {isPlaceholder ? price : price.toLocaleString()} <span className="text-[7px] sm:text-[8px] font-bold">XOF</span>
                                         </span>
                                         <span className="text-[8px] sm:text-[9px] text-muted-foreground line-through font-medium opacity-50">
-                                            {isPlaceholder ? listPrice : (listPrice / 100).toLocaleString()}
+                                            {isPlaceholder ? listPrice : listPrice.toLocaleString()}
                                         </span>
                                     </div>
 

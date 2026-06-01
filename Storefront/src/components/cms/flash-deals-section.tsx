@@ -25,7 +25,7 @@ interface FlashDealsProps {
 }
 
 function formatCFA(price: number): string {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price / 100);
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(price);
 }
 
 function useCountdown(endDate: string | undefined) {

@@ -1,68 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Smartphone, ChevronRight, X } from "lucide-react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
 
-// Cache categories globally so all instances share it
-let cachedCategories: any[] | null = null;
-
-function useAhizanCategories() {
-    const [categories, setCategories] = useState<any[]>(cachedCategories || []);
-
-    useEffect(() => {
-        if (cachedCategories) return;
-
-        const gqlQuery = `
-            query GetCmsCollectionsTree {
-                cmsCollectionsTree {
-                    id
-                    name
-                    slug
-                    featuredAsset { id preview }
-                    children { id name slug featuredAsset { id preview } }
-                }
-            }
-        `;
-
-        fetch('http://localhost:3000/shop-api', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: gqlQuery })
-        })
-        .then(res => res.json())
-        .then(data => {
-            const tree = data.data?.cmsCollectionsTree || [];
-            if (tree.length > 0) {
-                // Keep the tree structure - only top-level categories, children nested inside
-                const cats = tree.map((coll: any) => ({
-                    id: coll.id,
-                    name: coll.name,
-                    slug: coll.slug,
-                    featuredAsset: coll.featuredAsset,
-                    children: (coll.children || []).map((child: any) => ({
-                        id: child.id,
-                        name: child.name,
-                        slug: child.slug,
-                        featuredAsset: child.featuredAsset
-                    }))
-                }));
-                cachedCategories = cats;
-                setCategories(cats);
-            }
-        })
-        .catch(err => console.error('Error fetching categories for mobile sidebar:', err));
-    }, []);
-
-    return categories;
-}
-
-export function MobileCategorySidebar() {
+export function MobileCategorySidebar({ categories = [] }: { categories?: any[] }) {
     const { mobileMenuOpen, setMobileMenuOpen, expandedMobileCat, setExpandedMobileCat, logoUrl, promoConfig } = useMobileMenu();
     const [hoveredCat, setHoveredCat] = useState<any>(null);
-    const siteCategories = useAhizanCategories();
+
+    // Fallback skeletons if categories are not provided yet
+    const displayCategories = categories.length > 0 ? categories : [{}, {}, {}, {}, {}, {}];
 
     // Close on route change is handled by context
 
@@ -103,7 +52,7 @@ export function MobileCategorySidebar() {
                         <span className="text-[10px] font-black uppercase tracking-widest text-black">Catégories</span>
                     </div>
                     <div className="flex-1 overflow-y-auto no-scrollbar py-2">
-                        {siteCategories.map((cat: any, i: number) => (
+                        {displayCategories.map((cat: any, i: number) => (
                             <div
                                 key={cat.id || i}
                                 className="group/cat relative"

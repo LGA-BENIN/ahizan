@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface PromoBannerSectionProps {
     title: string;
@@ -34,7 +35,7 @@ export function PromoBannerSection({
                     {imageUrl && (
                         <div className="relative h-64 w-full md:h-96 md:w-1/2">
                             <Image
-                                src={imageUrl}
+                                src={getAssetUrl(imageUrl) || imageUrl}
                                 alt={title}
                                 fill
                                 className="object-cover"

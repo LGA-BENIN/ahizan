@@ -137,8 +137,8 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                             <div className="text-sm font-bold text-primary">
-                                                  {variant?.priceWithTax ? variant.priceWithTax.toLocaleString() : '0'} CFA
+                                             <div className="text-sm font-bold text-primary" suppressHydrationWarning>
+                                                  {variant?.priceWithTax ? variant.priceWithTax.toLocaleString('fr-FR') : '0'} CFA
                                              </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">

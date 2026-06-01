@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface HeroSectionProps {
     title: string;
@@ -17,7 +18,7 @@ export function HeroSection({ title, subtitle, description, ctaText, ctaLink, ba
             {backgroundImage && (
                 <div className="absolute inset-0 -z-10 h-full w-full object-cover">
                     <Image
-                        src={backgroundImage}
+                        src={getAssetUrl(backgroundImage) || backgroundImage}
                         alt={title}
                         fill
                         className="object-cover opacity-20"

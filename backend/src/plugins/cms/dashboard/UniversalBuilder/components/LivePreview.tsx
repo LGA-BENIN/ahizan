@@ -5,9 +5,22 @@ export const LivePreview = () => {
     const [viewPort, setViewPort] = useState<'desktop' | 'mobile'>('desktop');
     const { activeHabillage, previewVersion } = useEditor();
 
+    // Derive storefront URL from the admin hostname
+    // e.g. administrator.ahizan.com → ahizan.com
+    const getStorefrontOrigin = () => {
+        if (typeof window !== 'undefined') {
+            const host = window.location.hostname;
+            const parts = host.split('.');
+            if (parts.length >= 2 && (parts[0] === 'administrator' || parts[0] === 'api')) {
+                return `${window.location.protocol}//${parts.slice(1).join('.')}`;
+            }
+        }
+        return 'https://ahizan.com';
+    };
+
     // Only show preview when a habillage is active
     const previewUrl = activeHabillage 
-        ? `http://localhost:3001/preview?presetId=${activeHabillage.id}&v=${previewVersion}`
+        ? `${getStorefrontOrigin()}/preview?presetId=${activeHabillage.id}&v=${previewVersion}`
         : '';
 
     return (

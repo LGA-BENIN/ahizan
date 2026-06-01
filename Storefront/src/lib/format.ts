@@ -4,12 +4,15 @@
  * @param currencyCode Currency code, defaults to XOF
  */
 export function formatPrice(price: number, currencyCode: string = 'XOF'): string {
+    const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
+    const divisor = zeroDecimalCurrencies.includes(currencyCode.toUpperCase()) ? 1 : 100;
+
     return new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency: currencyCode,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-    }).format(price / 100);
+    }).format(price / divisor);
 }
 
 type DateFormat = 'short' | 'long';

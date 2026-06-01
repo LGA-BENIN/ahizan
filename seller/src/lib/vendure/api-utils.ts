@@ -1,20 +1,14 @@
 /**
  * Utility to manage Vendure API URLs and help avoid hardcoding localhost:3000.
  */
-export function getShopApiUrl(): string {
-    if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        if (hostname.includes('ahizan.com')) {
-            return 'https://api.ahizan.com/shop-api';
-        }
-    }
-    return process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 
-           process.env.VENDURE_SHOP_API_URL || 
-           'http://127.0.0.1:3000/shop-api';
-}
-
 export function getBaseUrl(): string {
-    const shopApiUrl = getShopApiUrl();
+    // For images and assets, we MUST use the public URL so the Next.js Image component
+    // has a valid public remotePattern and the browser can load them directly if needed.
+    const shopApiUrl = 
+        process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 
+        process.env.VENDURE_SHOP_API_URL || 
+        'http://127.0.0.1:3000/shop-api';
+    
     // Remove /shop-api to get the base URL for REST endpoints or assets
     return shopApiUrl.replace(/\/shop-api\/?$/, '');
 }

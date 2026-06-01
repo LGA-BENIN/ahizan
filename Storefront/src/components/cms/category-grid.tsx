@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getShopApiUrl } from '@/lib/vendure/api-utils';
 
 interface CategoryItem {
     name: string;
@@ -37,7 +38,7 @@ const GET_COLLECTIONS_WITH_ASSETS = `
 
 async function fetchCollectionsClient(): Promise<CategoryItem[]> {
     try {
-        const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+        const shopApiUrl = getShopApiUrl();
         const res = await fetch(shopApiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

@@ -102,11 +102,19 @@ export default async function CollectionPage({ params, searchParams }: any) {
                 });
 
                 // Filter products that belong to this collection OR any of its descendants
-                const collectionProducts = allProducts.filter((p: any) =>
+                let collectionProducts = allProducts.filter((p: any) =>
                     (p.collections || []).some((c: any) => descendantIds.has(String(c.id)))
                 );
+                
+                const activeFacetIds = searchInput.facetValueFilters?.map((f: any) => f.and) || [];
+                if (activeFacetIds.length > 0) {
+                    collectionProducts = collectionProducts.filter((p: any) => {
+                        const productFacetIds = (p.facetValues || []).map((fv: any) => String(fv.id));
+                        return activeFacetIds.every(id => productFacetIds.includes(String(id)));
+                    });
+                }
 
-                console.log(`[CollectionPage] Fallback: ${collectionProducts.length} products match collection ${collectionId} or descendants`);
+                console.log(`[CollectionPage] Fallback: ${collectionProducts.length} products match collection ${collectionId} or descendants with filters`);
 
                 if (collectionProducts.length > 0) {
                     totalItems = collectionProducts.length;

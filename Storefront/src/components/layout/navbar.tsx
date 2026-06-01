@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { MobileMenu } from "@/components/layout/navbar/mobile-menu";
 import { NavbarCollections } from '@/components/layout/navbar/navbar-collections';
 import { NavbarCart } from '@/components/layout/navbar/navbar-cart';
 import { NavbarUser } from '@/components/layout/navbar/navbar-user';
@@ -49,9 +50,11 @@ export function Navbar({ config }: { config?: HeaderConfData }) {
                 <div className="container mx-auto px-4 md:px-6">
                     <div className="flex items-center gap-4 md:gap-8 h-16 md:h-18">
                         {/* Mobile menu */}
-                        <Button variant="ghost" size="icon" className="md:hidden rounded-xl border border-border/50 bg-muted/10 hover:bg-muted/30 active:scale-95" aria-label="Menu">
-                            <Menu className="w-5 h-5 text-secondary" />
-                        </Button>
+                        <div className="md:hidden">
+                            <Suspense fallback={<div className="w-9 h-9 rounded-xl border border-border/50 bg-muted/10"></div>}>
+                                <MobileMenu />
+                            </Suspense>
+                        </div>
 
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-2 flex-shrink-0 group hover:scale-[1.02] transition-transform">

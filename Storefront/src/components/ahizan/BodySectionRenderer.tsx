@@ -372,7 +372,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             if (!config.tabs || config.tabs.length === 0) return null;
             return (
                 <section className={`${wrapper} mt-8 md:mt-10`}>
-                    <TabbedProductGrid {...config} />
+                    <TabbedProductGrid {...config} layout="carousel" />
                 </section>
             );
         }
@@ -392,9 +392,6 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                             {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">{config.subtitle}</p>}
                         </div>
                     )}
-                    <div className={`grid ${gridCols} gap-3 sm:gap-4 md:gap-6`}>
-                        {/* Product grid renders via TabbedProductGrid with a single tab as fallback */}
-                    </div>
                     <TabbedProductGrid
                         title=""
                         tabs={[{
@@ -406,7 +403,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                             facetValueIds: config.facetValueIds,
                             take: config.take || 8,
                         }]}
-                        layout={config.layout || 'grid'}
+                        layout="carousel"
                         columns={config.columns || 4}
                         cardStyle={config.cardStyle || 'standard'}
                     />

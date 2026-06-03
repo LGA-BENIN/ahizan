@@ -59,7 +59,7 @@ export const FooterSettings = ({ data, onSave }: FooterSettingsProps) => {
     );
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px' }}>
+        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
 
             <div className="settings-card">
                 <div className="settings-card-header">🦶 Image du pied de page</div>
@@ -164,10 +164,6 @@ export const FooterSettings = ({ data, onSave }: FooterSettingsProps) => {
                     <ColorField label="Texte barre du bas" value={config.bottomBarText} onChange={(v) => handleChange('bottomBarText', v)} />
                 </div>
             </div>
-
-            <button className="btn-pro btn-pro-primary section-save-btn" style={{ padding: '12px', width: '100%', justifyContent: 'center', fontSize: '0.85rem' }} onClick={() => onSave(config)}>
-                💾 Enregistrer la configuration du pied de page
-            </button>
         </div>
     );
 };

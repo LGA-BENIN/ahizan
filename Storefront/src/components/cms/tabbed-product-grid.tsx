@@ -211,14 +211,20 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         if (loading) {
             if (props.layout === 'carousel') {
                 return (
-                    <div className={`flex overflow-x-auto snap-x snap-mandatory no-scrollbar ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'} pb-4`}>
+                    <div 
+                        className={`flex overflow-x-auto snap-x snap-mandatory ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'} pb-4`}
+                        style={{
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none',
+                        } as React.CSSProperties}
+                    >
                         {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px]">
+                            <div key={i} className="snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]">
                                 <Card className="overflow-hidden h-full">
                                     <Skeleton className="aspect-[4/3] w-full" />
-                                    <CardContent className="p-2 space-y-2">
-                                        <Skeleton className="h-3 w-3/4" />
-                                        <Skeleton className="h-4 w-1/2" />
+                                    <CardContent className="p-1.5 space-y-1.5">
+                                        <Skeleton className="h-2 w-3/4" />
+                                        <Skeleton className="h-2.5 w-1/2" />
                                     </CardContent>
                                 </Card>
                             </div>
@@ -227,13 +233,13 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 );
             }
             return (
-                <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'}`}>
+                <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'}`}>
                     {Array.from({ length: tab.take || 10 }).map((_, i) => (
                         <Card key={i} className="overflow-hidden">
                             <Skeleton className="aspect-[4/3]" />
-                            <CardContent className="p-2 space-y-2">
-                                <Skeleton className="h-3 w-3/4" />
-                                <Skeleton className="h-4 w-1/2" />
+                            <CardContent className="p-2 space-y-1.5">
+                                <Skeleton className="h-2 w-3/4" />
+                                <Skeleton className="h-2.5 w-1/2" />
                             </CardContent>
                         </Card>
                     ))}
@@ -272,10 +278,14 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
                     <div 
                         ref={scrollContainerRef}
-                        className={`flex overflow-x-auto snap-x snap-mandatory no-scrollbar ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'} pb-4`}
+                        className={`flex overflow-x-auto snap-x snap-mandatory ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'} pb-4`}
+                        style={{
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none',
+                        } as React.CSSProperties}
                     >
                         {products.map((p: any) => (
-                            <div key={p.productId} className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px]">
+                            <div key={p.productId} className="snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]">
                                 {props.cardStyle === 'dense' ? (
                                     <DenseProductCard product={p} />
                                 ) : (
@@ -288,19 +298,19 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                                 <img
                                                     src={getAssetUrl(p.productAsset?.preview || defaultImage)}
                                                     alt={p.productName}
-                                                    className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
+                                                    className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                                                 />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
                                                     Aucune image
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="p-3 flex flex-col justify-between" style={{ height: 'calc(100% - auto)' }}>
-                                            <h3 className="font-semibold text-xs md:text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                                        <div className="p-2 flex flex-col justify-between" style={{ height: 'calc(100% - auto)' }}>
+                                            <h3 className="font-semibold text-[9px] sm:text-[10px] md:text-xs line-clamp-2 mb-1 group-hover:text-primary transition-colors">
                                                 {p.productName}
                                             </h3>
-                                            <span className="font-black text-sm text-primary">
+                                            <span className="font-black text-[10px] sm:text-xs text-primary">
                                                 {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
                                             </span>
                                         </div>
@@ -314,7 +324,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         }
 
         return (
-            <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-4 md:gap-6'}`}>
+            <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'}`}>
                 {products.map((p: any) =>
                     props.cardStyle === 'dense' ? (
                         <DenseProductCard key={p.productId} product={p} />
@@ -325,23 +335,17 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             className="group bg-white rounded-xl overflow-hidden border border-border/30 hover:shadow-lg transition-all"
                         >
                             <div className="aspect-square bg-muted/10 relative overflow-hidden">
-                                {(p.productAsset?.preview || defaultImage) ? (
-                                    <img
-                                        src={getAssetUrl(p.productAsset?.preview || defaultImage)}
-                                        alt={p.productName}
-                                        className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-300"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                                        Aucune image
-                                    </div>
-                                )}
+                                <img
+                                    src={getAssetUrl(p.productAsset?.preview || defaultImage)}
+                                    alt={p.productName}
+                                    className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                                />
                             </div>
-                            <div className="p-3">
-                                <h3 className="font-semibold text-xs md:text-sm line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                            <div className="p-2">
+                                <h3 className="font-semibold text-[9px] sm:text-[10px] md:text-xs line-clamp-2 mb-1 group-hover:text-primary transition-colors">
                                     {p.productName}
                                 </h3>
-                                <span className="font-black text-sm text-primary">
+                                <span className="font-black text-[10px] sm:text-xs text-primary">
                                     {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
                                 </span>
                             </div>

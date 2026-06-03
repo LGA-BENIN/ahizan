@@ -52,7 +52,12 @@ function CategoryManager() {
     const { data: collectionsData, isLoading: isLoadingCollections, error: collectionsError } = useQuery({
         queryKey: ['collections'],
         queryFn: async () => {
-            const result = await fetchGraphQL(GET_COLLECTIONS);
+            const result = await fetchGraphQL(GET_COLLECTIONS, {
+                options: {
+                    take: 100,
+                    skip: 0,
+                }
+            });
             return result;
         }
     });

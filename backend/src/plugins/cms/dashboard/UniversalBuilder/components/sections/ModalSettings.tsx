@@ -38,7 +38,7 @@ export const ModalSettings = ({ data, onSave }: ModalSettingsProps) => {
     );
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '900px' }}>
+        <div className="stack-lg" style={{ width: '100%', maxWidth: '900px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>📢 Gestionnaire de fenêtres surgissantes</h3>
@@ -189,10 +189,6 @@ export const ModalSettings = ({ data, onSave }: ModalSettingsProps) => {
                     </div>
                 </div>
             ))}
-
-            <button className="btn-pro btn-pro-primary section-save-btn" style={{ padding: '12px', width: '100%', justifyContent: 'center', fontSize: '0.85rem' }} onClick={() => onSave(config)}>
-                💾 Enregistrer le système de fenêtres
-            </button>
         </div>
     );
 };

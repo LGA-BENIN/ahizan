@@ -24,7 +24,7 @@ export const CustomSettings = ({ data, onSave }: CustomSettingsProps) => {
     const handleChange = (f: string, v: any) => setConfig({ ...config, [f]: v });
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '900px' }}>
+        <div className="stack-lg" style={{ width: '100%', maxWidth: '900px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
             <div className="settings-card">
                 <div className="settings-card-header">🛠️ Bloc Code/HTML Personnalisé</div>
                 <div className="grid-2" style={{ marginBottom: '1rem' }}>
@@ -75,10 +75,6 @@ export const CustomSettings = ({ data, onSave }: CustomSettingsProps) => {
                     </div>
                 </div>
             </div>
-
-            <button className="btn-pro btn-pro-primary section-save-btn" style={{ padding: '12px', width: '100%', justifyContent: 'center', fontSize: '0.85rem' }} onClick={() => onSave(config)}>
-                💾 Enregistrer le bloc de code personnalisé
-            </button>
         </div>
     );
 };

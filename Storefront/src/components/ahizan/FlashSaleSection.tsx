@@ -34,7 +34,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     };
 
     useEffect(() => {
-        if (!activeFlash?.endTime) return;
+        if (!activeFlash?.endTime || activeFlash.isUnlimited) return;
         
         const timer = setInterval(() => {
             const now = new Date();
@@ -226,8 +226,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     variants: [{
                         price: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0,
                         priceWithTax: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0,
-                        listPrice: (item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0) * 1.25,
-                        stockLevel: 'En stock'
+                        stockLevel: 'IN_STOCK'
                     }]
                 })));
                 setLoading(false);
@@ -255,7 +254,6 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                         price
                                         priceWithTax
                                         stockLevel
-                                        listPrice
                                     }
                                     assets {
                                         preview
@@ -283,7 +281,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
 
     const now = new Date();
     const isStarted = !activeFlash.startTime || now >= new Date(activeFlash.startTime);
-    const isNotEnded = activeFlash.endTime ? now <= new Date(activeFlash.endTime) : true;
+    const isNotEnded = activeFlash.isUnlimited || !activeFlash.endTime || now <= new Date(activeFlash.endTime);
     // Simple mode always shows regardless of scheduling
     if (!activeFlash.isSimpleMode && (!isStarted || !isNotEnded)) return null;
 
@@ -334,7 +332,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     </div>
                 </div>
 
-                {!activeFlash.isSimpleMode && (
+                {!activeFlash.isSimpleMode && !activeFlash.isUnlimited && (
                     <div className="flex items-center gap-3 sm:gap-6 relative z-10">
                         <div className="flex items-center gap-1.5 sm:gap-2">
                             <span className={`text-[10px] font-black uppercase tracking-widest hidden sm:block ${
@@ -365,10 +363,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     </div>
                 )}
                 
-                {/* Fallback View All for Simple Mode if countdown is hidden */}
-                {activeFlash.isSimpleMode && (
+                {/* Fallback View All for Simple Mode or Unlimited Mode */}
+                {(activeFlash.isSimpleMode || activeFlash.isUnlimited) && (
                     <div className="relative z-10">
-                        <Button variant="link" asChild className="text-primary font-black p-0 h-auto">
+                        <Button variant="link" asChild className={activeFlash.isSimpleMode ? "text-primary font-black p-0 h-auto" : "bg-white/10 text-white border-white/20 hover:bg-white hover:text-black font-black p-0 h-auto"}>
                             <Link href="/search?sales=true">TOUT VOIR <ChevronRight className="w-4 h-4 ml-1" /></Link>
                         </Button>
                     </div>
@@ -395,11 +393,15 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             {/* Product Carousel */}
             <div 
                 ref={scrollContainerRef}
-                className={`flex overflow-x-auto snap-x snap-mandatory no-scrollbar gap-2 sm:gap-3 md:gap-4 pb-2 ${
+                className={`flex overflow-x-auto snap-x snap-mandatory gap-2 sm:gap-3 md:gap-4 pb-2 ${
                     activeFlash.isSimpleMode 
                     ? 'pt-4' 
                     : 'bg-white/50 backdrop-blur-sm border-x border-b border-border/30 rounded-b-2xl p-2 sm:p-3 md:p-4'
                 }`}
+                style={{
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none',
+                } as React.CSSProperties}
             >
                 {errorMsg && (
                     <div className="w-full flex-shrink-0 text-center py-8 text-red-500 font-bold text-sm">
@@ -414,54 +416,50 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 {(loading ? [1, 2, 3, 4, 5, 6, 7, 8] : flashProducts).map((p: any, i) => {
                     const isPlaceholder = typeof p === 'number';
                     const price = isPlaceholder ? (199 + i * 50) : (p.variants?.[0]?.price || 0);
-                    const listPrice = isPlaceholder ? (350 + i * 50) : (p.variants?.[0]?.listPrice || price * 1.5);
-                    const discount = Math.round((1 - price / listPrice) * 100);
-                    const stockPercent = isPlaceholder ? (30 + i * 12) : (75 - (i * 5));
                     
                     return (
                         <Link
                             key={isPlaceholder ? i : p.id}
                             href={isPlaceholder ? "#" : `/product/${p.slug}`}
-                            className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
+                            className="snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px] group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
                         >
                             <div className="relative aspect-square bg-muted/10 overflow-hidden flex items-center justify-center">
-                                <Badge className="absolute top-2 left-2 bg-primary text-white font-black text-[10px] px-1.5 py-0.5 z-10 rounded-sm">
-                                    -{discount}%
-                                </Badge>
+                                {activeFlash.discountPercentage && activeFlash.discountPercentage > 0 && (
+                                    <Badge className="absolute top-1.5 left-1.5 bg-primary text-white font-black text-[8px] px-1 py-0.5 z-10 rounded-sm">
+                                        -{activeFlash.discountPercentage}%
+                                    </Badge>
+                                )}
                                 
                                 {isPlaceholder ? (
-                                    <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                                    <div className="w-4 h-4 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
                                 ) : (
                                     <img 
                                         src={getAssetUrl(p.assets?.[0]?.preview || defaultImage)} 
-                                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-2" 
+                                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-1.5" 
                                         alt={p.name} 
                                     />
                                 )}
                             </div>
                             
-                            <div className="flex flex-col p-2 sm:p-2.5 flex-1">
-                                <h4 className="text-[10px] sm:text-[11px] md:text-xs font-semibold text-secondary line-clamp-2 min-h-[24px] sm:min-h-[28px] leading-tight mb-1 sm:mb-1.5 group-hover:text-primary transition-colors">
+                            <div className="flex flex-col p-1.5 sm:p-2 flex-1">
+                                <h4 className="text-[8px] sm:text-[9px] md:text-[10px] font-semibold text-secondary line-clamp-2 min-h-[20px] sm:min-h-[22px] leading-tight mb-1 group-hover:text-primary transition-colors">
                                     {isPlaceholder ? `Produit #${i+1}` : p.name}
                                 </h4>
                                 
-                                <div className="mt-auto space-y-1 sm:space-y-1.5">
-                                    <div className="flex items-baseline gap-1">
-                                        <span className="font-black text-xs sm:text-sm md:text-base text-primary tracking-tight">
-                                            {isPlaceholder ? price : price.toLocaleString()} <span className="text-[7px] sm:text-[8px] font-bold">XOF</span>
-                                        </span>
-                                        <span className="text-[8px] sm:text-[9px] text-muted-foreground line-through font-medium opacity-50">
-                                            {isPlaceholder ? listPrice : listPrice.toLocaleString()}
+                                <div className="mt-auto space-y-0.5 sm:space-y-1">
+                                    <div className="flex items-baseline gap-0.5">
+                                        <span className="font-black text-[9px] sm:text-[10px] md:text-xs text-primary tracking-tight">
+                                            {isPlaceholder ? price : price.toLocaleString()} <span className="text-[6px] sm:text-[7px] font-bold">XOF</span>
                                         </span>
                                     </div>
 
-                                    {/* Urgency Progress Bar */}
+                                    {/* Stock Status */}
                                     <div>
-                                        <div className="flex justify-between items-center text-[8px] font-bold uppercase tracking-tight">
-                                            <span className="text-primary">{stockPercent > 80 ? '🔥 Presque plus' : 'Stock'}</span>
-                                            <span className="text-muted-foreground">{stockPercent}%</span>
-                                        </div>
-                                        <Progress value={stockPercent} className="h-1 bg-muted" />
+                                        <span className={`text-[6px] sm:text-[7px] font-bold uppercase tracking-tight ${
+                                            isPlaceholder ? 'text-green-600' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'text-green-600' : 'text-red-600')
+                                        }`}>
+                                            {isPlaceholder ? 'En stock' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'En stock' : 'Rupture')}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

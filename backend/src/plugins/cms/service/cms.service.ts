@@ -831,8 +831,19 @@ export class CMSService {
     }
 
     async previewHabillage(ctx: RequestContext, presetId: ID): Promise<any> {
-        const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, presetId);
+        console.log('[CMS Service] previewHabillage called with presetId:', presetId, 'channelId:', ctx.channelId);
+        // Use raw repository to bypass channel filtering — preview must work across channels
+        const preset = await this.connection.getRepository(ctx, PagePreset)
+            .createQueryBuilder('preset')
+            .where('preset.id = :id', { id: presetId })
+            .getOne();
+        if (!preset) {
+            console.error('[CMS Service] preset NOT FOUND for id:', presetId);
+            throw new Error(`Habillage avec l'ID ${presetId} introuvable`);
+        }
+        console.log('[CMS Service] preset found:', preset.id, preset.name, 'isDefault:', preset.isDefault);
         const rawSections = JSON.parse(preset.sectionsJson);
+        console.log('[CMS Service] rawSections count:', rawSections.length, 'types:', rawSections.map((s: any) => s.type).join(', '));
 
         const sections = (Array.isArray(rawSections) ? rawSections : []).map((s: any, i: number) => ({
             id: `preview-${s.type}-${i}`,

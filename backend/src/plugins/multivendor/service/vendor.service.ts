@@ -743,11 +743,41 @@ export class VendorService implements OnApplicationBootstrap {
     async onApplicationBootstrap() {
         console.log('VendorService: Bootstrapping... Checking for Vendor role to ensure it exists.');
         try {
+            await this.fixCorruptedJsonColumns();
             const ctx = await this.createBootstrapContext();
             await this.getOrCreateVendorRole(ctx);
             console.log('VendorService: Bootstrapping complete. Vendor role ready.');
         } catch (e) {
             console.error('VendorService: Failed to bootstrap vendor role:', e);
+        }
+    }
+
+    private async fixCorruptedJsonColumns() {
+        try {
+            const repo = this.connection.getRepository(Vendor);
+            const vendors = await repo.find();
+            let fixed = 0;
+            
+            for (const vendor of vendors) {
+                let needsSave = false;
+                
+                // Fix dynamicDetails if it's an empty string or invalid
+                if (typeof vendor.dynamicDetails === 'string' && vendor.dynamicDetails.trim() === '') {
+                    vendor.dynamicDetails = null;
+                    needsSave = true;
+                }
+                
+                if (needsSave) {
+                    await repo.save(vendor);
+                    fixed++;
+                }
+            }
+            
+            if (fixed > 0) {
+                console.log(`[VendorService] Fixed ${fixed} corrupted JSON columns in vendor table`);
+            }
+        } catch (err) {
+            console.error('[VendorService] Error fixing JSON columns:', err);
         }
     }
 

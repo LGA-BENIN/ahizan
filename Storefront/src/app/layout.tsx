@@ -21,6 +21,25 @@ export const metadata: Metadata = {
         template: `%s | ${SITE_NAME}`,
     },
     description: "Shop the best products at Vendure Store. Quality products, competitive prices, and fast delivery.",
+    icons: [
+        {
+            rel: 'icon',
+            type: 'image/png',
+            sizes: '32x32',
+            url: '/logo-light.png',
+        },
+        {
+            rel: 'icon',
+            type: 'image/png',
+            sizes: '16x16',
+            url: '/logo-light.png',
+        },
+        {
+            rel: 'apple-touch-icon',
+            sizes: '180x180',
+            url: '/logo-light.png',
+        },
+    ],
     openGraph: { type: "website", siteName: SITE_NAME, locale: "en_US" },
     twitter: { card: "summary_large_image" },
     robots: {

@@ -35,29 +35,29 @@ export function ProductCard({product: productProp}: ProductCardProps) {
                         <img
                             src={getAssetUrl(displayImageUrl)}
                             alt={product.productName}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                         />
                     ) : (
                         <Image
                             src={getAssetUrl(displayImageUrl) as string}
                             alt={product.productName}
                             fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         />
                     )
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
                         Aucune image
                     </div>
                 )}
             </div>
-            <div className="p-3 space-y-1">
-                <h3 className="text-sm font-semibold line-clamp-2 group-hover:text-primary transition-colors">
+            <div className="p-2 space-y-1">
+                <h3 className="text-[10px] sm:text-xs font-semibold line-clamp-2 group-hover:text-primary transition-colors">
                     {product.productName}
                 </h3>
-                <Suspense fallback={<div className="h-5 w-24 rounded bg-muted"></div>}>
-                    <p className="text-sm font-bold text-primary">
+                <Suspense fallback={<div className="h-4 w-20 rounded bg-muted"></div>}>
+                    <p className="text-[10px] sm:text-xs font-bold text-primary">
                         {product.priceWithTax.__typename === 'PriceRange' ? (
                             product.priceWithTax.min !== product.priceWithTax.max ? (
                                 <>

@@ -25,9 +25,11 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                 bgImageUrl: '', bgType: 'color',
                 startTime: new Date().toISOString(),
                 endTime: new Date(Date.now() + 86400000).toISOString(),
+                isUnlimited: false,
                 titleFontSize: '24px', titleFontWeight: '900',
                 showCountdown: true, countdownStyle: 'boxes',
                 cardStyle: 'standard', showBadge: true, badgeText: 'FLASH',
+                discountPercentage: 20,
                 height: 'auto', padding: '32px', borderRadius: '0px',
                 animation: 'none'
             }]
@@ -65,9 +67,9 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
     if (!sv) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--builder-text-muted)' }}>Aucune campagne. Cliquez sur "Nouvelle Campagne".</div>;
 
     return (
-        <div style={{ display: 'flex', gap: '1.5rem', width: '100%', minHeight: '500px' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', width: '100%', height: '100%', maxHeight: 'calc(100vh - 200px)' }}>
             {/* Campaign List */}
-            <div style={{ width: '220px', borderRight: '1px solid var(--builder-border)', paddingRight: '1rem', flexShrink: 0 }}>
+            <div style={{ width: '220px', borderRight: '1px solid var(--builder-border)', paddingRight: '1rem', flexShrink: 0, overflowY: 'auto', maxHeight: '100%' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--builder-text-muted)', marginBottom: '1rem', textTransform: 'uppercase' }}>Campagnes</div>
                 <div className="stack">
                     {versions.map((v: any) => (
@@ -87,7 +89,7 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
             </div>
 
             {/* Editor */}
-            <div className="stack-lg" style={{ flex: 1 }}>
+            <div className="stack-lg" style={{ flex: 1, overflowY: 'auto', maxHeight: '100%' }}>
                 <div className="settings-card">
                     <div className="settings-card-header" style={{ justifyContent: 'space-between' }}>
                         <span>⚡ {sv.name}</span>
@@ -118,19 +120,27 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                     <div className="settings-card-header">⏰ Planification</div>
                     <div className="grid-2">
                         <div><label className="label-pro">Heure de début</label><input type="datetime-local" className="input-pro" value={sv.startTime ? new Date(sv.startTime).toISOString().slice(0, 16) : ''} onChange={(e) => updateVersion(sv.id, { startTime: new Date(e.target.value).toISOString() })} /></div>
-                        <div><label className="label-pro">Heure de fin (Compte à rebours)</label><input type="datetime-local" className="input-pro" value={sv.endTime ? new Date(sv.endTime).toISOString().slice(0, 16) : ''} onChange={(e) => updateVersion(sv.id, { endTime: new Date(e.target.value).toISOString() })} /></div>
+                        <div className="toggle-row"><label><input type="checkbox" checked={sv.isUnlimited} onChange={(e) => updateVersion(sv.id, { isUnlimited: e.target.checked })} /> Durée illimitée (pas de fin)</label></div>
                     </div>
-                    <div className="grid-2" style={{ marginTop: '1rem' }}>
-                        <div className="toggle-row"><label><input type="checkbox" checked={sv.showCountdown} onChange={(e) => updateVersion(sv.id, { showCountdown: e.target.checked })} /> Afficher le compte à rebours</label></div>
-                        <div>
-                            <label className="label-pro">Style de compte à rebours</label>
-                            <select className="input-pro" value={sv.countdownStyle} onChange={(e) => updateVersion(sv.id, { countdownStyle: e.target.value })}>
-                                <option value="boxes">Boîtes pivotantes</option>
-                                <option value="inline">Texte en ligne</option>
-                                <option value="circular">Progression circulaire</option>
-                            </select>
+                    {!sv.isUnlimited && (
+                        <div style={{ marginTop: '1rem' }}>
+                            <label className="label-pro">Heure de fin (Compte à rebours)</label>
+                            <input type="datetime-local" className="input-pro" value={sv.endTime ? new Date(sv.endTime).toISOString().slice(0, 16) : ''} onChange={(e) => updateVersion(sv.id, { endTime: new Date(e.target.value).toISOString() })} />
                         </div>
-                    </div>
+                    )}
+                    {!sv.isUnlimited && (
+                        <div className="grid-2" style={{ marginTop: '1rem' }}>
+                            <div className="toggle-row"><label><input type="checkbox" checked={sv.showCountdown} onChange={(e) => updateVersion(sv.id, { showCountdown: e.target.checked })} /> Afficher le compte à rebours</label></div>
+                            <div>
+                                <label className="label-pro">Style de compte à rebours</label>
+                                <select className="input-pro" value={sv.countdownStyle} onChange={(e) => updateVersion(sv.id, { countdownStyle: e.target.value })}>
+                                    <option value="boxes">Boîtes pivotantes</option>
+                                    <option value="inline">Texte en ligne</option>
+                                    <option value="circular">Progression circulaire</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Product Selection */}
@@ -141,6 +151,9 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                             <option value="MANUAL">📍 Manuelle (IDs)</option>
                             <option value="FILTER">⚡ Filtre intelligent</option>
                         </select>
+                    </div>
+                    <div className="stack">
+                        <div><label className="label-pro">Pourcentage de remise affiché (%)</label><input type="number" className="input-pro" value={sv.discountPercentage || 0} onChange={(e) => updateVersion(sv.id, { discountPercentage: parseInt(e.target.value) })} /></div>
                     </div>
                     {sv.selectionType === 'FILTER' ? (
                         <div className="stack">
@@ -192,10 +205,6 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                         <div style={{ marginTop: '1rem' }}><FileUploadField label="Image d'arrière-plan" value={sv.bgImageUrl} onChange={(v) => updateVersion(sv.id, { bgImageUrl: v })} accept="image/*,image/gif" /></div>
                     )}
                 </div>
-
-                <button className="btn-pro btn-pro-primary section-save-btn" style={{ padding: '12px', width: '100%', justifyContent: 'center', fontSize: '0.85rem' }} onClick={() => onSave(config)}>
-                    💾 Enregistrer toutes les campagnes
-                </button>
             </div>
         </div>
     );

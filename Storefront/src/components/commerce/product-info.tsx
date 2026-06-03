@@ -199,11 +199,11 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
                 </div>
             )}
 
-            {/* Add to Cart Button */}
-            <div className="pt-4">
+            {/* Add to Cart Button - Sticky on Mobile */}
+            <div className="pt-4 lg:pt-0">
                 <Button
                     size="lg"
-                    className="w-full h-11 rounded-xl font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="w-full h-11 rounded-xl font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 fixed bottom-3 left-3 right-3 z-50 lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:right-auto"
                     disabled={!canAddToCart || isPending}
                     onClick={handleAddToCart}
                 >

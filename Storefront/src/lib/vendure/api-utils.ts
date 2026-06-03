@@ -31,7 +31,11 @@ export function getAssetUrl(path: string | null | undefined): string | undefined
     if (path.startsWith('data:')) return path;
     
     const baseUrl = getBaseUrl();
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    let cleanPath = path.startsWith('/') ? path : `/${path}`;
+    // Vendure preview thumbnails use /preview/ subdir and __preview suffix
+    // Convert to original asset path: /assets/preview/32/xxx__preview.jpg → /assets/32/xxx.jpg
+    cleanPath = cleanPath.replace(/\/preview\//, '/');
+    cleanPath = cleanPath.replace(/__preview\./, '.');
     // Encode the path to handle spaces in filenames
     return `${baseUrl}${encodeURI(cleanPath)}`;
 }

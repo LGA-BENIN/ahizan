@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     GET_COLLECTION_FACET_MAPPINGS,
     SET_COLLECTION_ALLOWED_FACETS,
+    SET_COLLECTION_ALLOWED_FACETS_BULK,
     GET_ALL_FACETS,
     GET_SELLER_DASHBOARD_CONFIG,
     UPDATE_SELLER_DASHBOARD_CONFIG,
@@ -26,6 +27,9 @@ export function CollectionFacetMapPage() {
     const queryClient = useQueryClient();
     const [saving, setSaving] = useState<string | null>(null);
     const [togglingWallet, setTogglingWallet] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set());
+    const [bulkSaving, setBulkSaving] = useState(false);
 
     const { data: configData } = useQuery({
         queryKey: ['sellerDashboardConfig'],
@@ -60,8 +64,61 @@ export function CollectionFacetMapPage() {
     const allFacets = facetsData?.facets?.items || [];
     const loading = loadingMappings || loadingFacets;
 
+    // Helper functions
+    const findMappingById = (tree: any[], id: string): any => {
+        for (const node of tree) {
+            if (node.collectionId === id) return node;
+            if (node.children) {
+                const found = findMappingById(node.children, id);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+
+    const flattenMappings = (tree: any[]): any[] => {
+        const result: any[] = [];
+        for (const node of tree) {
+            result.push(node);
+            if (node.children) {
+                result.push(...flattenMappings(node.children));
+            }
+        }
+        return result;
+    };
+
+    const sortTree = (tree: any[]): any[] => {
+        return tree
+            .map((node: any) => ({
+                ...node,
+                children: node.children ? sortTree(node.children) : [],
+            }))
+            .sort((a: any, b: any) => 
+                a.collectionName.localeCompare(b.collectionName, 'fr', { sensitivity: 'base' })
+            );
+    };
+
+    const filterTree = (tree: any[], term: string): any[] => {
+        if (!term) return tree;
+        const lowerTerm = term.toLowerCase();
+        return tree
+            .map((node: any) => ({
+                ...node,
+                children: filterTree(node.children || [], term),
+            }))
+            .filter((node: any) => {
+                const matchesSelf = node.collectionName.toLowerCase().includes(lowerTerm);
+                const hasMatchingChildren = node.children && node.children.length > 0;
+                return matchesSelf || hasMatchingChildren;
+            });
+    };
+
+    const sortedMappings = sortTree(mappings);
+    const filteredMappings = filterTree(sortedMappings, searchTerm);
+    const flatFilteredMappings = flattenMappings(filteredMappings);
+
     const toggleFacet = async (collectionId: string, facetId: string) => {
-        const mapping = mappings.find((m: any) => m.collectionId === collectionId);
+        const mapping = findMappingById(mappings, collectionId);
         if (!mapping) return;
 
         const ownIds: string[] = (mapping.ownFacetIds || []).map((id: any) => String(id));
@@ -80,6 +137,44 @@ export function CollectionFacetMapPage() {
             console.error('Error saving:', err);
         } finally {
             setSaving(null);
+        }
+    };
+
+    const toggleExpand = (collectionId: string) => {
+        setExpandedCollections(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(collectionId)) {
+                newSet.delete(collectionId);
+            } else {
+                newSet.add(collectionId);
+            }
+            return newSet;
+        });
+    };
+
+    const getAllDescendantIds = (mapping: any): string[] => {
+        const ids: string[] = [mapping.collectionId];
+        if (mapping.children && mapping.children.length > 0) {
+            for (const child of mapping.children) {
+                ids.push(...getAllDescendantIds(child));
+            }
+        }
+        return ids;
+    };
+
+    const applyToSubcollections = async (collectionId: string, facetIds: string[]) => {
+        const mapping = findMappingById(mappings, collectionId);
+        if (!mapping) return;
+
+        const descendantIds = getAllDescendantIds(mapping);
+        setBulkSaving(true);
+        try {
+            await fetchGraphQL(SET_COLLECTION_ALLOWED_FACETS_BULK, { collectionIds: descendantIds, facetIds });
+            queryClient.invalidateQueries({ queryKey: ['collectionFacetMappings'] });
+        } catch (err) {
+            console.error('Error saving bulk:', err);
+        } finally {
+            setBulkSaving(false);
         }
     };
 
@@ -155,151 +250,316 @@ export function CollectionFacetMapPage() {
                 </button>
             </div>
 
+            {/* Search Bar */}
+            <div
+                style={{
+                    marginBottom: 24,
+                }}
+            >
+                <input
+                    type="text"
+                    placeholder="Rechercher une collection..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        fontSize: 14,
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        outline: 'none',
+                        background: '#fff',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                    }}
+                    onFocus={(e) => {
+                        e.target.style.borderColor = '#3b82f6';
+                        e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                        e.target.style.borderColor = '#e5e7eb';
+                        e.target.style.boxShadow = 'none';
+                    }}
+                />
+                {searchTerm && (
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                        {flatFilteredMappings.length} collection{flatFilteredMappings.length !== 1 ? 's' : ''} trouvée{flatFilteredMappings.length !== 1 ? 's' : ''}
+                    </div>
+                )}
+            </div>
+
             {mappings.length === 0 && (
                 <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', marginTop: 40 }}>
                     Aucune collection trouvée. Créez d'abord des collections dans le catalogue.
                 </p>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {mappings.map((mapping: any) => {
-                    const isSavingThis = saving === mapping.collectionId;
-                    const ownSet = new Set(
-                        (mapping.ownFacetIds || []).map((id: any) => String(id))
-                    );
-                    const inheritedSet = new Set(
-                        (mapping.inheritedFacetIds || []).map((id: any) => String(id))
-                    );
-                    const totalSet = new Set(
-                        (mapping.allowedFacetIds || []).map((id: any) => String(id))
-                    );
+            {filteredMappings.length === 0 && mappings.length > 0 && (
+                <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
+                    <p style={{ fontSize: 14, marginBottom: 8 }}>
+                        Aucune collection ne correspond à votre recherche.
+                    </p>
+                    <button
+                        onClick={() => setSearchTerm('')}
+                        style={{
+                            fontSize: 13,
+                            color: '#3b82f6',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                        }}
+                    >
+                        Effacer la recherche
+                    </button>
+                </div>
+            )}
 
-                    return (
-                        <div
-                            key={mapping.collectionId}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {filteredMappings.map((mapping: any) => (
+                    <CollectionCard
+                        key={mapping.collectionId}
+                        mapping={mapping}
+                        allFacets={allFacets}
+                        saving={saving}
+                        bulkSaving={bulkSaving}
+                        expanded={expandedCollections.has(mapping.collectionId)}
+                        level={0}
+                        onToggleFacet={toggleFacet}
+                        onToggleExpand={toggleExpand}
+                        onApplyToSubcollections={applyToSubcollections}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function CollectionCard({
+    mapping,
+    allFacets,
+    saving,
+    bulkSaving,
+    expanded,
+    level,
+    onToggleFacet,
+    onToggleExpand,
+    onApplyToSubcollections,
+}: any) {
+    const isSavingThis = saving === mapping.collectionId;
+    const ownSet = new Set(
+        (mapping.ownFacetIds || []).map((id: any) => String(id))
+    );
+    const inheritedSet = new Set(
+        (mapping.inheritedFacetIds || []).map((id: any) => String(id))
+    );
+    const totalSet = new Set(
+        (mapping.allowedFacetIds || []).map((id: any) => String(id))
+    );
+    const hasChildren = mapping.children && mapping.children.length > 0;
+
+    return (
+        <div
+            style={{
+                border: '1px solid #e5e7eb',
+                borderRadius: 12,
+                overflow: 'hidden',
+                background: '#fff',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                marginLeft: level * 20,
+            }}
+        >
+            {/* Header */}
+            <div
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 18px',
+                    background: totalSet.size > 0 ? '#f0f7ff' : '#fafafa',
+                    borderBottom: '1px solid #e5e7eb',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {hasChildren && (
+                        <button
+                            onClick={() => onToggleExpand(mapping.collectionId)}
                             style={{
-                                border: '1px solid #e5e7eb',
-                                borderRadius: 12,
-                                overflow: 'hidden',
-                                background: '#fff',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#6b7280',
                             }}
                         >
-                            {/* Header */}
-                            <div
+                            <span style={{ fontSize: 16, fontWeight: 700 }}>
+                                {expanded ? '▼' : '▶'}
+                            </span>
+                        </button>
+                    )}
+                    <div
+                        style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 8,
+                            background: totalSet.size > 0 ? '#dbeafe' : '#f3f4f6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: totalSet.size > 0 ? '#1e40af' : '#6b7280',
+                        }}
+                    >
+                        {mapping.collectionName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                            {mapping.collectionName}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            <span
                                 style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '16px 20px',
-                                    background: totalSet.size > 0 ? '#f0f7ff' : '#fafafa',
-                                    borderBottom: '1px solid #e5e7eb',
+                                    fontSize: 10,
+                                    background: totalSet.size > 0 ? '#3b82f6' : '#e5e7eb',
+                                    color: totalSet.size > 0 ? '#fff' : '#9ca3af',
+                                    padding: '2px 8px',
+                                    borderRadius: 99,
+                                    fontWeight: 600,
                                 }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <span style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>
-                                        {mapping.collectionName}
-                                    </span>
-                                    <span
-                                        style={{
-                                            fontSize: 11,
-                                            background: totalSet.size > 0 ? '#3b82f6' : '#e5e7eb',
-                                            color: totalSet.size > 0 ? '#fff' : '#9ca3af',
-                                            padding: '3px 10px',
-                                            borderRadius: 99,
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        {totalSet.size} facette{totalSet.size !== 1 ? 's' : ''}
-                                        {inheritedSet.size > 0 && (
-                                            <span style={{ fontWeight: 400, opacity: 0.8 }}> ({inheritedSet.size} héritée{inheritedSet.size !== 1 ? 's' : ''})</span>
-                                        )}
-                                    </span>
-                                </div>
-                                {isSavingThis && (
-                                    <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 500 }}>
-                                        Sauvegarde...
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Facet checkboxes */}
-                            <div style={{ padding: '16px 20px' }}>
-                                {allFacets.length === 0 ? (
-                                    <p style={{ fontSize: 13, color: '#9ca3af' }}>
-                                        Aucune facette trouvée. Créez d'abord des facettes dans le catalogue.
-                                    </p>
-                                ) : (
-                                    <div
-                                        style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                                            gap: 8,
-                                        }}
-                                    >
-                                        {allFacets.map((facet: any) => {
-                                            const isOwn = ownSet.has(String(facet.id));
-                                            const isInherited = inheritedSet.has(String(facet.id));
-                                            const isChecked = isOwn || isInherited;
-                                            return (
-                                                <label
-                                                    key={facet.id}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: 10,
-                                                        padding: '10px 12px',
-                                                        borderRadius: 8,
-                                                        border: isOwn
-                                                            ? '2px solid #3b82f6'
-                                                            : isInherited
-                                                            ? '2px solid #93c5fd'
-                                                            : '1px solid #e5e7eb',
-                                                        background: isOwn
-                                                            ? '#eff6ff'
-                                                            : isInherited
-                                                            ? '#f0f7ff'
-                                                            : '#fff',
-                                                        cursor: isInherited ? 'default' : isSavingThis ? 'wait' : 'pointer',
-                                                        opacity: isSavingThis && !isInherited ? 0.7 : 1,
-                                                        transition: 'all 0.15s',
-                                                        userSelect: 'none',
-                                                    }}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isChecked}
-                                                        disabled={isInherited || !!isSavingThis}
-                                                        onChange={() =>
-                                                            toggleFacet(mapping.collectionId, facet.id)
-                                                        }
-                                                        style={{ accentColor: isInherited ? '#93c5fd' : '#3b82f6', width: 16, height: 16 }}
-                                                    />
-                                                    <div style={{ flex: 1 }}>
-                                                        <span style={{ fontSize: 13, fontWeight: 600, color: isInherited ? '#6b7280' : '#1e293b' }}>
-                                                            {facet.name}
-                                                        </span>
-                                                        {isInherited && (
-                                                            <span style={{ fontSize: 10, color: '#93c5fd', marginLeft: 6, fontWeight: 500 }}>
-                                                                héritée
-                                                            </span>
-                                                        )}
-                                                        {isChecked && facet.values?.length > 0 && (
-                                                            <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 6 }}>
-                                                                ({facet.values.length} valeur{facet.values.length !== 1 ? 's' : ''})
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                                {totalSet.size} facette{totalSet.size !== 1 ? 's' : ''}
+                            </span>
+                            {inheritedSet.size > 0 && (
+                                <span style={{ fontSize: 10, color: '#6b7280' }}>
+                                    ({inheritedSet.size} héritée{inheritedSet.size !== 1 ? 's' : ''})
+                                </span>
+                            )}
                         </div>
-                    );
-                })}
+                    </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {hasChildren && (
+                        <button
+                            onClick={() => onApplyToSubcollections(mapping.collectionId, Array.from(ownSet))}
+                            disabled={bulkSaving}
+                            style={{
+                                fontSize: 11,
+                                color: '#3b82f6',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                cursor: bulkSaving ? 'wait' : 'pointer',
+                                fontWeight: 500,
+                            }}
+                        >
+                            {bulkSaving ? 'Application...' : 'Apiquer aux sous-collections'}
+                        </button>
+                    )}
+                    {isSavingThis && (
+                        <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 500 }}>
+                            Sauvegarde...
+                        </span>
+                    )}
+                </div>
             </div>
+
+            {/* Facet checkboxes */}
+            <div style={{ padding: '14px 18px' }}>
+                {allFacets.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#9ca3af' }}>
+                        Aucune facette trouvée. Créez d'abord des facettes dans le catalogue.
+                    </p>
+                ) : (
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                            gap: 8,
+                        }}
+                    >
+                        {allFacets.map((facet: any) => {
+                            const isOwn = ownSet.has(String(facet.id));
+                            const isInherited = inheritedSet.has(String(facet.id));
+                            const isChecked = isOwn || isInherited;
+                            return (
+                                <label
+                                    key={facet.id}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        padding: '8px 10px',
+                                        borderRadius: 6,
+                                        border: isOwn
+                                            ? '2px solid #3b82f6'
+                                            : isInherited
+                                            ? '2px solid #93c5fd'
+                                            : '1px solid #e5e7eb',
+                                        background: isOwn
+                                            ? '#eff6ff'
+                                            : isInherited
+                                            ? '#f0f7ff'
+                                            : '#fff',
+                                        cursor: isInherited ? 'default' : isSavingThis ? 'wait' : 'pointer',
+                                        opacity: isSavingThis && !isInherited ? 0.7 : 1,
+                                        transition: 'all 0.15s',
+                                        userSelect: 'none',
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        disabled={isInherited || !!isSavingThis}
+                                        onChange={() =>
+                                            onToggleFacet(mapping.collectionId, facet.id)
+                                        }
+                                        style={{ accentColor: isInherited ? '#93c5fd' : '#3b82f6', width: 14, height: 14 }}
+                                    />
+                                    <div style={{ flex: 1 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: isInherited ? '#6b7280' : '#1e293b' }}>
+                                            {facet.name}
+                                        </span>
+                                        {isInherited && (
+                                            <span style={{ fontSize: 9, color: '#93c5fd', marginLeft: 5, fontWeight: 500 }}>
+                                                héritée
+                                            </span>
+                                        )}
+                                        {isChecked && facet.values?.length > 0 && (
+                                            <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 5 }}>
+                                                ({facet.values.length} valeur{facet.values.length !== 1 ? 's' : ''})
+                                            </span>
+                                        )}
+                                    </div>
+                                </label>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Children */}
+            {expanded && hasChildren && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+                    {mapping.children.map((child: any) => (
+                        <CollectionCard
+                            key={child.collectionId}
+                            mapping={child}
+                            allFacets={allFacets}
+                            saving={saving}
+                            bulkSaving={bulkSaving}
+                            expanded={false}
+                            level={level + 1}
+                            onToggleFacet={onToggleFacet}
+                            onToggleExpand={onToggleExpand}
+                            onApplyToSubcollections={onApplyToSubcollections}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

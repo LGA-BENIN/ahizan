@@ -144,7 +144,7 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
     const currentTab = tabs[activeTabIdx];
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px' }}>
+        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
             {/* Header */}
             <div className="settings-card">
                 <div className="settings-card-header">📝 Entête de section</div>
@@ -309,10 +309,6 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
                     </div>
                 )}
             </div>
-
-            <Button className="section-save-btn w-full justify-center text-sm py-3" onClick={() => onSave(config)}>
-                💾 Enregistrer la grille avec onglets
-            </Button>
         </div>
     );
 };

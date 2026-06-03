@@ -228,7 +228,8 @@ export class CMSAdminResolver {
             const collections = await connection.getRepository(ctx, CollectionEntity).find({
                 relations: ['featuredAsset', 'parent', 'translations'],
             });
-            console.log(`[cmsCollectionsTree admin] Found ${collections.length} collections`);
+
+            console.log(`[cmsCollectionsTree admin] Found ${collections.length} total collections`);
 
             const getName = (coll: any): string => {
                 // Vendure v3: name/slug are on translations, not directly on the entity
@@ -253,10 +254,19 @@ export class CMSAdminResolver {
                 return !isRoot;
             });
 
+            console.log(`[cmsCollectionsTree admin] After filtering root collections: ${realCollections.length} collections`);
+
+            // Log each collection for debugging
+            realCollections.forEach((c: any) => {
+                console.log(`[cmsCollectionsTree admin] Collection: id=${c.id}, name=${getName(c)}, slug=${getSlug(c)}, parentId=${c.parentId}`);
+            });
+
             // Collections whose parent was filtered out become top-level
             const topLevel = realCollections.filter((c: any) => {
                 return !c.parentId || c.parentId === c.id || filteredIds.has(c.parentId);
             });
+            console.log(`[cmsCollectionsTree admin] Top-level collections: ${topLevel.length}`);
+
             const buildNode = (coll: any): any => {
                 const children = realCollections.filter((c: any) => c.parentId === coll.id && c.id !== coll.id);
                 return {
@@ -268,7 +278,7 @@ export class CMSAdminResolver {
                 };
             };
             const result = topLevel.map(buildNode);
-            console.log(`[cmsCollectionsTree admin] Returning ${result.length} top-level nodes`);
+            console.log(`[cmsCollectionsTree admin] Returning ${result.length} collection nodes`);
             return result;
         } catch (error) {
             console.error('[cmsCollectionsTree admin] Error:', error);
@@ -530,7 +540,6 @@ export class CMSShopResolver {
             console.log(`[cmsCollectionsTree shop] Returning ${result.length} top-level nodes`);
             return result;
         } catch (error) {
-            console.error('[cmsCollectionsTree shop] Error:', error);
             return [];
         }
     }

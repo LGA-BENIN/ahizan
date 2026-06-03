@@ -92,7 +92,7 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
     );
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px' }}>
+        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
 
             {/* ===== BRAND IDENTITY ===== */}
             <div className="settings-card">
@@ -316,10 +316,6 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                     )}
                 </div>
             </div>
-
-            <button className="btn-pro btn-pro-primary section-save-btn" style={{ padding: '12px', width: '100%', justifyContent: 'center', fontSize: '0.85rem' }} onClick={() => onSave(config)}>
-                💾 Enregistrer la configuration de l'en-tête
-            </button>
         </div>
     );
 };

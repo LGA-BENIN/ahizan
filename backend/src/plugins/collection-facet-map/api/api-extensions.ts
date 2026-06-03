@@ -15,6 +15,7 @@ export const adminApiExtensions = gql`
 
     extend type Mutation {
         setCollectionAllowedFacets(collectionId: ID!, facetIds: [ID!]!): CollectionFacetMapping!
+        setCollectionAllowedFacetsBulk(collectionIds: [ID!]!, facetIds: [ID!]!): [CollectionFacetMapping!]!
         updateSellerDashboardConfig(walletPageEnabled: Boolean!): SellerDashboardConfig!
     }
 
@@ -25,6 +26,8 @@ export const adminApiExtensions = gql`
         ownFacetIds: [ID!]!
         inheritedFacetIds: [ID!]!
         allowedFacets: [Facet!]!
+        children: [CollectionFacetMapping!]!
+        hasChildren: Boolean!
     }
 
     type SellerDashboardConfig {

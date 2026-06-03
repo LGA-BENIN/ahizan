@@ -75,6 +75,8 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
     const { selectedSection, setSelectedSection, setMode } = useEditor();
     // Track which "multi" groups have their dropdown expanded
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+    // Track sidebar collapse state
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     const sortedSections = [...sections].sort((a, b) => a.order - b.order);
 
@@ -162,22 +164,42 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
     };
 
     return (
-        <aside className="builder-sidebar">
+        <aside className="builder-sidebar" style={{ display: 'flex', flexDirection: 'column', width: isCollapsed ? '40px' : 'auto', transition: 'width 0.3s ease' }}>
             {/* Header */}
             <div style={{
-                padding: '12px 14px',
+                padding: isCollapsed ? '12px 8px' : '12px 14px',
                 borderBottom: '1px solid var(--builder-border)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between'
+                justifyContent: isCollapsed ? 'center' : 'space-between'
             }}>
-                <div style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--builder-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Composants ({sections.length})
-                </div>
+                {!isCollapsed && (
+                    <div style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--builder-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Composants ({sections.length})
+                    </div>
+                )}
+                <button
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        fontSize: '1.2rem',
+                        color: 'var(--builder-text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                    title={isCollapsed ? 'Développer' : 'Réduire'}
+                >
+                    {isCollapsed ? '☰' : '✕'}
+                </button>
             </div>
 
             {/* Component List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
+            {!isCollapsed && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
                 <div className="stack-lg">
                     {ZONE_MAP.map((zone) => (
                         <div key={zone.zone}>
@@ -363,6 +385,7 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                     ))}
                 </div>
             </div>
+            )}
         </aside>
     );
 };

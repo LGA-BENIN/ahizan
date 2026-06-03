@@ -19,8 +19,8 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
                         id
                         name
                         slug
-                        featuredAsset { id preview }
-                        children { id name slug featuredAsset { id preview } }
+                        featuredAsset { id source }
+                        children { id name slug featuredAsset { id source } }
                     }
                 }
             `;
@@ -47,12 +47,12 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
                         id: coll.id,
                         name: coll.name,
                         slug: coll.slug,
-                        icon: coll.featuredAsset?.preview || null,
+                        icon: coll.featuredAsset?.source || null,
                         children: (coll.children || []).map((ch: any) => ({
                             id: ch.id,
                             name: ch.name,
                             slug: ch.slug,
-                            icon: ch.featuredAsset?.preview || null,
+                            icon: ch.featuredAsset?.source || null,
                         }))
                     })));
                 }

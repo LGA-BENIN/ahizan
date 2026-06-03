@@ -47,10 +47,39 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
 
     async onApplicationBootstrap() {
         try {
+            await this.fixCorruptedJsonColumns();
             await this.getOrCreateSettings();
             console.log('PlatformSettingsService: Settings initialized.');
         } catch (e) {
             console.error('PlatformSettingsService: Failed to initialize settings:', e);
+        }
+    }
+
+    private async fixCorruptedJsonColumns() {
+        try {
+            const repo = this.connection.rawConnection.getRepository(PlatformSettings);
+            const settings = await repo.findOne({ where: { id: 'platform_settings' } });
+            
+            if (settings) {
+                let needsSave = false;
+                
+                // Fix vendorContactFields if it's an empty string or invalid
+                const vendorContactFields = (settings as any).vendorContactFields;
+                if (vendorContactFields && typeof vendorContactFields === 'string') {
+                    const trimmed = (vendorContactFields as string).trim();
+                    if (trimmed === '' || trimmed === 'null') {
+                        (settings as any).vendorContactFields = null;
+                        needsSave = true;
+                    }
+                }
+                
+                if (needsSave) {
+                    await repo.save(settings);
+                    console.log('[PlatformSettingsService] Fixed corrupted JSON columns');
+                }
+            }
+        } catch (err) {
+            console.error('[PlatformSettingsService] Error fixing JSON columns:', err);
         }
     }
 }

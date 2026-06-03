@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 /**
  * Hook that auto-saves a config object after it changes.
  * Debounces saves by 2 seconds to avoid excessive API calls.
+ * Saves are silent (no notifications) to avoid disrupting user workflow.
  * 
  * Usage inside a visual editor:
  *   const [config, setConfig] = useState(data);
@@ -10,7 +11,7 @@ import { useEffect, useRef } from 'react';
  * 
  * The editor's existing "Enregistrer" button still works for immediate save.
  */
-export function useAutoSave(config: any, onSave: (data: any) => void) {
+export function useAutoSave(config: any, onSave: (data: any, silent?: boolean) => void) {
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const lastSavedHashRef = useRef<string>('');
 
@@ -18,11 +19,11 @@ export function useAutoSave(config: any, onSave: (data: any) => void) {
     // after a manual "Enregistrer" button click
     const onSaveTracked = useRef((data: any) => {
         lastSavedHashRef.current = JSON.stringify(data);
-        onSave(data);
+        onSave(data, true); // Silent save for auto-save
     });
     onSaveTracked.current = (data: any) => {
         lastSavedHashRef.current = JSON.stringify(data);
-        onSave(data);
+        onSave(data, true); // Silent save for auto-save
     };
 
     // On mount and when config changes, check if we should auto-save

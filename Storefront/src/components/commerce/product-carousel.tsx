@@ -15,9 +15,9 @@ export function ProductCarousel({title, products}: ProductCarouselClientProps) {
     const id = useId();
 
     return (
-        <section className="py-8 md:py-10 border-t border-border/40 mt-10">
-            <div className="container mx-auto px-6 md:px-12 lg:px-20">
-                <h2 className="text-xl font-bold mb-6 tracking-tight">{title}</h2>
+        <section className="py-6 md:py-8 border-t border-border/40 mt-8">
+            <div className="container mx-auto px-4 md:px-6 lg:px-8">
+                <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 tracking-tight">{title}</h2>
                 <Carousel
                     opts={{
                         align: "start",
@@ -25,10 +25,10 @@ export function ProductCarousel({title, products}: ProductCarouselClientProps) {
                     }}
                     className="w-full"
                 >
-                    <CarouselContent className="-ml-2 md:-ml-4">
+                    <CarouselContent className="-ml-2 md:-ml-3">
                         {products.map((product, i) => (
                             <CarouselItem key={id + i}
-                                          className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+                                          className="pl-2 md:pl-3 basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5 xl:basis-1/6">
                                 <ProductCard product={product}/>
                             </CarouselItem>
                         ))}

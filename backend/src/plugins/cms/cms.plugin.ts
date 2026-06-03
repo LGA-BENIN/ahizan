@@ -31,7 +31,6 @@ export class CMSPlugin implements OnApplicationBootstrap {
     ) { }
 
     async onApplicationBootstrap() {
-        console.log('[CMSPlugin] Server starting... Checking facets for diagnostic...');
         try {
             const channel = await this.channelService.getDefaultChannel();
             const ctx = new RequestContext({
@@ -41,38 +40,6 @@ export class CMSPlugin implements OnApplicationBootstrap {
                 channel,
             });
             await this.cmsService.ensureHomePage(ctx);
-            
-            // DIAGNOSTIC LOGGING
-            const { TransactionalConnection } = await import('@vendure/core');
-            const { FacetValue } = await import('@vendure/core');
-            const connection = (this.cmsService as any).connection;
-            const facets = await connection.getRepository(ctx, FacetValue).find({
-                relations: ['facet']
-            });
-            console.log(`[CMSPlugin] DIAGNOSTIC: Found ${facets.length} facet values in database:`);
-            facets.forEach((f: any) => {
-                console.log(` - [${f.id}] ${f.name} (Code: ${f.code}) | Parent Facet: ${f.facet?.name} (${f.facet?.code})`);
-            });
-            if (facets.length === 0) {
-                console.warn('[CMSPlugin] DIAGNOSTIC WARNING: No facet values found in database via direct repository access!');
-            }
-
-            // COLLECTION DIAGNOSTIC
-            const { Collection: CollectionEntity } = await import('@vendure/core');
-            const collections = await connection.getRepository(ctx, CollectionEntity).find({
-                relations: ['featuredAsset', 'parent', 'translations']
-            });
-            console.log(`[CMSPlugin] DIAGNOSTIC: Found ${collections.length} collections in database:`);
-            collections.forEach((c: any) => {
-                const trans = c.translations || [];
-                const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
-                const name = frTrans?.name || c.name || 'UNNAMED';
-                const slug = frTrans?.slug || c.slug || 'NO-SLUG';
-                console.log(` - [${c.id}] name=${name} slug=${slug} parentId=${c.parentId}`);
-            });
-            if (collections.length === 0) {
-                console.warn('[CMSPlugin] DIAGNOSTIC WARNING: No collections found in database! You need to create collections in the Vendure admin dashboard.');
-            }
 
             // Start season auto-activation cron (every 5 minutes)
             setInterval(async () => {

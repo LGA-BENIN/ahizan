@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { TransactionalConnection } from '@vendure/core';
 import { BrevoSettings } from './entities/brevo-settings.entity';
 import nodemailer from 'nodemailer';
 
 @Injectable()
-export class BrevoSmsService {
+export class BrevoSmsService implements OnApplicationBootstrap {
     private readonly logger = new Logger('BrevoSmsService');
 
     constructor(
@@ -192,6 +192,41 @@ export class BrevoSmsService {
             this.logger.log(`Email sent successfully to ${recipientEmail} via SMTP`);
         } catch (err: any) {
             this.logger.error(`Error sending Email to ${recipientEmail} via SMTP: ${err.message}`);
+        }
+    }
+
+    async onApplicationBootstrap() {
+        try {
+            await this.fixCorruptedJsonColumns();
+        } catch (err) {
+            this.logger.error('Error fixing JSON columns:', err);
+        }
+    }
+
+    private async fixCorruptedJsonColumns() {
+        try {
+            const settings = await this.getSettings();
+            
+            if (settings) {
+                let needsSave = false;
+                
+                // Fix channelsConfig if it's an empty string or invalid
+                const channelsConfig = (settings as any).channelsConfig;
+                if (channelsConfig && typeof channelsConfig === 'string') {
+                    const trimmed = (channelsConfig as string).trim();
+                    if (trimmed === '' || trimmed === 'null') {
+                        (settings as any).channelsConfig = null;
+                        needsSave = true;
+                    }
+                }
+                
+                if (needsSave) {
+                    await this.repo.save(settings);
+                    this.logger.log('Fixed corrupted JSON columns in brevo_settings');
+                }
+            }
+        } catch (err) {
+            this.logger.error('Error fixing JSON columns:', err);
         }
     }
 }

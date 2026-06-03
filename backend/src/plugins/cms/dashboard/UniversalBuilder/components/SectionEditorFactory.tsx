@@ -58,7 +58,7 @@ async function updateSectionInBackend(id: string, dataJson: string) {
 export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: SectionEditorFactoryProps) => {
     const { setIsSaving, setSaveStatus, activeHabillage, setActiveHabillage, setPreviewVersion } = useEditor();
 
-    const handleSave = async (newData: any) => {
+    const handleSave = async (newData: any, silent: boolean = false) => {
         setIsSaving(true);
         try {
             if (activeHabillage) {
@@ -83,13 +83,20 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
                     setActiveHabillage(result.autoSaveHabillage);
                 }
                 setPreviewVersion(Date.now());
-                setSaveStatus('✅ Section sauvegardée dans l\'habillage !');
+                // Only show notification if not silent (for auto-save)
+                if (!silent) {
+                    setSaveStatus('✅ Section sauvegardée dans l\'habillage !');
+                }
             } else {
                 // No habillage selected → can't save
-                setSaveStatus('❌ Aucun habillage sélectionné — sélectionnez-en un d\'abord');
+                if (!silent) {
+                    setSaveStatus('❌ Aucun habillage sélectionné — sélectionnez-en un d\'abord');
+                }
             }
         } catch (err: any) {
-            setSaveStatus('❌ Erreur : ' + err.message);
+            if (!silent) {
+                setSaveStatus('❌ Erreur : ' + err.message);
+            }
         } finally {
             setIsSaving(false);
         }

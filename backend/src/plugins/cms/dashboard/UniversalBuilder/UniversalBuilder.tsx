@@ -768,7 +768,7 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
                       </div>
                     </div>
                   )}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', display: 'flex', justifyContent: 'center' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', display: 'block' }}>
                     {activeSection ? (
                       <SectionEditorFactory section={activeSection} sectionIndex={sections.findIndex(s => s.id === activeSection.id)} onSaveSuccess={refetchPageDetail} />
                     ) : (

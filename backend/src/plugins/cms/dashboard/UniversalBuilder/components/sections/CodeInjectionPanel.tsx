@@ -18,7 +18,7 @@ interface CodeInjectionData {
 
 interface CodeInjectionPanelProps {
     data: any;
-    onSave: (newData: any) => void;
+    onSave: (newData: any, silent?: boolean) => void;
     sectionType: string;
     children: React.ReactNode; // The visual editor
 }
@@ -54,7 +54,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
 
     const markChanged = () => setHasCodeChanges(true);
 
-    const handleSaveCode = () => {
+    const handleSaveCode = (silent: boolean = false) => {
         const codeFields: CodeInjectionData = {
             _codeOverride: isOverride,
             _overrideHTML: overrideHTML,
@@ -64,7 +64,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
             _customHTMLAfter: htmlAfter,
         };
         // Merge code fields into existing data and save
-        onSave({ ...data, ...codeFields });
+        onSave({ ...data, ...codeFields }, silent);
         setHasCodeChanges(false);
     };
 
@@ -75,7 +75,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
     useEffect(() => {
         if (!hasCodeChanges) return;
         const timer = setTimeout(() => {
-            handleSaveCodeRef.current();
+            handleSaveCodeRef.current(true); // Silent auto-save
         }, 2000);
         return () => clearTimeout(timer);
     }, [hasCodeChanges, isOverride, overrideHTML, customCSS, customJS, htmlBefore, htmlAfter]);
@@ -468,7 +468,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                             borderRadius: '10px',
                             opacity: hasCodeChanges ? 1 : 0.5,
                         }}
-                        onClick={handleSaveCode}
+                        onClick={() => handleSaveCode(false)}
                         disabled={!hasCodeChanges}
                     >
                         💾 Enregistrer les modifications du code (Ctrl+S)

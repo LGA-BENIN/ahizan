@@ -1,6 +1,10 @@
 import { gql } from 'graphql-tag';
 
 export const commonApiExtensions = `
+    extend type ProductVariant {
+        customFields: JSON
+    }
+
     type Vendor implements Node {
         id: ID!
         createdAt: DateTime!
@@ -166,6 +170,8 @@ export const commonApiExtensions = `
         facetValueIds: [ID!]
         assetIds: [ID!]
         featuredAssetId: ID
+        onPromotion: Boolean
+        promotionalPrice: Int
     }
 
     input UpdateVendorProductInput {
@@ -176,12 +182,16 @@ export const commonApiExtensions = `
         assetIds: [ID!]
         featuredAssetId: ID
         enabled: Boolean
+        onPromotion: Boolean
+        promotionalPrice: Int
     }
 
     input UpdateVendorProductVariantInput {
         id: ID!
         price: Int
         stock: Int
+        onPromotion: Boolean
+        promotionalPrice: Int
     }
 
 

@@ -43,14 +43,14 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
             {/* Left Sidebar - Categories (Desktop only, mobile is in MobileCategorySidebar) */}
             {heroConfig.showSidebar && (
                 <aside 
-                    className={`hidden lg:flex w-60 border border-border/60 rounded-2xl self-stretch bg-white shadow-sm relative z-50`}
+                    className={`hidden lg:flex w-60 border border-border/60 rounded-2xl bg-white shadow-sm relative z-50 ${hClass}`}
                     onMouseLeave={() => setHoveredCat(null)}
                 >
                     <div className="flex flex-col w-full h-full relative">
                         <div className="px-5 py-3 border-b border-border/40 bg-muted/5">
                             <span className="text-[10px] font-black uppercase tracking-widest text-black">Catégories</span>
                         </div>
-                        <div className="flex-1 overflow-y-auto no-scrollbar py-2">
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 py-2">
                             {(() => {
                                 // STRICT: Only show categories explicitly enabled in CATEGORIES section
                                 const enabledCats = promoConfig?.enabledCategories || {};
@@ -93,7 +93,7 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
                     </div>
                     {/* Mega-menu style subcategory flyout rendered outside the overflow container */}
                     {hoveredCat && hoveredCat.children?.length > 0 && (
-                        <div className="absolute left-full top-0 ml-2 bg-white border border-border/60 rounded-xl shadow-xl py-4 px-5 min-w-[280px] max-w-[400px] max-h-[500px] overflow-y-auto z-[100] flex flex-col animate-in fade-in slide-in-from-left-2 duration-200">
+                        <div className="absolute left-full top-0 ml-2 bg-white border border-border/60 rounded-xl shadow-xl py-4 px-5 min-w-[280px] max-w-[400px] max-h-[500px] overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 z-[100] flex flex-col animate-in fade-in slide-in-from-left-2 duration-200">
                             <div className="pb-3 border-b border-border/40 mb-3">
                                 <span className="font-bold text-[14px] text-foreground">{hoveredCat.name}</span>
                             </div>

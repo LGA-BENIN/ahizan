@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Ctx, RequestContext, FacetService, LanguageCode, TransactionalConnection, FacetValue, Facet } from '@vendure/core';
+import { Ctx, RequestContext, FacetService, LanguageCode, TransactionalConnection, FacetValue, Facet, ChannelService } from '@vendure/core';
 import { FacetRow, FacetValueRow } from '../types/import-types';
 
 @Injectable()
@@ -7,6 +7,7 @@ export class FacetImportService {
   constructor(
     private facetService: FacetService,
     private connection: TransactionalConnection,
+    private channelService: ChannelService,
   ) {}
 
   /**
@@ -87,6 +88,7 @@ export class FacetImportService {
           });
 
           const createdFacet = await facetRepo.save(newFacet);
+          await this.channelService.assignToChannels(ctx, Facet, createdFacet.id as any, [ctx.channelId]);
           codeToIdMap.set(facet.code, String(createdFacet.id));
           facetsCreated++;
         }
@@ -137,7 +139,8 @@ export class FacetImportService {
           ],
         });
 
-        await facetValueRepo.save(newFacetValue);
+        const savedFacetValue = await facetValueRepo.save(newFacetValue);
+        await this.channelService.assignToChannels(ctx, FacetValue, savedFacetValue.id as any, [ctx.channelId]);
         facetValuesCreated++;
       } catch (error: any) {
         errors.push(`Failed to import facet value "${facetValue.code}": ${error.message}`);

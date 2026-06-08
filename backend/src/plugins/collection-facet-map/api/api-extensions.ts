@@ -37,6 +37,7 @@ export const adminApiExtensions = gql`
     extend type Query {
         collectionFacetMappings: [CollectionFacetMapping!]!
         collectionAllowedFacets(collectionId: ID!): CollectionFacetMapping
+        allMappingFacets: [Facet!]!
         sellerDashboardConfig: SellerDashboardConfig!
     }
 `;

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Ctx, RequestContext, CollectionService, LanguageCode, TransactionalConnection } from '@vendure/core';
+import { Ctx, RequestContext, CollectionService, LanguageCode, TransactionalConnection, ChannelService, Collection } from '@vendure/core';
 import { CollectionRow } from '../types/import-types';
 
 @Injectable()
@@ -7,6 +7,7 @@ export class CollectionImportService {
   constructor(
     private collectionService: CollectionService,
     private connection: TransactionalConnection,
+    private channelService: ChannelService,
   ) {}
 
   /**
@@ -87,6 +88,7 @@ export class CollectionImportService {
             },
           });
 
+          await this.channelService.assignToChannels(ctx, Collection, createdCollection.id as any, [ctx.channelId]);
           slugToIdMap.set(collection.slug, String(createdCollection.id));
           created++;
         }

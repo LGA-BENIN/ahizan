@@ -11,13 +11,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-    CheckCircle2, 
+import {
+    CheckCircle2,
     X,
     ImageIcon,
     Tag,
     DollarSign,
-    Loader2
+    Loader2,
+    Percent
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -49,6 +50,8 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
         stock: 100,
         parentCategory: '',
         category: '',
+        onPromotion: false,
+        promotionalPrice: 0,
     });
     const [assets, setAssets] = useState<UploadedAsset[]>([]);
     const [featuredAssetId, setFeaturedAssetId] = useState<string | null>(null);
@@ -71,6 +74,8 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
             stock: 100,
             parentCategory: '',
             category: '',
+            onPromotion: false,
+            promotionalPrice: 0,
         });
         setAssets([]);
         setFeaturedAssetId(null);
@@ -137,6 +142,8 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
             data.append('assetIds', JSON.stringify(assets.map(a => a.id)));
             data.append('featuredAssetId', featuredAssetId || '');
             data.append('facetValueIds', JSON.stringify(facetValueIds));
+            data.append('onPromotion', formData.onPromotion.toString());
+            data.append('promotionalPrice', formData.promotionalPrice.toString());
 
             const result = await createProductAction(null, data);
 
@@ -158,11 +165,10 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
 
     return (
         <div className={cn("max-w-5xl mx-auto space-y-8 pb-20", className)}>
-            <form onSubmit={handleSubmit} autoComplete="off" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* Left Column: Data */}
-                <div className="lg:col-span-2 space-y-8">
-                    
+            <form onSubmit={handleSubmit} autoComplete="off" className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                {/* Left Column: Product Info */}
+                <div className="space-y-8">
                     {/* Section: Identité */}
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                         <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
@@ -170,43 +176,41 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                             <h3 className="text-xs font-black uppercase tracking-widest">Identité du Produit</h3>
                         </div>
                         <div className="p-8 space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nom *</Label>
-                                    <Input
-                                        value={formData.name}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="Ex: Panier Tressé"
-                                        className="h-11 rounded-xl"
-                                        autoComplete="off"
-                                        name={`name-${formKey}`}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Catégorie *</Label>
-                                    <Select value={formData.parentCategory} onValueChange={handleParentChange}>
-                                        <SelectTrigger className="h-11 rounded-xl">
-                                            <SelectValue placeholder="Sélectionner une catégorie..." />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-xl">
-                                            {(collectionTree || []).map((c: any) => <SelectItem key={String(c.id)} value={String(c.id)}>{c.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                {subCategories.length > 0 && (
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sous-catégorie</Label>
-                                    <Select value={formData.category !== formData.parentCategory ? formData.category : ''} onValueChange={handleSubCategoryChange}>
-                                        <SelectTrigger className="h-11 rounded-xl">
-                                            <SelectValue placeholder="Sélectionner une sous-catégorie..." />
-                                        </SelectTrigger>
-                                        <SelectContent className="rounded-xl">
-                                            {subCategories.map((c: any) => <SelectItem key={String(c.id)} value={String(c.id)}>{c.name}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                )}
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nom *</Label>
+                                <Input
+                                    value={formData.name}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Ex: Panier Tressé"
+                                    className="h-12 rounded-xl"
+                                    autoComplete="off"
+                                    name={`name-${formKey}`}
+                                />
                             </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Catégorie *</Label>
+                                <Select value={formData.parentCategory} onValueChange={handleParentChange}>
+                                    <SelectTrigger className="h-12 rounded-xl">
+                                        <SelectValue placeholder="Sélectionner une catégorie..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                        {(collectionTree || []).map((c: any) => <SelectItem key={String(c.id)} value={String(c.id)}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {subCategories.length > 0 && (
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Sous-catégorie</Label>
+                                <Select value={formData.category !== formData.parentCategory ? formData.category : ''} onValueChange={handleSubCategoryChange}>
+                                    <SelectTrigger className="h-12 rounded-xl">
+                                        <SelectValue placeholder="Sélectionner une sous-catégorie..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                        {subCategories.map((c: any) => <SelectItem key={String(c.id)} value={String(c.id)}>{c.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            )}
                             <div className="space-y-2">
                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description</Label>
                                 <Textarea
@@ -217,38 +221,6 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                     className="rounded-xl bg-muted/5 min-h-[150px]"
                                     autoComplete="off"
                                     name={`desc-${formKey}`}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Section: Pricing & Inventory */}
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-primary" />
-                            <h3 className="text-xs font-black uppercase tracking-widest">Prix & Stock</h3>
-                        </div>
-                        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix (CFA) *</Label>
-                                <Input
-                                    type="number"
-                                    value={formData.price}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
-                                    className="h-11 rounded-xl font-bold text-lg"
-                                    autoComplete="off"
-                                    name={`price-${formKey}`}
-                                />
-                            </div>
-                             <div className="space-y-2">
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stock Disponible</Label>
-                                <Input
-                                    type="number"
-                                    value={formData.stock}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
-                                    className="h-11 rounded-xl font-bold text-lg"
-                                    autoComplete="off"
-                                    name={`stock-${formKey}`}
                                 />
                             </div>
                         </div>
@@ -303,8 +275,92 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                     )}
                 </div>
 
-                {/* Right Column: Media */}
+                {/* Right Column: Pricing, Inventory & Media */}
                 <div className="space-y-8">
+                    {/* Section: Pricing & Inventory */}
+                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-primary" />
+                            <h3 className="text-xs font-black uppercase tracking-widest">Prix & Stock</h3>
+                        </div>
+                        <div className="p-8 grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix (CFA) *</Label>
+                                <Input
+                                    type="number"
+                                    value={formData.price}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
+                                    className="h-12 rounded-xl font-bold text-lg"
+                                    autoComplete="off"
+                                    name={`price-${formKey}`}
+                                />
+                            </div>
+                             <div className="space-y-2">
+                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stock Disponible</Label>
+                                <Input
+                                    type="number"
+                                    value={formData.stock}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                                    className="h-12 rounded-xl font-bold text-lg"
+                                    autoComplete="off"
+                                    name={`stock-${formKey}`}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Promotional Price Section */}
+                        <div className="px-8 pb-8 pt-4 border-t border-border">
+                            <div className="flex items-center gap-3 mb-4">
+                                <input
+                                    type="checkbox"
+                                    id="onPromotion"
+                                    checked={formData.onPromotion}
+                                    onChange={(e) => setFormData({ ...formData, onPromotion: e.target.checked, promotionalPrice: e.target.checked ? formData.promotionalPrice : 0 })}
+                                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                                />
+                                <Label htmlFor="onPromotion" className="text-sm font-semibold cursor-pointer">Ce produit est en promotion</Label>
+                            </div>
+
+                            {formData.onPromotion && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Promotionnel (CFA)</Label>
+                                        <Input
+                                            type="number"
+                                            value={formData.promotionalPrice}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const value = parseInt(e.target.value) || 0;
+                                                if (value > formData.price) {
+                                                    return; // Prevent promotional price from being higher than original price
+                                                }
+                                                setFormData({ ...formData, promotionalPrice: value });
+                                            }}
+                                            className="h-12 rounded-xl font-bold text-lg"
+                                            autoComplete="off"
+                                            name={`promotionalPrice-${formKey}`}
+                                            max={formData.price}
+                                        />
+                                        {formData.promotionalPrice > formData.price && (
+                                            <p className="text-xs text-destructive">Le prix promotionnel ne peut pas être supérieur au prix original</p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Réduction</Label>
+                                        <div className="h-12 rounded-xl bg-muted/50 border border-border flex items-center px-4">
+                                            <Percent className="w-4 h-4 text-primary mr-2" />
+                                            <span className="font-bold text-lg text-primary">
+                                                {formData.price > 0 && formData.promotionalPrice > 0
+                                                    ? Math.round(((formData.price - formData.promotionalPrice) / formData.price) * 100)
+                                                    : 0}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Section: Media */}
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm sticky top-8">
                         <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
                             <ImageIcon className="w-4 h-4 text-primary" />
@@ -312,7 +368,7 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                         </div>
                         <div className="p-8 space-y-6">
                             <div className="p-4 rounded-xl border border-muted bg-muted/5 flex flex-col items-center justify-center gap-4 transition-colors hover:border-brand-navy/20">
-                                <ImageUploader 
+                                <ImageUploader
                                     key={formKey}
                                     assets={assets}
                                     featuredAssetId={featuredAssetId}
@@ -328,7 +384,6 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                 )}
                             </div>
 
-                            
                             <div className="pt-6 border-t border-border mt-8 flex flex-col gap-3">
                                 <Button
                                     type="submit"

@@ -18,6 +18,7 @@ async function fetchGraphQL(query: string, variables?: any) {
     });
     const json = await res.json();
     if (json.errors?.length) {
+        console.error('[CollectionFacetMapPage] GraphQL errors:', json.errors);
         throw new Error(json.errors[0].message);
     }
     return json.data;
@@ -61,7 +62,7 @@ export function CollectionFacetMapPage() {
     });
 
     const mappings = mappingsData?.collectionFacetMappings || [];
-    const allFacets = facetsData?.facets?.items || [];
+    const allFacets = facetsData?.allMappingFacets || [];
     const loading = loadingMappings || loadingFacets;
 
     // Helper functions
@@ -322,7 +323,7 @@ export function CollectionFacetMapPage() {
                         allFacets={allFacets}
                         saving={saving}
                         bulkSaving={bulkSaving}
-                        expanded={expandedCollections.has(mapping.collectionId)}
+                        expandedCollections={expandedCollections}
                         level={0}
                         onToggleFacet={toggleFacet}
                         onToggleExpand={toggleExpand}
@@ -339,12 +340,13 @@ function CollectionCard({
     allFacets,
     saving,
     bulkSaving,
-    expanded,
+    expandedCollections,
     level,
     onToggleFacet,
     onToggleExpand,
     onApplyToSubcollections,
 }: any) {
+    const expanded = expandedCollections.has(mapping.collectionId);
     const isSavingThis = saving === mapping.collectionId;
     const ownSet = new Set(
         (mapping.ownFacetIds || []).map((id: any) => String(id))
@@ -551,7 +553,7 @@ function CollectionCard({
                             allFacets={allFacets}
                             saving={saving}
                             bulkSaving={bulkSaving}
-                            expanded={false}
+                            expandedCollections={expandedCollections}
                             level={level + 1}
                             onToggleFacet={onToggleFacet}
                             onToggleExpand={onToggleExpand}

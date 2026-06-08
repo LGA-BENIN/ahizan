@@ -1,5 +1,5 @@
 import { Args, Query, Resolver } from '@nestjs/graphql';
-import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, Permission, Allow, ID } from '@vendure/core';
+import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, Permission, Allow, ID, TranslatorService } from '@vendure/core';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -16,7 +16,40 @@ function readSellerConfig(): { walletPageEnabled: boolean } {
 
 @Resolver()
 export class CollectionFacetMapShopResolver {
-    constructor(private connection: TransactionalConnection) {}
+    constructor(
+        private connection: TransactionalConnection,
+        private translator: TranslatorService,
+    ) {}
+
+    /**
+     * Fetch all facets with their translatable `name` fields populated for the
+     * current request language. Returns plain objects with guaranteed non-null
+     * names to satisfy the non-nullable GraphQL Facet.name / FacetValue.name fields.
+     */
+    private async getTranslatedFacets(ctx: RequestContext): Promise<any[]> {
+        const facetRepo = this.connection.getRepository(ctx, Facet);
+        const allFacets = await facetRepo.find({
+            relations: ['values', 'values.translations', 'translations'],
+        });
+
+        return allFacets.map((facet: any) => {
+            const translatedFacet: any = this.translator.translate(facet, ctx, ['values']);
+            const facetName =
+                translatedFacet.name ||
+                facet.translations?.[0]?.name ||
+                facet.code ||
+                `facet-${facet.id}`;
+            const values = (translatedFacet.values || []).map((v: any) => {
+                const valueName =
+                    v.name ||
+                    v.translations?.[0]?.name ||
+                    v.code ||
+                    `value-${v.id}`;
+                return { ...v, id: v.id, name: valueName, code: v.code };
+            });
+            return { ...translatedFacet, id: facet.id, name: facetName, code: facet.code, values };
+        });
+    }
 
     /**
      * Get allowed facets for a specific collection (public)
@@ -29,7 +62,6 @@ export class CollectionFacetMapShopResolver {
         @Args() args: { collectionId: ID },
     ): Promise<any | null> {
         const collectionRepo = this.connection.getRepository(ctx, Collection);
-        const facetRepo = this.connection.getRepository(ctx, Facet);
 
         const coll = await collectionRepo.findOne({
             where: { id: args.collectionId as any },
@@ -63,9 +95,8 @@ export class CollectionFacetMapShopResolver {
         const ownFacetIds: string[] = (coll as any).customFields?.allowedFacetIds || [];
         const inheritedFacetIds = resolveInheritedFacetIds(coll);
 
-        const allFacets = await facetRepo.find({
-            relations: ['values', 'translations'],
-        });
+        const allFacets = await this.getTranslatedFacets(ctx);
+
         const allowedFacets = allFacets.filter((f: any) => inheritedFacetIds.includes(String(f.id)));
 
         const getName = (c: any): string => {

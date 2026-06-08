@@ -11,7 +11,17 @@ export function MobileCategorySidebar({ categories = [] }: { categories?: any[] 
     const [hoveredCat, setHoveredCat] = useState<any>(null);
 
     // Fallback skeletons if categories are not provided yet
-    const displayCategories = categories.length > 0 ? categories : [{}, {}, {}, {}, {}, {}];
+    let displayCategories = categories.length > 0 ? categories : [{}, {}, {}, {}, {}, {}];
+
+    // Apply the same STRICT filtering as HeroSection
+    if (categories.length > 0 && promoConfig?.enabledCategories) {
+        const enabledCats = promoConfig.enabledCategories;
+        const enabledSlugs = Object.entries(enabledCats).filter(([, v]) => v === true).map(([k]) => k);
+        if (enabledSlugs.length > 0) {
+            displayCategories = categories.filter((cat: any) => enabledSlugs.includes(cat.slug) || enabledSlugs.includes(cat.id));
+            if (displayCategories.length === 0) displayCategories = categories;
+        }
+    }
 
     // Close on route change is handled by context
 
@@ -51,7 +61,7 @@ export function MobileCategorySidebar({ categories = [] }: { categories?: any[] 
                     <div className="px-5 py-3 border-b border-border/40 bg-muted/5">
                         <span className="text-[10px] font-black uppercase tracking-widest text-black">Catégories</span>
                     </div>
-                    <div className="flex-1 overflow-y-auto no-scrollbar py-2">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 py-2">
                         {displayCategories.map((cat: any, i: number) => (
                             <div
                                 key={cat.id || i}

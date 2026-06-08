@@ -126,7 +126,7 @@ export class VendorShopResolver {
     @Allow(Permission.Authenticated)
     async createMyProduct(
         @Ctx() ctx: RequestContext,
-        @Args('input') input: { name: string, description: string, price: number, stock: number, collectionIds?: string[], facetValueIds?: string[], assetIds?: string[], featuredAssetId?: string }
+        @Args('input') input: { name: string, description: string, price: number, stock: number, collectionIds?: string[], facetValueIds?: string[], assetIds?: string[], featuredAssetId?: string, onPromotion?: boolean, promotionalPrice?: number }
     ): Promise<Product> {
         const vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
@@ -159,7 +159,7 @@ export class VendorShopResolver {
         // Collections will be assigned after the variant is created.
 
         // 2. Create Default Variant with Price & Stock
-        const variants = await this.productVariantService.create(ctx, [{
+        const variantInput: any = {
             productId: product.id,
             sku: `${vendor.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
             price: input.price,
@@ -168,7 +168,17 @@ export class VendorShopResolver {
                 languageCode: ctx.languageCode,
                 name: input.name,
             }]
-        }]);
+        };
+
+        // Add promotional price fields if provided
+        if (input.onPromotion !== undefined) {
+            variantInput.customFields = { onPromotion: input.onPromotion };
+        }
+        if (input.promotionalPrice !== undefined) {
+            variantInput.customFields = { ...variantInput.customFields, promotionalPrice: input.promotionalPrice };
+        }
+
+        const variants = await this.productVariantService.create(ctx, [variantInput]);
         const variant = variants[0];
 
         // 3. Trigger product update FIRST to force Vendure's internal collection re-evaluation
@@ -279,7 +289,7 @@ export class VendorShopResolver {
     @Allow(Permission.Authenticated)
     async updateMyProductVariant(
         @Ctx() ctx: RequestContext,
-        @Args('input') input: { id: string, price?: number, stock?: number }
+        @Args('input') input: { id: string, price?: number, stock?: number, onPromotion?: boolean, promotionalPrice?: number }
     ): Promise<any> {
         const vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
@@ -304,6 +314,17 @@ export class VendorShopResolver {
         };
         if (input.price !== undefined) updateInput.price = input.price;
         if (input.stock !== undefined) updateInput.stockOnHand = input.stock;
+
+        // Add promotional price custom fields
+        if (input.onPromotion !== undefined || input.promotionalPrice !== undefined) {
+            updateInput.customFields = {};
+            if (input.onPromotion !== undefined) {
+                updateInput.customFields.onPromotion = input.onPromotion;
+            }
+            if (input.promotionalPrice !== undefined) {
+                updateInput.customFields.promotionalPrice = input.promotionalPrice;
+            }
+        }
 
         return this.productVariantService.update(ctx, [updateInput]).then(result => result[0]);
     }

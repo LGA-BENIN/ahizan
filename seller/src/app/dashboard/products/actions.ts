@@ -13,10 +13,11 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
     const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
+    const onPromotion = formData.get('onPromotion') === 'true';
+    const promotionalPrice = parseInt(formData.get('promotionalPrice') as string) || 0;
 
     try {
         console.log(`[ACTION] Creating product: ${name}`);
-        // @ts-expect-error - collectionIds/facetValueIds not yet in generated GraphQL types
         const { data } = await mutate(CreateMyProductMutation, {
             input: {
                 name,
@@ -27,8 +28,10 @@ export async function createProductAction(prevState: any, formData: FormData) {
                 facetValueIds,
                 assetIds,
                 featuredAssetId: featuredAssetId || assetIds[0],
+                onPromotion,
+                promotionalPrice: onPromotion ? promotionalPrice : undefined,
             },
-        }, { useAuthToken: true });
+        } as any, { useAuthToken: true });
 
         console.log(`[ACTION] Product created successfully: ${(data as any)?.createMyProduct?.id}`);
         return { success: true, product: (data as any)?.createMyProduct };
@@ -49,9 +52,10 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
     const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
+    const onPromotion = formData.get('onPromotion') === 'true';
+    const promotionalPrice = parseInt(formData.get('promotionalPrice') as string) || 0;
 
     try {
-        // @ts-expect-error - collectionIds/facetValueIds not yet in generated GraphQL types
         await mutate(UpdateMyProductMutation, {
             id,
             input: {
@@ -62,17 +66,18 @@ export async function updateProductAction(prevState: any, formData: FormData) {
                 assetIds,
                 featuredAssetId: featuredAssetId || assetIds[0],
             },
-        }, { useAuthToken: true });
+        } as any, { useAuthToken: true });
 
-        if (variantId && (price !== undefined || stock !== undefined)) {
-            // @ts-expect-error - generated types mismatch
+        if (variantId && (price !== undefined || stock !== undefined || onPromotion !== undefined || promotionalPrice !== undefined)) {
             await mutate(UpdateMyProductVariantMutation, {
                 input: {
                     id: variantId,
                     price,
                     stock,
+                    onPromotion,
+                    promotionalPrice: onPromotion ? promotionalPrice : undefined,
                 },
-            }, { useAuthToken: true });
+            } as any, { useAuthToken: true });
         }
 
         // revalidateTag('vendor-products');
@@ -84,12 +89,11 @@ export async function updateProductAction(prevState: any, formData: FormData) {
 
 export async function deleteProductAction(id: string) {
     try {
-        // @ts-expect-error - generated types mismatch
         await mutate(DeleteMyProductMutation, {
             id,
-        }, { useAuthToken: true });
+        } as any, { useAuthToken: true });
 
-        revalidateTag('vendor-products');
+        revalidateTag('vendor-products', 'max');
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e.message };

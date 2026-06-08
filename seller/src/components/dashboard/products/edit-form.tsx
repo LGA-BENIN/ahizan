@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag, Star } from 'lucide-react';
+import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag, Star, Percent } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditProductFormProps {
@@ -40,6 +40,8 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         stock: variant?.stockLevel === 'IN_STOCK' ? 100 : (parseInt(variant?.stockLevel) || 0),
         parentCategory: '',
         category: initialCategoryId,
+        onPromotion: (variant?.customFields as any)?.onPromotion || false,
+        promotionalPrice: (variant?.customFields as any)?.promotionalPrice || 0,
     });
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
@@ -139,6 +141,8 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             data.append('assetIds', JSON.stringify(assetIds));
             data.append('featuredAssetId', featuredAssetId || '');
             data.append('facetValueIds', JSON.stringify(facetValueIds));
+            data.append('onPromotion', formData.onPromotion.toString());
+            data.append('promotionalPrice', formData.promotionalPrice.toString());
 
             const result = await updateProductAction(null, data);
 
@@ -315,6 +319,55 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                     onChange={e => setFormData({ ...formData, stock: parseInt(e.target.value) })}
                                 />
                             </div>
+                        </div>
+
+                        {/* Promotional Price Section */}
+                        <div className="pt-4 border-t border-border">
+                            <div className="flex items-center gap-3 mb-4">
+                                <input
+                                    type="checkbox"
+                                    id="onPromotion"
+                                    checked={formData.onPromotion}
+                                    onChange={(e) => setFormData({ ...formData, onPromotion: e.target.checked, promotionalPrice: e.target.checked ? formData.promotionalPrice : 0 })}
+                                    className="w-5 h-5 rounded border-border text-primary focus:ring-primary"
+                                />
+                                <Label htmlFor="onPromotion" className="text-sm font-semibold cursor-pointer">Ce produit est en promotion</Label>
+                            </div>
+
+                            {formData.onPromotion && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Promotionnel (CFA)</Label>
+                                        <Input
+                                            type="number"
+                                            value={formData.promotionalPrice}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                                const value = parseInt(e.target.value) || 0;
+                                                if (value > formData.price) {
+                                                    return; // Prevent promotional price from being higher than original price
+                                                }
+                                                setFormData({ ...formData, promotionalPrice: value });
+                                            }}
+                                            className="h-12 rounded-xl font-bold text-lg"
+                                            max={formData.price}
+                                        />
+                                        {formData.promotionalPrice > formData.price && (
+                                            <p className="text-xs text-destructive">Le prix promotionnel ne peut pas être supérieur au prix original</p>
+                                        )}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Réduction</Label>
+                                        <div className="h-12 rounded-xl bg-muted/50 border border-border flex items-center px-4">
+                                            <Percent className="w-4 h-4 text-primary mr-2" />
+                                            <span className="font-bold text-lg text-primary">
+                                                {formData.price > 0 && formData.promotionalPrice > 0
+                                                    ? Math.round(((formData.price - formData.promotionalPrice) / formData.price) * 100)
+                                                    : 0}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

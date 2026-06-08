@@ -53,6 +53,7 @@ export const GetMyVendorProductQuery = graphql(`
                 id
                 price
                 stockLevel
+                customFields
             }
             assets {
                 id

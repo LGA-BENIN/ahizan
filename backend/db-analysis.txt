@@ -1,0 +1,59 @@
+--- COLLECTIONS ---
+ID: 2 | Parent: 1 | Name: electronics  | Slug: electronics
+ID: 5 | Parent: 1 | Name: Cloths | Slug: cloths
+ID: 157 | Parent: 1 | Name: Collection1 | Slug: collection1
+ID: 158 | Parent: 1 | Name: Matière11 | Slug: matiere11
+ID: 159 | Parent: 1 | Name: Marque2254 | Slug: marque2254
+ID: 160 | Parent: 1 | Name: Smartphones | Slug: smartphones
+ID: 161 | Parent: 1 | Name: Laptops | Slug: laptops
+ID: 162 | Parent: 1 | Name: T-Shirts | Slug: tshirts
+ID: 163 | Parent: 1 | Name: Shoes | Slug: shoes
+ID: 164 | Parent: 1 | Name: Watches | Slug: watches
+ID: 165 | Parent: 1 | Name: Headphones | Slug: headphones
+ID: 166 | Parent: 1 | Name: Gaming Consoles | Slug: gaming-consoles
+ID: 167 | Parent: 1 | Name: Cameras | Slug: cameras
+ID: 168 | Parent: 1 | Name: Tablets | Slug: tablets
+ID: 169 | Parent: 1 | Name: home appliances | Slug: home-appliances
+ID: 170 | Parent: 1 | Name: Skincare | Slug: skincare
+ID: 171 | Parent: 1 | Name: Perfumes | Slug: perfumes
+ID: 172 | Parent: 1 | Name: Furniture | Slug: furniture
+ID: 173 | Parent: 1 | Name: Sports Equipment | Slug: sports-equipment
+ID: 174 | Parent: 1 | Name: Bags | Slug: bags
+ID: 175 | Parent: 1 | Name: jewelry | Slug: jewelry
+ID: 176 | Parent: 1 | Name: pc components | Slug: pc-components
+ID: 177 | Parent: 1 | Name: networking devices | Slug: networking-devices
+ID: 178 | Parent: 1 | Name: kitchenware | Slug: kitchenware
+ID: 179 | Parent: 1 | Name: books | Slug: books
+ID: 180 | Parent: 1 | Name: Desktops | Slug: desktops
+ID: 181 | Parent: 1 | Name: Monitors | Slug: monitors
+ID: 182 | Parent: 1 | Name: Keyboards | Slug: keyboards
+ID: 183 | Parent: 1 | Name: Makeup | Slug: makeup
+ID: 184 | Parent: 1 | Name: Home Decor | Slug: home-decor
+ID: 185 | Parent: 1 | Name: Groceries | Slug: groceries
+ID: 3 | Parent: 2 | Name: phone | Slug: phone
+ID: 4 | Parent: 2 | Name: pc | Slug: pc
+ID: 1 | Parent: null | Name: __root_collection__ | Slug: __root_collection__
+
+--- FACETS ---
+ID: 1 | Code: phone-ram | Name: Phone RAM
+ID: 2 | Code: pc-ram | Name: PC RAM
+ID: 3 | Code: tshi | Name: tshirt
+ID: 4 | Code: brand | Name: Brand
+ID: 5 | Code: color | Name: color
+ID: 6 | Code: size | Name: Size
+ID: 8 | Code: storage | Name: Storage
+ID: 10 | Code: screen-size | Name: Screen Size
+ID: 12 | Code: material | Name: Material
+ID: 16 | Code: price-range | Name: Price Range
+ID: 17 | Code: tshirt | Name: Tshirt Size
+ID: 18 | Code: fragrance-type | Name: Fragrance Type
+ID: 19 | Code: skin-type | Name: Skin Type
+ID: 20 | Code: dimensions | Name: Dimensions
+ID: 21 | Code: organic | Name: Organic
+ID: 22 | Code: weight | Name: Weight
+ID: 23 | Code: new | Name: new
+
+--- FACET VALUES ---
+ID: 1 | FacetID: 1 | Code: one | Name: one
+ID: 2 | FacetID: 2 | Code: 4758g | Name: 4758g
+ID: 3 | FacetID: 3 | Code: one-1 | Name: one

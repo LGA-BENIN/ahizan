@@ -6,6 +6,7 @@ import { uploadFileAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
 import { Upload, X, Loader2, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ImageCropModal from './ImageCropModal';
 
 export interface UploadedAsset {
     id: string;
@@ -21,7 +22,7 @@ interface ImageUploaderProps {
     maxFiles?: number;
 }
 
-export default function ImageUploader({ 
+export default function ImageUploader({
     assets,
     featuredAssetId,
     onAssetsChange,
@@ -32,6 +33,9 @@ export default function ImageUploader({
     const [uploading, setUploading] = useState(false);
     const [uploadingCount, setUploadingCount] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [cropModalOpen, setCropModalOpen] = useState(false);
+    const [currentImageSrc, setCurrentImageSrc] = useState<string>('');
+    const [currentFile, setCurrentFile] = useState<File | null>(null);
 
     const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -43,56 +47,107 @@ export default function ImageUploader({
             return;
         }
 
-        const filesToUpload = Array.from(files).slice(0, remaining);
-        
+        // Take first file for cropping
+        const file = files[0];
+        if (!file.type.startsWith('image/')) {
+            toast.error('Veuillez sélectionner une image');
+            return;
+        }
+
+        // Create preview URL for cropping
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCurrentImageSrc(reader.result as string);
+            setCurrentFile(file);
+            setCropModalOpen(true);
+        };
+        reader.onerror = () => {
+            toast.error('Erreur lors de la lecture du fichier');
+        };
+        reader.readAsDataURL(file);
+
+        // Reset file input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    // Fallback: upload without cropping if cropping fails
+    const handleDirectUpload = async (file: File) => {
         setUploading(true);
-        setUploadingCount(filesToUpload.length);
+        setUploadingCount(1);
         if (onUploadingChange) onUploadingChange(true);
 
-        const newAssets: UploadedAsset[] = [];
-        let failedCount = 0;
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const result = await uploadFileAction(formData);
 
-        for (const file of filesToUpload) {
-            try {
-                const formData = new FormData();
-                formData.append('file', file);
-                const result = await uploadFileAction(formData);
+            if (result.success && result.asset) {
+                const asset = result.asset as any;
+                const updatedAssets = [...assets, { id: asset.id, preview: asset.preview }];
+                onAssetsChange(updatedAssets);
 
-                if (result.success && result.asset) {
-                    const asset = result.asset as any;
-                    newAssets.push({ id: asset.id, preview: asset.preview });
-                } else {
-                    failedCount++;
+                if (!featuredAssetId && updatedAssets.length > 0) {
+                    onFeaturedChange(updatedAssets[0].id);
                 }
-            } catch {
-                failedCount++;
-            }
-        }
 
-        if (newAssets.length > 0) {
-            const updatedAssets = [...assets, ...newAssets];
-            onAssetsChange(updatedAssets);
-            
-            // Auto-select first image as featured if none selected
-            if (!featuredAssetId && updatedAssets.length > 0) {
-                onFeaturedChange(updatedAssets[0].id);
+                toast.success('Image ajoutée avec succès');
+            } else {
+                toast.error('Échec de l\'envoi');
             }
-            
-            toast.success(`${newAssets.length} image(s) ajoutée(s)`);
-        }
-        
-        if (failedCount > 0) {
-            toast.error(`${failedCount} échec(s) d'envoi`);
+        } catch {
+            toast.error('Erreur lors de l\'envoi');
         }
 
         setUploading(false);
         setUploadingCount(0);
         if (onUploadingChange) onUploadingChange(false);
-        
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
+        setCurrentFile(null);
+        setCurrentImageSrc('');
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        if (!currentFile) return;
+
+        setUploading(true);
+        setUploadingCount(1);
+        if (onUploadingChange) onUploadingChange(true);
+
+        try {
+            // Create a new File from the cropped blob
+            const croppedFile = new File([croppedBlob], currentFile.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+            });
+
+            const formData = new FormData();
+            formData.append('file', croppedFile);
+            const result = await uploadFileAction(formData);
+
+            if (result.success && result.asset) {
+                const asset = result.asset as any;
+                const updatedAssets = [...assets, { id: asset.id, preview: asset.preview }];
+                onAssetsChange(updatedAssets);
+
+                // Auto-select first image as featured if none selected
+                if (!featuredAssetId && updatedAssets.length > 0) {
+                    onFeaturedChange(updatedAssets[0].id);
+                }
+
+                toast.success('Image ajoutée avec succès');
+            } else {
+                toast.error('Échec de l\'envoi');
+            }
+        } catch {
+            toast.error('Erreur lors de l\'envoi');
         }
+
+        setUploading(false);
+        setUploadingCount(0);
+        if (onUploadingChange) onUploadingChange(false);
+        setCurrentFile(null);
+        setCurrentImageSrc('');
     };
 
     const removeAsset = (assetId: string) => {
@@ -117,7 +172,7 @@ export default function ImageUploader({
                             <div 
                                 key={asset.id} 
                                 className={cn(
-                                    "relative aspect-[4/3] rounded-2xl overflow-hidden border-2 group cursor-pointer transition-all",
+                                    "relative aspect-[4/3] min-h-[160px] rounded-2xl overflow-hidden border-2 group cursor-pointer transition-all",
                                     isFeatured 
                                         ? "border-brand-navy ring-4 ring-brand-navy/30 shadow-xl" 
                                         : "border-border hover:border-brand-navy/40 shadow-md"
@@ -212,6 +267,27 @@ export default function ImageUploader({
                     Maximum {maxFiles} images atteint
                 </p>
             )}
+
+            {/* Image Crop Modal */}
+            <ImageCropModal
+                isOpen={cropModalOpen}
+                onClose={() => {
+                    setCropModalOpen(false);
+                    setCurrentFile(null);
+                    setCurrentImageSrc('');
+                }}
+                onCropComplete={handleCropComplete}
+                onSkipCropping={() => {
+                    if (currentFile) {
+                        handleDirectUpload(currentFile);
+                    }
+                    setCropModalOpen(false);
+                    setCurrentFile(null);
+                    setCurrentImageSrc('');
+                }}
+                imageSrc={currentImageSrc}
+                aspectRatio={4/3}
+            />
         </div>
     );
 }

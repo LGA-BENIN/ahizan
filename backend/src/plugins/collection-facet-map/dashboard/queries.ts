@@ -92,14 +92,12 @@ export const SET_COLLECTION_ALLOWED_FACETS_BULK = `
 
 export const GET_ALL_FACETS = `
     query GetAllFacets {
-        facets {
-            items {
+        allMappingFacets {
+            id
+            name
+            values {
                 id
                 name
-                values {
-                    id
-                    name
-                }
             }
         }
     }

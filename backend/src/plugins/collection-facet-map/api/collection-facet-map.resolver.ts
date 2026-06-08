@@ -1,5 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, Permission, Allow, ID } from '@vendure/core';
+import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, Permission, Allow, ID, TranslatorService } from '@vendure/core';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -22,7 +22,52 @@ function writeSellerConfig(config: { walletPageEnabled: boolean }) {
 
 @Resolver()
 export class CollectionFacetMapAdminResolver {
-    constructor(private connection: TransactionalConnection) {}
+    constructor(
+        private connection: TransactionalConnection,
+        private translator: TranslatorService,
+    ) {}
+
+    /**
+     * Fetch all facets and ensure their (and their values') translatable
+     * `name` fields are populated for the current request language.
+     * Returns plain objects with guaranteed non-null names to satisfy the
+     * non-nullable GraphQL Facet.name / FacetValue.name fields.
+     */
+    private async getTranslatedFacets(ctx: RequestContext): Promise<any[]> {
+        const facetRepo = this.connection.getRepository(ctx, Facet);
+        const allFacets = await facetRepo.find({
+            relations: ['values', 'values.translations', 'translations'],
+        });
+
+        return allFacets.map((facet: any) => {
+            const translatedFacet: any = this.translator.translate(facet, ctx, ['values']);
+            const facetName =
+                translatedFacet.name ||
+                facet.translations?.[0]?.name ||
+                facet.code ||
+                `facet-${facet.id}`;
+            const values = (translatedFacet.values || []).map((v: any) => {
+                const valueName =
+                    v.name ||
+                    v.translations?.[0]?.name ||
+                    v.code ||
+                    `value-${v.id}`;
+                return { ...v, id: v.id, name: valueName, code: v.code };
+            });
+            return { ...translatedFacet, id: facet.id, name: facetName, code: facet.code, values };
+        });
+    }
+
+    /**
+     * Get all facets with guaranteed non-null names (admin only).
+     * Replaces the native `facets` query in the dashboard, which fails when
+     * any FacetValue has a null/missing translation.
+     */
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async allMappingFacets(@Ctx() ctx: RequestContext): Promise<any[]> {
+        return this.getTranslatedFacets(ctx);
+    }
 
     /**
      * Get all collection→facet mappings (admin only)
@@ -31,15 +76,12 @@ export class CollectionFacetMapAdminResolver {
     @Allow(Permission.SuperAdmin)
     async collectionFacetMappings(@Ctx() ctx: RequestContext): Promise<any[]> {
         const collectionRepo = this.connection.getRepository(ctx, Collection);
-        const facetRepo = this.connection.getRepository(ctx, Facet);
 
         const collections = await collectionRepo.find({
             relations: ['translations', 'parent'],
         });
 
-        const allFacets = await facetRepo.find({
-            relations: ['values', 'translations'],
-        });
+        const allFacets = await this.getTranslatedFacets(ctx);
 
         const getName = (coll: any): string => {
             if (coll.name) return coll.name;
@@ -76,19 +118,28 @@ export class CollectionFacetMapAdminResolver {
             }
         };
 
-        // Filter out root collections
+        // Filter out root collections - but keep all others
         const filtered = collections.filter((c: any) => {
             const name = getName(c);
-            return name && !name.startsWith('_root_') && name !== '__root_collection__';
+            return name && name !== '__root_collection__' && !name.startsWith('_root_');
         });
+
+        // Set of valid (non-root) collection ids for parent resolution
+        const filteredIds = new Set(filtered.map((c: any) => String(c.id)));
+
+        // Resolve the effective parent id: collections whose parent is the
+        // Vendure root (filtered out) or null are treated as top-level (null).
+        const getEffectiveParentId = (c: any): string | null => {
+            if (c.parent && filteredIds.has(String(c.parent.id))) {
+                return String(c.parent.id);
+            }
+            return null;
+        };
 
         // Build hierarchical tree structure
         const buildTree = (parentId: string | null = null): any[] => {
             return filtered
-                .filter((c: any) => {
-                    const collParentId = c.parent ? String(c.parent.id) : null;
-                    return collParentId === parentId;
-                })
+                .filter((c: any) => getEffectiveParentId(c) === parentId)
                 .map((coll: any) => {
                     let ownFacetIds: string[] = [];
                     try {
@@ -108,7 +159,7 @@ export class CollectionFacetMapAdminResolver {
                         inheritedFacetIds: inheritedFacetIds.filter(id => !ownFacetIds.includes(id)),
                         allowedFacets,
                         children: buildTree(String(coll.id)),
-                        hasChildren: filtered.some((c: any) => c.parent && String(c.parent.id) === String(coll.id)),
+                        hasChildren: filtered.some((c: any) => getEffectiveParentId(c) === String(coll.id)),
                     };
                 });
         };
@@ -185,7 +236,6 @@ export class CollectionFacetMapAdminResolver {
 
     private async getCollectionAllowedFacets(ctx: RequestContext, collectionId: string): Promise<any | null> {
         const collectionRepo = this.connection.getRepository(ctx, Collection);
-        const facetRepo = this.connection.getRepository(ctx, Facet);
 
         const coll = await collectionRepo.findOne({
             where: { id: collectionId as any },
@@ -219,9 +269,8 @@ export class CollectionFacetMapAdminResolver {
         const ownFacetIds: string[] = (coll as any).customFields?.allowedFacetIds || [];
         const inheritedFacetIds = resolveInheritedFacetIds(coll);
 
-        const allFacets = await facetRepo.find({
-            relations: ['values', 'translations'],
-        });
+        const allFacets = await this.getTranslatedFacets(ctx);
+
         const allowedFacets = allFacets.filter((f: any) => inheritedFacetIds.includes(String(f.id)));
 
         const getName = (c: any): string => {

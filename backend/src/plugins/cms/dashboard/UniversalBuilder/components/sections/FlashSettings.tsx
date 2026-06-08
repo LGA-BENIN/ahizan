@@ -31,7 +31,9 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                 cardStyle: 'standard', showBadge: true, badgeText: 'FLASH',
                 discountPercentage: 20,
                 height: 'auto', padding: '32px', borderRadius: '0px',
-                animation: 'none'
+                animation: 'none',
+                displayLayout: 'horizontal_scroll',
+                showPromotionalPrice: false
             }]
         };
         const d = { ...defaults, ...data };
@@ -64,30 +66,16 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
         </div>
     );
 
-    if (!sv) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--builder-text-muted)' }}>Aucune campagne. Cliquez sur "Nouvelle Campagne".</div>;
+    if (!sv) {
+        return (
+            <div style={{ padding: '2rem', textAlign: 'center' }}>
+                <button className="btn-pro" onClick={addVersion}>Initialiser la campagne Flash</button>
+            </div>
+        );
+    }
 
     return (
         <div style={{ display: 'flex', gap: '1.5rem', width: '100%', height: '100%', maxHeight: 'calc(100vh - 200px)' }}>
-            {/* Campaign List */}
-            <div style={{ width: '220px', borderRight: '1px solid var(--builder-border)', paddingRight: '1rem', flexShrink: 0, overflowY: 'auto', maxHeight: '100%' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--builder-text-muted)', marginBottom: '1rem', textTransform: 'uppercase' }}>Campagnes</div>
-                <div className="stack">
-                    {versions.map((v: any) => (
-                        <div key={v.id} onClick={() => setSelectedVersionId(v.id)} style={{
-                            padding: '12px', borderRadius: '8px', border: '1px solid var(--builder-border)', cursor: 'pointer',
-                            background: selectedVersionId === v.id ? 'var(--builder-primary-light)' : '#fff',
-                            borderColor: selectedVersionId === v.id ? 'var(--builder-primary-border)' : 'var(--builder-border)'
-                        }}>
-                            <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{v.name}</div>
-                            <div style={{ fontSize: '0.65rem', color: v.isActive ? 'var(--builder-success)' : 'var(--builder-text-soft)', fontWeight: 600, marginTop: '2px' }}>
-                                {v.isActive ? '● EN DIRECT' : '○ Brouillon'}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <button className="btn-pro" style={{ width: '100%', justifyContent: 'center', marginTop: '1rem', fontSize: '0.75rem' }} onClick={addVersion}>+ Nouvelle Campagne</button>
-            </div>
-
             {/* Editor */}
             <div className="stack-lg" style={{ flex: 1, overflowY: 'auto', maxHeight: '100%' }}>
                 <div className="settings-card">
@@ -97,15 +85,20 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                             <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <input type="checkbox" checked={sv.isActive} onChange={(e) => updateVersion(sv.id, { isActive: e.target.checked })} /> En direct
                             </label>
-                            <button className="btn-pro btn-pro-danger" style={{ fontSize: '0.65rem', padding: '3px 8px' }} onClick={() => removeVersion(sv.id)}>Supprimer</button>
                         </div>
                     </div>
-                    <div className="grid-2">
+                    <div className="grid-3">
                         <div><label className="label-pro">Nom de la campagne</label><input className="input-pro" value={sv.name} onChange={(e) => updateVersion(sv.id, { name: e.target.value })} /></div>
                         <div><label className="label-pro">Apparence</label>
                             <select className="input-pro" value={sv.isSimpleMode ? 'simple' : 'full'} onChange={(e) => updateVersion(sv.id, { isSimpleMode: e.target.value === 'simple' })}>
                                 <option value="full">Riche (Bannière + Média)</option>
                                 <option value="simple">Minimaliste (Texte uniquement)</option>
+                            </select>
+                        </div>
+                        <div><label className="label-pro">Disposition des produits</label>
+                            <select className="input-pro" value={sv.displayLayout || 'horizontal_scroll'} onChange={(e) => updateVersion(sv.id, { displayLayout: e.target.value })}>
+                                <option value="horizontal_scroll">Défilement horizontal (Scroll)</option>
+                                <option value="vertical_grid">Grille verticale (Vers le bas)</option>
                             </select>
                         </div>
                     </div>
@@ -148,12 +141,17 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                     <div className="settings-card-header" style={{ justifyContent: 'space-between' }}>
                         <span>📦 Sélection de produits</span>
                         <select className="input-pro" style={{ width: 'auto', padding: '4px 10px', fontSize: '0.75rem' }} value={sv.selectionType} onChange={(e) => updateVersion(sv.id, { selectionType: e.target.value })}>
-                            <option value="MANUAL">📍 Manuelle (IDs)</option>
-                            <option value="FILTER">⚡ Filtre intelligent</option>
+                            <option value="MANUAL">📍 Par Sélection de produit (Recherche)</option>
+                            <option value="FILTER">⚡ Par Collection / Filtre intelligent</option>
                         </select>
                     </div>
                     <div className="stack">
-                        <div><label className="label-pro">Pourcentage de remise affiché (%)</label><input type="number" className="input-pro" value={sv.discountPercentage || 0} onChange={(e) => updateVersion(sv.id, { discountPercentage: parseInt(e.target.value) })} /></div>
+                        <div className="grid-2">
+                            <div><label className="label-pro">Pourcentage de remise affiché (%)</label><input type="number" className="input-pro" value={sv.discountPercentage || 0} onChange={(e) => updateVersion(sv.id, { discountPercentage: parseInt(e.target.value) })} /></div>
+                            <div className="toggle-row" style={{ marginTop: '24px' }}>
+                                <label><input type="checkbox" checked={sv.showPromotionalPrice || false} onChange={(e) => updateVersion(sv.id, { showPromotionalPrice: e.target.checked })} /> Afficher le prix barré promotionnel</label>
+                            </div>
+                        </div>
                     </div>
                     {sv.selectionType === 'FILTER' ? (
                         <div className="stack">
@@ -247,13 +245,19 @@ function ProductSearchModal({ selectedIds, onSelectionChange }: { selectedIds: s
         onSelectionChange(newIds);
     };
 
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            searchProducts(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
     return (
         <div className="stack">
             <div>
                 <label className="label-pro">Rechercher des produits à ajouter</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <input className="input-pro" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tappez le nom du produit..." style={{ flex: 1 }} />
-                    <button className="btn-pro btn-pro-primary" style={{ padding: '8px 16px', fontSize: '0.75rem' }} onClick={() => searchProducts(searchTerm)} disabled={loading}>Rechercher</button>
                 </div>
             </div>
             {/* Selected Products */}
@@ -303,6 +307,8 @@ function CollectionSelector({ selectedIds, onSelectionChange }: { selectedIds: s
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const [searchTerm, setSearchTerm] = useState('');
+
     useEffect(() => {
         const fetchCollections = async () => {
             try {
@@ -340,10 +346,34 @@ function CollectionSelector({ selectedIds, onSelectionChange }: { selectedIds: s
     if (error) return <div style={{ fontSize: '0.75rem', color: '#ef4444' }}>Erreur lors du chargement des collections : {error}</div>;
     if (collectionTree.length === 0) return <div style={{ fontSize: '0.75rem', color: 'var(--builder-text-soft)' }}>Aucune collection trouvée. Créez des collections dans l'administration Vendure d'abord.</div>;
 
+    const filteredTree = searchTerm.trim() === '' 
+        ? collectionTree 
+        : collectionTree.map(node => {
+            const term = searchTerm.toLowerCase();
+            const matchesParent = node.name.toLowerCase().includes(term);
+            const filteredChildren = (node.children || []).filter((c: any) => c.name.toLowerCase().includes(term));
+            
+            if (matchesParent || filteredChildren.length > 0) {
+                return { ...node, children: matchesParent ? node.children : filteredChildren };
+            }
+            return null;
+        }).filter(Boolean);
+
     return (
         <div>
             <label className="label-pro">Filtrer par Collection</label>
-            {collectionTree.map((node: any) => (
+            <input 
+                className="input-pro" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+                placeholder="Rechercher une collection..." 
+                style={{ width: '100%', marginBottom: '1rem' }} 
+            />
+            <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
+                {filteredTree.length === 0 ? (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--builder-text-soft)', padding: '1rem 0' }}>Aucune collection correspondante.</div>
+                ) : (
+                    filteredTree.map((node: any) => (
                 <div key={node.id} style={{ marginBottom: '8px' }}>
                     <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--builder-text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>{node.name}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -384,7 +414,8 @@ function CollectionSelector({ selectedIds, onSelectionChange }: { selectedIds: s
                         ))}
                     </div>
                 </div>
-            ))}
+            )))}
+            </div>
         </div>
     );
 }

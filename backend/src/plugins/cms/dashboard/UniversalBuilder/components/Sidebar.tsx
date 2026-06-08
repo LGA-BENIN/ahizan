@@ -6,7 +6,7 @@ interface SidebarProps {
   onRefetch: () => void;
   onCreate: (type: string) => void;
   onDelete: (id: string) => void;
-  onMove: (id: string, currentOrder: number, direction: 'up' | 'down') => void;
+  onMove: (id: string, currentOrder: number, direction: 'up' | 'down', targetSectionId?: string) => void;
   onToggle: (id: string, isActive: boolean) => void;
   onMoveGroup: (sectionType: string, direction: 'up' | 'down') => void;
 }
@@ -48,19 +48,9 @@ const ZONE_MAP = [
         ]
     },
     {
-        zone: 'Contenu',
-        items: [
-            { type: 'BLOG_POSTS', icon: '📖', label: 'Articles de Blog', mode: 'multi' },
-            { type: 'TESTIMONIALS', icon: '💬', label: 'Témoignages', mode: 'multi' },
-            { type: 'NEWSLETTER', icon: '✉️', label: 'Newsletter', mode: 'multi' },
-            { type: 'CTA_VENDOR', icon: '🏪', label: 'CTA Vendeur', mode: 'multi' },
-        ]
-    },
-    {
         zone: 'Pied de page',
         items: [
             { type: 'FOOTER_CONF', icon: '🦶', label: 'Pied de page global', mode: 'singleton' },
-            { type: 'FEATURES', icon: '✅', label: 'Barre d\'avantages', mode: 'multi' },
         ]
     },
     {
@@ -77,8 +67,23 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
     // Track sidebar collapse state
     const [isCollapsed, setIsCollapsed] = useState(false);
+    // Track view mode
+    const [viewMode, setViewMode] = useState<'LIBRARY' | 'STRUCTURE'>('LIBRARY');
 
     const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+
+    const getTypeInfo = (type: string) => {
+        for (const zone of ZONE_MAP) {
+            const item = zone.items.find(i => i.type === type);
+            if (item) return item;
+        }
+        // Extra known types not in ZONE_MAP
+        const extraTypes: Record<string, { icon: string; label: string; mode: string }> = {
+            'TOP_BAR': { icon: '📢', label: 'Barre Supérieure', mode: 'singleton' },
+            'CATEGORY_GRID': { icon: '📐', label: 'Grille de Catégories', mode: 'multi' },
+        };
+        return extraTypes[type] || { icon: '📦', label: type, mode: 'multi' };
+    };
 
     // Get all sections matching a given type
     const getSectionsOfType = (type: string) => sortedSections.filter(s => s.type === type);
@@ -101,7 +106,44 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
     // Render a single section item row (used inside dropdowns for multi items)
     const renderSectionRow = (s: any) => {
         const isSelected = selectedSection?.id === s.id;
-        const globalIndex = sortedSections.findIndex(sec => sec.id === s.id);
+        const isStructureMode = viewMode === 'STRUCTURE';
+        
+        // Define non-layout types
+        const NON_LAYOUT_TYPES = ['THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'FOOTER_CONF'];
+        const layoutSections = sortedSections.filter(sec => !NON_LAYOUT_TYPES.includes(sec.type));
+        
+        let upDisabled = false;
+        let downDisabled = false;
+        let targetUpId: string | undefined;
+        let targetDownId: string | undefined;
+
+        if (isStructureMode) {
+            const layoutIndex = layoutSections.findIndex(sec => sec.id === s.id);
+            upDisabled = layoutIndex <= 0;
+            downDisabled = layoutIndex >= layoutSections.length - 1 || layoutIndex === -1;
+            if (!upDisabled) targetUpId = layoutSections[layoutIndex - 1].id;
+            if (!downDisabled) targetDownId = layoutSections[layoutIndex + 1].id;
+        } else {
+            const globalIndex = sortedSections.findIndex(sec => sec.id === s.id);
+            upDisabled = globalIndex <= 0;
+            downDisabled = globalIndex >= sortedSections.length - 1;
+        }
+
+        // Calculate index of this section among its own type for auto-numbering
+        const typeIndex = sortedSections.filter(sec => sec.type === s.type).findIndex(sec => sec.id === s.id) + 1;
+        
+        let customTitle = s.title;
+        if (!customTitle && s.dataJson) {
+            try {
+                const d = typeof s.dataJson === 'string' ? JSON.parse(s.dataJson) : s.dataJson;
+                if (s.type === 'FLASH_DEALS' && d.flashVersions?.[0]?.name) customTitle = d.flashVersions[0].name;
+                else if (d.title) customTitle = d.title;
+            } catch(e){}
+        }
+        
+        const typeLabel = getTypeInfo(s.type).label;
+        const displayTitle = customTitle || `${typeLabel} ${typeIndex}`;
+
         return (
             <div
                 key={s.id}
@@ -122,16 +164,19 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                 {/* Move arrows */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                     <button
-                        disabled={globalIndex === 0}
-                        onClick={(e) => { e.stopPropagation(); onMove(s.id, s.order, 'up'); }}
-                        style={{ background: 'none', border: 'none', cursor: globalIndex === 0 ? 'default' : 'pointer', opacity: globalIndex === 0 ? 0.3 : 1, fontSize: '0.6rem', color: 'var(--builder-text-muted)', padding: '0 2px', lineHeight: 1 }}
+                        disabled={upDisabled}
+                        onClick={(e) => { e.stopPropagation(); onMove(s.id, s.order, 'up', targetUpId); }}
+                        style={{ background: 'none', border: 'none', cursor: upDisabled ? 'default' : 'pointer', opacity: upDisabled ? 0.3 : 1, fontSize: '0.6rem', color: 'var(--builder-text-muted)', padding: '0 2px', lineHeight: 1 }}
+                        title="Déplacer vers le haut"
                     >▲</button>
                     <button
-                        disabled={globalIndex === sortedSections.length - 1}
-                        onClick={(e) => { e.stopPropagation(); onMove(s.id, s.order, 'down'); }}
-                        style={{ background: 'none', border: 'none', cursor: globalIndex === sortedSections.length - 1 ? 'default' : 'pointer', opacity: globalIndex === sortedSections.length - 1 ? 0.3 : 1, fontSize: '0.6rem', color: 'var(--builder-text-muted)', padding: '0 2px', lineHeight: 1 }}
+                        disabled={downDisabled}
+                        onClick={(e) => { e.stopPropagation(); onMove(s.id, s.order, 'down', targetDownId); }}
+                        style={{ background: 'none', border: 'none', cursor: downDisabled ? 'default' : 'pointer', opacity: downDisabled ? 0.3 : 1, fontSize: '0.6rem', color: 'var(--builder-text-muted)', padding: '0 2px', lineHeight: 1 }}
+                        title="Déplacer vers le bas"
                     >▼</button>
                 </div>
+                <span style={{ fontSize: '1rem', marginRight: '4px' }}>{getTypeInfo(s.type).icon}</span>
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                     <div style={{
                         fontWeight: 600,
@@ -139,10 +184,10 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                         textOverflow: 'ellipsis',
                         overflow: 'hidden',
                     }}>
-                        {s.title || s.type}
+                        {displayTitle}
                     </div>
                     <div style={{ fontSize: '0.6rem', color: s.isActive ? 'var(--builder-success)' : 'var(--builder-text-soft)', fontWeight: 600 }}>
-                        {s.isActive ? '● Actif' : '○ Inactif'}
+                        {typeLabel} • {s.isActive ? 'Actif' : 'Inactif'}
                     </div>
                 </div>
                 {/* Activation Toggle */}
@@ -197,10 +242,45 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                 </button>
             </div>
 
+            {/* View Toggle */}
+            {!isCollapsed && (
+                <div style={{ padding: '8px 10px', background: '#f8fafc', borderBottom: '1px solid var(--builder-border)' }}>
+                    <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '6px', padding: '2px' }}>
+                        <button
+                            onClick={() => setViewMode('LIBRARY')}
+                            style={{
+                                flex: 1, padding: '6px', border: 'none', borderRadius: '4px',
+                                background: viewMode === 'LIBRARY' ? '#fff' : 'transparent',
+                                color: viewMode === 'LIBRARY' ? '#0f172a' : '#64748b',
+                                fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer',
+                                boxShadow: viewMode === 'LIBRARY' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            🗂️ Bibliothèque
+                        </button>
+                        <button
+                            onClick={() => setViewMode('STRUCTURE')}
+                            style={{
+                                flex: 1, padding: '6px', border: 'none', borderRadius: '4px',
+                                background: viewMode === 'STRUCTURE' ? '#fff' : 'transparent',
+                                color: viewMode === 'STRUCTURE' ? '#0f172a' : '#64748b',
+                                fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer',
+                                boxShadow: viewMode === 'STRUCTURE' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            ☰ Structure
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Component List */}
             {!isCollapsed && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
-                <div className="stack-lg">
+                    {viewMode === 'LIBRARY' ? (
+                        <div className="stack-lg">
                     {ZONE_MAP.map((zone) => (
                         <div key={zone.zone}>
                             {/* Zone Label */}
@@ -314,21 +394,7 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                                                         {count > 0 ? `${count} section${count > 1 ? 's' : ''}` : 'Aucun pour le moment'}
                                                     </div>
                                                 </div>
-                                                {/* Group Move Arrows - only for Body/Content zones with sections (NOT Impact/Hero) */}
-                                                {canMoveGroup && (zone.zone === 'Body' || zone.zone === 'Content') && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginRight: '4px' }} onClick={(e) => e.stopPropagation()}>
-                                                        <button
-                                                            onClick={() => onMoveGroup(item.type, 'up')}
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.55rem', color: 'var(--builder-text-muted)', padding: '0 2px', lineHeight: 1 }}
-                                                            title="Déplacer tout le groupe vers le haut"
-                                                        >▲</button>
-                                                        <button
-                                                            onClick={() => onMoveGroup(item.type, 'down')}
-                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.55rem', color: 'var(--builder-text-muted)', padding: '0 2px', lineHeight: 1 }}
-                                                            title="Déplacer tout le groupe vers le bas"
-                                                        >▼</button>
-                                                    </div>
-                                                )}
+
                                                 <span style={{
                                                     fontSize: '0.7rem',
                                                     color: 'var(--builder-text-muted)',
@@ -383,8 +449,31 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                             </div>
                         </div>
                     ))}
+                        </div>
+                    ) : (
+                        <div className="stack" style={{ gap: '6px' }}>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--builder-text-soft)', marginBottom: '8px', textAlign: 'center', padding: '0 10px' }}>
+                                Ordre d'affichage de haut en bas sur le storefront. Utilisez les flèches ▲▼ pour réorganiser.
+                            </div>
+                            {(() => {
+                                const layoutItems = sortedSections.filter(sec => !['THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'FOOTER_CONF'].includes(sec.type));
+                                if (layoutItems.length === 0) {
+                                    return (
+                                        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--builder-text-soft)', fontSize: '0.75rem' }}>
+                                            Aucune section de mise en page ajoutée. Allez dans la Bibliothèque pour ajouter du contenu.
+                                        </div>
+                                    );
+                                }
+                                return layoutItems.map((s, idx) => (
+                                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 700, minWidth: '16px', textAlign: 'center' }}>{idx + 1}</span>
+                                        <div style={{ flex: 1 }}>{renderSectionRow(s)}</div>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+                    )}
                 </div>
-            </div>
             )}
         </aside>
     );

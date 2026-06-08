@@ -277,11 +277,59 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
   const habillageSections = activeHabillage ? (() => {
     try {
       const parsed = JSON.parse(activeHabillage.sectionsJson);
-      return Array.isArray(parsed) ? parsed.map((s: any, i: number) => ({
+      if (!Array.isArray(parsed)) return [];
+
+      // --- AUTO-MIGRATION: Explode multi-version FLASH_DEALS into individual sections ---
+      let exploded: any[] = [];
+      let didExplode = false;
+      for (const section of parsed) {
+        if (section.type === 'FLASH_DEALS') {
+          let data: any;
+          try {
+            data = typeof section.dataJson === 'string' ? JSON.parse(section.dataJson) : (section.dataJson || {});
+          } catch { data = {}; }
+          
+          const versions = data.flashVersions;
+          if (Array.isArray(versions) && versions.length > 1) {
+            // Split each flashVersion into its own independent FLASH_DEALS section
+            didExplode = true;
+            for (const version of versions) {
+              exploded.push({
+                ...section,
+                title: version.name || section.title || '',
+                order: exploded.length,
+                dataJson: JSON.stringify({ flashVersions: [version] }),
+              });
+            }
+          } else {
+            // Already has 0 or 1 version — keep as is, just update title from version name
+            if (Array.isArray(versions) && versions.length === 1 && !section.title) {
+              section.title = versions[0].name || '';
+            }
+            section.order = exploded.length;
+            exploded.push(section);
+          }
+        } else {
+          section.order = exploded.length;
+          exploded.push(section);
+        }
+      }
+      
+      // If we exploded anything, auto-save the new structure back
+      if (didExplode) {
+        const cleanSections = exploded.map((s, i) => ({
+          type: s.type, title: s.title, description: s.description || '', layout: s.layout || 'grid',
+          order: i, isActive: s.isActive, dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || {}),
+        }));
+        // Fire-and-forget save of the migrated data
+        autoSaveToHabillage(JSON.stringify(cleanSections));
+      }
+
+      return exploded.map((s: any, i: number) => ({
         ...s,
         id: `habillage-${s.type}-${i}`,
         dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || {}),
-      })) : [];
+      }));
     } catch { return []; }
   })() : [];
   const sections = habillageSections;
@@ -322,24 +370,53 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
     }
   };
 
-  const handleMoveSection = async (sectionId: string, _itemOrder: number, direction: 'up' | 'down') => {
+  const handleMoveSection = async (sectionId: string, _itemOrder: number, direction: 'up' | 'down', targetSectionId?: string) => {
     if (!activeHabillage) return;
-    const sortedSections = [...sections].sort((a, b) => a.order - b.order);
-    const currentIndex = sortedSections.findIndex(s => s.id === sectionId);
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= sortedSections.length) return;
+    
+    // Parse the raw sections array directly from the habillage JSON
+    const rawSections: any[] = JSON.parse(activeHabillage.sectionsJson);
+    
+    // Sort by order to get the visual ordering
+    const indexedSections = rawSections.map((s, i) => ({ ...s, _rawIndex: i }));
+    indexedSections.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
+    // Find current section's position in the sorted list
+    // Extract raw index from the section ID (format: habillage-TYPE-INDEX)
+    const currentMatch = sectionId.match(/^habillage-.+-(\d+)$/);
+    if (!currentMatch) return;
+    const currentRawIndex = parseInt(currentMatch[1]);
+    const currentSortedIndex = indexedSections.findIndex(s => s._rawIndex === currentRawIndex);
+    if (currentSortedIndex === -1) return;
+
+    // Determine target position
+    let targetSortedIndex: number;
+    if (targetSectionId) {
+      const targetMatch = targetSectionId.match(/^habillage-.+-(\d+)$/);
+      if (!targetMatch) return;
+      const targetRawIndex = parseInt(targetMatch[1]);
+      targetSortedIndex = indexedSections.findIndex(s => s._rawIndex === targetRawIndex);
+      if (targetSortedIndex === -1) return;
+    } else {
+      targetSortedIndex = direction === 'up' ? currentSortedIndex - 1 : currentSortedIndex + 1;
+    }
+
+    if (targetSortedIndex < 0 || targetSortedIndex >= indexedSections.length) return;
 
     setSaveStatus('Mise à jour de l\'ordre...');
-    const movedSection = sortedSections.splice(currentIndex, 1)[0];
-    sortedSections.splice(targetIndex, 0, movedSection);
+    
+    // Swap in the sorted list
+    const temp = indexedSections[currentSortedIndex];
+    indexedSections[currentSortedIndex] = indexedSections[targetSortedIndex];
+    indexedSections[targetSortedIndex] = temp;
 
     try {
-      const newSections = sortedSections.map((s, i) => ({
-        type: s.type, title: s.title, description: s.description, layout: s.layout,
-        order: i, isActive: s.isActive, dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || {}),
-      }));
+      // Rebuild the sections with new order values, stripping internal metadata
+      const newSections = indexedSections.map((s, i) => {
+        const { _rawIndex, ...rest } = s;
+        return { ...rest, order: i };
+      });
       await autoSaveToHabillage(JSON.stringify(newSections));
-      setSaveStatus(`✅ Section déplacée vers le ${direction === 'up' ? 'haut' : 'bas'}`);
+      setSaveStatus(`✅ Section réorganisée`);
     } catch (err: any) {
       setSaveStatus('❌ Échec du réordonnancement : ' + err.message);
     }

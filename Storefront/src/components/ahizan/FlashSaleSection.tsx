@@ -72,9 +72,11 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     }, [activeFlash]);
 
     useEffect(() => {
+        console.log("DEBUG: activeFlash =", activeFlash);
         if (!activeFlash) return;
 
         const isFilterMode = activeFlash.selectionType === 'FILTER';
+        console.log("DEBUG: isFilterMode =", isFilterMode, "collectionIds =", activeFlash.filterCriteria?.collectionIds);
         setLoading(true);
         
         if (isFilterMode) {
@@ -374,34 +376,38 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             </div>
 
             {/* Left/Right Navigation Arrows (Desktop) */}
-            <button 
-                onClick={() => scroll('left')}
-                className="absolute left-0 top-[60%] -translate-y-1/2 -ml-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
-                aria-label="Défiler vers la gauche"
-            >
-                <ChevronLeft className="w-5 h-5" />
-            </button>
+            {activeFlash.displayLayout !== 'vertical_grid' && (
+                <>
+                    <button 
+                        onClick={() => scroll('left')}
+                        className="absolute left-0 top-[60%] -translate-y-1/2 -ml-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la gauche"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
 
-            <button 
-                onClick={() => scroll('right')}
-                className="absolute right-0 top-[60%] -translate-y-1/2 -mr-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
-                aria-label="Défiler vers la droite"
-            >
-                <ChevronRight className="w-5 h-5" />
-            </button>
+                    <button 
+                        onClick={() => scroll('right')}
+                        className="absolute right-0 top-[60%] -translate-y-1/2 -mr-4 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la droite"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </>
+            )}
 
-            {/* Product Carousel */}
+            {/* Product Carousel / Grid */}
             <div 
-                ref={scrollContainerRef}
-                className={`flex overflow-x-auto snap-x snap-mandatory gap-2 sm:gap-3 md:gap-4 pb-2 ${
+                ref={activeFlash.displayLayout !== 'vertical_grid' ? scrollContainerRef : null}
+                className={`${activeFlash.displayLayout === 'vertical_grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 overflow-visible' : 'flex overflow-x-auto snap-x snap-mandatory'} gap-2 sm:gap-3 md:gap-4 pb-2 ${
                     activeFlash.isSimpleMode 
                     ? 'pt-4' 
                     : 'bg-white/50 backdrop-blur-sm border-x border-b border-border/30 rounded-b-2xl p-2 sm:p-3 md:p-4'
                 }`}
-                style={{
+                style={activeFlash.displayLayout !== 'vertical_grid' ? {
                     scrollbarWidth: 'none',
                     msOverflowStyle: 'none',
-                } as React.CSSProperties}
+                } : {}}
             >
                 {errorMsg && (
                     <div className="w-full flex-shrink-0 text-center py-8 text-red-500 font-bold text-sm">
@@ -421,7 +427,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         <Link
                             key={isPlaceholder ? i : p.id}
                             href={isPlaceholder ? "#" : `/product/${p.slug}`}
-                            className="snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px] group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
+                            className={`${activeFlash.displayLayout === 'vertical_grid' ? 'w-full' : 'snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]'} group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300`}
                         >
                             <div className="relative aspect-square bg-muted/10 overflow-hidden flex items-center justify-center">
                                 {activeFlash.discountPercentage && activeFlash.discountPercentage > 0 && (
@@ -447,10 +453,21 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 </h4>
                                 
                                 <div className="mt-auto space-y-0.5 sm:space-y-1">
-                                    <div className="flex items-baseline gap-0.5">
-                                        <span className="font-black text-[9px] sm:text-[10px] md:text-xs text-primary tracking-tight">
-                                            {isPlaceholder ? price : price.toLocaleString()} <span className="text-[6px] sm:text-[7px] font-bold">XOF</span>
-                                        </span>
+                                    <div className="flex flex-col justify-end min-h-[30px]">
+                                        {activeFlash.showPromotionalPrice && activeFlash.discountPercentage > 0 ? (
+                                            <>
+                                                <span className="font-bold text-[8px] sm:text-[9px] md:text-[10px] text-muted-foreground line-through opacity-70">
+                                                    {isPlaceholder ? price : price.toLocaleString()} XOF
+                                                </span>
+                                                <span className="font-black text-[9px] sm:text-[10px] md:text-xs text-primary tracking-tight leading-none">
+                                                    {isPlaceholder ? Math.round(price * (1 - activeFlash.discountPercentage / 100)) : Math.round(price * (1 - activeFlash.discountPercentage / 100)).toLocaleString()} <span className="text-[6px] sm:text-[7px] font-bold">XOF</span>
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <span className="font-black text-[9px] sm:text-[10px] md:text-xs text-primary tracking-tight leading-none">
+                                                {isPlaceholder ? price : price.toLocaleString()} <span className="text-[6px] sm:text-[7px] font-bold">XOF</span>
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Stock Status */}

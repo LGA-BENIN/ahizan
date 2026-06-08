@@ -82,11 +82,8 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
         })
         .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    // Fixed render order: HERO → CATEGORIES/CATEGORY_GRID → everything else (prevents CATEGORIES drifting to middle)
-    const heroSections = activeSections.filter(s => s.type === 'HERO');
-    const categorySections = activeSections.filter(s => s.type === 'CATEGORIES' || s.type === 'CATEGORY_GRID');
-    const otherSections = activeSections.filter(s => s.type !== 'HERO' && s.type !== 'CATEGORIES' && s.type !== 'CATEGORY_GRID');
-    const orderedSections = [...heroSections, ...categorySections, ...otherSections];
+    // Ensure sections render strictly by the backend order
+    const orderedSections = activeSections;
 
     // Common promo config used as fallback for some components (e.g. Hero's category sidebar)
     // Merge QUICK_LINKS data with CATEGORIES data (for collectionMedia images and heroIcons)

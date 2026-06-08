@@ -9,6 +9,7 @@ import { HomeModal } from "./HomeModal";
 import { CmsSection } from "@/lib/vendure/cms-queries";
 import { TabbedProductGrid } from "@/components/cms/tabbed-product-grid";
 import { CategoryGrid } from "@/components/cms/category-grid";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
     section: CmsSection;
@@ -17,6 +18,148 @@ interface Props {
 }
 
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
+
+function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrapper }: { config: any, siteCategories: any[], globalPromoConfig: any, wrapper: string }) {
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+    
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollContainerRef.current) {
+            const amount = scrollContainerRef.current.clientWidth * 0.8;
+            scrollContainerRef.current.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
+        }
+    };
+
+    const enabledCategories = config.enabledCategories || {};
+    const enabledSlugs = Object.entries(enabledCategories).filter(([, v]) => v === true).map(([k]) => k);
+    if (enabledSlugs.length === 0) return null;
+    
+    const catCollectionMedia = config.collectionMedia || globalPromoConfig?.collectionMedia || {};
+    const filteredCats = siteCategories.filter((cat: any) => enabledSlugs.includes(cat.slug) || enabledSlugs.includes(cat.id));
+    if (filteredCats.length === 0) return null;
+
+    const isCarousel = config.layout === 'carousel';
+
+    const cols = config.columnsDesktop === 2 ? 'grid-cols-2' :
+        config.columnsDesktop === 3 ? 'grid-cols-2 md:grid-cols-3' :
+        config.columnsDesktop === 4 ? 'grid-cols-2 md:grid-cols-4' :
+        config.columnsDesktop === 6 ? 'grid-cols-3 md:grid-cols-6' :
+        'grid-cols-2 md:grid-cols-3 lg:grid-cols-6';
+
+    const cardRadius = config.cardBorderRadius || '12px';
+    const cardStyle = config.cardStyle || 'standard';
+    const imageShape = config.imageShape || 'rounded';
+    const imgRadius = imageShape === 'circle' ? '50%' : imageShape === 'square' ? '4px' : '12px';
+
+    const getMobileW = (c: number) => c === 2 ? 'w-[calc(50%-4px)]' : c === 3 ? 'w-[calc(33.333%-5.33px)]' : 'w-[calc(50%-4px)]';
+    const getTabletW = (c: number) => c === 2 ? 'sm:w-[calc(50%-6px)]' : c === 3 ? 'sm:w-[calc(33.333%-8px)]' : c === 4 ? 'sm:w-[calc(25%-9px)]' : 'sm:w-[calc(33.333%-8px)]';
+    const getDesktopW = (c: number) => c === 2 ? 'md:w-[calc(50%-8px)]' : c === 3 ? 'md:w-[calc(33.333%-10.66px)]' : c === 4 ? 'md:w-[calc(25%-12px)]' : c === 6 ? 'md:w-[calc(16.666%-13.33px)]' : c === 8 ? 'md:w-[calc(12.5%-14px)]' : 'md:w-[calc(16.666%-13.33px)]';
+
+    const carouselWidthClass = isCarousel ? `${getMobileW(config.columnsMobile)} ${getTabletW(config.columnsTablet)} ${getDesktopW(config.columnsDesktop)} flex-shrink-0 snap-start` : '';
+
+    const limit = config.limit || 12;
+    const catsToShow = filteredCats.slice(0, limit);
+
+    return (
+        <section className={`${wrapper} mt-8 md:mt-10 relative group/cat-carousel`}>
+            {(config.title || config.subtitle) && (
+                <div className="mb-4 sm:mb-6 md:mb-8 text-center">
+                    {config.title && <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary tracking-tight">{config.title}</h2>}
+                    {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2 font-medium">{config.subtitle}</p>}
+                </div>
+            )}
+            
+            {isCarousel && (
+                <>
+                    <button 
+                        onClick={() => scroll('left')}
+                        className="absolute left-0 sm:left-4 top-[60%] -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/cat-carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la gauche"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button 
+                        onClick={() => scroll('right')}
+                        className="absolute right-0 sm:right-4 top-[60%] -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/cat-carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la droite"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </>
+            )}
+
+            <div 
+                ref={isCarousel ? scrollContainerRef : null}
+                className={
+                    isCarousel
+                    ? "flex overflow-x-auto snap-x snap-mandatory gap-2 sm:gap-3 md:gap-4 pb-2"
+                    : `grid gap-2 sm:gap-3 md:gap-4 ${cols}`
+                }
+                style={isCarousel ? { scrollbarWidth: 'none', msOverflowStyle: 'none' } : {}}
+            >
+                {catsToShow.map((cat: any) => {
+                    const catImg = catCollectionMedia[cat.slug] || catCollectionMedia[cat.id] || cat.image || cat.icon || null;
+                    const isElevated = cardStyle === 'elevated';
+                    const isBold = cardStyle === 'bold';
+                    const isMinimal = cardStyle === 'minimal';
+
+                    return (
+                        <Link
+                            key={cat.id}
+                            href={`/collection/${cat.slug}`}
+                            className={`group flex flex-col items-center justify-center overflow-hidden transition-all duration-200 ${carouselWidthClass} ${
+                                isElevated ? 'p-3 sm:p-5 hover:-translate-y-1 hover:shadow-xl' :
+                                isBold ? 'p-2 sm:p-3 hover:-translate-y-0.5 hover:shadow-lg' :
+                                isMinimal ? 'p-1.5 sm:p-2 hover:opacity-80' :
+                                'p-2.5 sm:p-4 hover:-translate-y-0.5 hover:shadow-lg'
+                            }`}
+                            style={{
+                                borderRadius: cardRadius,
+                                border: isMinimal ? 'none' : `1px solid var(--border, #e2e8f0)`,
+                                backgroundColor: config.cardBgColor || '#fff',
+                                boxShadow: isElevated ? '0 4px 12px rgba(0,0,0,0.06)' : config.cardShadow ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                            }}
+                        >
+                            <div
+                                className={`overflow-hidden flex items-center justify-center mb-1.5 sm:mb-2.5 group-hover:scale-105 transition-transform duration-300 ${
+                                    isBold ? 'w-10 h-10 sm:w-14 sm:h-14 md:w-18 md:h-18' : isMinimal ? 'w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16' : 'w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20'
+                                }`}
+                                style={{
+                                    borderRadius: imgRadius,
+                                    backgroundColor: catImg ? 'transparent' : 'var(--primary-5, rgba(226,232,240,0.5))',
+                                }}
+                            >
+                                {catImg ? (
+                                    <img
+                                        src={getAssetUrl(catImg)}
+                                        alt={cat.name}
+                                        className="w-full h-full object-cover"
+                                        style={{ borderRadius: imgRadius }}
+                                    />
+                                ) : (
+                                    <span className={`font-black text-primary/30 ${isBold ? 'text-3xl' : 'text-2xl'}`}>
+                                        {cat.name?.charAt(0) || '?'}
+                                    </span>
+                                )}
+                            </div>
+                            {config.showLabels !== false && (
+                                <span
+                                    className="font-bold text-center text-secondary line-clamp-2 group-hover:text-primary transition-colors"
+                                    style={{
+                                        fontSize: config.labelFontSize || '11px',
+                                        fontWeight: config.labelFontWeight || '700',
+                                        color: config.labelColor || undefined,
+                                    }}
+                                >
+                                    {cat.name}
+                                </span>
+                            )}
+                        </Link>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
 
 /**
  * Strict body-section renderer.
@@ -45,124 +188,28 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         }
 
         case 'FLASH_DEALS': {
-            // FlashSettings saves flashVersions array; render ALL active campaigns
-            let activeVersions: any[] = [];
+            // We now strictly enforce ONE flash campaign per CMS component 
+            // so the user can easily reorder them in the backend layout structure.
+            let activeVersion: any = null;
             if (config.flashVersions && Array.isArray(config.flashVersions)) {
-                activeVersions = config.flashVersions.filter((v: any) => v.isActive);
-                // Fallback: if none are active, use the first one
-                if (activeVersions.length === 0 && config.flashVersions.length > 0) {
-                    activeVersions = [config.flashVersions[0]];
+                activeVersion = config.flashVersions.find((v: any) => v.isActive);
+                if (!activeVersion && config.flashVersions.length > 0) {
+                    activeVersion = config.flashVersions[0];
                 }
             } else if (config.title || config.endTime || config.manualProductIds?.length || config.filterCriteria) {
-                // Legacy: config itself is a single flash deal
-                activeVersions = [config];
+                activeVersion = config;
             }
-            if (activeVersions.length === 0) return null;
+            if (!activeVersion) return null;
+            
             return (
-                <section className={`${wrapper} mt-8 md:mt-10 space-y-6`}>
-                    {activeVersions.map((flash: any, idx: number) => (
-                        <FlashSaleSection key={flash.id || idx} config={flash} />
-                    ))}
+                <section className={`${wrapper} mt-8 md:mt-10`}>
+                    <FlashSaleSection config={activeVersion} />
                 </section>
             );
         }
 
         case 'CATEGORIES': {
-            // STRICT: Only render categories explicitly enabled in the CATEGORIES section settings.
-            // Never fall back to siteCategories — that list is uncontrolled and may contain unwanted items.
-            const enabledCategories = config.enabledCategories || {};
-            const enabledSlugs = Object.entries(enabledCategories).filter(([, v]) => v === true).map(([k]) => k);
-            if (enabledSlugs.length === 0) return null;
-            const catCollectionMedia = config.collectionMedia || globalPromoConfig?.collectionMedia || {};
-            // Match siteCategories by slug/code against enabledSlugs
-            const filteredCats = siteCategories.filter((cat: any) => enabledSlugs.includes(cat.slug) || enabledSlugs.includes(cat.id));
-            if (filteredCats.length === 0) return null;
-
-            const cols = config.columnsDesktop === 2 ? 'grid-cols-2' :
-                config.columnsDesktop === 3 ? 'grid-cols-2 md:grid-cols-3' :
-                config.columnsDesktop === 4 ? 'grid-cols-2 md:grid-cols-4' :
-                config.columnsDesktop === 6 ? 'grid-cols-3 md:grid-cols-6' :
-                'grid-cols-2 md:grid-cols-3 lg:grid-cols-6';
-            const cardRadius = config.cardBorderRadius || '12px';
-            const cardStyle = config.cardStyle || 'standard';
-            const imageShape = config.imageShape || 'rounded';
-            const imgRadius = imageShape === 'circle' ? '50%' : imageShape === 'square' ? '4px' : '12px';
-
-            const limit = config.limit || 12;
-            const catsToShow = filteredCats.slice(0, limit);
-
-            return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    {(config.title || config.subtitle) && (
-                        <div className="mb-4 sm:mb-6 md:mb-8 text-center">
-                            {config.title && <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary tracking-tight">{config.title}</h2>}
-                            {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2 font-medium">{config.subtitle}</p>}
-                        </div>
-                    )}
-                    <div className={`grid gap-2 sm:gap-3 md:gap-4 ${cols}`}>
-                        {catsToShow.map((cat: any) => {
-                            const catImg = catCollectionMedia[cat.slug] || catCollectionMedia[cat.id] || cat.image || cat.icon || null;
-                            const isElevated = cardStyle === 'elevated';
-                            const isBold = cardStyle === 'bold';
-                            const isMinimal = cardStyle === 'minimal';
-
-                            return (
-                                <Link
-                                    key={cat.id}
-                                    href={`/collection/${cat.slug}`}
-                                    className={`group flex flex-col items-center justify-center overflow-hidden transition-all duration-200 ${
-                                        isElevated ? 'p-3 sm:p-5 hover:-translate-y-1 hover:shadow-xl' :
-                                        isBold ? 'p-2 sm:p-3 hover:-translate-y-0.5 hover:shadow-lg' :
-                                        isMinimal ? 'p-1.5 sm:p-2 hover:opacity-80' :
-                                        'p-2.5 sm:p-4 hover:-translate-y-0.5 hover:shadow-lg'
-                                    }`}
-                                    style={{
-                                        borderRadius: cardRadius,
-                                        border: isMinimal ? 'none' : `1px solid var(--border, #e2e8f0)`,
-                                        backgroundColor: config.cardBgColor || '#fff',
-                                        boxShadow: isElevated ? '0 4px 12px rgba(0,0,0,0.06)' : config.cardShadow ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                                    }}
-                                >
-                                    <div
-                                        className={`overflow-hidden flex items-center justify-center mb-1.5 sm:mb-2.5 group-hover:scale-105 transition-transform duration-300 ${
-                                            isBold ? 'w-10 h-10 sm:w-14 sm:h-14 md:w-18 md:h-18' : isMinimal ? 'w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16' : 'w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20'
-                                        }`}
-                                        style={{
-                                            borderRadius: imgRadius,
-                                            backgroundColor: catImg ? 'transparent' : 'var(--primary-5, rgba(226,232,240,0.5))',
-                                        }}
-                                    >
-                                        {catImg ? (
-                                            <img
-                                                src={getAssetUrl(catImg)}
-                                                alt={cat.name}
-                                                className="w-full h-full object-cover"
-                                                style={{ borderRadius: imgRadius }}
-                                            />
-                                        ) : (
-                                            <span className={`font-black text-primary/30 ${isBold ? 'text-3xl' : 'text-2xl'}`}>
-                                                {cat.name?.charAt(0) || '?'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {config.showLabels !== false && (
-                                        <span
-                                            className="font-bold text-center text-secondary line-clamp-2 group-hover:text-primary transition-colors"
-                                            style={{
-                                                fontSize: config.labelFontSize || '11px',
-                                                fontWeight: config.labelFontWeight || '700',
-                                                color: config.labelColor || undefined,
-                                            }}
-                                        >
-                                            {cat.name}
-                                        </span>
-                                    )}
-                                </Link>
-                            );
-                        })}
-                    </div>
-                </section>
-            );
+            return <InlineCategorySection config={config} siteCategories={siteCategories} globalPromoConfig={globalPromoConfig} wrapper={wrapper} />;
         }
 
         case 'FEATURES': {

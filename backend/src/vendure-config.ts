@@ -27,6 +27,7 @@ import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/shor
 import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
+import { BulkCollectionImportPlugin } from './plugins/bulk-collection-import/bulk-collection-import.plugin';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -139,5 +140,6 @@ export const config: VendureConfig = {
         CMSPlugin,
         BannerManagerPlugin,
         CollectionFacetMapPlugin,
+        BulkCollectionImportPlugin,
     ],
 };

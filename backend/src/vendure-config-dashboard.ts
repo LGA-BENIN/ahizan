@@ -12,6 +12,7 @@ import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifi
 import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
+import { BulkCollectionImportPlugin } from './plugins/bulk-collection-import/bulk-collection-import.plugin';
 
 // This is a LITE configuration used specifically for the Vite Dashboard build.
 // It skips the database connection and heavy background processes to reduce
@@ -62,5 +63,6 @@ export const config: VendureConfig = {
         CMSPlugin,
         BannerManagerPlugin,
         CollectionFacetMapPlugin,
+        BulkCollectionImportPlugin,
     ],
 };

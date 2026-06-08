@@ -5,6 +5,8 @@ import Link from "next/link";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { QuickLinks } from "./QuickLinks";
 import { FlashSaleSection } from "./FlashSaleSection";
+import { PromoSection } from './PromoSection';
+import { RichTextSection } from './RichTextSection';
 import { HomeModal } from "./HomeModal";
 import { CmsSection } from "@/lib/vendure/cms-queries";
 import { TabbedProductGrid } from "@/components/cms/tabbed-product-grid";
@@ -392,6 +394,11 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                     </div>
                 </section>
             );
+        }
+
+        case 'RICH_TEXT': {
+            if (!config.htmlContent || config.htmlContent.trim() === '') return null;
+            return <RichTextSection config={config} wrapper={wrapper} />;
         }
 
         case 'CUSTOM': {

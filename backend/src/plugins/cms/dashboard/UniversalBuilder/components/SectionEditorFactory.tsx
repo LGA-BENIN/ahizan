@@ -11,6 +11,7 @@ import { PromoSettings } from './sections/PromoSettings';
 import { CustomSettings } from './sections/CustomSettings';
 import { ProductGridSettings } from './sections/ProductGridSettings';
 import { TabbedProductGridSettings } from './sections/TabbedProductGridSettings';
+import { RichTextSettings } from './sections/RichTextSettings';
 import { CodeInjectionPanel } from './sections/CodeInjectionPanel';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
@@ -129,6 +130,9 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
         case 'FLASH_DEALS':
             return withCodePanel(<FlashSettings data={data} onSave={handleSave} />);
         
+        case 'RICH_TEXT':
+            return withCodePanel(<RichTextSettings data={data} onSave={handleSave} />);
+
         // Global system configs — no code injection (they control layout, not visible sections)
         case 'THEME_SETTINGS':
             return <ThemeSettings data={data} onSave={handleSave} />;

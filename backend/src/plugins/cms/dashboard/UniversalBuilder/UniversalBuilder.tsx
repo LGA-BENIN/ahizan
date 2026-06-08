@@ -847,7 +847,7 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
                   )}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', display: 'block' }}>
                     {activeSection ? (
-                      <SectionEditorFactory section={activeSection} sectionIndex={sections.findIndex(s => s.id === activeSection.id)} onSaveSuccess={refetchPageDetail} />
+                      <SectionEditorFactory key={activeSection.id} section={activeSection} sectionIndex={sections.findIndex((s: any) => s.id === activeSection.id)} onSaveSuccess={refetchPageDetail} />
                     ) : (
                       <div className="empty-state">
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👆</div>

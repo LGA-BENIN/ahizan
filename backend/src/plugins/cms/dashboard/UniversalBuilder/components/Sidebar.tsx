@@ -48,6 +48,12 @@ const ZONE_MAP = [
         ]
     },
     {
+        zone: 'Contenu',
+        items: [
+            { type: 'RICH_TEXT', icon: '📝', label: 'Texte Riche (Tiptap)', mode: 'multi' },
+        ]
+    },
+    {
         zone: 'Pied de page',
         items: [
             { type: 'FOOTER_CONF', icon: '🦶', label: 'Pied de page global', mode: 'singleton' },

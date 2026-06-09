@@ -40,7 +40,7 @@ export default async function RejectedPage() {
                     <div className="bg-red-50 p-4 rounded-lg border border-red-100 text-left">
                         <h4 className="font-semibold text-red-900 mb-1 text-sm">Motif du refus :</h4>
                         <p className="text-red-800 text-sm">
-                            {vendor.rejectionReason || "Aucun motif spécifié. Veuillez contacter le support."}
+                            {(vendor as any).rejectionReason || "Aucun motif spécifié. Veuillez contacter le support."}
                         </p>
                     </div>
 

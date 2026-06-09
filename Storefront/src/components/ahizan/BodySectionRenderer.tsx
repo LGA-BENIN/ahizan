@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { QuickLinks } from "./QuickLinks";
 import { FlashSaleSection } from "./FlashSaleSection";
-import { PromoSection } from './PromoSection';
+
 import { RichTextSection } from './RichTextSection';
 import { HomeModal } from "./HomeModal";
 import { CmsSection } from "@/lib/vendure/cms-queries";

@@ -6,6 +6,7 @@ import {
   TransactionalConnection,
   ChannelService,
   Collection,
+  AssetService,
 } from '@vendure/core';
 import { ConfigurableOperationInput } from '@vendure/common/lib/generated-types';
 import { CollectionRow } from '../types/import-types';
@@ -16,6 +17,7 @@ export class CollectionImportService {
     private collectionService: CollectionService,
     private connection: TransactionalConnection,
     private channelService: ChannelService,
+    private assetService: AssetService,
   ) {}
 
   /**
@@ -84,7 +86,7 @@ export class CollectionImportService {
 
         if (existing) {
           // Update existing collection
-          await this.collectionService.update(ctx, {
+          const updateInput: any = {
             id: existing.id,
             isPrivate,
             inheritFilters,
@@ -93,7 +95,17 @@ export class CollectionImportService {
             customFields: {
               allowedFacetIds: this.parseAllowedFacetIds(collection.allowedFacetIds),
             },
-          });
+          };
+
+          // Handle featured asset from URL
+          if (collection.featuredAssetUrl) {
+            const assetId = await this.createAssetFromUrl(ctx, collection.featuredAssetUrl);
+            if (assetId) {
+              updateInput.featuredAssetId = assetId;
+            }
+          }
+
+          await this.collectionService.update(ctx, updateInput);
 
           // Ensure the collection is assigned to the current channel (idempotent)
           await this.channelService.assignToChannels(ctx, Collection, existing.id as any, [ctx.channelId]);
@@ -102,7 +114,7 @@ export class CollectionImportService {
           updated++;
         } else {
           // Create new collection
-          const createdCollection = await this.collectionService.create(ctx, {
+          const createInput: any = {
             isPrivate,
             inheritFilters,
             filters,
@@ -110,7 +122,17 @@ export class CollectionImportService {
             customFields: {
               allowedFacetIds: this.parseAllowedFacetIds(collection.allowedFacetIds),
             },
-          });
+          };
+
+          // Handle featured asset from URL
+          if (collection.featuredAssetUrl) {
+            const assetId = await this.createAssetFromUrl(ctx, collection.featuredAssetUrl);
+            if (assetId) {
+              createInput.featuredAssetId = assetId;
+            }
+          }
+
+          const createdCollection = await this.collectionService.create(ctx, createInput);
 
           await this.channelService.assignToChannels(ctx, Collection, createdCollection.id as any, [ctx.channelId]);
           slugToIdMap.set(collection.slug, String(createdCollection.id));
@@ -270,5 +292,55 @@ export class CollectionImportService {
         allowedFacetIds: facetIds,
       },
     } as any);
+  }
+
+  /**
+   * Download an image from a URL and create an asset
+   */
+  private async createAssetFromUrl(ctx: RequestContext, url: string): Promise<string | null> {
+    if (!url || url.trim() === '') return null;
+
+    try {
+      console.log(`[BulkImport] Attempting to download image from: ${url}`);
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error(`[BulkImport] Failed to download image from ${url}: HTTP ${response.status} ${response.statusText}`);
+        return null;
+      }
+
+      const buffer = await response.arrayBuffer();
+      const fileName = url.split('/').pop()?.split('?')[0] || 'image.jpg';
+      const mimeType = response.headers.get('content-type') || 'image/jpeg';
+
+      console.log(`[BulkImport] Downloaded ${buffer.byteLength} bytes from ${url}, MIME type: ${mimeType}`);
+
+      // Create a proper file-like object with createReadStream method
+      const { Readable } = require('stream');
+      const file = {
+        filename: fileName,
+        mimetype: mimeType,
+        buffer: Buffer.from(buffer),
+        createReadStream: () => Readable.from(Buffer.from(buffer)),
+      } as any;
+
+      const asset = await this.assetService.create(ctx, { file });
+      if ((asset as any).errorCode) {
+        console.error(`[BulkImport] Failed to create asset from ${url}: ${(asset as any).message}`);
+        return null;
+      }
+
+      console.log(`[BulkImport] Successfully created asset from ${url}, ID: ${(asset as any).id}`);
+      return (asset as any).id;
+    } catch (error: any) {
+      console.error(`[BulkImport] Error creating asset from URL ${url}: ${error.message}`);
+      console.error(`[BulkImport] Error details:`, error);
+      return null;
+    }
   }
 }

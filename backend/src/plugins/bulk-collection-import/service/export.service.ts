@@ -45,6 +45,10 @@ export class ExportService {
       const frTrans = collection.translations?.find((t: any) => t.languageCode === 'fr') || collection.translations?.[0];
       const enTrans = collection.translations?.find((t: any) => t.languageCode === 'en');
 
+      const filters = (collection.filters || []) as any[];
+      const variantFilter = filters.find(f => f.code === 'variant-id-filter');
+      const variantIds = this.extractArgList(variantFilter, 'variantIds');
+
       return {
         name: frTrans?.name || collection.name || '',
         name_en: enTrans?.name || '',
@@ -55,8 +59,27 @@ export class ExportService {
         featured_asset_url: collection.featuredAsset?.preview || '',
         position: collection.position || 0,
         allowed_facet_ids: (collection.customFields?.allowedFacetIds || []).join(','),
+        variant_ids: variantIds.join(','),
+        inherit_filters: collection.inheritFilters === false ? 'false' : 'true',
+        is_private: collection.isPrivate ? 'true' : 'false',
       };
     });
+  }
+
+  /**
+   * Extract a list-type argument value from a stored CollectionFilter operation.
+   * The value is stored as a JSON-encoded string array, e.g. '["2","6"]'.
+   */
+  private extractArgList(filter: any, argName: string): string[] {
+    if (!filter || !Array.isArray(filter.args)) return [];
+    const arg = filter.args.find((a: any) => a.name === argName);
+    if (!arg || arg.value == null) return [];
+    try {
+      const parsed = JSON.parse(arg.value);
+      return Array.isArray(parsed) ? parsed.map((v: any) => String(v)) : [];
+    } catch {
+      return [];
+    }
   }
 
   private async exportFacets(ctx: RequestContext): Promise<any[]> {

@@ -90,6 +90,33 @@ export class ImportValidatorService {
       }
     }
 
+    // Validate variantIds format if provided (comma-separated numbers)
+    if (collection.variantIds) {
+      const variantIds = collection.variantIds.split(',').map(id => id.trim());
+      const invalidIds = variantIds.filter(id => id && isNaN(Number(id)));
+      if (invalidIds.length > 0) {
+        errors.push({
+          row,
+          sheet: 'Collections',
+          field: 'variantIds',
+          message: `Invalid variant IDs: ${invalidIds.join(', ')}. Must be comma-separated numbers.`,
+        });
+      }
+    }
+
+    // Validate boolean-like flags if provided
+    for (const field of ['inheritFilters', 'isPrivate'] as const) {
+      const value = collection[field];
+      if (value && value !== 'true' && value !== 'false') {
+        errors.push({
+          row,
+          sheet: 'Collections',
+          field,
+          message: `${field} must be "true" or "false"`,
+        });
+      }
+    }
+
     return errors;
   }
 

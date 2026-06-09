@@ -11,20 +11,28 @@ Your Excel file must have 3 sheets with the following structure:
 | name | Collection name (French) | Yes | Vêtements |
 | name_en | Collection name (English) | No | Clothing |
 | slug | URL-friendly slug | Yes | vetements |
-| parent_slug | Parent collection slug | No | (leave empty for root collections) |
+| parent_slug | Parent collection slug. Leave empty to attach under the store root. | No | vetements |
 | description | Collection description (French) | No | Tous les vêtements |
 | description_en | Collection description (English) | No | All clothing |
 | featured_asset_url | URL for featured image | No | https://example.com/image.jpg |
-| position | Display order | No | 1 |
-| allowed_facet_ids | Comma-separated facet IDs | No | 1,2,3 |
+| position | Display order among siblings | No | 1 |
+| allowed_facet_ids | Comma-separated facet IDs (seller facet picker) | No | 1,2,3 |
+| facet_value_codes | Comma-separated facet **value** codes used to auto-populate the collection with matching product variants (builds a facet-value-filter) | No | red,blue |
+| variant_ids | Comma-separated product variant IDs to include explicitly (builds a variant-id-filter) | No | 2,6,12 |
+| inherit_filters | `true`/`false` - inherit parent collection filters (default `true`) | No | true |
+| is_private | `true`/`false` - whether the collection is hidden (default `false`) | No | false |
 
 **Example Data:**
 ```
-name,name_en,slug,parent_slug,description,description_en,featured_asset_url,position,allowed_facet_ids
-Vêtements,Clothing,vetements,,Tous les vêtements,All clothing,,1,1,2
-Hommes,Men,hommes,vetements,Vêtements pour hommes,Men's clothing,,2,1
-Femmes,Women,femmes,vetements,Vêtements pour femmes,Women's clothing,,3,1,2
+name,name_en,slug,parent_slug,description,description_en,featured_asset_url,position,allowed_facet_ids,facet_value_codes,variant_ids,inherit_filters,is_private
+Vêtements,Clothing,vetements,,Tous les vêtements,All clothing,,1,"1,2",,,true,false
+Hommes,Men,hommes,vetements,Vêtements pour hommes,Men's clothing,,2,1,homme,,true,false
+Femmes,Women,femmes,vetements,Vêtements pour femmes,Women's clothing,,3,"1,2",,"7,9,14",true,false
 ```
+
+> **Populating collections with products:** A collection only shows products when it has a filter.
+> Use `facet_value_codes` (recommended - products tagged with those facet values are matched automatically)
+> and/or `variant_ids` (explicit list). Without either, the collection will be created but remain empty.
 
 ### Sheet 2: Facets
 
@@ -69,13 +77,15 @@ size,large,Grand,Large
 
 2. **Collection-Facet Mapping**: After import, the plugin automatically updates the `allowedFacetIds` in each collection's `customFields` based on the `allowed_facet_ids` column in the Collections sheet.
 
-3. **Parent-Child Relationships**: Collections are created first without parents, then parent relationships are set in a second pass. This ensures all collections exist before linking them.
+3. **Parent-Child Relationships**: Collections are created first, then parent relationships are applied in a second pass using Vendure's `move()` API (a plain `update({parentId})` is silently ignored by Vendure). Any collection without a valid `parent_slug` is explicitly attached under the store root, so no collection is ever left orphaned.
 
-4. **Existing Data**: The plugin skips collections and facets that already exist (by slug/code). It only creates new ones.
+4. **Channel Assignment**: Every created or updated collection is assigned to the current channel, so it is always visible in the admin dashboard and storefront.
 
-5. **Facet IDs**: The `allowed_facet_ids` column expects numeric facet IDs. After importing facets, you'll need to check their IDs in the admin panel and update your Excel file accordingly.
+5. **Existing Data**: The plugin updates collections, facets and facet values that already exist (matched by slug/code) and creates the rest.
 
-6. **French/English Support**: All entities support both French (required) and English (optional) translations.
+6. **Facet IDs**: The `allowed_facet_ids` column expects numeric facet IDs. After importing facets, you'll need to check their IDs in the admin panel and update your Excel file accordingly.
+
+7. **French/English Support**: All entities support both French (required) and English (optional) translations.
 
 ## Import Process
 

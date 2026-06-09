@@ -16,7 +16,11 @@ const collectionsData = [
     description_en: 'All clothing',
     featured_asset_url: '',
     position: 1,
-    allowed_facet_ids: ''
+    allowed_facet_ids: '',
+    facet_value_codes: '',
+    variant_ids: '',
+    inherit_filters: 'true',
+    is_private: 'false'
   },
   {
     name: 'Électronique',
@@ -27,7 +31,11 @@ const collectionsData = [
     description_en: 'All electronic products',
     featured_asset_url: '',
     position: 2,
-    allowed_facet_ids: ''
+    allowed_facet_ids: '',
+    facet_value_codes: '',
+    variant_ids: '',
+    inherit_filters: 'true',
+    is_private: 'false'
   },
   {
     name: 'Hommes',
@@ -38,7 +46,11 @@ const collectionsData = [
     description_en: 'Men\'s clothing',
     featured_asset_url: '',
     position: 1,
-    allowed_facet_ids: ''
+    allowed_facet_ids: '',
+    facet_value_codes: 'red,blue',
+    variant_ids: '',
+    inherit_filters: 'true',
+    is_private: 'false'
   },
   {
     name: 'Femmes',
@@ -49,7 +61,11 @@ const collectionsData = [
     description_en: 'Women\'s clothing',
     featured_asset_url: '',
     position: 2,
-    allowed_facet_ids: ''
+    allowed_facet_ids: '',
+    facet_value_codes: '',
+    variant_ids: '',
+    inherit_filters: 'true',
+    is_private: 'false'
   }
 ];
 

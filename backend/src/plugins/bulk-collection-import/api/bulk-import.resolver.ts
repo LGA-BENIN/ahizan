@@ -117,12 +117,13 @@ export class BulkImportResolver {
       console.log('[BulkImportResolver] Validation warnings:', validationErrors.length);
 
       // Import facets first (independent)
-      const { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors: facetErrors } = 
+      const { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors: facetErrors, facetValueCodeToId } = 
         await this.facetImport.importFacets(ctx, data.facets, data.facetValues);
 
-      // Import collections (may depend on facets for allowedFacetIds)
+      // Import collections. The facet value code -> ID map lets collections
+      // build facet-value-filters (to auto-populate variants) from value codes.
       const { created: collectionsCreated, updated: collectionsUpdated, errors: collectionErrors } = 
-        await this.collectionImport.importCollections(ctx, data.collections);
+        await this.collectionImport.importCollections(ctx, data.collections, facetValueCodeToId);
 
       // Update collection-facet mappings based on allowedFacetIds from Excel
       for (const collection of data.collections) {

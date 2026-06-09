@@ -308,7 +308,8 @@ export const BulkImportPage = () => {
         </h3>
         <ul style={{ fontSize: 13, color: '#6b7280', paddingLeft: 20, lineHeight: 1.6 }}>
           <li>Le fichier Excel doit avoir 3 feuilles: Collections, Facets, Facet Values</li>
-          <li>Feuille Collections: name, name_en, slug, parent_slug, description, description_en, allowed_facet_ids</li>
+          <li>Feuille Collections: name, name_en, slug, parent_slug, description, description_en, position, allowed_facet_ids, facet_value_codes, variant_ids, inherit_filters, is_private</li>
+          <li>Pour remplir une collection de produits: renseignez facet_value_codes (codes de valeurs de facette) et/ou variant_ids (IDs de variantes)</li>
           <li>Feuille Facets: code, name, name_en, is_private</li>
           <li>Feuille Facet Values: facet_code, code, name, name_en</li>
           <li>Les collections/facettes existantes seront mises à jour selon le slug/code</li>

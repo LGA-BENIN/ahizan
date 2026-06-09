@@ -8,6 +8,14 @@ export interface CollectionRow {
   featuredAssetUrl?: string;
   position?: number;
   allowedFacetIds?: string;
+  /** Comma-separated facet value codes used to auto-populate the collection via a facet-value-filter */
+  facetValueCodes?: string;
+  /** Comma-separated product variant IDs used to populate the collection via the variant-id-filter */
+  variantIds?: string;
+  /** "true"/"false" - whether to inherit parent collection filters (default true) */
+  inheritFilters?: string;
+  /** "true"/"false" - whether the collection is private (default false) */
+  isPrivate?: string;
 }
 
 export interface FacetRow {

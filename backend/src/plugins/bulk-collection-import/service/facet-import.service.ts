@@ -19,16 +19,19 @@ export class FacetImportService {
     ctx: RequestContext,
     facets: FacetRow[],
     facetValues: FacetValueRow[],
-  ): Promise<{ facetsCreated: number; facetsUpdated: number; facetValuesCreated: number; facetValuesUpdated: number; errors: string[] }> {
+  ): Promise<{ facetsCreated: number; facetsUpdated: number; facetValuesCreated: number; facetValuesUpdated: number; errors: string[]; facetValueCodeToId: Map<string, string> }> {
     const errors: string[] = [];
     let facetsCreated = 0;
     let facetsUpdated = 0;
     let facetValuesCreated = 0;
     let facetValuesUpdated = 0;
 
-
     // Build a map of facet code to facet ID for value resolution
     const codeToIdMap = new Map<string, string>();
+    // Build a map of facet value code -> facet value ID so collections can build
+    // facet-value-filters from value codes. Keyed both by "valueCode" and
+    // "facetCode:valueCode" to disambiguate duplicate value codes across facets.
+    const facetValueCodeToId = new Map<string, string>();
 
     // Use repository for direct access
     const facetRepo = this.connection.getRepository(ctx, Facet);
@@ -114,6 +117,8 @@ export class FacetImportService {
           if (existingValue) {
             // Skip updating existing facet values to avoid translation complexity
             // The value already exists, so we just count it as updated
+            facetValueCodeToId.set(facetValue.code, String(existingValue.id));
+            facetValueCodeToId.set(`${facetValue.facetCode}:${facetValue.code}`, String(existingValue.id));
             facetValuesUpdated++;
             continue;
           }
@@ -141,13 +146,15 @@ export class FacetImportService {
 
         const savedFacetValue = await facetValueRepo.save(newFacetValue);
         await this.channelService.assignToChannels(ctx, FacetValue, savedFacetValue.id as any, [ctx.channelId]);
+        facetValueCodeToId.set(facetValue.code, String(savedFacetValue.id));
+        facetValueCodeToId.set(`${facetValue.facetCode}:${facetValue.code}`, String(savedFacetValue.id));
         facetValuesCreated++;
       } catch (error: any) {
         errors.push(`Failed to import facet value "${facetValue.code}": ${error.message}`);
       }
     }
 
-    return { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors };
+    return { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors, facetValueCodeToId };
   }
 
   /**

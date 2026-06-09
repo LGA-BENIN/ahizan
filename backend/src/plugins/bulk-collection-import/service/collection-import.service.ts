@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Ctx, RequestContext, CollectionService, LanguageCode, TransactionalConnection, ChannelService, Collection } from '@vendure/core';
+import {
+  RequestContext,
+  CollectionService,
+  LanguageCode,
+  TransactionalConnection,
+  ChannelService,
+  Collection,
+} from '@vendure/core';
+import { ConfigurableOperationInput } from '@vendure/common/lib/generated-types';
 import { CollectionRow } from '../types/import-types';
 
 @Injectable()
@@ -11,13 +19,25 @@ export class CollectionImportService {
   ) {}
 
   /**
-   * Import collections from parsed Excel data
-   * Uses Vendure's CollectionService to create/update collections without schema changes
-   * Updates existing items instead of skipping them
+   * Import collections from parsed Excel data.
+   *
+   * Robustness guarantees (fixes for previously observed bugs):
+   *  - Every created collection is assigned to the current channel.
+   *  - Parent relationships are set via `move()` (NOT `update({parentId})`,
+   *    which Vendure silently ignores). Collections without a parent are
+   *    explicitly moved under the root collection so none are ever orphaned.
+   *  - Collections are populated with product variants by building
+   *    CollectionFilters from `facetValueCodes` (facet-value-filter) and/or
+   *    `variantIds` (variant-id-filter).
+   *
+   * @param facetValueCodeToId Map of facet value code -> facet value ID, used
+   *   to translate the human-friendly `facetValueCodes` column into the IDs
+   *   required by the facet-value-filter.
    */
   async importCollections(
     ctx: RequestContext,
     collections: CollectionRow[],
+    facetValueCodeToId: Map<string, string> = new Map(),
   ): Promise<{ created: number; updated: number; errors: string[] }> {
     const errors: string[] = [];
     let created = 0;
@@ -26,63 +46,67 @@ export class CollectionImportService {
     // Build a map of slug to collection ID for parent resolution
     const slugToIdMap = new Map<string, string>();
 
-    // First pass: create or update all collections without parents
+    // Resolve the root collection once so we can re-parent top-level collections
+    const rootCollectionId = await this.getRootCollectionId(ctx);
+
+    // First pass: create or update all collections (parents resolved later)
     for (const collection of collections) {
       try {
+        const filters = this.buildFilters(ctx, collection, facetValueCodeToId, errors);
+        const inheritFilters = collection.inheritFilters
+          ? collection.inheritFilters.toString().trim().toLowerCase() !== 'false'
+          : true;
+        const isPrivate = collection.isPrivate
+          ? collection.isPrivate.toString().trim().toLowerCase() === 'true'
+          : false;
+
+        const translations = [
+          {
+            languageCode: LanguageCode.fr,
+            name: collection.name,
+            slug: collection.slug,
+            description: collection.description || '',
+          },
+          ...(collection.nameEn
+            ? [
+                {
+                  languageCode: LanguageCode.en,
+                  name: collection.nameEn,
+                  slug: collection.slug,
+                  description: collection.descriptionEn || '',
+                },
+              ]
+            : []),
+        ];
+
         // Check if collection already exists
         const existing = await this.collectionService.findOneBySlug(ctx, collection.slug);
-        
+
         if (existing) {
           // Update existing collection
           await this.collectionService.update(ctx, {
             id: existing.id,
-            translations: [
-              {
-                languageCode: LanguageCode.fr,
-                name: collection.name,
-                slug: collection.slug,
-                description: collection.description || '',
-              },
-              ...(collection.nameEn
-                ? [
-                    {
-                      languageCode: LanguageCode.en,
-                      name: collection.nameEn,
-                      slug: collection.slug,
-                      description: collection.descriptionEn || '',
-                    },
-                  ]
-                : []),
-            ],
+            isPrivate,
+            inheritFilters,
+            filters,
+            translations,
             customFields: {
               allowedFacetIds: this.parseAllowedFacetIds(collection.allowedFacetIds),
             },
           });
+
+          // Ensure the collection is assigned to the current channel (idempotent)
+          await this.channelService.assignToChannels(ctx, Collection, existing.id as any, [ctx.channelId]);
 
           slugToIdMap.set(collection.slug, String(existing.id));
           updated++;
         } else {
           // Create new collection
           const createdCollection = await this.collectionService.create(ctx, {
-            translations: [
-              {
-                languageCode: LanguageCode.fr,
-                name: collection.name,
-                slug: collection.slug,
-                description: collection.description || '',
-              },
-              ...(collection.nameEn
-                ? [
-                    {
-                      languageCode: LanguageCode.en,
-                      name: collection.nameEn,
-                      slug: collection.slug,
-                      description: collection.descriptionEn || '',
-                    },
-                  ]
-                : []),
-            ],
-            filters: [], // Required by CreateCollectionInput
+            isPrivate,
+            inheritFilters,
+            filters,
+            translations,
             customFields: {
               allowedFacetIds: this.parseAllowedFacetIds(collection.allowedFacetIds),
             },
@@ -97,23 +121,42 @@ export class CollectionImportService {
       }
     }
 
-    // Second pass: update parent relationships
+    // Second pass: set parent relationships using move() so the hierarchy is
+    // actually persisted. Vendure's update() ignores parentId, which was the
+    // root cause of orphaned collections.
     for (const collection of collections) {
-      // Treat empty string as no parent
-      if (collection.parentSlug && collection.parentSlug.trim() !== '' && slugToIdMap.has(collection.parentSlug)) {
-        try {
-          const parentId = slugToIdMap.get(collection.parentSlug);
-          const collectionId = slugToIdMap.get(collection.slug);
+      const collectionId = slugToIdMap.get(collection.slug);
+      if (!collectionId) continue;
 
-          if (collectionId && parentId) {
-            await this.collectionService.update(ctx, {
-              id: collectionId,
-              parentId: parentId as any,
-            });
-          }
-        } catch (error: any) {
-          errors.push(`Failed to set parent for collection "${collection.slug}": ${error.message}`);
+      let targetParentId: string | undefined;
+      const parentSlug = collection.parentSlug?.trim();
+
+      if (parentSlug) {
+        targetParentId = slugToIdMap.get(parentSlug);
+        if (!targetParentId) {
+          // Parent not in this batch - try to resolve from the database
+          const parent = await this.collectionService.findOneBySlug(ctx, parentSlug);
+          targetParentId = parent ? String(parent.id) : undefined;
         }
+      }
+
+      // No (valid) parent -> attach to root so the collection is never orphaned
+      if (!targetParentId) {
+        targetParentId = rootCollectionId;
+      }
+
+      // Guard against self-parenting
+      if (!targetParentId || targetParentId === collectionId) continue;
+
+      try {
+        const index = this.parsePosition(collection.position);
+        await this.collectionService.move(ctx, {
+          collectionId: collectionId as any,
+          parentId: targetParentId as any,
+          index,
+        });
+      } catch (error: any) {
+        errors.push(`Failed to set parent for collection "${collection.slug}": ${error.message}`);
       }
     }
 
@@ -121,14 +164,90 @@ export class CollectionImportService {
   }
 
   /**
+   * Resolve the ID of the root collection (the implicit top of the tree).
+   */
+  private async getRootCollectionId(ctx: RequestContext): Promise<string | undefined> {
+    const collectionRepo = this.connection.getRepository(ctx, Collection);
+    const root = await collectionRepo.findOne({ where: { isRoot: true } as any });
+    return root ? String(root.id) : undefined;
+  }
+
+  /**
+   * Build the CollectionFilters that populate a collection with product
+   * variants. Supports both an explicit variant-id-filter and an automatic
+   * facet-value-filter derived from facet value codes.
+   */
+  private buildFilters(
+    ctx: RequestContext,
+    collection: CollectionRow,
+    facetValueCodeToId: Map<string, string>,
+    errors: string[],
+  ): ConfigurableOperationInput[] {
+    const filters: ConfigurableOperationInput[] = [];
+
+    // Explicit variant IDs -> variant-id-filter
+    const variantIds = this.parseCsv(collection.variantIds);
+    if (variantIds.length > 0) {
+      filters.push({
+        code: 'variant-id-filter',
+        arguments: [{ name: 'variantIds', value: JSON.stringify(variantIds) }],
+      });
+    }
+
+    // Facet value codes -> facet-value-filter
+    const facetValueCodes = this.parseCsv(collection.facetValueCodes);
+    if (facetValueCodes.length > 0) {
+      const ids: string[] = [];
+      for (const code of facetValueCodes) {
+        const id = facetValueCodeToId.get(code) || facetValueCodeToId.get(code.toLowerCase());
+        if (id) {
+          ids.push(id);
+        } else {
+          errors.push(
+            `Collection "${collection.slug}": facet value code "${code}" not found - skipped in filter`,
+          );
+        }
+      }
+      if (ids.length > 0) {
+        filters.push({
+          code: 'facet-value-filter',
+          arguments: [
+            { name: 'facetValueIds', value: JSON.stringify(ids) },
+            { name: 'containsAny', value: 'true' },
+            { name: 'combineWithAnd', value: 'false' },
+          ],
+        });
+      }
+    }
+
+    return filters;
+  }
+
+  /**
+   * Parse a position value (string or number) into a non-negative integer.
+   */
+  private parsePosition(position?: number | string): number {
+    const n = Number(position);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  }
+
+  /**
+   * Parse a comma-separated string into a trimmed, non-empty list.
+   */
+  private parseCsv(value?: string): string[] {
+    if (!value) return [];
+    return value
+      .toString()
+      .split(',')
+      .map(v => v.trim())
+      .filter(v => v !== '');
+  }
+
+  /**
    * Parse comma-separated facet IDs from string
    */
   private parseAllowedFacetIds(facetIdsStr?: string): string[] {
-    if (!facetIdsStr) return [];
-    return facetIdsStr
-      .split(',')
-      .map(id => id.trim())
-      .filter(id => id !== '');
+    return this.parseCsv(facetIdsStr);
   }
 
   /**

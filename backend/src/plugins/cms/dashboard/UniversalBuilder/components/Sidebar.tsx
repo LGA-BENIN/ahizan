@@ -3,6 +3,7 @@ import { useEditor } from '../hooks/EditorContext';
 
 interface SidebarProps {
   sections: any[];
+  pageSlug?: string;
   onRefetch: () => void;
   onCreate: (type: string) => void;
   onDelete: (id: string) => void;
@@ -17,25 +18,45 @@ interface SidebarProps {
  * "multi" types show a dropdown of all instances of that type; the superadmin
  * can have 4 flash campaigns, 2 promo banners, etc.
  */
-const ZONE_MAP = [
+const MASTER_ZONE_MAP = [
     {
         zone: 'Général',
         items: [
             { type: 'THEME_SETTINGS', icon: '⚙️', label: 'Thème et Image de marque', mode: 'singleton' },
             { type: 'MODALS', icon: '📢', label: 'Modales Pop-up', mode: 'singleton' },
-        ]
+        ],
+        allowedOn: ['home']
     },
     {
         zone: 'En-tête',
         items: [
             { type: 'HEADER_CONF', icon: '🧭', label: 'En-tête et TopBar', mode: 'singleton' },
-        ]
+        ],
+        allowedOn: ['home']
     },
     {
         zone: 'Impact',
         items: [
             { type: 'HERO', icon: '🎬', label: 'Slider Hero', mode: 'singleton' },
-        ]
+        ],
+        allowedOn: ['home']
+    },
+    {
+        zone: 'Page Produit (Modèles)',
+        items: [
+            { type: 'PRODUCT_OVERVIEW', icon: '🛍️', label: 'Fiche Produit Principale', mode: 'singleton' },
+            { type: 'PRODUCT_REVIEWS', icon: '⭐', label: 'Avis Clients', mode: 'singleton' },
+            { type: 'RELATED_PRODUCTS', icon: '🔄', label: 'Produits Similaires', mode: 'singleton' },
+        ],
+        allowedOn: ['product']
+    },
+    {
+        zone: 'Page Catégorie (Modèles)',
+        items: [
+            { type: 'CATEGORY_HEADER', icon: '🖼️', label: 'En-tête de Catégorie (Bannière)', mode: 'singleton' },
+            { type: 'DYNAMIC_PRODUCT_GRID', icon: '🎛️', label: 'Grille de Produits & Filtres', mode: 'singleton' },
+        ],
+        allowedOn: ['category']
     },
     {
         zone: 'Corps',
@@ -45,29 +66,65 @@ const ZONE_MAP = [
             { type: 'CATEGORIES', icon: '', label: 'Catégories', mode: 'multi' },
             { type: 'PRODUCT_GRID', icon: '🛒', label: 'Grille de Produits', mode: 'multi' },
             { type: 'TABBED_PRODUCT_GRID', icon: '📑', label: 'Grille avec Onglets', mode: 'multi' },
-        ]
+        ],
+        allowedOn: ['all']
     },
     {
         zone: 'Contenu',
         items: [
             { type: 'RICH_TEXT', icon: '📝', label: 'Texte Riche (Tiptap)', mode: 'multi' },
-        ]
+        ],
+        allowedOn: ['all']
     },
     {
         zone: 'Pied de page',
         items: [
             { type: 'FOOTER_CONF', icon: '🦶', label: 'Pied de page global', mode: 'singleton' },
-        ]
+        ],
+        allowedOn: ['home']
     },
     {
         zone: 'Avancé',
         items: [
             { type: 'CUSTOM', icon: '🛠️', label: 'Code HTML personnalisé', mode: 'multi' },
-        ]
+        ],
+        allowedOn: ['all']
     },
 ];
 
-export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onToggle, onMoveGroup }: SidebarProps) => {
+const getZoneMapForSlug = (slug?: string) => {
+    const activeSlug = slug || 'home';
+    
+    // Define exact permitted types for each page type to prevent clutter
+    const permittedTypes: Record<string, string[]> = {
+        home: [
+            'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'PRODUCT_GRID', 'TABBED_PRODUCT_GRID',
+            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+        ],
+        category: [
+            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'RICH_TEXT'
+        ],
+        product: [
+            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'RICH_TEXT'
+        ]
+    };
+
+    const allowedTypes = permittedTypes[activeSlug] || permittedTypes['home'];
+
+    // Map and filter the zones dynamically
+    return MASTER_ZONE_MAP
+        .map(zone => {
+            const filteredItems = zone.items.filter(item => allowedTypes.includes(item.type));
+            return {
+                ...zone,
+                items: filteredItems
+            };
+        })
+        .filter(zone => zone.items.length > 0);
+};
+
+export const Sidebar = ({ sections, pageSlug, onRefetch, onCreate, onDelete, onMove, onToggle, onMoveGroup }: SidebarProps) => {
     const { selectedSection, setSelectedSection, setMode } = useEditor();
     // Track which "multi" groups have their dropdown expanded
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -77,9 +134,10 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
     const [viewMode, setViewMode] = useState<'LIBRARY' | 'STRUCTURE'>('LIBRARY');
 
     const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+    const activeZoneMap = getZoneMapForSlug(pageSlug);
 
     const getTypeInfo = (type: string) => {
-        for (const zone of ZONE_MAP) {
+        for (const zone of MASTER_ZONE_MAP) {
             const item = zone.items.find(i => i.type === type);
             if (item) return item;
         }
@@ -199,12 +257,19 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                 {/* Activation Toggle */}
                 <button 
                     onClick={(e) => { e.stopPropagation(); onToggle(s.id, !s.isActive); }} 
-                    title={s.isActive ? "Désactiver" : "Activer"}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', color: s.isActive ? 'var(--builder-primary)' : '#94a3b8' }}
+                    title={s.isActive ? "Masquer de la boutique" : "Afficher sur la boutique"}
+                    style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        fontSize: '0.9rem', 
+                        cursor: 'pointer',
+                        opacity: s.isActive ? 1 : 0.4,
+                        filter: s.isActive ? 'none' : 'grayscale(1)'
+                    }}
                 >
-                    {s.isActive ? '👁️' : '🕶️'}
+                    {s.isActive ? '👁️' : '🙈'}
                 </button>
-                {isSelected && <span style={{ color: 'var(--builder-primary)', fontSize: '0.65rem' }}>→</span>}
+                {isSelected && <span style={{ color: 'var(--builder-primary)', fontSize: '0.8rem' }}>→</span>}
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(s.id); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '0.7rem', padding: '2px', marginLeft: 'auto' }}
@@ -215,47 +280,46 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
     };
 
     return (
-        <aside className="builder-sidebar" style={{ display: 'flex', flexDirection: 'column', width: isCollapsed ? '40px' : 'auto', transition: 'width 0.3s ease' }}>
-            {/* Header */}
-            <div style={{
-                padding: isCollapsed ? '12px 8px' : '12px 14px',
+        <aside style={{ 
+            width: isCollapsed ? '60px' : '300px', 
+            background: '#fff', 
+            borderRight: '1px solid var(--builder-border)', 
+            display: 'flex', 
+            flexDirection: 'column',
+            transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            overflow: 'hidden',
+            flexShrink: 0
+        }}>
+            {/* Header & Toggle */}
+            <div style={{ 
+                padding: '16px', 
                 borderBottom: '1px solid var(--builder-border)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: isCollapsed ? 'center' : 'space-between'
+                justifyContent: 'space-between',
+                background: 'linear-gradient(to right, #f8fafc, #fff)'
             }}>
-                {!isCollapsed && (
-                    <div style={{ fontWeight: 700, fontSize: '0.7rem', color: 'var(--builder-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        Composants ({sections.length})
-                    </div>
-                )}
-                <button
+                {!isCollapsed && <h2 style={{ fontSize: '0.9rem', fontWeight: 800, margin: 0, color: 'var(--builder-text)' }}>Structure / Composants</h2>}
+                <button 
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        fontSize: '1.2rem',
-                        color: 'var(--builder-text-muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        fontSize: '1rem', color: 'var(--builder-text-soft)',
+                        padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}
-                    title={isCollapsed ? 'Développer' : 'Réduire'}
                 >
-                    {isCollapsed ? '☰' : '✕'}
+                    {isCollapsed ? '▶' : '◀'}
                 </button>
             </div>
 
             {/* View Toggle */}
             {!isCollapsed && (
-                <div style={{ padding: '8px 10px', background: '#f8fafc', borderBottom: '1px solid var(--builder-border)' }}>
-                    <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '6px', padding: '2px' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--builder-border)', background: '#f8fafc' }}>
+                    <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '8px', padding: '4px' }}>
                         <button
                             onClick={() => setViewMode('LIBRARY')}
                             style={{
-                                flex: 1, padding: '6px', border: 'none', borderRadius: '4px',
+                                flex: 1, border: 'none', borderRadius: '6px', padding: '6px 0',
                                 background: viewMode === 'LIBRARY' ? '#fff' : 'transparent',
                                 color: viewMode === 'LIBRARY' ? '#0f172a' : '#64748b',
                                 fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer',
@@ -263,12 +327,12 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                                 transition: 'all 0.2s'
                             }}
                         >
-                            🗂️ Bibliothèque
+                            📚 Bibliothèque
                         </button>
                         <button
                             onClick={() => setViewMode('STRUCTURE')}
                             style={{
-                                flex: 1, padding: '6px', border: 'none', borderRadius: '4px',
+                                flex: 1, border: 'none', borderRadius: '6px', padding: '6px 0',
                                 background: viewMode === 'STRUCTURE' ? '#fff' : 'transparent',
                                 color: viewMode === 'STRUCTURE' ? '#0f172a' : '#64748b',
                                 fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer',
@@ -287,7 +351,7 @@ export const Sidebar = ({ sections, onRefetch, onCreate, onDelete, onMove, onTog
                 <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
                     {viewMode === 'LIBRARY' ? (
                         <div className="stack-lg">
-                    {ZONE_MAP.map((zone) => (
+                    {activeZoneMap.map((zone) => (
                         <div key={zone.zone}>
                             {/* Zone Label */}
                             <div style={{

@@ -8,6 +8,8 @@ import { ProductCardFragment } from "@/lib/vendure/fragments";
 interface RelatedProductsProps {
     collectionSlug: string;
     currentProductId: string;
+    title?: string;
+    productsCount?: number;
 }
 
 async function getRelatedProducts(collectionSlug: string, currentProductId: string) {
@@ -16,32 +18,33 @@ async function getRelatedProducts(collectionSlug: string, currentProductId: stri
         slug: collectionSlug,
         input: {
             collectionSlug: collectionSlug,
-            take: 13, // Fetch extra to account for filtering out current product
+            take: 20, // Fetch extra to account for filtering out current product
             skip: 0,
             groupByProduct: true
         }
     });
 
-    // Filter out the current product and limit to 12
+    // Filter out the current product
     return result.data.search.items
         .filter(item => {
             const product = readFragment(ProductCardFragment, item);
             return product.productId !== currentProductId;
-        })
-        .slice(0, 12);
+        });
 }
 
-export async function RelatedProducts({ collectionSlug, currentProductId }: RelatedProductsProps) {
+export async function RelatedProducts({ collectionSlug, currentProductId, title, productsCount }: RelatedProductsProps) {
     const products = await getRelatedProducts(collectionSlug, currentProductId);
+    const limit = productsCount || 4;
+    const finalProducts = products.slice(0, limit);
 
-    if (products.length === 0) {
+    if (finalProducts.length === 0) {
         return null;
     }
 
     return (
         <ProductCarousel
-            title="Produits similaires"
-            products={products}
+            title={title || "Produits similaires"}
+            products={finalProducts}
         />
     );
 }

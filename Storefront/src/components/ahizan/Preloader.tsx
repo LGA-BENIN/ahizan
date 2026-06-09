@@ -15,8 +15,8 @@ export function AhizanPreloader({ config }: { config: any }) {
             return;
         }
 
-        // Show for at least one animation cycle if default
-        const duration = config?.preloader?.type === 'default' ? 2800 : 2000;
+        // Show for at least one animation cycle if default (2800ms animation + 400ms max delay)
+        const duration = config?.preloader?.type === 'default' ? 3200 : 2000;
 
         const timer = setTimeout(() => {
             setIsFading(true);

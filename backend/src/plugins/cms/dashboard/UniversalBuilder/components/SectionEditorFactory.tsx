@@ -13,6 +13,11 @@ import { ProductGridSettings } from './sections/ProductGridSettings';
 import { TabbedProductGridSettings } from './sections/TabbedProductGridSettings';
 import { RichTextSettings } from './sections/RichTextSettings';
 import { CodeInjectionPanel } from './sections/CodeInjectionPanel';
+import { CategoryHeaderSettings } from './sections/CategoryHeaderSettings';
+import { DynamicProductGridSettings } from './sections/DynamicProductGridSettings';
+import { ProductOverviewSettings } from './sections/ProductOverviewSettings';
+import { ProductReviewsSettings } from './sections/ProductReviewsSettings';
+import { RelatedProductsSettings } from './sections/RelatedProductsSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 
@@ -63,16 +68,16 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
         setIsSaving(true);
         try {
             if (activeHabillage) {
-                // Save to habillage via autoSaveHabillage mutation
                 const sections = JSON.parse(activeHabillage.sectionsJson);
-                // Use sectionIndex for precise targeting (fixes multi-section-of-same-type bug)
-                const idx = sectionIndex >= 0 && sectionIndex < sections.length ? sectionIndex : sections.findIndex((s: any) => s.type === section.type);
+                // Use raw index from section.id (habillage-TYPE-INDEX) to precisely target the section in the unfiltered list
+                const match = section.id.match(/^habillage-.+-(\d+)$/);
+                const idx = match ? parseInt(match[1]) : (sectionIndex >= 0 && sectionIndex < sections.length ? sectionIndex : sections.findIndex((s: any) => s.type === section.type));
                 
-                if (idx >= 0) {
+                if (idx >= 0 && idx < sections.length) {
                     sections[idx].dataJson = newData;
                 } else {
                     // Section not in habillage → add it
-                    sections.push({ type: section.type, dataJson: newData, order: sections.length, isActive: true });
+                    sections.push({ type: section.type, dataJson: newData, order: sections.length, isActive: true, pageSlug: section.pageSlug });
                 }
 
                 const sectionsJson = JSON.stringify(sections);
@@ -154,6 +159,23 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
 
         case 'MODALS':
             return withCodePanel(<ModalSettings data={data} onSave={handleSave} />);
+
+        // --- Category page components ---
+        case 'CATEGORY_HEADER':
+            return withCodePanel(<CategoryHeaderSettings data={data} onSave={handleSave} />);
+
+        case 'DYNAMIC_PRODUCT_GRID':
+            return withCodePanel(<DynamicProductGridSettings data={data} onSave={handleSave} />);
+
+        // --- Product page components ---
+        case 'PRODUCT_OVERVIEW':
+            return withCodePanel(<ProductOverviewSettings data={data} onSave={handleSave} />);
+
+        case 'PRODUCT_REVIEWS':
+            return withCodePanel(<ProductReviewsSettings data={data} onSave={handleSave} />);
+
+        case 'RELATED_PRODUCTS':
+            return withCodePanel(<RelatedProductsSettings data={data} onSave={handleSave} />);
 
         case 'FEATURES':
         case 'BLOG_POSTS':

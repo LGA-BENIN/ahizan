@@ -31,6 +31,7 @@ export interface CmsSection {
     layout: string;
     order: number;
     isActive: boolean;
+    pageSlug?: string;
     data?: any; // Parsed dataJson
 }
 
@@ -233,6 +234,7 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
                     layout: section.layout,
                     order: section.order,
                     isActive: section.isActive,
+                    pageSlug: pageResponse.slug,
                     data: parsedData
                 };
             })
@@ -251,3 +253,76 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
         return null; // On fail, return null to fallback to static default content
     }
 }
+
+export const GetPreviewHabillageQuery = graphql(`
+  query GetPreviewHabillage($presetId: ID!) {
+    previewHabillage(presetId: $presetId) {
+      id
+      name
+      isDefault
+      isBackup
+      sections {
+        id
+        type
+        title
+        description
+        layout
+        order
+        isActive
+        pageSlug
+        dataJson
+      }
+    }
+  }
+`);
+
+export async function getPreviewHabillageContent(presetId: string): Promise<CmsPage | null> {
+    try {
+        const result = await query(
+            GetPreviewHabillageQuery,
+            { presetId }
+        ) as any;
+        console.log(`[getPreviewHabillageContent] Raw API result:`, result);
+
+        const previewResponse = result?.data?.previewHabillage;
+        if (!previewResponse) {
+            return null;
+        }
+
+        const sections: CmsSection[] = (previewResponse.sections || []).map((section: any) => {
+            let parsedData = {};
+            if (section.dataJson) {
+                try {
+                    parsedData = JSON.parse(section.dataJson);
+                } catch (e) {
+                    console.error(`Failed to parse CMS preview section dataJson for section ${section.id}:`, e);
+                }
+            }
+
+            return {
+                id: section.id,
+                type: section.type,
+                title: section.title,
+                description: section.description,
+                layout: section.layout,
+                order: section.order,
+                isActive: section.isActive,
+                pageSlug: section.pageSlug,
+                data: parsedData
+            };
+        });
+
+        return {
+            id: previewResponse.id,
+            slug: 'preview',
+            title: previewResponse.name,
+            type: 'PREVIEW',
+            isActive: true,
+            sections
+        };
+    } catch (error) {
+        console.error(`Error fetching CMS preview habillage '${presetId}':`, error);
+        return null;
+    }
+}
+

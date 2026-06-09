@@ -11,11 +11,12 @@ import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface ProductCardProps {
     product: FragmentOf<typeof ProductCardFragment>;
+    config?: any;
 }
 
 const isGif = (url: string | undefined | null) => url?.toLowerCase().endsWith('.gif');
 
-export function ProductCard({product: productProp}: ProductCardProps) {
+export function ProductCard({product: productProp, config}: ProductCardProps) {
     const product = readFragment(ProductCardFragment, productProp);
     const themeSettings = useThemeSettings();
     const imageUrl = product.productAsset?.preview;
@@ -57,19 +58,40 @@ export function ProductCard({product: productProp}: ProductCardProps) {
                     {product.productName}
                 </h3>
                 <Suspense fallback={<div className="h-4 w-20 rounded bg-muted"></div>}>
-                    <p className="text-[10px] sm:text-xs font-bold text-primary">
-                        {product.priceWithTax.__typename === 'PriceRange' ? (
-                            product.priceWithTax.min !== product.priceWithTax.max ? (
-                                <>
-                                    à partir de <Price value={product.priceWithTax.min}/>
-                                </>
-                            ) : (
-                                <Price value={product.priceWithTax.min}/>
-                            )
-                        ) : product.priceWithTax.__typename === 'SinglePrice' ? (
-                            <Price value={product.priceWithTax.value}/>
-                        ) : null}
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                        {config?.showPromoPrice ? (
+                            <>
+                                <p className="text-[10px] sm:text-xs font-bold text-red-600">
+                                    {product.priceWithTax.__typename === 'PriceRange' ? (
+                                        product.priceWithTax.min !== product.priceWithTax.max ? (
+                                            <>à partir de <Price value={product.priceWithTax.min}/></>
+                                        ) : (<Price value={product.priceWithTax.min}/>)
+                                    ) : product.priceWithTax.__typename === 'SinglePrice' ? (
+                                        <Price value={product.priceWithTax.value}/>
+                                    ) : null}
+                                </p>
+                                {config?.showStrikethroughPrice !== false && (
+                                    <p className="text-[9px] sm:text-[10px] text-muted-foreground line-through opacity-70">
+                                        {product.priceWithTax.__typename === 'PriceRange' ? (
+                                            <Price value={product.priceWithTax.min * 1.25}/>
+                                        ) : product.priceWithTax.__typename === 'SinglePrice' ? (
+                                            <Price value={product.priceWithTax.value * 1.25}/>
+                                        ) : null}
+                                    </p>
+                                )}
+                            </>
+                        ) : (
+                            <p className="text-[10px] sm:text-xs font-bold text-primary">
+                                {product.priceWithTax.__typename === 'PriceRange' ? (
+                                    product.priceWithTax.min !== product.priceWithTax.max ? (
+                                        <>à partir de <Price value={product.priceWithTax.min}/></>
+                                    ) : (<Price value={product.priceWithTax.min}/>)
+                                ) : product.priceWithTax.__typename === 'SinglePrice' ? (
+                                    <Price value={product.priceWithTax.value}/>
+                                ) : null}
+                            </p>
+                        )}
+                    </div>
                 </Suspense>
             </div>
         </Link>

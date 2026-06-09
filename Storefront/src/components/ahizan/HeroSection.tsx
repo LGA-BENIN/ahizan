@@ -372,16 +372,20 @@ function BentoHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, glob
             <div className="hidden md:flex flex-col gap-4 h-full">
                 {baseConfig.showCard1 !== false && (
                     <Card className={`flex-grow border-none shadow-sm p-8 flex flex-col justify-center items-center relative overflow-hidden group text-white transition-all hover:scale-[1.02]`} style={{ backgroundColor: baseConfig.card1BgColor || '#f59e0b' }}>
-                        {baseConfig.card1BgUrl && <img src={getAssetUrl(baseConfig.card1BgUrl)} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-110 transition-transform duration-700" alt="" />}
-                        <div className="absolute inset-0 bg-black/20 z-10" />
-                        <Link href={baseConfig.card1Link || '#'} className="relative z-20 text-center flex flex-col items-center">
-                            {baseConfig.card1Discount && <Badge className="mb-2 bg-black/40 border-none text-[10px] font-black">{baseConfig.card1Discount}</Badge>}
-                            <span className="text-[12px] font-black uppercase tracking-widest bg-black/30 px-3 py-1 rounded shadow-sm mb-1 block">{baseConfig.card1Title || "Promo 1"}</span>
-                            {baseConfig.card1Subtitle && <span className="text-[10px] opacity-90 font-bold mb-3">{baseConfig.card1Subtitle}</span>}
-                            {baseConfig.card1ButtonText && (
-                                <div className="mt-2 text-[10px] font-black uppercase tracking-widest border-b border-white pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {baseConfig.card1ButtonText} →
-                                </div>
+                        {baseConfig.card1BgUrl && <img src={getAssetUrl(baseConfig.card1BgUrl)} className={`absolute inset-0 w-full h-full object-cover ${baseConfig.showCard1Overlay !== false ? 'opacity-50' : 'opacity-100'} group-hover:scale-110 transition-transform duration-700`} alt="" />}
+                        {baseConfig.showCard1Overlay !== false && <div className="absolute inset-0 bg-black/20 z-10" />}
+                        <Link href={baseConfig.card1Link || '#'} className="relative z-20 text-center flex flex-col items-center w-full h-full justify-center">
+                            {baseConfig.showCard1Text !== false && (
+                                <>
+                                    {baseConfig.card1Discount && <Badge className="mb-2 bg-black/40 border-none text-[10px] font-black">{baseConfig.card1Discount}</Badge>}
+                                    <span className="text-[12px] font-black uppercase tracking-widest bg-black/30 px-3 py-1 rounded shadow-sm mb-1 block">{baseConfig.card1Title || "Promo 1"}</span>
+                                    {baseConfig.card1Subtitle && <span className="text-[10px] opacity-90 font-bold mb-3">{baseConfig.card1Subtitle}</span>}
+                                    {baseConfig.card1ButtonText && (
+                                        <div className="mt-2 text-[10px] font-black uppercase tracking-widest border-b border-white pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {baseConfig.card1ButtonText} →
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </Link>
                     </Card>
@@ -389,16 +393,20 @@ function BentoHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, glob
                 
                 {baseConfig.showCard2 !== false && (
                     <Card className={`flex-grow border-none shadow-sm p-8 flex flex-col justify-center items-center relative overflow-hidden group text-white transition-all hover:scale-[1.02]`} style={{ backgroundColor: baseConfig.card2BgColor || '#059669' }}>
-                        {baseConfig.card2BgUrl && <img src={getAssetUrl(baseConfig.card2BgUrl)} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:scale-110 transition-transform duration-700" alt="" />}
-                        <div className="absolute inset-0 bg-black/20 z-10" />
-                        <Link href={baseConfig.card2Link || '#'} className="relative z-20 text-center flex flex-col items-center">
-                            {baseConfig.card2Discount && <Badge className="mb-2 bg-black/40 border-none text-[10px] font-black">{baseConfig.card2Discount}</Badge>}
-                            <span className="text-[12px] font-black uppercase tracking-widest bg-black/30 px-3 py-1 rounded shadow-sm mb-1 block">{baseConfig.card2Title || "Promo 2"}</span>
-                            {baseConfig.card2Subtitle && <span className="text-[10px] opacity-90 font-bold mb-3">{baseConfig.card2Subtitle}</span>}
-                            {baseConfig.card2ButtonText && (
-                                <div className="mt-2 text-[10px] font-black uppercase tracking-widest border-b border-white pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {baseConfig.card2ButtonText} →
-                                </div>
+                        {baseConfig.card2BgUrl && <img src={getAssetUrl(baseConfig.card2BgUrl)} className={`absolute inset-0 w-full h-full object-cover ${baseConfig.showCard2Overlay !== false ? 'opacity-50' : 'opacity-100'} group-hover:scale-110 transition-transform duration-700`} alt="" />}
+                        {baseConfig.showCard2Overlay !== false && <div className="absolute inset-0 bg-black/20 z-10" />}
+                        <Link href={baseConfig.card2Link || '#'} className="relative z-20 text-center flex flex-col items-center w-full h-full justify-center">
+                            {baseConfig.showCard2Text !== false && (
+                                <>
+                                    {baseConfig.card2Discount && <Badge className="mb-2 bg-black/40 border-none text-[10px] font-black">{baseConfig.card2Discount}</Badge>}
+                                    <span className="text-[12px] font-black uppercase tracking-widest bg-black/30 px-3 py-1 rounded shadow-sm mb-1 block">{baseConfig.card2Title || "Promo 2"}</span>
+                                    {baseConfig.card2Subtitle && <span className="text-[10px] opacity-90 font-bold mb-3">{baseConfig.card2Subtitle}</span>}
+                                    {baseConfig.card2ButtonText && (
+                                        <div className="mt-2 text-[10px] font-black uppercase tracking-widest border-b border-white pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {baseConfig.card2ButtonText} →
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </Link>
                     </Card>

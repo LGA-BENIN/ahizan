@@ -477,7 +477,11 @@ export class CMSService {
         await this.clearPageSections(ctx, pageId);
 
         const sections = JSON.parse(preset.sectionsJson);
+        const pageSlug = currentPage?.slug || 'home';
         for (const sectionData of sections) {
+            const sectionPageSlug = sectionData.pageSlug || 'home';
+            if (sectionPageSlug !== pageSlug) continue; // Only apply sections for this page slug
+
             await this.createSection(ctx, {
                 pageId,
                 type: sectionData.type,
@@ -504,6 +508,7 @@ export class CMSService {
             layout: s.layout,
             order: s.order,
             isActive: s.isActive,
+            pageSlug: page.slug, // Set pageSlug on export
             dataJson: s.dataJson,
         }));
 
@@ -625,7 +630,11 @@ export class CMSService {
         // Apply draft sections to page
         await this.clearPageSections(ctx, pageId);
         const sections = JSON.parse(draft.sectionsJson);
+        const pageSlug = currentPage?.slug || 'home';
         for (const sectionData of sections) {
+            const sectionPageSlug = sectionData.pageSlug || 'home';
+            if (sectionPageSlug !== pageSlug) continue; // Only apply sections for this page slug
+
             await this.createSection(ctx, {
                 pageId,
                 type: sectionData.type,
@@ -853,6 +862,7 @@ export class CMSService {
             layout: s.layout || 'grid',
             order: s.order ?? i,
             isActive: s.isActive !== false,
+            pageSlug: s.pageSlug || 'home',
             dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || {}),
         }));
 
@@ -1047,7 +1057,11 @@ export class CMSService {
         // Apply preset sections to page
         await this.clearPageSections(ctx, pageId);
         const sections = JSON.parse(preset.sectionsJson);
+        const pageSlug = currentPage?.slug || 'home';
         for (const sectionData of sections) {
+            const sectionPageSlug = sectionData.pageSlug || 'home';
+            if (sectionPageSlug !== pageSlug) continue; // Only apply sections for this page slug
+
             await this.createSection(ctx, {
                 pageId,
                 type: sectionData.type,

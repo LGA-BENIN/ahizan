@@ -367,6 +367,10 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
                             </div>
                             
                             <div className="stack" style={{ opacity: td.showCard1 !== false ? 1 : 0.5, pointerEvents: td.showCard1 !== false ? 'auto' : 'none' }}>
+                                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={td.showCard1Text !== false} onChange={(e) => updateNested(t, 'showCard1Text', e.target.checked)} /> Afficher le texte</label>
+                                    <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={td.showCard1Overlay !== false} onChange={(e) => updateNested(t, 'showCard1Overlay', e.target.checked)} /> Afficher le voile de couleur</label>
+                                </div>
                                 <div className="grid-2">
                                     <div><label className="label-pro">Badge / Remise</label><input className="input-pro" value={td.card1Discount || ''} onChange={(e) => updateNested(t, 'card1Discount', e.target.value)} placeholder="-50% OFF" /></div>
                                     <div><label className="label-pro">Texte du bouton</label><input className="input-pro" value={td.card1ButtonText || ''} onChange={(e) => updateNested(t, 'card1ButtonText', e.target.value)} placeholder="Boutique" /></div>
@@ -393,6 +397,10 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
                             </div>
 
                             <div className="stack" style={{ opacity: td.showCard2 !== false ? 1 : 0.5, pointerEvents: td.showCard2 !== false ? 'auto' : 'none' }}>
+                                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={td.showCard2Text !== false} onChange={(e) => updateNested(t, 'showCard2Text', e.target.checked)} /> Afficher le texte</label>
+                                    <label style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px' }}><input type="checkbox" checked={td.showCard2Overlay !== false} onChange={(e) => updateNested(t, 'showCard2Overlay', e.target.checked)} /> Afficher le voile de couleur</label>
+                                </div>
                                 <div className="grid-2">
                                     <div><label className="label-pro">Badge / Info</label><input className="input-pro" value={td.card2Discount || ''} onChange={(e) => updateNested(t, 'card2Discount', e.target.value)} placeholder="NOUVEAU" /></div>
                                     <div><label className="label-pro">Texte du bouton</label><input className="input-pro" value={td.card2ButtonText || ''} onChange={(e) => updateNested(t, 'card2ButtonText', e.target.value)} placeholder="Voir" /></div>

@@ -59,6 +59,7 @@ export const commonApiExtensions = gql`
         layout: String
         order: Int!
         isActive: Boolean!
+        pageSlug: String
         dataJson: String
     }
 

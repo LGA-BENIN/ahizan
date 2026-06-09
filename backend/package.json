@@ -43,7 +43,8 @@
     "react-router-dom": "^6.30.3",
     "react-simple-code-editor": "^0.14.1",
     "tiptap-extension-resize-image": "^1.4.3",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@swc/core": "1.13.5",

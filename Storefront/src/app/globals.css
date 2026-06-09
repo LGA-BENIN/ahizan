@@ -149,7 +149,7 @@
 
 .animate-ahizan-rush {
   display: inline-block;
-  animation: preloader-rush 2.8s cubic-bezier(0.8, 0, 0.2, 1) infinite;
+  animation: preloader-rush 2.8s cubic-bezier(0.8, 0, 0.2, 1) forwards;
 }
 
 @keyframes marquee {

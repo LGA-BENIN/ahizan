@@ -26,6 +26,8 @@ interface EditorContextType {
   setMode: (mode: EditorMode) => void;
   selectedPageId: string | null;
   setSelectedPageId: (id: string | null) => void;
+  activePageSlug: string;
+  setActivePageSlug: (slug: string) => void;
   selectedSection: Section | null;
   setSelectedSection: (section: Section | null) => void;
   isSaving: boolean;
@@ -50,6 +52,7 @@ const EditorContext = createContext<EditorContextType | undefined>(undefined);
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [mode, setMode] = useState<EditorMode>('PAR_VISUEL');
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [activePageSlug, setActivePageSlug] = useState<string>('home');
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -66,6 +69,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setMode,
         selectedPageId,
         setSelectedPageId,
+        activePageSlug,
+        setActivePageSlug,
         selectedSection,
         setSelectedSection,
         isSaving,

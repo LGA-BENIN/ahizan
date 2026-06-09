@@ -157,8 +157,18 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
     return (
         <Suspense fallback={
             <div className="flex flex-col min-h-screen relative">
-                <div className="fixed inset-0 flex items-center justify-center bg-background z-[9999]">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-900"></div>
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-background">
+                    <div className="flex gap-4 items-center justify-center overflow-hidden w-full px-10">
+                        {['A', 'H', 'I', 'Z', 'A', 'N'].map((char, i) => (
+                            <span 
+                                key={i} 
+                                className="text-5xl md:text-8xl font-black text-[#002f6c] italic tracking-tighter animate-ahizan-rush drop-shadow-2xl"
+                                style={{ animationDelay: `${i * 0.08}s` }}
+                            >
+                                {char}
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </div>
         }>

@@ -45,9 +45,10 @@ interface ProductInfoProps {
         }>;
     };
     searchParams: { [key: string]: string | string[] | undefined };
+    config?: any;
 }
 
-export function ProductInfo({product, searchParams}: ProductInfoProps) {
+export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
     const pathname = usePathname();
     const router = useRouter();
     const currentSearchParams = useSearchParams();
@@ -142,9 +143,23 @@ export function ProductInfo({product, searchParams}: ProductInfoProps) {
                 <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
                 {selectedVariant && (
                     <div className="flex items-center gap-4 mt-2">
-                        <p className="text-2xl font-bold text-primary">
-                            <Price value={selectedVariant.priceWithTax}/>
-                        </p>
+                        {config?.showPromoPrice ? (
+                            <div className="flex items-center gap-3">
+                                <p className="text-2xl font-bold text-primary">
+                                    <Price value={selectedVariant.priceWithTax} />
+                                </p>
+                                <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
+                                    <Price value={selectedVariant.priceWithTax * 1.25} />
+                                </p>
+                                <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
+                                    -20%
+                                </span>
+                            </div>
+                        ) : (
+                            <p className="text-2xl font-bold text-primary">
+                                <Price value={selectedVariant.priceWithTax}/>
+                            </p>
+                        )}
                         {isInStock ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />

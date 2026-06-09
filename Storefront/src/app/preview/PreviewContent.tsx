@@ -19,6 +19,7 @@ interface PreviewSection {
     layout: string;
     order: number;
     isActive: boolean;
+    pageSlug?: string;
     dataJson: string;
 }
 
@@ -63,7 +64,7 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
                                     isDefault
                                     isBackup
                                     sections {
-                                        id type title description layout order isActive dataJson
+                                        id type title description layout order isActive pageSlug dataJson
                                     }
                                 }
                             }
@@ -100,7 +101,9 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
     // Parse sections into CmsSection[] with parsed data
     const cmsSections: CmsSection[] = useMemo(() => {
         if (!habillage) return [];
-        return habillage.sections.map(s => {
+        return habillage.sections
+            .filter(s => (s.pageSlug || 'home') === 'home')
+            .map(s => {
             let parsedData: any = {};
             try {
                 parsedData = s.dataJson ? JSON.parse(s.dataJson) : {};

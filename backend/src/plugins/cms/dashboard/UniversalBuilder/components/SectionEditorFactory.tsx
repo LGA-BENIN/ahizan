@@ -64,47 +64,32 @@ async function updateSectionInBackend(id: string, dataJson: string) {
 export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: SectionEditorFactoryProps) => {
     const { setIsSaving, setSaveStatus, activeHabillage, setActiveHabillage, setPreviewVersion } = useEditor();
 
-    const handleSave = async (newData: any, silent: boolean = false) => {
-        setIsSaving(true);
+    const handleSave = (newData: any, silent: boolean = false) => {
         try {
             if (activeHabillage) {
                 const sections = JSON.parse(activeHabillage.sectionsJson);
-                // Use raw index from section.id (habillage-TYPE-INDEX) to precisely target the section in the unfiltered list
                 const match = section.id.match(/^habillage-.+-(\d+)$/);
                 const idx = match ? parseInt(match[1]) : (sectionIndex >= 0 && sectionIndex < sections.length ? sectionIndex : sections.findIndex((s: any) => s.type === section.type));
                 
                 if (idx >= 0 && idx < sections.length) {
                     sections[idx].dataJson = newData;
                 } else {
-                    // Section not in habillage → add it
                     sections.push({ type: section.type, dataJson: newData, order: sections.length, isActive: true, pageSlug: section.pageSlug });
                 }
 
                 const sectionsJson = JSON.stringify(sections);
-                const result = await fetchGraphQL(AUTO_SAVE_HABILLAGE, {
+                
+                // OPTIMISTIC LOCAL UPDATE (Instantly update UI)
+                setActiveHabillage((prev: any) => prev ? { ...prev, sectionsJson } : prev);
+                
+                // FIRE AND FORGET BACKGROUND SAVE
+                fetchGraphQL(AUTO_SAVE_HABILLAGE, {
                     presetId: activeHabillage.id,
                     sectionsJson,
-                });
-                if (result?.autoSaveHabillage) {
-                    setActiveHabillage(result.autoSaveHabillage);
-                }
-                setPreviewVersion(Date.now());
-                // Only show notification if not silent (for auto-save)
-                if (!silent) {
-                    setSaveStatus('✅ Section sauvegardée dans l\'habillage !');
-                }
-            } else {
-                // No habillage selected → can't save
-                if (!silent) {
-                    setSaveStatus('❌ Aucun habillage sélectionné — sélectionnez-en un d\'abord');
-                }
+                }).catch(err => console.error(err));
             }
         } catch (err: any) {
-            if (!silent) {
-                setSaveStatus('❌ Erreur : ' + err.message);
-            }
-        } finally {
-            setIsSaving(false);
+            console.error(err);
         }
     };
 

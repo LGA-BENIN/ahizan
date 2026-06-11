@@ -72,7 +72,7 @@ export const CodeEditor = ({ section, sectionIndex, onSaveSuccess }: CodeEditorP
         }
     };
 
-    const handleAutoSave = async (codeToSave?: string) => {
+    const handleAutoSave = (codeToSave?: string) => {
         const currentCode = codeToSave || code;
         if (!section || !activeHabillage) return;
         try {
@@ -85,20 +85,20 @@ export const CodeEditor = ({ section, sectionIndex, onSaveSuccess }: CodeEditorP
                 sections.push({ type: section.type, dataJson: parsed, order: sections.length, isActive: true });
             }
             const sectionsJson = JSON.stringify(sections);
-            const result = await fetchGraphQL(AUTO_SAVE_HABILLAGE, {
-                presetId: activeHabillage.id,
-                sectionsJson,
-            });
-            if (result?.autoSaveHabillage) {
-                setActiveHabillage(result.autoSaveHabillage);
-            }
-            setPreviewVersion(Date.now());
+            
+            // OPTIMISTIC LOCAL UPDATE
+            setActiveHabillage((prev: any) => prev ? { ...prev, sectionsJson } : prev);
             const formattedCode = JSON.stringify(parsed, null, 2);
             setSavedCode(formattedCode);
             setHasChanges(false);
-            setSaveStatus('✅ Auto-sauvegardé !');
+            
+            // BACKGROUND SAVE
+            fetchGraphQL(AUTO_SAVE_HABILLAGE, {
+                presetId: activeHabillage.id,
+                sectionsJson,
+            }).catch(err => console.error(err));
         } catch (err: any) {
-            setSaveStatus('❌ Erreur auto-save : ' + err.message);
+            console.error(err);
         }
     };
 

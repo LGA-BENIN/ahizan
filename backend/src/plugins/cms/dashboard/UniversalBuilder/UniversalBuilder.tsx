@@ -218,21 +218,19 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
   };
 
   // Auto-save to habillage (called on every change)
-  const autoSaveToHabillage = useCallback(async (sectionsJson: string) => {
+  const autoSaveToHabillage = useCallback((sectionsJson: string) => {
     if (!activeHabillage) return;
-    try {
-      const result = await fetchGraphQL(AUTO_SAVE_HABILLAGE, {
-        presetId: activeHabillage.id,
-        sectionsJson,
-      });
+    // OPTIMISTIC UPDATE: instant local state
+    setActiveHabillage((prev: any) => prev ? { ...prev, sectionsJson } : prev);
+    // FIRE AND FORGET BACKGROUND SAVE
+    fetchGraphQL(AUTO_SAVE_HABILLAGE, {
+      presetId: activeHabillage.id,
+      sectionsJson,
+    }).then(result => {
       if (result?.autoSaveHabillage) {
-        setActiveHabillage(result.autoSaveHabillage);
         updateUndoRedo(result.autoSaveHabillage, setCanUndo, setCanRedo);
-        setPreviewVersion(Date.now());
       }
-    } catch (err: any) {
-      console.error('[AutoSave] Error:', err.message);
-    }
+    }).catch((err: any) => console.error("[AutoSave] Error:", err.message));
   }, [activeHabillage]);
 
   // Undo
@@ -243,7 +241,7 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
       if (result?.undoHabillage) {
         setActiveHabillage(result.undoHabillage);
         updateUndoRedo(result.undoHabillage, setCanUndo, setCanRedo);
-        setPreviewVersion(Date.now());
+        // setPreviewVersion(Date.now());
       }
     } catch (err: any) {
       setSaveStatus('❌ ' + err.message);
@@ -258,7 +256,7 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
       if (result?.redoHabillage) {
         setActiveHabillage(result.redoHabillage);
         updateUndoRedo(result.redoHabillage, setCanUndo, setCanRedo);
-        setPreviewVersion(Date.now());
+        // setPreviewVersion(Date.now());
       }
     } catch (err: any) {
       setSaveStatus('❌ ' + err.message);

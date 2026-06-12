@@ -222,6 +222,10 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
     if (!activeHabillage) return;
     // OPTIMISTIC UPDATE: instant local state
     setActiveHabillage((prev: any) => prev ? { ...prev, sectionsJson } : prev);
+    
+    // Update preview immediately locally!
+    setPreviewVersion(Date.now());
+
     // FIRE AND FORGET BACKGROUND SAVE
     fetchGraphQL(AUTO_SAVE_HABILLAGE, {
       presetId: activeHabillage.id,
@@ -231,7 +235,7 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
         updateUndoRedo(result.autoSaveHabillage, setCanUndo, setCanRedo);
       }
     }).catch((err: any) => console.error("[AutoSave] Error:", err.message));
-  }, [activeHabillage]);
+  }, [activeHabillage, setPreviewVersion, setCanUndo, setCanRedo]);
 
   // Undo
   const handleUndo = async () => {
@@ -269,6 +273,13 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
     if (!confirm('Publier cet habillage ? Il remplacera la version actuelle du site.')) return;
     try {
       setSaveStatus('Publication en cours...');
+      
+      // Force auto-save of the latest local state before publishing
+      await fetchGraphQL(AUTO_SAVE_HABILLAGE, {
+        presetId: activeHabillage.id,
+        sectionsJson: activeHabillage.sectionsJson,
+      });
+
       await fetchGraphQL(PUBLISH_HABILLAGE, { presetId: activeHabillage.id, pageId: selectedPageId });
       setSaveStatus('✅ Habillage publié ! Le storefront est mis à jour.');
       queryClient.invalidateQueries({ queryKey: ['page', selectedPageId] });

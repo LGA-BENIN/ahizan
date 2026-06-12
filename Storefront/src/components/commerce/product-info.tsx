@@ -218,7 +218,7 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
             <div className="pt-4 lg:pt-0">
                 <Button
                     size="lg"
-                    className="w-full h-11 rounded-xl font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 fixed bottom-3 left-3 right-3 z-50 lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:right-auto"
+                    className="w-[calc(100%-2rem)] max-w-[350px] h-11 rounded-full font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 fixed bottom-6 left-1/2 -translate-x-1/2 z-50 lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:translate-x-0 lg:w-full lg:max-w-none"
                     disabled={!canAddToCart || isPending}
                     onClick={handleAddToCart}
                 >

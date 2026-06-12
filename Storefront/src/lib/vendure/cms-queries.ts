@@ -122,6 +122,7 @@ export interface HeaderConfData {
     vendorLinkUrl?: string;
     helpLinks?: Array<{ label: string; link: string }>;
     topBar?: any;
+    mobileNavStyle?: string;
 }
 
 export interface FooterConfData {

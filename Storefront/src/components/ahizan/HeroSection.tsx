@@ -29,7 +29,7 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
     const [hoveredCat, setHoveredCat] = useState<any>(null);
     const { setPromoConfig } = useMobileMenu();
 
-    const hClass = "h-[200px] sm:h-[260px] md:h-[340px]";
+    const hClass = "h-[250px] sm:h-[280px] md:h-[340px]";
 
     // Share promoConfig with mobile sidebar via context
     useEffect(() => {
@@ -77,7 +77,13 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
                                             ) : cat.id && promoConfig?.collectionMedia?.[cat.slug] ? (
                                                 <img src={getAssetUrl(promoConfig.collectionMedia[cat.slug])} className="w-full h-full object-cover rounded-sm" alt="" />
                                             ) : (
-                                                cat.id ? (cat.icon || <Smartphone className="w-3.5 h-3.5" />) : <div className="w-3.5 h-3.5 bg-muted animate-pulse rounded-full" />
+                                                cat.id ? (
+                                                    typeof cat.icon === 'string' ? (
+                                                        <img src={getAssetUrl(cat.icon)} className="w-full h-full object-cover rounded-sm" alt="" />
+                                                    ) : (
+                                                        cat.icon || <Smartphone className="w-3.5 h-3.5" />
+                                                    )
+                                                ) : <div className="w-3.5 h-3.5 bg-muted animate-pulse rounded-full" />
                                             )}
                                         </div>
                                         <span className={`truncate font-semibold tracking-tight flex-1 ${!cat.id ? 'bg-muted animate-pulse text-transparent rounded w-20 h-3' : ''}`}>
@@ -153,59 +159,79 @@ function CarouselWrapper({ slides, options, renderSlide }: { slides: any[], opti
     if (!slides || slides.length === 0) return null;
 
     return (
-        <div className="relative w-full h-full overflow-hidden group">
-            {slides.map((slide, index) => {
-                const isActive = index === current;
-                const isNext = index === (current + 1) % slides.length;
-                const isPrev = index === (current - 1 + slides.length) % slides.length;
+        <div className="w-full h-full relative">
+            <div className="relative w-full h-full overflow-hidden group rounded-xl">
+                {slides.map((slide, index) => {
+                    const isActive = index === current;
+                    const isNext = index === (current + 1) % slides.length;
+                    const isPrev = index === (current - 1 + slides.length) % slides.length;
 
-                let effectClasses = "opacity-0 invisible z-0";
-                
-                if (isActive) {
-                    effectClasses = "opacity-100 visible z-10 scale-100 translate-x-0 rotate-y-0";
-                } else if (effect === 'slide') {
-                    effectClasses = `opacity-100 ${isPrev ? '-translate-x-full' : 'translate-x-[100%]'} z-0`;
-                } else if (effect === 'zoom') {
-                    effectClasses = "opacity-0 scale-110 z-0";
-                } else if (effect === 'flip') {
-                    effectClasses = "opacity-0 rotate-y-90 z-0";
-                }
+                    let effectClasses = "opacity-0 invisible z-0";
+                    
+                    if (isActive) {
+                        effectClasses = "opacity-100 visible z-10 scale-100 translate-x-0 rotate-y-0";
+                    } else if (effect === 'slide') {
+                        effectClasses = `opacity-100 ${isPrev ? '-translate-x-full' : 'translate-x-[100%]'} z-0`;
+                    } else if (effect === 'zoom') {
+                        effectClasses = "opacity-0 scale-110 z-0";
+                    } else if (effect === 'flip') {
+                        effectClasses = "opacity-0 rotate-y-90 z-0";
+                    }
 
-                return (
-                    <div 
-                        key={index} 
-                        className={`absolute inset-0 transition-all duration-1000 ease-in-out origin-center perspective-1000 ${effectClasses}`}
-                        style={{ perspective: '1000px' }}
-                    >
-                        {renderSlide(slide)}
+                    return (
+                        <div 
+                            key={index} 
+                            className={`absolute inset-0 transition-all duration-1000 ease-in-out origin-center perspective-1000 ${effectClasses}`}
+                            style={{ perspective: '1000px' }}
+                        >
+                            {renderSlide(slide)}
+                        </div>
+                    );
+                })}
+
+                {slides.length > 1 && showArrows && (
+                    <>
+                        <button 
+                            onClick={(e) => { e.preventDefault(); prev(); }}
+                            className={`absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-30 transition-all duration-300 opacity-100 md:opacity-0 group-hover:opacity-100 shadow-xl flex items-center justify-center text-white/90 hover:text-white bg-black/20 hover:bg-black/50 backdrop-blur-md ${arrowStyle === 'circle' ? 'rounded-full w-8 h-8 md:w-10 md:h-10' : arrowStyle === 'square' ? 'rounded-md w-8 h-8 md:w-10 md:h-10 border border-white/10' : 'w-7 h-7 md:w-8 md:h-8 !bg-transparent !shadow-none'}`}
+                        >
+                            <ChevronLeft className={`${arrowStyle === 'minimal' ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-6 md:h-6'}`} />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.preventDefault(); next(); }}
+                            className={`absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-30 transition-all duration-300 opacity-100 md:opacity-0 group-hover:opacity-100 shadow-xl flex items-center justify-center text-white/90 hover:text-white bg-black/20 hover:bg-black/50 backdrop-blur-md ${arrowStyle === 'circle' ? 'rounded-full w-8 h-8 md:w-10 md:h-10' : arrowStyle === 'square' ? 'rounded-md w-8 h-8 md:w-10 md:h-10 border border-white/10' : 'w-7 h-7 md:w-8 md:h-8 !bg-transparent !shadow-none'}`}
+                        >
+                            <ChevronRight className={`${arrowStyle === 'minimal' ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-6 md:h-6'}`} />
+                        </button>
+                    </>
+                )}
+
+                {/* Desktop Dots */}
+                {slides.length > 1 && showDots && (
+                    <div className="hidden md:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-50 gap-2 items-center drop-shadow-md">
+                        {slides.map((_, idx) => (
+                            <button 
+                                key={idx}
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); setCurrent(idx); }}
+                                className={`transition-all duration-300 rounded-full shadow-sm ${idx === current ? 'bg-primary w-6 h-1.5' : 'bg-white/70 hover:bg-white w-2 h-1.5'} ${options.dotStyle === 'line' ? (idx === current ? 'w-8 h-1' : 'w-4 h-1') : ''}`}
+                                aria-label={`Aller à la diapositive ${idx + 1}`}
+                            />
+                        ))}
                     </div>
-                );
-            })}
+                )}
+            </div>
 
-            {slides.length > 1 && showArrows && (
-                <>
-                    <button 
-                        onClick={(e) => { e.preventDefault(); prev(); }}
-                        className={`absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-30 transition-all duration-300 opacity-100 md:opacity-0 group-hover:opacity-100 shadow-xl flex items-center justify-center text-white/90 hover:text-white bg-black/20 hover:bg-black/50 backdrop-blur-md ${arrowStyle === 'circle' ? 'rounded-full w-8 h-8 md:w-10 md:h-10' : arrowStyle === 'square' ? 'rounded-md w-8 h-8 md:w-10 md:h-10 border border-white/10' : 'w-7 h-7 md:w-8 md:h-8 !bg-transparent !shadow-none'}`}
-                    >
-                        <ChevronLeft className={`${arrowStyle === 'minimal' ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-6 md:h-6'}`} />
-                    </button>
-                    <button 
-                        onClick={(e) => { e.preventDefault(); next(); }}
-                        className={`absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-30 transition-all duration-300 opacity-100 md:opacity-0 group-hover:opacity-100 shadow-xl flex items-center justify-center text-white/90 hover:text-white bg-black/20 hover:bg-black/50 backdrop-blur-md ${arrowStyle === 'circle' ? 'rounded-full w-8 h-8 md:w-10 md:h-10' : arrowStyle === 'square' ? 'rounded-md w-8 h-8 md:w-10 md:h-10 border border-white/10' : 'w-7 h-7 md:w-8 md:h-8 !bg-transparent !shadow-none'}`}
-                    >
-                        <ChevronRight className={`${arrowStyle === 'minimal' ? 'w-6 h-6 md:w-8 md:h-8' : 'w-5 h-5 md:w-6 md:h-6'}`} />
-                    </button>
-                </>
-            )}
-
+            {/* Mobile Dots */}
             {slides.length > 1 && showDots && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+                <div className="md:hidden absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-2 items-center z-50 drop-shadow-sm">
                     {slides.map((_, idx) => (
                         <button 
                             key={idx}
-                            onClick={() => setCurrent(idx)}
-                            className={`transition-all duration-300 ${idx === current ? 'bg-white opacity-100 scale-110 shadow-[0_0_8px_rgba(255,255,255,0.8)]' : 'bg-white/40 opacity-60 hover:opacity-100'} ${options.dotStyle === 'line' ? 'w-6 h-1 rounded-sm' : 'w-2 h-2 rounded-full'}`}
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); setCurrent(idx); }}
+                            className={`transition-all duration-300 rounded-full shadow-sm ${idx === current ? 'bg-primary w-6 h-1.5' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50 w-2 h-1.5'} ${options.dotStyle === 'line' ? (idx === current ? 'w-8 h-1' : 'w-4 h-1') : ''}`}
+                            aria-label={`Aller à la diapositive ${idx + 1}`}
                         />
                     ))}
                 </div>
@@ -278,7 +304,7 @@ function ClassicHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, gl
     return (
         <div className="flex flex-col xl:flex-row gap-4">
             {/* Main Banner */}
-            <Card className={`flex-grow border-none shadow-sm relative ${hClass} overflow-hidden bg-muted/20 group`}>
+            <Card className={`flex-grow border-none shadow-sm relative ${hClass} bg-muted/20 group rounded-xl mb-6 md:mb-0`}>
                 <CarouselWrapper 
                     slides={slides} 
                     options={globalConfig}
@@ -337,7 +363,7 @@ function BentoHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, glob
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-            <Card className={`md:col-span-2 ${hClass} border-none shadow-sm overflow-hidden relative group bg-muted/20`}>
+            <Card className={`md:col-span-2 ${hClass} border-none shadow-sm relative group bg-muted/20 rounded-xl mb-6 md:mb-0`}>
                 <CarouselWrapper 
                     slides={slides} 
                     options={globalConfig}
@@ -420,7 +446,7 @@ function FullWidthHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, 
     const slides = globalConfig.useCarousel && globalConfig.slides?.length > 0 ? globalConfig.slides : [baseConfig];
 
     return (
-        <Card className={`w-full relative ${hClass} border-none shadow-sm overflow-hidden flex items-center justify-center group bg-muted/20 animate-in zoom-in-95 duration-1000`}>
+        <Card className={`w-full relative ${hClass} border-none shadow-sm flex items-center justify-center group bg-muted/20 animate-in zoom-in-95 duration-1000 rounded-xl mb-6 md:mb-0`}>
             <CarouselWrapper 
                 slides={slides} 
                 options={globalConfig}

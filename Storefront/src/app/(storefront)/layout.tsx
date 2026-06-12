@@ -6,6 +6,7 @@ import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
 import { AhizanPreloader } from "@/components/ahizan/Preloader";
 import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
 import { MobileCategorySidebar } from "@/components/ahizan/MobileCategorySidebar";
+import { MobileBottomNav } from "@/components/ahizan/MobileBottomNav";
 import { Footer } from "@/components/layout/footer";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
@@ -136,9 +137,13 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     {/* Global mobile category sidebar - available on all pages */}
                     <MobileCategorySidebar categories={collections} />
 
-                    <main className="relative z-10 flex-grow w-full mx-auto">
+                    <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
                         {children}
                     </main>
+
+                    {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
+                        <MobileBottomNav config={headerConfig} customer={customer} order={order} />
+                    )}
 
                     <Footer config={footer} />
                     <Toaster />

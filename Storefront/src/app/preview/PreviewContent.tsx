@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { AhizanHome } from "@/components/ahizan/AhizanHome";
 import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
 import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
+import { MobileBottomNav } from "@/components/ahizan/MobileBottomNav";
+import { MobileCategorySidebar } from "@/components/ahizan/MobileCategorySidebar";
 import { PreviewFooter } from "@/components/ahizan/PreviewFooter";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -238,10 +240,16 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
                 <AhizanNavbar config={headerConfig} customer={null} order={null} />
             </div>
 
+            <MobileCategorySidebar categories={[]} />
+
             {/* Body sections rendered via AhizanHome (same engine as real storefront) */}
-            <main className="relative z-10 flex-grow w-full mx-auto">
+            <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
                 <AhizanHome sections={cmsSections} />
             </main>
+
+            {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
+                <MobileBottomNav config={headerConfig} customer={null} order={null} />
+            )}
 
             {/* Footer from habillage (not live storefront) */}
             <PreviewFooter config={footerConfig} />

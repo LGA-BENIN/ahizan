@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Search, User, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu, ShoppingBag } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { Search, UserRound, UserRoundCheck, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu, ShoppingBag, ArrowLeft, ChevronLeft } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
@@ -17,6 +17,7 @@ export function AhizanNavbar({
     order?: any;
 }) {
     const router = useRouter();
+    const pathname = usePathname();
     const { mobileMenuOpen, setMobileMenuOpen, setLogoUrl } = useMobileMenu();
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -73,6 +74,9 @@ export function AhizanNavbar({
         helpLinks = []
     } = config || {};
 
+    const mobileNavStyle = config?.mobileNavStyle || 'bottom';
+    const showTopIconsOnMobile = mobileNavStyle === 'top' || mobileNavStyle === 'both';
+
     return (
         <div className="w-full flex flex-col font-sans animate-in fade-in duration-700">
             {/* Top Navigation Menu Items */}
@@ -80,15 +84,26 @@ export function AhizanNavbar({
                 <div className="bg-[#f8f9fa] h-10 border-b border-gray-100 hidden md:block">
                     <div className="max-w-[1440px] mx-auto w-full px-4 md:px-8 lg:px-12 h-full flex items-center justify-between text-[12px] text-gray-600">
                         <div className="flex items-center gap-6">
-                            {menuItems.map((item: any, idx: number) => (
-                                <Link 
-                                    key={idx} 
-                                    href={item.link || '#'} 
-                                    className={`font-medium transition-colors hover:text-[${cartBadgeColor}] ${item.isHighlighted ? 'text-red-600 font-bold' : ''}`}
-                                >
-                                    {item.label}
-                                </Link>
-                            ))}
+                            {menuItems.map((item: any, idx: number) => {
+                                const isPill = item.style === 'pill';
+                                const isRect = item.style === 'rectangle';
+                                const hasStyle = isPill || isRect;
+                                
+                                return (
+                                    <Link 
+                                        key={idx} 
+                                        href={item.link || '#'} 
+                                        className={`font-medium transition-all flex items-center justify-center ${
+                                            hasStyle 
+                                                ? `px-4 py-1.5 ${isPill ? 'rounded-full' : 'rounded-md'} hover:opacity-90 shadow-sm text-[12px] font-bold`
+                                                : `hover:text-[${cartBadgeColor}] ${item.isHighlighted ? 'text-red-600 font-bold' : ''}`
+                                        }`}
+                                        style={hasStyle ? { backgroundColor: item.bgColor || '#e31837', color: item.textColor || '#ffffff' } : undefined}
+                                    >
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
                         </div>
                         <div className="flex items-center gap-6">
                             <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#002f6c] transition-colors">
@@ -118,15 +133,26 @@ export function AhizanNavbar({
                         {/* Row 1: Menu, Logo, Icons */}
                         <div className="flex items-center justify-between">
                             {/* Left: Menu + Logo */}
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => setMobileMenuOpen(true)}
-                                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                                    aria-label="Open menu"
-                                >
-                                    <Menu className="w-5 h-5" />
-                                </button>
-                                <Link href="/" className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="flex items-center gap-1">
+                                {pathname !== '/' && (
+                                    <button
+                                        onClick={() => router.back()}
+                                        className="p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors"
+                                        aria-label="Go back"
+                                    >
+                                        <ChevronLeft className="w-6 h-6 stroke-[1.5]" />
+                                    </button>
+                                )}
+                                {showTopIconsOnMobile && (
+                                    <button
+                                        onClick={() => setMobileMenuOpen(true)}
+                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                        aria-label="Open menu"
+                                    >
+                                        <Menu className="w-5 h-5" />
+                                    </button>
+                                )}
+                                <Link href="/" className={`flex items-center gap-1.5 flex-shrink-0 ${showTopIconsOnMobile ? 'ml-1' : ''}`}>
                                     {logoUrl ? (
                                         <img src={getAssetUrl(logoUrl)} className="h-8 w-auto object-contain" alt={siteName} />
                                     ) : (
@@ -139,31 +165,33 @@ export function AhizanNavbar({
                             </div>
 
                             {/* Right: Icons */}
-                            <div className="flex items-center gap-1">
-                                {showAccountIcon && (
-                                    <Link href={isLoggedIn ? "/account" : "/sign-in"} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <User className="h-5 w-5" />
-                                    </Link>
-                                )}
-                                {showWishlistIcon && (
-                                    <Link href="/account/wishlist" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                        <Heart className="h-5 w-5" />
-                                    </Link>
-                                )}
-                                {showCartIcon && (
-                                    <Link href="/cart" className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative">
-                                        <ShoppingCart className="h-5 w-5" />
-                                        {cartCount > 0 && (
-                                            <span 
-                                                className="absolute -top-1 -right-1 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
-                                                style={{ backgroundColor: cartBadgeColor }}
-                                            >
-                                                {cartCount}
-                                            </span>
-                                        )}
-                                    </Link>
-                                )}
-                            </div>
+                            {showTopIconsOnMobile && (
+                                <div className="flex items-center gap-1">
+                                    {showAccountIcon && (
+                                        <Link href={isLoggedIn ? "/account" : "/sign-in"} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                            {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
+                                        </Link>
+                                    )}
+                                    {false && showWishlistIcon && (
+                                        <Link href="/account/wishlist" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                            <Heart className="h-5 w-5" />
+                                        </Link>
+                                    )}
+                                    {showCartIcon && (
+                                        <Link href="/cart" className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative">
+                                            <ShoppingCart className="h-5 w-5" />
+                                            {cartCount > 0 && (
+                                                <span 
+                                                    className="absolute -top-1 -right-1 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
+                                                    style={{ backgroundColor: cartBadgeColor }}
+                                                >
+                                                    {cartCount}
+                                                </span>
+                                            )}
+                                        </Link>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Row 2: Search Bar */}
@@ -174,7 +202,12 @@ export function AhizanNavbar({
                                 </div>
                                 <input
                                     type="text"
-                                    className="block w-full pl-9 pr-10 py-2 border border-gray-200 bg-gray-50 text-sm placeholder:text-gray-400 focus:outline-none rounded-lg"
+                                    className={`block w-full pl-9 pr-10 py-2 border border-gray-200 bg-gray-50 text-sm placeholder:text-gray-400 focus:outline-none transition-all
+                                        ${['rounded', 'icon-only'].includes(searchStyle) ? 'rounded-full' : ''}
+                                        ${searchStyle === 'square' ? 'rounded-none' : ''}
+                                        ${searchStyle === 'underline' ? 'border-t-0 border-r-0 border-l-0 bg-transparent rounded-none' : ''}
+                                        ${!['rounded', 'icon-only', 'square', 'underline'].includes(searchStyle) ? 'rounded-lg' : ''}
+                                    `}
                                     placeholder={searchPlaceholder}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -280,7 +313,7 @@ export function AhizanNavbar({
 
                             {showAccountIcon && (
                                 <Link href={isLoggedIn ? "/account" : "/sign-in"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                                    <User className="h-5 w-5" />
+                                    {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
                                     <div className="flex flex-col leading-tight hidden lg:flex">
                                         <span className="text-[11px] opacity-70">
                                             {isLoggedIn ? `Bonjour, ${customer.firstName}` : "Se connecter"}
@@ -291,7 +324,7 @@ export function AhizanNavbar({
                                 </Link>
                             )}
 
-                            {showWishlistIcon && (
+                            {false && showWishlistIcon && (
                                 <Link href="/account/wishlist" className="flex items-center gap-2 hover:opacity-80 transition-opacity hidden sm:flex">
                                     <Heart className="h-5 w-5" />
                                 </Link>

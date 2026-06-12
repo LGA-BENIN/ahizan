@@ -39,7 +39,7 @@ export function useAutoSave(config: any, onSave: (data: any, silent?: boolean) =
         // No change from last saved state → skip
         if (currentHash === lastSavedHashRef.current) return;
 
-        // Debounced auto-save (2s)
+        // Debounced auto-save (500ms)
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
             // Re-check in case it reverted
@@ -48,7 +48,7 @@ export function useAutoSave(config: any, onSave: (data: any, silent?: boolean) =
                 lastSavedHashRef.current = hashNow;
                 onSaveTracked.current(config);
             }
-        }, 2000);
+        }, 500);
 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);

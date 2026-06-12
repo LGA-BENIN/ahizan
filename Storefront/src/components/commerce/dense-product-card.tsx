@@ -143,8 +143,8 @@ export function DenseProductCard({
             </div>
 
             {/* Content */}
-            <div className="p-2 space-y-1">
-                <h3 className="text-xs font-semibold line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+            <div className="p-3 space-y-2">
+                <h3 className="text-sm font-bold line-clamp-2 leading-tight group-hover:text-primary transition-colors">
                     {product.productName}
                 </h3>
 
@@ -161,13 +161,13 @@ export function DenseProductCard({
                 )}
 
                 {/* Price row */}
-                <div className="flex items-baseline gap-1.5 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-baseline gap-1.5">
                     {showStrikethroughPrice && oldPrice && (
-                        <span className="line-through text-[10px] text-muted-foreground">
+                        <span className="line-through text-xs text-muted-foreground decoration-red-500/70 decoration-2">
                             {formatCFA(oldPrice)}
                         </span>
                     )}
-                    <span className="font-black text-sm text-primary">
+                    <span className={`font-black text-lg tracking-tight ${oldPrice ? 'text-red-600' : 'text-primary'}`}>
                         {formatCFA(price)}
                     </span>
                 </div>

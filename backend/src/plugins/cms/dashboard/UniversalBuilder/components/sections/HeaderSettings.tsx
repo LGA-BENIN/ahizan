@@ -41,6 +41,7 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
             menuItems: [],
             helpLinks: [],
             mobileMenuStyle: 'drawer',
+            mobileNavStyle: 'bottom',
             mobileBreakpoint: '768px',
             topBar: {
                 enabled: true,
@@ -73,7 +74,7 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
     const handleChange = (field: string, value: any) => setConfig({ ...config, [field]: value });
     const handleNestedChange = (parent: string, field: string, value: any) => setConfig({ ...config, [parent]: { ...config[parent], [field]: value } });
 
-    const addItem = (field: 'menuItems' | 'helpLinks') => handleChange(field, [...(config[field] || []), { label: 'New Link', link: '/', icon: '', isHighlighted: false }]);
+    const addItem = (field: 'menuItems' | 'helpLinks') => handleChange(field, [...(config[field] || []), { label: 'New Link', link: '/', icon: '', isHighlighted: false, style: 'text', bgColor: '#e31837', textColor: '#ffffff' }]);
     const removeItem = (field: 'menuItems' | 'helpLinks', i: number) => handleChange(field, [...(config[field] || [])].filter((_, idx) => idx !== i));
     const updateItem = (field: 'menuItems' | 'helpLinks', i: number, key: string, value: any) => {
         const list = [...(config[field] || [])];
@@ -205,6 +206,14 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                             <option value="dropdown">Dropdown</option>
                         </select>
                     </div>
+                    <div>
+                        <label className="label-pro">Navigation Mobile</label>
+                        <select className="input-pro" value={config.mobileNavStyle || 'bottom'} onChange={(e) => handleChange('mobileNavStyle', e.target.value)}>
+                            <option value="bottom">Barre en bas (App Style)</option>
+                            <option value="top">Icônes en haut (Classique)</option>
+                            <option value="both">Les deux (Haut et Bas)</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -302,13 +311,37 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                 </div>
                 <div className="stack">
                     {(config.menuItems || []).map((item: any, idx: number) => (
-                        <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <input className="input-pro" style={{ flex: 1 }} value={item.label} onChange={(e) => updateItem('menuItems', idx, 'label', e.target.value)} placeholder="Libellé" />
-                            <input className="input-pro" style={{ flex: 2 }} value={item.link} onChange={(e) => updateItem('menuItems', idx, 'link', e.target.value)} placeholder="/path" />
-                            <label style={{ fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                                <input type="checkbox" checked={item.isHighlighted} onChange={(e) => updateItem('menuItems', idx, 'isHighlighted', e.target.checked)} /> Mis en avant
-                            </label>
-                            <button onClick={() => removeItem('menuItems', idx)} style={{ border: 'none', color: '#ef4444', background: 'none', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', border: '1px solid var(--builder-border)', borderRadius: '8px', backgroundColor: 'var(--builder-bg)' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input className="input-pro" style={{ flex: 1 }} value={item.label} onChange={(e) => updateItem('menuItems', idx, 'label', e.target.value)} placeholder="Libellé" />
+                                <input className="input-pro" style={{ flex: 2 }} value={item.link} onChange={(e) => updateItem('menuItems', idx, 'link', e.target.value)} placeholder="/path" />
+                                <label style={{ fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                                    <input type="checkbox" checked={item.isHighlighted} onChange={(e) => updateItem('menuItems', idx, 'isHighlighted', e.target.checked)} /> Mis en avant
+                                </label>
+                                <button onClick={() => removeItem('menuItems', idx)} style={{ border: 'none', color: '#ef4444', background: 'none', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <label className="label-pro" style={{ margin: 0, fontSize: '0.75rem' }}>Style:</label>
+                                    <select className="input-pro" style={{ padding: '4px 8px', height: 'auto', fontSize: '0.75rem', width: 'auto' }} value={item.style || 'text'} onChange={(e) => updateItem('menuItems', idx, 'style', e.target.value)}>
+                                        <option value="text">Texte brut</option>
+                                        <option value="pill">Pilule (Arrondi)</option>
+                                        <option value="rectangle">Rectangle</option>
+                                    </select>
+                                </div>
+                                {item.style && item.style !== 'text' && (
+                                    <>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <label className="label-pro" style={{ margin: 0, fontSize: '0.75rem' }}>Fond:</label>
+                                            <input type="color" value={item.bgColor || '#e31837'} onChange={(e) => updateItem('menuItems', idx, 'bgColor', e.target.value)} style={{ width: '24px', height: '24px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <label className="label-pro" style={{ margin: 0, fontSize: '0.75rem' }}>Texte:</label>
+                                            <input type="color" value={item.textColor || '#ffffff'} onChange={(e) => updateItem('menuItems', idx, 'textColor', e.target.value)} style={{ width: '24px', height: '24px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     ))}
                     {(!config.menuItems || config.menuItems.length === 0) && (

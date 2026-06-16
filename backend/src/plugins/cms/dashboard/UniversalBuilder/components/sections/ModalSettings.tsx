@@ -38,7 +38,7 @@ export const ModalSettings = ({ data, onSave }: ModalSettingsProps) => {
     );
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '900px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+        <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>📢 Gestionnaire de fenêtres surgissantes</h3>

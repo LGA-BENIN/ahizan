@@ -54,14 +54,14 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
                 )}
             </div>
             <div className="p-3 space-y-2">
-                <h3 className="text-xs sm:text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight">
+                <h3 className="text-base sm:text-lg font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight">
                     {product.productName}
                 </h3>
                 <Suspense fallback={<div className="h-4 w-20 rounded bg-muted"></div>}>
                     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                         {config?.showPromoPrice ? (
                             <>
-                                <p className="text-lg sm:text-xl font-black text-red-600 tracking-tight">
+                                <p className="text-xl sm:text-2xl font-black text-red-600 tracking-tight">
                                     {product.priceWithTax.__typename === 'PriceRange' ? (
                                         product.priceWithTax.min !== product.priceWithTax.max ? (
                                             <>à partir de <Price value={product.priceWithTax.min}/></>
@@ -71,7 +71,7 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
                                     ) : null}
                                 </p>
                                 {config?.showStrikethroughPrice !== false && (
-                                    <p className="text-[10px] sm:text-xs text-muted-foreground line-through decoration-red-500/70 decoration-2 opacity-80">
+                                    <p className="text-sm font-bold text-muted-foreground line-through decoration-red-500/70 decoration-2 opacity-80">
                                         {product.priceWithTax.__typename === 'PriceRange' ? (
                                             <Price value={product.priceWithTax.min * 1.25}/>
                                         ) : product.priceWithTax.__typename === 'SinglePrice' ? (
@@ -81,7 +81,7 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
                                 )}
                             </>
                         ) : (
-                            <p className="text-lg sm:text-xl font-black text-primary tracking-tight">
+                            <p className="text-xl sm:text-2xl font-black text-primary tracking-tight">
                                 {product.priceWithTax.__typename === 'PriceRange' ? (
                                     product.priceWithTax.min !== product.priceWithTax.max ? (
                                         <>à partir de <Price value={product.priceWithTax.min}/></>

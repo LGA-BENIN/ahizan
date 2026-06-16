@@ -307,10 +307,10 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                             )}
                                         </div>
                                         <div className="p-2 flex flex-col justify-between" style={{ height: 'calc(100% - auto)' }}>
-                                            <h3 className="font-semibold text-[9px] sm:text-[10px] md:text-xs line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                                            <h3 className="font-bold text-[11px] sm:text-[12px] md:text-[13px] line-clamp-2 mb-1 group-hover:text-primary transition-colors">
                                                 {p.productName}
                                             </h3>
-                                            <span className="font-black text-[10px] sm:text-xs text-primary">
+                                            <span className="font-black text-[12px] sm:text-[13px] md:text-[14px] text-primary">
                                                 {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
                                             </span>
                                         </div>
@@ -342,10 +342,10 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                 />
                             </div>
                             <div className="p-2">
-                                <h3 className="font-semibold text-[9px] sm:text-[10px] md:text-xs line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                                <h3 className="font-bold text-[11px] sm:text-[12px] md:text-[13px] line-clamp-2 mb-1 group-hover:text-primary transition-colors">
                                     {p.productName}
                                 </h3>
-                                <span className="font-black text-[10px] sm:text-xs text-primary">
+                                <span className="font-black text-[12px] sm:text-[13px] md:text-[14px] text-primary">
                                     {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
                                 </span>
                             </div>

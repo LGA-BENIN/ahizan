@@ -18,6 +18,8 @@ import { DynamicProductGridSettings } from './sections/DynamicProductGridSetting
 import { ProductOverviewSettings } from './sections/ProductOverviewSettings';
 import { ProductReviewsSettings } from './sections/ProductReviewsSettings';
 import { RelatedProductsSettings } from './sections/RelatedProductsSettings';
+import { SmartVisualGridSettings } from './sections/SmartGrid/SmartVisualGridSettings';
+import { FreeformBuilderSettings } from './sections/craft-freeform/FreeformBuilderSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 
@@ -123,15 +125,15 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
         case 'RICH_TEXT':
             return withCodePanel(<RichTextSettings data={data} onSave={handleSave} />);
 
-        // Global system configs — no code injection (they control layout, not visible sections)
+        // Global system configs — now using code injection to get the Fullscreen wrapper
         case 'THEME_SETTINGS':
-            return <ThemeSettings data={data} onSave={handleSave} />;
+            return withCodePanel(<ThemeSettings data={data} onSave={handleSave} />);
 
         case 'HEADER_CONF':
-            return <HeaderSettings data={data} onSave={handleSave} />;
+            return withCodePanel(<HeaderSettings data={data} onSave={handleSave} />);
 
         case 'FOOTER_CONF':
-            return <FooterSettings data={data} onSave={handleSave} />;
+            return withCodePanel(<FooterSettings data={data} onSave={handleSave} />);
 
         case 'PRODUCT_GRID':
             return withCodePanel(<ProductGridSettings data={data} onSave={handleSave} />);
@@ -181,6 +183,12 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
 
         case 'CUSTOM':
             return withCodePanel(<CustomSettings data={data} onSave={handleSave} />);
+
+        case 'SMART_VISUAL_GRID':
+            return withCodePanel(<SmartVisualGridSettings data={data} onSave={handleSave} />);
+
+        case 'FREEFORM_BUILDER':
+            return <FreeformBuilderSettings data={data} onSave={handleSave} />;
 
         default:
             return withCodePanel(

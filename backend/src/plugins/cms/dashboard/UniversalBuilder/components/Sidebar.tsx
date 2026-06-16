@@ -66,6 +66,8 @@ const MASTER_ZONE_MAP = [
             { type: 'CATEGORIES', icon: '', label: 'Catégories', mode: 'multi' },
             { type: 'PRODUCT_GRID', icon: '🛒', label: 'Grille de Produits', mode: 'multi' },
             { type: 'TABBED_PRODUCT_GRID', icon: '📑', label: 'Grille avec Onglets', mode: 'multi' },
+            { type: 'SMART_VISUAL_GRID', icon: '✨', label: 'Smart Visual Grid', mode: 'multi' },
+            { type: 'FREEFORM_BUILDER', icon: '🏗️', label: 'Constructeur Libre Drag & Drop', mode: 'multi' },
         ],
         allowedOn: ['all']
     },
@@ -99,14 +101,14 @@ const getZoneMapForSlug = (slug?: string) => {
     const permittedTypes: Record<string, string[]> = {
         home: [
             'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'PRODUCT_GRID', 'TABBED_PRODUCT_GRID',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'PRODUCT_GRID', 'TABBED_PRODUCT_GRID', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         category: [
-            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'RICH_TEXT'
+            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'RICH_TEXT', 'FREEFORM_BUILDER'
         ],
         product: [
-            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'RICH_TEXT'
+            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'RICH_TEXT', 'FREEFORM_BUILDER'
         ]
     };
 

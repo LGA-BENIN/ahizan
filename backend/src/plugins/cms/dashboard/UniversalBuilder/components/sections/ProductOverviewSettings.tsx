@@ -47,7 +47,7 @@ export const ProductOverviewSettings = ({ data, onSave }: ProductOverviewSetting
     };
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+        <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
             {/* Layout */}
             <div className="settings-card">
                 <div className="settings-card-header">📐 Disposition de la fiche produit</div>

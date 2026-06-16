@@ -24,7 +24,7 @@ export const CustomSettings = ({ data, onSave }: CustomSettingsProps) => {
     const handleChange = (f: string, v: any) => setConfig({ ...config, [f]: v });
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '900px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+        <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
             <div className="settings-card">
                 <div className="settings-card-header">🛠️ Bloc Code/HTML Personnalisé</div>
                 <div className="grid-2" style={{ marginBottom: '1rem' }}>

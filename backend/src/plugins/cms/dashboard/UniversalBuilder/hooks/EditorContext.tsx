@@ -34,13 +34,15 @@ interface EditorContextType {
   setIsSaving: (is: boolean) => void;
   saveStatus: string | null;
   setSaveStatus: (s: string | null) => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (val: boolean) => void;
   saveHandler: (() => void) | null;
   setSaveHandler: (handler: (() => void) | null) => void;
   previewVersion: number;
   setPreviewVersion: (version: number) => void;
   // Habillage system
   activeHabillage: HabillageData | null;
-  setActiveHabillage: (h: HabillageData | null) => void;
+  setActiveHabillage: React.Dispatch<React.SetStateAction<HabillageData | null>>;
   canUndo: boolean;
   setCanUndo: (v: boolean) => void;
   canRedo: boolean;
@@ -56,6 +58,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [saveHandler, setSaveHandler] = useState<(() => void) | null>(null);
   const [previewVersion, setPreviewVersion] = useState<number>(Date.now());
   const [activeHabillage, setActiveHabillage] = useState<HabillageData | null>(null);
@@ -77,6 +80,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         setIsSaving,
         saveStatus,
         setSaveStatus,
+        isFullscreen,
+        setIsFullscreen,
         saveHandler,
         setSaveHandler,
         previewVersion,

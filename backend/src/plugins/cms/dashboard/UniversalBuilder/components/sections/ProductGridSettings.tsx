@@ -92,7 +92,7 @@ export const ProductGridSettings = ({ data, onSave }: ProductGridSettingsProps) 
     };
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+        <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
             {/* Header */}
             <div className="settings-card">
                 <div className="settings-card-header">📝 Entête de section</div>

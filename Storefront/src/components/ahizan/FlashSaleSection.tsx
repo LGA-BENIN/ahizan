@@ -448,7 +448,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             </div>
                             
                             <div className="flex flex-col p-1.5 sm:p-2 flex-1">
-                                <h4 className="text-[8px] sm:text-[9px] md:text-[10px] font-semibold text-secondary line-clamp-2 min-h-[20px] sm:min-h-[22px] leading-tight mb-1 group-hover:text-primary transition-colors">
+                                <h4 className="text-[12px] sm:text-[13px] md:text-[14px] font-bold text-secondary line-clamp-2 min-h-[28px] sm:min-h-[36px] leading-tight mb-1 group-hover:text-primary transition-colors">
                                     {isPlaceholder ? `Produit #${i+1}` : p.name}
                                 </h4>
                                 
@@ -456,16 +456,16 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     <div className="flex flex-col justify-end min-h-[30px]">
                                         {activeFlash.showPromotionalPrice && activeFlash.discountPercentage > 0 ? (
                                             <>
-                                                <span className="font-bold text-[8px] sm:text-[9px] md:text-[10px] text-muted-foreground line-through opacity-70">
+                                                <span className="font-bold text-[10px] sm:text-[11px] md:text-[12px] text-muted-foreground line-through opacity-70">
                                                     {isPlaceholder ? price : price.toLocaleString()} XOF
                                                 </span>
-                                                <span className="font-black text-[9px] sm:text-[10px] md:text-xs text-primary tracking-tight leading-none">
-                                                    {isPlaceholder ? Math.round(price * (1 - activeFlash.discountPercentage / 100)) : Math.round(price * (1 - activeFlash.discountPercentage / 100)).toLocaleString()} <span className="text-[6px] sm:text-[7px] font-bold">XOF</span>
+                                                <span className="font-black text-[13px] sm:text-[15px] md:text-[18px] text-red-600 tracking-tight leading-none mt-0.5">
+                                                    {isPlaceholder ? Math.round(price * (1 - activeFlash.discountPercentage / 100)) : Math.round(price * (1 - activeFlash.discountPercentage / 100)).toLocaleString()} <span className="text-[8px] sm:text-[10px] font-bold">XOF</span>
                                                 </span>
                                             </>
                                         ) : (
-                                            <span className="font-black text-[9px] sm:text-[10px] md:text-xs text-primary tracking-tight leading-none">
-                                                {isPlaceholder ? price : price.toLocaleString()} <span className="text-[6px] sm:text-[7px] font-bold">XOF</span>
+                                            <span className="font-black text-[13px] sm:text-[15px] md:text-[18px] text-primary tracking-tight leading-none">
+                                                {isPlaceholder ? price : price.toLocaleString()} <span className="text-[8px] sm:text-[10px] font-bold">XOF</span>
                                             </span>
                                         )}
                                     </div>

@@ -59,7 +59,7 @@ export const FooterSettings = ({ data, onSave }: FooterSettingsProps) => {
     );
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+        <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
 
             <div className="settings-card">
                 <div className="settings-card-header">🦶 Image du pied de page</div>

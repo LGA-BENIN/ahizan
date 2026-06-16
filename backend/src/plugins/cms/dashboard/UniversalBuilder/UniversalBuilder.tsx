@@ -93,7 +93,7 @@ function updateUndoRedo(habillage: any, setCanUndo: (v: boolean) => void, setCan
 }
 
 const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: string | null; onPresetOpened: () => void }) => {
-  const { mode, setMode, selectedPageId, setSelectedPageId, activePageSlug, setActivePageSlug, selectedSection, setSelectedSection, setSaveStatus, saveStatus, activeHabillage, setActiveHabillage, canUndo, setCanUndo, canRedo, setCanRedo, setPreviewVersion } = useEditor();
+  const { mode, setMode, selectedPageId, setSelectedPageId, activePageSlug, setActivePageSlug, selectedSection, setSelectedSection, setSaveStatus, saveStatus, activeHabillage, setActiveHabillage, canUndo, setCanUndo, canRedo, setCanRedo, setPreviewVersion, isFullscreen } = useEditor();
   const queryClient = useQueryClient();
 
   // Auto-open habillage when coming from HabillageManager
@@ -539,7 +539,18 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
   const activeSection = selectedSection ? sections.find(s => s.id === selectedSection.id) || selectedSection : null;
 
   return (
-    <div className="universal-builder">
+    <div 
+      className="universal-builder"
+      style={isFullscreen ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        background: '#fff'
+      } : {}}
+    >
       <Toolbar />
       {/* Habillage indicator bar */}
       <div style={{

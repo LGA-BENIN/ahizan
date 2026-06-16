@@ -40,6 +40,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
     const [htmlBefore, setHtmlBefore] = useState(data._customHTMLBefore || '');
     const [htmlAfter, setHtmlAfter] = useState(data._customHTMLAfter || '');
     const [hasCodeChanges, setHasCodeChanges] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     // Sync from parent data when it changes
     useEffect(() => {
@@ -114,7 +115,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
         fontFamily: '"Fira Code", "Fira Mono", "Cascadia Code", "Consolas", monospace',
         fontSize: 13,
         lineHeight: 1.7,
-        minHeight: '300px',
+        minHeight: isFullscreen ? '70vh' : '300px',
         outline: 'none',
         color: '#d4d4d4',
         backgroundColor: 'transparent',
@@ -122,8 +123,24 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
 
     const hasAnyCode = !!(overrideHTML || customCSS || customJS || htmlBefore || htmlAfter || isOverride);
 
+    const containerStyle: React.CSSProperties = isFullscreen ? {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9999,
+        background: '#f8fafc',
+        padding: '2rem',
+        overflow: 'auto',
+        boxSizing: 'border-box'
+    } : {
+        width: '100%',
+        maxWidth: '900px'
+    };
+
     return (
-        <div style={{ width: '100%', maxWidth: '900px' }}>
+        <div style={containerStyle}>
             {/* View Switcher */}
             <div style={{
                 display: 'flex',
@@ -180,6 +197,29 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                                 background: '#10b981', display: 'inline-block'
                             }} />
                         )}
+                    </button>
+                    
+                    <div style={{ width: '1px', background: '#cbd5e1', margin: '0 8px' }} />
+                    
+                    <button
+                        onClick={() => setIsFullscreen(!isFullscreen)}
+                        style={{
+                            padding: '8px 20px',
+                            borderRadius: '8px',
+                            border: '1px solid #cbd5e1',
+                            background: isFullscreen ? '#fca5a5' : '#fff',
+                            color: isFullscreen ? '#b91c1c' : '#475569',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                            transition: 'all 0.15s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                        }}
+                    >
+                        {isFullscreen ? '✖️ Quitter Plein Écran' : '🔲 Plein Écran'}
                     </button>
                 </div>
 
@@ -354,7 +394,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                                     Écrivez le HTML complet • Incluez les balises &lt;style&gt; et &lt;script&gt; au besoin
                                 </span>
                             </div>
-                            <div style={{ maxHeight: '500px', overflow: 'auto', padding: '4px' }}>
+                            <div style={{ maxHeight: isFullscreen ? '80vh' : '500px', overflow: 'auto', padding: '4px' }}>
                                 <Editor
                                     value={overrideHTML}
                                     onValueChange={(v) => { setOverrideHTML(v); markChanged(); }}
@@ -409,7 +449,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                             )}
 
                             {activeTab === 'CSS' && (
-                                <div style={{ maxHeight: '400px', overflow: 'auto', padding: '4px' }}>
+                                <div style={{ maxHeight: isFullscreen ? '80vh' : '400px', overflow: 'auto', padding: '4px' }}>
                                     <Editor
                                         value={customCSS}
                                         onValueChange={(v) => { setCustomCSS(v); markChanged(); }}
@@ -423,7 +463,7 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                             )}
 
                             {activeTab === 'JS' && (
-                                <div style={{ maxHeight: '400px', overflow: 'auto', padding: '4px' }}>
+                                <div style={{ maxHeight: isFullscreen ? '80vh' : '400px', overflow: 'auto', padding: '4px' }}>
                                     <Editor
                                         value={customJS}
                                         onValueChange={(v) => { setCustomJS(v); markChanged(); }}

@@ -117,7 +117,7 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
     );
 
     return (
-        <div className="stack-lg" style={{ width: '100%', maxWidth: '860px', height: '100%', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+        <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto" }}>
 
             {/* ===== TEMPLATE SELECTOR ===== */}
             <div className="settings-card">

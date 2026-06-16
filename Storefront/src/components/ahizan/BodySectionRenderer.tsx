@@ -11,7 +11,10 @@ import { HomeModal } from "./HomeModal";
 import { CmsSection } from "@/lib/vendure/cms-queries";
 import { TabbedProductGrid } from "@/components/cms/tabbed-product-grid";
 import { CategoryGrid } from "@/components/cms/category-grid";
+import { SmartVisualGridSection } from "./SmartGrid/SmartVisualGridSection";
+import { FreeformBuilderSection } from './FreeformBuilderSection';
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import Script from "next/script";
 
 interface Props {
     section: CmsSection;
@@ -409,7 +412,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                     {config.customCss && <style dangerouslySetInnerHTML={{ __html: config.customCss }} />}
                     <div dangerouslySetInnerHTML={{ __html: html }} />
                     {config.customJs && (
-                        <script dangerouslySetInnerHTML={{ __html: config.customJs }} />
+                        <Script id={`custom-js-${config.id || Math.random().toString(36).substr(2, 9)}`} strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: config.customJs }} />
                     )}
                 </section>
             );
@@ -478,6 +481,14 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                     />
                 </section>
             );
+        }
+
+        case 'SMART_VISUAL_GRID': {
+            return <SmartVisualGridSection config={config} siteCategories={siteCategories} />;
+        }
+        
+        case 'FREEFORM_BUILDER': {
+            return <FreeformBuilderSection config={config} />;
         }
 
         default:

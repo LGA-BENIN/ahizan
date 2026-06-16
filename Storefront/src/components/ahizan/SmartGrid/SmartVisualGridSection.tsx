@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { GridItemRenderer } from './GridItemRenderer';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -8,28 +8,51 @@ interface SmartVisualGridSectionProps {
 }
 
 export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGridSectionProps) => {
-    // Determine the JSON state. It might be directly passed or needs parsing.
-    let craftState: any = null;
-    
+    // 1. Parse JSON configuration
+    let parsedConfig: any = null;
     try {
         if (typeof config === 'string') {
-            craftState = JSON.parse(config);
-        } else if (config.ROOT) {
-            craftState = config;
+            parsedConfig = JSON.parse(config);
+        } else if (config.ROOT || config.isGrouped) {
+            parsedConfig = config;
         } else if (typeof config.dataJson === 'string') {
-            craftState = JSON.parse(config.dataJson);
+            parsedConfig = JSON.parse(config.dataJson);
         }
     } catch (e) {
         console.error("Failed to parse SmartVisualGrid config", e);
         return null;
     }
 
-    if (!craftState || !craftState.ROOT) {
-        return null; // Empty or invalid configuration
+    if (!parsedConfig) return null;
+
+    // Detect if we're using the new tabbed layout or legacy
+    const isGrouped = parsedConfig.isGrouped === true;
+    
+    // Tab state
+    const [activeTabId, setActiveTabId] = useState(() => {
+        if (isGrouped && parsedConfig.tabs?.length > 0) {
+            return parsedConfig.tabs[0].id;
+        }
+        return null;
+    });
+
+    let craftState: any = null;
+
+    if (isGrouped) {
+        const activeTab = parsedConfig.tabs?.find((t: any) => t.id === activeTabId) || parsedConfig.tabs?.[0];
+        if (activeTab && activeTab.craftState) {
+            try {
+                craftState = typeof activeTab.craftState === 'string' ? JSON.parse(activeTab.craftState) : activeTab.craftState;
+            } catch(e) {
+                console.error("Failed to parse tab craft state");
+            }
+        }
+    } else {
+        craftState = parsedConfig;
     }
 
-    const rootNode = craftState.ROOT;
-    const rootProps = rootNode.props || {};
+    const rootNode = craftState?.ROOT;
+    const rootProps = rootNode?.props || {};
 
     const {
         columnsDesktop = 4,
@@ -84,8 +107,6 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         bgStyle = `url(${bgImage}) center/cover no-repeat ${bgColor}`;
     }
 
-    // Determine grid classes dynamically via inline style + responsive variables,
-    // or standard tailwind classes where possible.
     const gridColsClass = `grid`;
 
     const getAlignment = () => {
@@ -94,13 +115,12 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         return 'center';
     };
 
-    // Extract items to render natively from the CMS (WYSIWYG)
-    const childNodeIds = rootNode.nodes || [];
+    // Extract items to render natively from the CMS
+    const childNodeIds = rootNode?.nodes || [];
     const itemsToRender = childNodeIds.map((id: string) => {
         const itemProps = craftState[id]?.props || {};
         return {
             ...itemProps,
-            // Forcer les attributs globaux sur le composant final
             imageShape: globalShape,
             imageWidth: globalImageWidth,
             imageHeight: globalImageHeight,
@@ -116,9 +136,6 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         };
     }).filter(Boolean);
 
-    if (itemsToRender.length === 0) return null;
-
-    // Animation classes for the section
     let sectionAnimClass = '';
     if (sectionAnimation === 'fade-in') sectionAnimClass = 'animate-fade-in';
     else if (sectionAnimation === 'fade-up') sectionAnimClass = 'animate-fade-up';
@@ -148,6 +165,35 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                     </h2>
                 )}
 
+                {/* GROUP TABS SELECTOR */}
+                {isGrouped && parsedConfig.tabs?.length > 1 && (
+                    <div className="flex flex-wrap justify-center gap-3 mb-8 px-4">
+                        {parsedConfig.tabs.map((tab: any) => {
+                            const isActive = tab.id === activeTabId;
+                            const isPill = parsedConfig.groupStyle !== 'rectangle';
+                            const activeColor = parsedConfig.activeColor || '#ef4444';
+                            
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTabId(tab.id)}
+                                    style={{
+                                        backgroundColor: isActive ? activeColor : '#ffffff',
+                                        color: isActive ? '#ffffff' : '#475569',
+                                        borderColor: isActive ? activeColor : '#e2e8f0',
+                                    }}
+                                    className={`px-6 py-2.5 border-2 transition-all duration-300 font-semibold text-sm whitespace-nowrap shadow-sm hover:shadow-md ${
+                                        isPill ? 'rounded-full' : 'rounded-xl'
+                                    } ${isActive ? 'scale-105' : 'hover:border-gray-300'}`}
+                                >
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* CAROUSEL ARROWS */}
                 {isCarousel && carouselArrows !== 'none' && itemsToRender.length > 0 && (
                     <>
                         <button 
@@ -190,31 +236,37 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                     }
                 `}} />
 
-                <div 
-                    ref={scrollContainerRef}
-                    className={`${gridColsClass} ${isCarousel ? 'flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4' : ''}`}
-                    style={{
-                        display: isCarousel ? 'flex' : 'grid',
-                        gap: `${gapY}px ${gapX}px`,
-                        gridTemplateColumns: isCarousel ? undefined : `repeat(var(--grid-cols, ${columnsMobile}), minmax(0, 1fr))`,
-                        justifyItems: isCarousel ? undefined : getAlignment()
-                    }}
-                >
-                    {itemsToRender.map((itemProps: any, index: number) => (
-                        <div 
-                            key={index} 
-                            className={isCarousel ? 'flex-shrink-0 snap-start h-full' : 'w-full h-full'} 
-                            style={{ 
-                                width: isCarousel ? `calc(100% / var(--grid-cols, ${columnsMobile}) - ${gapX * (columnsDesktop - 1) / columnsDesktop}px)` : '100%' 
-                            }}
-                        >
-                            <GridItemRenderer 
-                                props={itemProps} 
-                                contentLayout={contentLayout}
-                            />
-                        </div>
-                    ))}
-                </div>
+                {itemsToRender.length > 0 ? (
+                    <div 
+                        ref={scrollContainerRef}
+                        className={`${gridColsClass} ${isCarousel ? 'flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4' : ''} transition-opacity duration-300`}
+                        style={{
+                            display: isCarousel ? 'flex' : 'grid',
+                            gap: `${gapY}px ${gapX}px`,
+                            gridTemplateColumns: isCarousel ? undefined : `repeat(var(--grid-cols, ${columnsMobile}), minmax(0, 1fr))`,
+                            justifyItems: isCarousel ? undefined : getAlignment()
+                        }}
+                    >
+                        {itemsToRender.map((itemProps: any, index: number) => (
+                            <div 
+                                key={index} 
+                                className={isCarousel ? 'flex-shrink-0 snap-start h-full' : 'w-full h-full'} 
+                                style={{ 
+                                    width: isCarousel ? `calc(100% / var(--grid-cols, ${columnsMobile}) - ${gapX * (columnsDesktop - 1) / columnsDesktop}px)` : '100%' 
+                                }}
+                            >
+                                <GridItemRenderer 
+                                    props={itemProps} 
+                                    contentLayout={contentLayout}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="py-12 text-center text-gray-500 font-medium">
+                        Aucun élément dans cet onglet.
+                    </div>
+                )}
             </div>
         </section>
     );

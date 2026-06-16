@@ -272,8 +272,7 @@ function SlideContent({ slide, globalConfig, baseConfig, textColorClass }: any) 
             <div className={`relative z-20 w-full p-6 sm:p-8 md:p-12 flex flex-col items-start text-left ${textColorClass}`}>
                 <div className="animate-in slide-in-from-bottom-8 duration-700 w-full">
                     {title && (
-                        <h1 className="text-lg sm:text-2xl md:text-4xl lg:text-5xl font-black mb-2 sm:mb-3 md:mb-4 tracking-tight drop-shadow-lg leading-tight" style={{ 
-                            fontSize: baseConfig.titleFontSize, 
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-2 sm:mb-3 md:mb-4 tracking-tight drop-shadow-lg leading-tight" style={{ 
                             fontWeight: baseConfig.titleFontWeight, 
                             color: baseConfig.titleColor || 'white'
                         }}>
@@ -281,12 +280,12 @@ function SlideContent({ slide, globalConfig, baseConfig, textColorClass }: any) 
                         </h1>
                     )}
                     {subtitle && (
-                        <p className="max-w-full sm:max-w-md text-xs sm:text-sm md:text-base font-bold opacity-90 drop-shadow-md mb-4 sm:mb-6 md:mb-8 leading-relaxed">
+                        <p className="max-w-full sm:max-w-md text-sm sm:text-base md:text-lg font-bold opacity-90 drop-shadow-md mb-4 sm:mb-6 md:mb-8 leading-relaxed">
                             {subtitle}
                         </p>
                     )}
                     {buttonText && (
-                        <Button size="lg" asChild className="rounded-full px-5 sm:px-8 md:px-10 py-2.5 sm:py-4 md:py-6 font-black text-xs sm:text-sm md:text-lg gap-2 shadow-2xl hover:scale-105 transition-transform border-none" style={{ backgroundColor: baseConfig.buttonBgColor || '#e31837', color: baseConfig.buttonTextColor || '#fff' }}>
+                        <Button size="lg" asChild className="rounded-full px-5 sm:px-8 md:px-10 py-2.5 sm:py-4 md:py-6 font-black text-sm sm:text-base md:text-lg gap-2 shadow-2xl hover:scale-105 transition-transform border-none" style={{ backgroundColor: baseConfig.buttonBgColor || '#e31837', color: baseConfig.buttonTextColor || '#fff' }}>
                             <Link href={buttonLink || "/search"}>
                                 {buttonText}
                             </Link>
@@ -376,15 +375,15 @@ function BentoHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, glob
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10" />
                             <div className="relative z-20 text-white animate-in slide-in-from-bottom duration-700 w-full">
-                                <h2 className="text-base sm:text-lg md:text-2xl lg:text-5xl font-black mb-2 sm:mb-3 md:mb-4 drop-shadow-md leading-tight">
+                                <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-5xl font-black mb-2 sm:mb-3 md:mb-4 drop-shadow-md leading-tight">
                                     {slide.title || baseConfig.mainTitle}
                                 </h2>
                                 {(slide.subtitle || baseConfig.mainSubtitle) && (
-                                    <p className="text-[10px] sm:text-xs md:text-sm lg:text-base font-bold mb-3 sm:mb-4 md:mb-6 lg:mb-8 opacity-90 max-w-full sm:max-w-sm md:max-w-lg drop-shadow-sm leading-relaxed">
+                                    <p className="text-xs sm:text-sm md:text-base lg:text-lg font-bold mb-3 sm:mb-4 md:mb-6 lg:mb-8 opacity-90 max-w-full sm:max-w-sm md:max-w-lg drop-shadow-sm leading-relaxed">
                                         {slide.subtitle || baseConfig.mainSubtitle}
                                     </p>
                                 )}
-                                <Button asChild size="lg" className="w-fit bg-primary text-white hover:bg-primary/90 border-none rounded-xl font-black h-8 sm:h-10 md:h-12 px-4 sm:px-6 md:px-8 text-xs sm:text-sm md:text-base shadow-xl transition-all active:scale-95" style={{ backgroundColor: baseConfig.buttonBgColor || '#e31837', color: baseConfig.buttonTextColor || '#fff' }}>
+                                <Button asChild size="lg" className="w-fit bg-primary text-white hover:bg-primary/90 border-none rounded-xl font-black h-9 sm:h-10 md:h-12 px-5 sm:px-6 md:px-8 text-sm sm:text-base md:text-lg shadow-xl transition-all active:scale-95" style={{ backgroundColor: baseConfig.buttonBgColor || '#e31837', color: baseConfig.buttonTextColor || '#fff' }}>
                                     <Link href={slide.buttonLink || baseConfig.mainButtonLink || '#'}>
                                         {slide.buttonText || baseConfig.mainButtonText || "Découvrir"}
                                     </Link>
@@ -461,17 +460,17 @@ function FullWidthHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, 
                         )}
                         <div className={`relative z-20 text-center p-4 sm:p-6 md:p-8 max-w-3xl text-white w-full`}>
                             {(slide.title || baseConfig.title) && (
-                                <h2 className="text-lg sm:text-2xl md:text-4xl lg:text-7xl font-black mb-2 sm:mb-3 md:mb-4 tracking-tighter drop-shadow-2xl uppercase transition-transform group-hover:scale-[1.01] duration-700 leading-tight">
+                                <h2 className="text-2xl sm:text-3xl md:text-5xl lg:text-7xl font-black mb-2 sm:mb-3 md:mb-4 tracking-tighter drop-shadow-2xl uppercase transition-transform group-hover:scale-[1.01] duration-700 leading-tight">
                                     {slide.title || baseConfig.title}
                                 </h2>
                             )}
                             {(slide.subtitle || baseConfig.subtitle) && (
-                                <p className="text-xs sm:text-sm md:text-lg lg:text-xl font-bold mb-3 sm:mb-4 md:mb-6 lg:mb-8 opacity-90 drop-shadow-md tracking-tight leading-relaxed max-w-full">
+                                <p className="text-sm sm:text-base md:text-xl lg:text-2xl font-bold mb-3 sm:mb-4 md:mb-6 lg:mb-8 opacity-90 drop-shadow-md tracking-tight leading-relaxed max-w-full">
                                     {slide.subtitle || baseConfig.subtitle}
                                 </p>
                             )}
                             {(slide.buttonText || baseConfig.buttonText) && (
-                                <Button asChild size="lg" className="rounded-2xl bg-primary text-white hover:scale-105 transition-all shadow-2xl h-8 sm:h-10 md:h-12 lg:h-14 px-4 sm:px-6 md:px-8 lg:px-12 font-black text-xs sm:text-sm md:text-lg active:scale-95" style={{ backgroundColor: baseConfig.buttonBgColor || '#e31837', color: baseConfig.buttonTextColor || '#fff' }}>
+                                <Button asChild size="lg" className="rounded-2xl bg-primary text-white hover:scale-105 transition-all shadow-2xl h-10 sm:h-12 md:h-14 px-6 sm:px-8 md:px-12 font-black text-sm sm:text-base md:text-xl active:scale-95" style={{ backgroundColor: baseConfig.buttonBgColor || '#e31837', color: baseConfig.buttonTextColor || '#fff' }}>
                                     <Link href={slide.buttonLink || baseConfig.buttonLink || '#'}>
                                         {slide.buttonText || baseConfig.buttonText}
                                     </Link>

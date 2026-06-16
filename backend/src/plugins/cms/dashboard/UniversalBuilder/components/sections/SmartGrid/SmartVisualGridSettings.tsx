@@ -267,6 +267,8 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
             isGrouped: true,
             groupStyle: 'pillule',
             activeColor: '#ef4444', // Default to a brand color, e.g., red
+            tabAlignment: 'left',
+            tabLayout: 'scroll',
             tabs: [
                 { id: 't_' + Date.now(), label: 'Onglet par défaut', craftState: defaultCraftState && defaultCraftState !== '{}' ? defaultCraftState : '' }
             ]
@@ -341,15 +343,38 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
                             Gérez plusieurs grilles et affichez-les sous forme d'onglets (pillules ou rectangles).
                         </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Style des onglets :</label>
+                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Alignement :</label>
+                            <select 
+                                value={config.tabAlignment || 'left'} 
+                                onChange={(e) => updateConfig({...config, tabAlignment: e.target.value})}
+                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            >
+                                <option value="left">Gauche</option>
+                                <option value="center">Centre</option>
+                                <option value="right">Droite</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Disposition :</label>
+                            <select 
+                                value={config.tabLayout || 'wrap'} 
+                                onChange={(e) => updateConfig({...config, tabLayout: e.target.value})}
+                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            >
+                                <option value="scroll">Défilement H.</option>
+                                <option value="wrap">À la ligne</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Style :</label>
                             <select 
                                 value={config.groupStyle || 'pillule'} 
                                 onChange={(e) => updateConfig({...config, groupStyle: e.target.value})}
                                 style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
                             >
-                                <option value="pillule">Pillules (Arrondies)</option>
+                                <option value="pillule">Pillules</option>
                                 <option value="rectangle">Rectangles</option>
                             </select>
                         </div>
@@ -369,7 +394,7 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
                 </div>
 
                 {/* Tabs List */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexWrap: config.tabLayout === 'scroll' ? 'nowrap' : 'wrap', overflowX: config.tabLayout === 'scroll' ? 'auto' : 'visible', gap: '8px', alignItems: 'center', justifyContent: config.tabAlignment === 'center' ? 'center' : config.tabAlignment === 'right' ? 'flex-end' : 'flex-start', paddingBottom: config.tabLayout === 'scroll' ? '8px' : '0' }}>
                     {config.tabs.map((tab: any) => (
                         <div 
                             key={tab.id}

@@ -291,16 +291,16 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     if (!activeFlash.title && !activeFlash.subtitle && !activeFlash.endTime && flashProducts.length === 0 && !loading) return null;
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 relative group/carousel">
+        <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 relative group/carousel">
             {/* Header section */}
             <div 
-                className={`flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-4 overflow-hidden relative ${
+                className={`flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-3 overflow-hidden relative ${
                     activeFlash.isSimpleMode 
                     ? 'bg-transparent py-2 border-b border-border/40' 
-                    : 'rounded-t-2xl p-3 sm:p-4 md:p-6 shadow-sm'
+                    : 'rounded-t-xl p-2.5 sm:p-3 md:p-4 shadow-sm'
                 }`}
                 style={{ 
-                    backgroundColor: activeFlash.isSimpleMode ? 'transparent' : (activeFlash.bgColor || '#000'),
+                    backgroundColor: activeFlash.isSimpleMode ? 'transparent' : (activeFlash.bgColor || '#0f172a'),
                     backgroundImage: (!activeFlash.isSimpleMode && activeFlash?.bgImageUrl && !isGif(activeFlash.bgImageUrl)) ? `url(${getAssetUrl(activeFlash.bgImageUrl)})` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -316,13 +316,13 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
 
                 <div className="flex items-center gap-3 sm:gap-4 relative z-10">
                     {!activeFlash.isSimpleMode && (
-                        <div className="bg-primary p-1.5 sm:p-2 rounded-lg shadow-lg">
-                            <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white fill-white" />
+                        <div className="bg-primary p-1.5 sm:p-2 rounded-full shadow-sm">
+                            <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white" />
                         </div>
                     )}
                     <div>
                         <h2 className={`font-black tracking-tight flex items-center gap-2 ${
-                            activeFlash.isSimpleMode ? 'text-base sm:text-xl text-black' : 'text-base sm:text-xl md:text-2xl text-white'
+                            activeFlash.isSimpleMode ? 'text-sm sm:text-lg text-black' : 'text-sm sm:text-lg md:text-xl text-white'
                         }`}>
                             {activeFlash?.title || "Ventes Flash"}
                         </h2>
@@ -399,10 +399,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             {/* Product Carousel / Grid */}
             <div 
                 ref={activeFlash.displayLayout !== 'vertical_grid' ? scrollContainerRef : null}
-                className={`${activeFlash.displayLayout === 'vertical_grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 overflow-visible' : 'flex overflow-x-auto snap-x snap-mandatory'} gap-2 sm:gap-3 md:gap-4 pb-2 ${
+                className={`${activeFlash.displayLayout === 'vertical_grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 overflow-visible' : 'flex overflow-x-auto snap-x snap-mandatory'} gap-3 sm:gap-4 pb-4 ${
                     activeFlash.isSimpleMode 
-                    ? 'pt-4' 
-                    : 'bg-white/50 backdrop-blur-sm border-x border-b border-border/30 rounded-b-2xl p-2 sm:p-3 md:p-4'
+                    ? 'pt-5' 
+                    : 'bg-white border-x border-b border-border/30 rounded-b-xl p-3 sm:p-4 md:p-5'
                 }`}
                 style={activeFlash.displayLayout !== 'vertical_grid' ? {
                     scrollbarWidth: 'none',
@@ -427,7 +427,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         <Link
                             key={isPlaceholder ? i : p.id}
                             href={isPlaceholder ? "#" : `/product/${p.slug}`}
-                            className={`${activeFlash.displayLayout === 'vertical_grid' ? 'w-full' : 'snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]'} group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/20 hover:border-primary/20 hover:shadow-lg transition-all duration-300`}
+                            className={`${activeFlash.displayLayout === 'vertical_grid' ? 'w-full' : 'snap-start flex-shrink-0 w-[120px] sm:w-[130px] md:w-[145px] lg:w-[160px]'} group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/30 hover:border-primary/30 hover:shadow-md transition-all duration-300`}
                         >
                             <div className="relative aspect-square bg-muted/10 overflow-hidden flex items-center justify-center">
                                 {activeFlash.discountPercentage && activeFlash.discountPercentage > 0 && (
@@ -441,26 +441,25 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 ) : (
                                     <img 
                                         src={getAssetUrl(p.assets?.[0]?.preview || defaultImage)} 
-                                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-1.5" 
+                                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-1" 
                                         alt={p.name} 
                                     />
                                 )}
                             </div>
                             
                             <div className="flex flex-col p-1.5 sm:p-2 flex-1">
-                                <h4 className="text-[12px] sm:text-[13px] md:text-[14px] font-bold text-secondary line-clamp-2 min-h-[28px] sm:min-h-[36px] leading-tight mb-1 group-hover:text-primary transition-colors">
+                                <h4 className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-secondary line-clamp-2 leading-tight mb-0 group-hover:text-primary transition-colors">
                                     {isPlaceholder ? `Produit #${i+1}` : p.name}
                                 </h4>
                                 
-                                <div className="mt-auto space-y-0.5 sm:space-y-1">
-                                    <div className="flex flex-col justify-end min-h-[30px]">
+                                <div className="mt-auto flex flex-col justify-end">
                                         {activeFlash.showPromotionalPrice && activeFlash.discountPercentage > 0 ? (
                                             <>
-                                                <span className="font-bold text-[10px] sm:text-[11px] md:text-[12px] text-muted-foreground line-through opacity-70">
+                                                <span className="font-bold text-[11px] sm:text-[12px] md:text-[13px] text-muted-foreground line-through opacity-70">
                                                     {isPlaceholder ? price : price.toLocaleString()} XOF
                                                 </span>
-                                                <span className="font-black text-[13px] sm:text-[15px] md:text-[18px] text-red-600 tracking-tight leading-none mt-0.5">
-                                                    {isPlaceholder ? Math.round(price * (1 - activeFlash.discountPercentage / 100)) : Math.round(price * (1 - activeFlash.discountPercentage / 100)).toLocaleString()} <span className="text-[8px] sm:text-[10px] font-bold">XOF</span>
+                                                <span className="font-black text-[14px] sm:text-[16px] md:text-[18px] text-red-600 tracking-tight leading-none mt-0">
+                                                    {isPlaceholder ? Math.round(price * (1 - activeFlash.discountPercentage / 100)) : Math.round(price * (1 - activeFlash.discountPercentage / 100)).toLocaleString()} <span className="text-[9px] sm:text-[10px] font-bold">XOF</span>
                                                 </span>
                                             </>
                                         ) : (
@@ -468,14 +467,13 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                                 {isPlaceholder ? price : price.toLocaleString()} <span className="text-[8px] sm:text-[10px] font-bold">XOF</span>
                                             </span>
                                         )}
-                                    </div>
 
                                     {/* Stock Status */}
-                                    <div>
-                                        <span className={`text-[6px] sm:text-[7px] font-bold uppercase tracking-tight ${
+                                    <div className="mt-0 pt-0">
+                                        <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${
                                             isPlaceholder ? 'text-green-600' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'text-green-600' : 'text-red-600')
                                         }`}>
-                                            {isPlaceholder ? 'En stock' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'En stock' : 'Rupture')}
+                                            {isPlaceholder ? 'EN STOCK' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'EN STOCK' : 'RUPTURE')}
                                         </span>
                                     </div>
                                 </div>

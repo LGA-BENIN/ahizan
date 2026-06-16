@@ -167,7 +167,7 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
 
                 {/* GROUP TABS SELECTOR */}
                 {isGrouped && parsedConfig.tabs?.length > 1 && (
-                    <div className="flex flex-wrap justify-center gap-3 mb-8 px-4">
+                    <div className={`flex ${parsedConfig.tabLayout === 'wrap' ? 'flex-wrap' : 'flex-nowrap overflow-x-auto scrollbar-hide pb-2'} ${parsedConfig.tabAlignment === 'center' ? 'justify-center' : parsedConfig.tabAlignment === 'right' ? 'justify-end' : 'justify-start'} gap-3 mb-6 px-4`}>
                         {parsedConfig.tabs.map((tab: any) => {
                             const isActive = tab.id === activeTabId;
                             const isPill = parsedConfig.groupStyle !== 'rectangle';
@@ -198,7 +198,7 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                     <>
                         <button 
                             onClick={() => scroll('left')}
-                            className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 hidden md:flex items-center justify-center transition-all ${
+                            className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 hidden md:flex items-center justify-center transition-all ${
                                 carouselArrows === 'circle' ? 'w-10 h-10 rounded-full bg-white shadow-md text-gray-800 hover:scale-110' :
                                 carouselArrows === 'square' ? 'w-10 h-10 rounded-md bg-white shadow-md text-gray-800 hover:scale-110' :
                                 'text-gray-600 hover:text-black'
@@ -208,7 +208,7 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                         </button>
                         <button 
                             onClick={() => scroll('right')}
-                            className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 hidden md:flex items-center justify-center transition-all ${
+                            className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 hidden md:flex items-center justify-center transition-all ${
                                 carouselArrows === 'circle' ? 'w-10 h-10 rounded-full bg-white shadow-md text-gray-800 hover:scale-110' :
                                 carouselArrows === 'square' ? 'w-10 h-10 rounded-md bg-white shadow-md text-gray-800 hover:scale-110' :
                                 'text-gray-600 hover:text-black'

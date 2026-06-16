@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from "next/link";
 import { Toaster } from "@/components/ui/sonner";
 import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
+import { HeaderWrapper } from "@/components/ahizan/HeaderWrapper";
 import { AhizanPreloader } from "@/components/ahizan/Preloader";
 import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
 import { MobileCategorySidebar } from "@/components/ahizan/MobileCategorySidebar";
@@ -13,6 +14,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { SITE_NAME, SITE_URL } from "@/lib/metadata";
 import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
 import { CookieConsent } from "@/components/ahizan/cookie-consent";
+import { ScrollToTop } from "@/components/ahizan/ScrollToTop";
 import { getPageContent, ThemeSettingsData, FooterConfData, HeaderConfData } from "@/lib/vendure/cms-queries";
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
@@ -61,9 +63,21 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
         else if (bgType === 'video') bgValue = theme.backgroundVideoUrl || '';
     }
 
+    const maxW = theme?.layoutMode === 'full' ? '100%' : theme?.layoutMode === 'wide' ? '1440px' : (theme?.maxWidth || '1280px');
+
+    // Extract font families (remove fallbacks like ", sans-serif")
+    const mainFont = theme?.fontFamily?.split(',')[0].replace(/['"]/g, '').trim() || 'Inter';
+    const headingFont = theme?.headingFontFamily?.split(',')[0].replace(/['"]/g, '').trim() || mainFont;
+    
+    // Construct Google Fonts URL for dynamic loading
+    const fontsToLoad = Array.from(new Set([mainFont, headingFont]))
+        .filter(f => f !== 'system-ui' && f !== 'sans-serif' && f !== 'serif' && f !== 'monospace')
+        .map(f => `family=${f.replace(/ /g, '+')}:wght@400;500;600;700;800;900`)
+        .join('&');
+    const googleFontsUrl = fontsToLoad ? `https://fonts.googleapis.com/css2?${fontsToLoad}&display=swap` : '';
+
     const headerConfig = sections.find(s => s.type === 'HEADER_CONF')?.data as HeaderConfData;
 
-    const maxW = theme?.layoutMode === 'full' ? '100%' : theme?.layoutMode === 'wide' ? '1440px' : (theme?.maxWidth || '1280px');
     const themeStyles = {
         '--primary': theme?.primaryColor || "#0f172a",
         '--brand-primary': theme?.primaryColor || "#0f172a",
@@ -93,12 +107,16 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
 
     return (
         <div
-            className="flex flex-col min-h-screen relative overflow-x-hidden"
+            className="flex flex-col min-h-screen relative font-sans"
             style={themeStyles}
         >
+            {googleFontsUrl && (
+                <link rel="stylesheet" href={googleFontsUrl} />
+            )}
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
                 <ThemeProvider themeSettings={{ defaultProductImage: theme?.defaultProductImage }}>
                     <MobileMenuProvider>
+                    <AhizanPreloader config={{ preloader: theme?.preloader }} />
                     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
                         {bgType === 'color' && (
                             <div className="absolute inset-0" style={{ background: bgValue }} />
@@ -124,14 +142,14 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     </div>
 
                     <MobileMenuHeader>
-                        <div className="sticky top-0 z-50 w-full shadow-sm">
+                        <HeaderWrapper config={headerConfig}>
                             <TopFlashBanner config={headerConfig?.topBar} />
                             <AhizanNavbar
                                 config={headerConfig}
                                 customer={customer}
                                 order={order}
                             />
-                        </div>
+                        </HeaderWrapper>
                     </MobileMenuHeader>
 
                     {/* Global mobile category sidebar - available on all pages */}
@@ -151,6 +169,7 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                         <GlobalPopupProvider />
                     </Suspense>
                     <CookieConsent config={theme?.cookieConsent} />
+                    <ScrollToTop config={theme?.scrollToTop} />
                 </MobileMenuProvider>
                 </ThemeProvider>
             </NextThemesProvider>

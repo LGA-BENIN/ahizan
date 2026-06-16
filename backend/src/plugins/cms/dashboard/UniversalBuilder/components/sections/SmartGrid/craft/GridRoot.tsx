@@ -1,29 +1,179 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useRef } from 'react';
 import { useNode, useEditor } from '@craftjs/core';
 import { MediaUploadField } from '../../MediaUploadField';
-import { fetchGraphQL } from '../../../../../lib/utils';
+import { fetchGraphQL, getBackendBaseUrl } from '../../../../../lib/utils';
 import { GridItem } from './GridItem';
 
 export const GridGlobalContext = createContext<any>({});
 
-async function fetchCollectionsFromAdminApi() {
-    try {
-        const data = await fetchGraphQL(`query { cmsCollectionsTree { id name slug featuredAsset { id preview } children { id name slug featuredAsset { id preview } } } }`);
-        const tree = data?.cmsCollectionsTree || [];
-        const flat: any[] = [];
-        const flatten = (nodes: any[]) => {
-            for (const node of nodes) {
-                flat.push(node);
-                if (node.children && node.children.length > 0) flatten(node.children);
+const SEARCH_PRODUCTS = `
+query SearchProductsAdmin($term: String!) {
+  search(input: { term: $term, take: 10, groupByProduct: true }) {
+    items {
+      productId
+      productName
+      slug
+      productAsset {
+        preview
+      }
+    }
+  }
+}
+`;
+
+const FETCH_COLLECTIONS = `query { cmsCollectionsTree { id name slug featuredAsset { id preview } children { id name slug featuredAsset { id preview } } } }`;
+
+const CatalogSearchField = ({ onSelect }: { onSelect: (data: { title: string, url: string, image: string }) => void }) => {
+    const [type, setType] = useState<'product' | 'collection'>('product');
+    const [term, setTerm] = useState('');
+    const [results, setResults] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const [allCollections, setAllCollections] = useState<any[]>([]);
+
+    useEffect(() => {
+        // Fetch all collections once to filter locally
+        fetchGraphQL(FETCH_COLLECTIONS).then(data => {
+            const tree = data?.cmsCollectionsTree || [];
+            const flat: any[] = [];
+            const flatten = (nodes: any[]) => {
+                for (const node of nodes) {
+                    flat.push(node);
+                    if (node.children && node.children.length > 0) flatten(node.children);
+                }
+            };
+            flatten(tree);
+            setAllCollections(flat);
+        }).catch(err => console.error("Error fetching collections", err));
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (event: any) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+                setIsOpen(false);
             }
         };
-        flatten(tree);
-        return flat;
-    } catch (err) {
-        console.error('Error fetching collections:', err);
-        return [];
-    }
-}
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        if (!term.trim() || term.length < 2) {
+            setResults([]);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setLoading(true);
+            try {
+                if (type === 'product') {
+                    // Fetch products from shop-api directly to avoid any Admin API permission/schema issues
+                    const shopApiUrl = getBackendBaseUrl() + '/shop-api';
+                    const shopRes = await fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: SEARCH_PRODUCTS,
+                            variables: { term }
+                        })
+                    });
+                    const shopJson = await shopRes.json();
+                    
+                    if (shopJson.errors) {
+                        console.error("Shop API errors:", shopJson.errors);
+                        throw new Error(shopJson.errors[0].message);
+                    }
+                    
+                    const items = shopJson?.data?.search?.items || [];
+                    setResults(items.map((i: any) => ({
+                        id: i.productId,
+                        name: i.productName,
+                        slug: i.slug,
+                        preview: i.productAsset?.preview
+                    })));
+                } else {
+                    const filtered = allCollections.filter(c => c.name.toLowerCase().includes(term.toLowerCase())).slice(0, 10);
+                    setResults(filtered.map((c: any) => ({
+                        id: c.id,
+                        name: c.name,
+                        slug: c.slug,
+                        preview: c.featuredAsset?.preview
+                    })));
+                }
+                setIsOpen(true);
+            } catch (e) {
+                console.error("Search error:", e);
+            }
+            setLoading(false);
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [term, type, allCollections]);
+
+    return (
+        <div ref={wrapperRef} style={{ position: 'relative', marginBottom: '1rem' }}>
+            <label className="label-pro">Rechercher & Ajouter</label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <select 
+                    className="input-pro" 
+                    style={{ width: '110px' }} 
+                    value={type} 
+                    onChange={e => { setType(e.target.value as any); setTerm(''); setResults([]); }}
+                >
+                    <option value="product">Produit</option>
+                    <option value="collection">Collection</option>
+                </select>
+                <input 
+                    type="text" 
+                    className="input-pro" 
+                    style={{ flex: 1, minWidth: 0 }} 
+                    placeholder="Tapez un nom..." 
+                    value={term}
+                    onChange={e => { setTerm(e.target.value); setIsOpen(true); }}
+                    onFocus={() => { if (results.length > 0) setIsOpen(true); }}
+                />
+            </div>
+            {loading && <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center' }}>Recherche en cours...</div>}
+            
+            {isOpen && results.length > 0 && (
+                <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, 
+                    backgroundColor: '#fff', border: '1px solid #e2e8f0', 
+                    borderRadius: '6px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                    maxHeight: '200px', overflowY: 'auto', zIndex: 100
+                }}>
+                    {results.map(item => (
+                        <div 
+                            key={item.id}
+                            style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                            onClick={() => {
+                                onSelect({
+                                    title: item.name,
+                                    url: `/${type}/${item.slug}`,
+                                    image: item.preview || ''
+                                });
+                                setIsOpen(false);
+                                setTerm('');
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                            {item.preview ? (
+                                <img src={item.preview} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} alt="" />
+                            ) : (
+                                <div style={{ width: '32px', height: '32px', backgroundColor: '#f1f5f9', borderRadius: '4px', flexShrink: 0 }} />
+                            )}
+                            <div style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.name}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 export interface GridRootProps {
     columnsDesktop: number;
@@ -230,16 +380,6 @@ export const GridRootSettings = () => {
         props: node.data.props as GridRootProps
     }));
 
-    const [availableCollections, setAvailableCollections] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        fetchCollectionsFromAdminApi().then(cols => {
-            setAvailableCollections(cols);
-            setLoading(false);
-        });
-    }, []);
-
     const addManualCard = () => {
         const nodeTree = query.parseReactElement(
             <GridItem 
@@ -262,12 +402,12 @@ export const GridRootSettings = () => {
         actions.addNodeTree(nodeTree, id);
     };
 
-    const addCollectionCard = (col: any) => {
+    const addEntityCard = (data: { title: string, url: string, image: string }) => {
         const nodeTree = query.parseReactElement(
             <GridItem 
-                titleText={col.name}
-                linkUrl={`/collection/${col.slug}`}
-                imageUrl={col.featuredAsset?.preview || ''}
+                titleText={data.title}
+                linkUrl={data.url}
+                imageUrl={data.image}
                 bgColor="transparent"
                 descText=""
                 borderWidth={0}
@@ -374,29 +514,7 @@ export const GridRootSettings = () => {
                     + Ajouter une Carte Vierge
                 </button>
 
-                <label className="label-pro">Ajouter une Collection (Cliquez pour insérer)</label>
-                {loading ? (
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>Chargement...</div>
-                ) : availableCollections.length === 0 ? (
-                    <div style={{ fontSize: '12px', color: '#ef4444' }}>Aucune collection trouvée.</div>
-                ) : (
-                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '4px', background: '#fff', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {availableCollections.map(col => {
-                            return (
-                                <button 
-                                    key={col.slug} 
-                                    onClick={() => addCollectionCard(col)}
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '8px', fontSize: '13px', padding: '6px 8px', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', textAlign: 'left', transition: 'background 0.2s' }}
-                                    onMouseOver={(e) => e.currentTarget.style.background = '#e2e8f0'}
-                                    onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
-                                >
-                                    <span style={{ fontSize: '16px' }}>+</span>
-                                    {col.name}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
+                <CatalogSearchField onSelect={addEntityCard} />
             </div>
 
             <div className="settings-card">

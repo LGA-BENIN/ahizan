@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
-import { getShopApiUrl } from "@/lib/vendure/api-utils";
+import { getShopApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 
 interface CmsProductGridProps {
     config: {
@@ -165,7 +165,7 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
     const isBgGif = isGif(config.bgImageUrl);
     const bgStyle: any = {};
     if (config.bgType === 'image' && config.bgImageUrl && !isBgGif) {
-        bgStyle.backgroundImage = `url(${config.bgImageUrl})`;
+        bgStyle.backgroundImage = `url(${getAssetUrl(config.bgImageUrl)})`;
         bgStyle.backgroundSize = 'cover';
         bgStyle.backgroundPosition = 'center';
     } else if (config.bgColor) {
@@ -176,7 +176,7 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
         <div className="animate-in fade-in slide-in-from-bottom-6 duration-700 rounded-xl p-4 md:p-6 relative overflow-hidden group/carousel" style={bgStyle}>
             {/* GIF Background */}
             {config.bgType === 'image' && config.bgImageUrl && isBgGif && (
-                <img src={config.bgImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
+                <img src={getAssetUrl(config.bgImageUrl)} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
             )}
             {/* Section Header */}
             {config.headerStyle === 'centered' ? (

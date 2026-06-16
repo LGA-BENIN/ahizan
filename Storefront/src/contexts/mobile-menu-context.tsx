@@ -47,5 +47,8 @@ export function useMobileMenu() {
 export function MobileMenuHeader({ children }: { children: ReactNode }) {
     const { mobileMenuOpen } = useMobileMenu();
     // Hide header on mobile when menu is open
-    return <div className={`${mobileMenuOpen ? 'hidden lg:block' : ''}`}>{children}</div>;
+    if (mobileMenuOpen) {
+        return <div className="hidden lg:block w-full">{children}</div>;
+    }
+    return <>{children}</>;
 }

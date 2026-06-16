@@ -186,7 +186,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             const hasBanners = (config.promoBanners && config.promoBanners.length > 0) || config.promoBanner;
             if (!config.showPromoBanners && !config.showPromoBanner && !hasBanners) return null;
             return (
-                <section className={`${wrapper} mt-6 md:mt-8`}>
+                <section className={`${wrapper} mt-3 md:mt-4`}>
                     <QuickLinks promoConfig={config} />
                 </section>
             );

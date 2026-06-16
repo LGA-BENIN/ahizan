@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { AhizanHome } from "@/components/ahizan/AhizanHome";
 import { AhizanNavbar } from "@/components/ahizan/AhizanNavbar";
+import { HeaderWrapper } from "@/components/ahizan/HeaderWrapper";
 import { TopFlashBanner } from "@/components/ahizan/TopFlashBanner";
 import { MobileBottomNav } from "@/components/ahizan/MobileBottomNav";
 import { MobileCategorySidebar } from "@/components/ahizan/MobileCategorySidebar";
@@ -235,10 +236,10 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
             </div>
 
             {/* Header from habillage (not live storefront) */}
-            <div className="sticky top-[36px] z-50 w-full shadow-sm">
+            <HeaderWrapper config={headerConfig} isPreview={true}>
                 <TopFlashBanner config={headerConfig?.topBar} />
                 <AhizanNavbar config={headerConfig} customer={null} order={null} />
-            </div>
+            </HeaderWrapper>
 
             <MobileCategorySidebar categories={[]} />
 

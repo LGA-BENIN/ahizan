@@ -110,20 +110,40 @@ export interface HeaderColumn {
 export interface HeaderConfData {
     siteName?: string;
     logoUrl?: string;
+    logoWidth?: string;
+    logoHeight?: string;
     sticky?: boolean;
-    layoutType?: 'standard' | 'columns';
+    stickyStyle?: 'none' | 'solid' | 'transparent-to-solid' | 'shrink';
+    headerBgColor?: string;
+    headerTextColor?: string;
+    headerBorderColor?: string;
+    headerShadow?: boolean;
+    headerHeight?: string;
+    headerPadding?: string;
+    layoutType?: 'standard' | 'minimalist' | 'mega' | 'split' | 'columns';
     columnCount?: number;
     columnsData?: HeaderColumn[];
-    menuItems?: Array<{ label: string; link: string; children?: Array<{ label: string; link: string }> }>;
+    menuItems?: Array<{ label: string; link: string; style?: string; bgColor?: string; textColor?: string; isHighlighted?: boolean; children?: Array<{ label: string; link: string }> }>;
     showSearch?: boolean;
     searchPlaceholder?: string;
+    searchStyle?: string;
+    searchBgColor?: string;
+    showCartIcon?: boolean;
+    showWishlistIcon?: boolean;
+    showAccountIcon?: boolean;
+    cartBadgeColor?: string;
     showVendorLink?: boolean;
     vendorLinkText?: string;
     vendorLinkUrl?: string;
+    vendorLinkStyle?: string;
     helpLinks?: Array<{ label: string; link: string }>;
-    topBar?: any;
+    mobileMenuStyle?: string;
     mobileNavStyle?: string;
+    mobileBreakpoint?: string;
+    topBar?: any;
+    categoryBar?: any;
 }
+
 
 export interface FooterConfData {
     about?: string;
@@ -204,7 +224,8 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
     try {
         const result = await query(
             GetPageBySlugQuery, 
-            { slug }
+            { slug },
+            { fetch: { cache: 'no-store' } }
         ) as any;
         console.log(`[getPageContent] Raw API result for slug "${slug}":`, result);
 

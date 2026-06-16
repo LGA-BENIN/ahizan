@@ -21,7 +21,17 @@ export function AhizanNavbar({
     const { mobileMenuOpen, setMobileMenuOpen, setLogoUrl } = useMobileMenu();
     const [searchQuery, setSearchQuery] = useState("");
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const [isScrolled, setIsScrolled] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 20);
+        };
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        handleScroll();
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
 
     // Set logo URL in context when config changes
     useEffect(() => {
@@ -77,6 +87,29 @@ export function AhizanNavbar({
     const mobileNavStyle = config?.mobileNavStyle || 'bottom';
     const showTopIconsOnMobile = mobileNavStyle === 'top' || mobileNavStyle === 'both';
 
+    const stickyStyleSetting = config?.stickyStyle || 'solid';
+    const isStickySetting = config?.sticky !== false && stickyStyleSetting !== 'none';
+    const isTransparentState = isStickySetting && stickyStyleSetting === 'transparent-to-solid' && !isScrolled;
+
+    let currentBgColor = headerBgColor;
+    let currentTextColor = headerTextColor;
+    let currentBorderColor = headerBorderColor;
+
+    if (isTransparentState) {
+        currentBgColor = 'transparent';
+        currentBorderColor = 'transparent';
+        currentTextColor = '#ffffff';
+    }
+
+    let currentHeight = headerHeight || '64px';
+    if (isStickySetting && stickyStyleSetting === 'shrink' && isScrolled) {
+        if (headerHeight === '72px') currentHeight = '56px';
+        else if (headerHeight === '64px') currentHeight = '50px';
+        else if (headerHeight === '56px') currentHeight = '48px';
+        else if (headerHeight === '48px') currentHeight = '44px';
+        else currentHeight = '50px';
+    }
+
     return (
         <div className="w-full flex flex-col font-sans animate-in fade-in duration-700">
             {/* Top Navigation Menu Items */}
@@ -117,16 +150,16 @@ export function AhizanNavbar({
 
             {/* Main Header */}
             <div
-                className={`w-full ${headerShadow ? 'shadow-sm' : ''} sticky top-0 z-50 animate-in slide-in-from-top-2 duration-500 ${mobileMenuOpen ? 'hidden lg:block' : ''}`}
+                className={`w-full transition-all duration-300 animate-in slide-in-from-top-2 duration-500 ${mobileMenuOpen ? 'hidden lg:block' : ''}`}
                 style={{
-                    backgroundColor: headerBgColor,
-                    color: headerTextColor,
-                    borderBottom: `1px solid ${headerBorderColor}`
+                    backgroundColor: currentBgColor,
+                    color: currentTextColor,
+                    borderBottom: `1px solid ${currentBorderColor}`
                 }}
             >
                 <div 
-                    className="max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12"
-                    style={{ minHeight: headerHeight || '56px' }}
+                    className="max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 transition-all duration-300"
+                    style={{ minHeight: currentHeight }}
                 >
                     {/* Mobile Layout */}
                     <div className="lg:hidden flex flex-col gap-2 py-2">
@@ -154,7 +187,12 @@ export function AhizanNavbar({
                                 )}
                                 <Link href="/" className={`flex items-center gap-1.5 flex-shrink-0 ${showTopIconsOnMobile ? 'ml-1' : ''}`}>
                                     {logoUrl ? (
-                                        <img src={getAssetUrl(logoUrl)} className="h-8 w-auto object-contain" alt={siteName} />
+                                        <img 
+                                            src={getAssetUrl(logoUrl)} 
+                                            className="h-8 w-auto object-contain transition-all duration-300" 
+                                            alt={siteName} 
+                                            style={isTransparentState ? { filter: 'brightness(0) invert(1)' } : undefined}
+                                        />
                                     ) : (
                                         <>
                                             <ShoppingBag className="w-5 h-5" />
@@ -216,10 +254,9 @@ export function AhizanNavbar({
                             </div>
                         )}
                     </div>
-
-                    {/* Desktop/Tablet Layout */}
-                    <div className="hidden lg:flex items-center gap-6 md:gap-12"
-                        style={{ height: headerHeight, minHeight: '56px' }}
+                     {/* Desktop/Tablet Layout */}
+                    <div className="hidden lg:flex items-center gap-6 md:gap-12 transition-all duration-300"
+                        style={{ height: currentHeight, minHeight: '56px' }}
                     >
                         {/* Mobile Menu Toggle Button - Hidden on desktop */}
                         <button
@@ -233,7 +270,12 @@ export function AhizanNavbar({
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-1.5 flex-shrink-0">
                             {logoUrl ? (
-                                <img src={getAssetUrl(logoUrl)} className="h-10 w-auto object-contain" alt={siteName} />
+                                <img 
+                                    src={getAssetUrl(logoUrl)} 
+                                    className="h-10 w-auto object-contain transition-all duration-300" 
+                                    alt={siteName} 
+                                    style={isTransparentState ? { filter: 'brightness(0) invert(1)' } : undefined}
+                                />
                             ) : (
                                 <>
                                     <ShoppingBag className="w-6 h-6" />

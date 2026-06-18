@@ -357,5 +357,6 @@ export const adminApiExtensions = `
         
         # Order Management (Admin status updates)
         updateOrderAdminStatus(orderId: ID!, status: String!): Boolean!
+        updateOrderSellerStatus(orderId: ID!, status: String!): Boolean!
     }
 `;

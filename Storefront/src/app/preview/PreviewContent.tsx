@@ -235,10 +235,9 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
                 </Button>
             </div>
 
-            {/* Header from habillage (not live storefront) */}
             <HeaderWrapper config={headerConfig} isPreview={true}>
                 <TopFlashBanner config={headerConfig?.topBar} />
-                <AhizanNavbar config={headerConfig} customer={null} order={null} />
+                <AhizanNavbar config={headerConfig} customer={null} order={null} isPreview={true} />
             </HeaderWrapper>
 
             <MobileCategorySidebar categories={[]} />

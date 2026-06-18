@@ -23,13 +23,12 @@ interface Product {
 }
 
 // --- GraphQL Fetcher ---
-async function fetchGraphQL(query: any, variables?: any) {
-    const apiUrl = 'http://localhost:3000/admin-api';
-    const response = await fetch(apiUrl, {
+async function fetchGraphQL(query: string, variables?: any) {
+    const response = await fetch('/admin-api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ query: query.loc.source.body, variables }),
+        body: JSON.stringify({ query, variables }),
     });
 
     if (!response.ok) {
@@ -49,17 +48,11 @@ function CategoryManager() {
     const [newCategorySlug, setNewCategorySlug] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const { data: collectionsData, isLoading: isLoadingCollections, error: collectionsError } = useQuery({
+    const { data: collectionsData, isLoading: isLoadingCollections } = useQuery({
         queryKey: ['collections'],
-        queryFn: async () => {
-            const result = await fetchGraphQL(GET_COLLECTIONS, {
-                options: {
-                    take: 100,
-                    skip: 0,
-                }
-            });
-            return result;
-        }
+        queryFn: () => fetchGraphQL(GET_COLLECTIONS, {
+            options: { take: 100, skip: 0 }
+        })
     });
 
     const collections = collectionsData?.collections?.items || [];
@@ -106,10 +99,10 @@ function CategoryManager() {
     };
 
     return (
-        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#374151', marginBottom: '16px' }}>Gérer les Collections (Catégories)</h2>
+        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', marginBottom: '14px', marginTop: 0 }}>📁 Gérer les Collections (Catégories)</h2>
             
-            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
+            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                 <input 
                     type="text" 
                     placeholder="Nom de la nouvelle collection..." 
@@ -119,39 +112,42 @@ function CategoryManager() {
                         if (!newCategorySlug) setNewCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
                     }}
                     disabled={isSubmitting}
-                    style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                    style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
                 />
                 <button 
                     type="submit" 
                     disabled={isSubmitting || !newCategoryName.trim()}
                     style={{ 
-                        padding: '8px 16px', 
-                        borderRadius: '6px', 
-                        background: '#4f46e5', 
+                        padding: '9px 16px', 
+                        borderRadius: '8px', 
+                        background: '#f97316', 
                         color: 'white', 
                         border: 'none', 
-                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                        opacity: isSubmitting ? 0.7 : 1
+                        cursor: isSubmitting || !newCategoryName.trim() ? 'not-allowed' : 'pointer',
+                        opacity: isSubmitting ? 0.7 : 1,
+                        fontSize: '14px',
+                        fontWeight: 600
                     }}
                 >
-                    {isSubmitting ? 'Création...' : 'Ajouter une collection'}
+                    {isSubmitting ? 'Création...' : 'Créer la collection'}
                 </button>
             </form>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {isLoadingCollections ? (
-                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Chargement des collections...</span>
+                    <span style={{ color: '#9ca3af', fontSize: '13px' }}>Chargement des collections...</span>
                 ) : collections.length === 0 ? (
-                    <span style={{ color: '#9ca3af', fontSize: '14px' }}>Aucune collection trouvée.</span>
+                    <span style={{ color: '#9ca3af', fontSize: '13px' }}>Aucune collection trouvée.</span>
                 ) : (
                     collections.map((coll: any) => (
                         <span key={coll.id} style={{ 
                             background: '#f3f4f6', 
-                            padding: '4px 10px', 
+                            padding: '4px 12px', 
                             borderRadius: '16px', 
-                            fontSize: '13px', 
+                            fontSize: '12px', 
                             color: '#4b5563',
-                            border: '1px solid #e5e7eb'
+                            border: '1px solid #e5e7eb',
+                            fontWeight: 500
                         }}>
                             {coll.name}
                         </span>
@@ -164,11 +160,12 @@ function CategoryManager() {
 
 // --- ProductList Component ---
 export function ProductListComponent() {
-    console.log('ProductListComponent rendering...');
+    const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
     const pageSize = 10;
     const [searchTerm, setSearchTerm] = useState('');
     const [vendorFilter, setVendorFilter] = useState('');
+    const [togglingId, setTogglingId] = useState<string | null>(null);
 
     // Setup Query Variables
     const queryVariables = {
@@ -184,22 +181,44 @@ export function ProductListComponent() {
         queryVariables.options.filter.name = { contains: searchTerm };
     }
 
-    // Note: Filtering by relation (customFields.vendor.name) might not be directly supported 
-    // by standard ProductListFilter without extra backend config. 
-    // For now we fetch and client-side filter if needed, or just display.
-    // Ideally we'd add `vendorId` filter to ProductListFilter in backend.
-
     const { data, isLoading, error } = useQuery({
         queryKey: ['products', page, searchTerm],
         queryFn: () => fetchGraphQL(GET_PRODUCTS, queryVariables),
     });
 
-    // Use products field instead of publicProducts
+    // Toggle product status (active/draft) using core UpdateProduct mutation
+    const toggleStatusMutation = useMutation({
+        mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => fetchGraphQL(
+            `mutation ToggleProductStatus($input: UpdateProductInput!) {
+                updateProduct(input: $input) {
+                    id
+                    enabled
+                }
+            }`,
+            {
+                input: { id, enabled }
+            }
+        ),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+        },
+        onError: (err: any) => {
+            alert('Erreur: ' + err.message);
+        },
+        onSettled: () => {
+            setTogglingId(null);
+        }
+    });
+
+    const handleToggleStatus = (product: Product) => {
+        setTogglingId(product.id);
+        toggleStatusMutation.mutate({ id: product.id, enabled: !product.enabled });
+    };
+
     const { items = [], totalItems = 0 } = data?.products || {};
     const totalPages = Math.ceil(totalItems / pageSize);
 
-    // Client-side filtering for vendor if standard API doesn't support deep filter yet
-    // (Optimization: Move to backend filter later)
+    // Client-side filtering for vendor
     const displayItems = vendorFilter
         ? items.filter((p: Product) => p.customFields?.vendor?.name.toLowerCase().includes(vendorFilter.toLowerCase()))
         : items;
@@ -211,110 +230,154 @@ export function ProductListComponent() {
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         const currency = variants[0].currencyCode;
-        if (min === max) return `${(min / 100).toFixed(2)} ${currency}`;
-        return `${(min / 100).toFixed(2)} - ${(max / 100).toFixed(2)} ${currency}`;
-    };
-
-    const getStockLevel = (variants: Product['variants']) => {
-        if (!variants || variants.length === 0) return 0;
-        // Summing purely numeric stock levels would require exact connection logic, 
-        // but 'stockLevel' is often a string ('IN_STOCK', 'OUT_OF_STOCK') or number depending on config.
-        // Assuming it returns a number or string. Let's just count variants for now or show first.
-        return variants.reduce((acc, v) => acc + (Number(v.stockLevel) || 0), 0);
+        if (min === max) return `${(min / 100).toFixed(0)} ${currency}`;
+        return `${(min / 100).toFixed(0)} - ${(max / 100).toFixed(0)} ${currency}`;
     };
 
     return (
-        <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif' }}>
 
             <div style={{ marginBottom: '24px' }}>
-                <h1 style={{ fontSize: '28px', color: '#1f2937', marginBottom: '8px' }}>Global Products</h1>
-                <p style={{ color: '#6b7280' }}>View and manage products from all vendors.</p>
+                <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0 }}>📦 Produits Marketplace</h1>
+                <p style={{ color: '#6b7280', marginTop: '4px', fontSize: '14px' }}>Visualisez, filtrez, modifiez et modérez les produits de tous les vendeurs.</p>
             </div>
 
             {/* Category Manager Section */}
             <CategoryManager />
 
             {/* Filter Bar */}
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: '200px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Search Product</label>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Rechercher un produit</label>
                     <input
                         type="text"
-                        placeholder="Product name..."
+                        placeholder="Nom du produit..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
                     />
                 </div>
-                <div style={{ flex: 1, minWidth: '200px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Filter by Vendor</label>
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Filtrer par Vendeur</label>
                     <input
                         type="text"
-                        placeholder="Vendor name..."
+                        placeholder="Nom du vendeur..."
                         value={vendorFilter}
                         onChange={e => setVendorFilter(e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
                     />
                 </div>
             </div>
 
-            {isLoading && <div style={{ textAlign: 'center', padding: '40px' }}>Loading products...</div>}
-            {error && <div style={{ padding: '20px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px' }}>Error: {(error as Error).message}</div>}
+            {isLoading && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px', color: '#4b5563' }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ width: '30px', height: '30px', border: '2px solid #e5e7eb', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                        <div>Chargement des produits...</div>
+                    </div>
+                </div>
+            )}
+            
+            {error && (
+                <div style={{ padding: '16px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', border: '1px solid #fca5a5', marginBottom: '24px', fontSize: '14px' }}>
+                    <strong>Erreur:</strong> {(error as Error).message}
+                </div>
+            )}
 
             {!isLoading && !error && (
                 <>
-                    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
                                 <tr>
-                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>Image</th>
-                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>Product Name</th>
-                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>Vendor</th>
-                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>Price</th>
-                                    <th style={{ padding: '16px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>Status</th>
+                                    <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 600, color: '#4b5563' }}>Image</th>
+                                    <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 600, color: '#4b5563' }}>Produit</th>
+                                    <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 600, color: '#4b5563' }}>Vendeur</th>
+                                    <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 600, color: '#4b5563' }}>Prix</th>
+                                    <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 600, color: '#4b5563' }}>Statut</th>
+                                    <th style={{ padding: '14px 16px', fontSize: '12px', fontWeight: 600, color: '#4b5563', textAlign: 'right' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {displayItems.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No products found.</td>
+                                        <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#9ca3af', fontSize: '14px' }}>Aucun produit trouvé.</td>
                                     </tr>
                                 ) : (
                                     displayItems.map((product: Product) => (
                                         <tr key={product.id} style={{ borderBottom: '1px solid #e5e7eb', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'} onMouseLeave={e => e.currentTarget.style.background = 'white'}>
-                                            <td style={{ padding: '16px' }}>
+                                            <td style={{ padding: '14px 16px' }}>
                                                 <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#f3f4f6', backgroundImage: product.featuredAsset ? `url(${product.featuredAsset.preview})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #e5e7eb' }}>
                                                     {!product.featuredAsset && <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '20px' }}>📦</span>}
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '16px' }}>
-                                                <div style={{ fontWeight: 600, color: '#111827' }}>{product.name}</div>
-                                                <div style={{ fontSize: '12px', color: '#6b7280' }}>SKU: {product.slug}</div>
+                                            <td style={{ padding: '14px 16px' }}>
+                                                <div style={{ fontWeight: 600, color: '#111827', fontSize: '14px' }}>{product.name}</div>
+                                                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>SKU: {product.slug}</div>
                                             </td>
-                                            <td style={{ padding: '16px' }}>
+                                            <td style={{ padding: '14px 16px' }}>
                                                 {product.customFields?.vendor ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e5e7eb', backgroundImage: product.customFields.vendor.logo ? `url(${product.customFields.vendor.logo.preview})` : undefined, backgroundSize: 'cover' }}></div>
+                                                        <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#e5e7eb', backgroundImage: product.customFields.vendor.logo ? `url(${product.customFields.vendor.logo.preview})` : undefined, backgroundSize: 'cover', border: '1px solid #e5e7eb' }}></div>
                                                         <div>
-                                                            <div style={{ fontWeight: 500, color: '#374151', fontSize: '14px' }}>{product.customFields.vendor.name}</div>
-                                                            <div style={{ fontSize: '11px', color: '#6b7280' }} title="Zone">{product.customFields.vendor.zone}</div>
+                                                            <div style={{ fontWeight: 500, color: '#374151', fontSize: '13px' }}>{product.customFields.vendor.name}</div>
+                                                            <div style={{ fontSize: '11px', color: '#6b7280' }} title="Zone">{product.customFields.vendor.zone || 'Pas de zone'}</div>
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>No Vendor</span>
+                                                    <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '13px' }}>Aucun Vendeur</span>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '16px', fontWeight: 500 }}>
+                                            <td style={{ padding: '14px 16px', fontWeight: 600, fontSize: '13px', color: '#111827' }}>
                                                 {getPriceDisplay(product.variants)}
                                             </td>
-                                            <td style={{ padding: '16px' }}>
+                                            <td style={{ padding: '14px 16px' }}>
                                                 <span style={{
-                                                    padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 600,
+                                                    padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
                                                     background: product.enabled ? '#dcfce7' : '#f3f4f6',
-                                                    color: product.enabled ? '#166534' : '#6b7280'
+                                                    color: product.enabled ? '#166534' : '#4b5563'
                                                 }}>
-                                                    {product.enabled ? 'Active' : 'Draft'}
+                                                    {product.enabled ? 'Actif' : 'Brouillon'}
                                                 </span>
+                                            </td>
+                                            <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                    {/* Toggle Switch/Button for Inline status update */}
+                                                    <button
+                                                        onClick={() => handleToggleStatus(product)}
+                                                        disabled={togglingId === product.id}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '6px',
+                                                            background: product.enabled ? '#fee2e2' : '#dcfce7',
+                                                            color: product.enabled ? '#b91c1c' : '#166534',
+                                                            border: 'none',
+                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer',
+                                                            fontWeight: 600,
+                                                            fontSize: '12px',
+                                                            transition: 'opacity 0.1s'
+                                                        }}
+                                                    >
+                                                        {togglingId === product.id ? '...' : (product.enabled ? 'Désactiver' : 'Activer')}
+                                                    </button>
+                                                    {/* Edit Link to Vendure native product editor */}
+                                                    <a
+                                                        href={`/admin/catalog/products/${product.id}`}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '6px',
+                                                            background: 'white',
+                                                            color: '#2563eb',
+                                                            border: '1px solid #d1d5db',
+                                                            fontWeight: 600,
+                                                            fontSize: '12px',
+                                                            textDecoration: 'none',
+                                                            display: 'inline-block'
+                                                        }}
+                                                    >
+                                                        Modifier
+                                                    </a>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -329,17 +392,17 @@ export function ProductListComponent() {
                             <button
                                 disabled={page === 1}
                                 onClick={() => setPage(p => p - 1)}
-                                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #e5e7eb', background: page === 1 ? '#f3f4f6' : 'white', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
+                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: page === 1 ? '#f3f4f6' : 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '13px' }}
                             >
-                                Previous
+                                Précédent
                             </button>
-                            <span style={{ color: '#4b5563' }}>Page {page} of {totalPages}</span>
+                            <span style={{ color: '#4b5563', fontSize: '13px' }}>Page {page} sur {totalPages}</span>
                             <button
                                 disabled={page === totalPages}
                                 onClick={() => setPage(p => p + 1)}
-                                style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid #e5e7eb', background: page === totalPages ? '#f3f4f6' : 'white', cursor: page === totalPages ? 'not-allowed' : 'pointer' }}
+                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: page === totalPages ? '#f3f4f6' : 'white', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px' }}
                             >
-                                Next
+                                Suivant
                             </button>
                         </div>
                     )}

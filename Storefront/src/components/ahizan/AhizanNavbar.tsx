@@ -10,11 +10,13 @@ import { useMobileMenu } from "@/contexts/mobile-menu-context";
 export function AhizanNavbar({ 
     config, 
     customer, 
-    order 
+    order,
+    isPreview = false
 }: { 
     config?: any;
     customer?: any;
     order?: any;
+    isPreview?: boolean;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -110,11 +112,30 @@ export function AhizanNavbar({
         else currentHeight = '50px';
     }
 
+    const topOffset = isPreview ? "top-[36px]" : "top-0";
+    const headerShadowSetting = config?.headerShadow !== false;
+    
+    let positionClass = "relative";
+    let shadowClass = "";
+
+    if (isStickySetting) {
+        if (stickyStyleSetting === 'transparent-to-solid') {
+            positionClass = isScrolled 
+                ? `fixed ${topOffset} left-0 w-full z-50 transition-all duration-300` 
+                : `absolute ${topOffset} left-0 w-full z-50 transition-all duration-300`;
+            shadowClass = (headerShadowSetting && isScrolled) ? "shadow-sm" : "";
+        } else {
+            // 'solid' or 'shrink'
+            positionClass = `sticky ${topOffset} z-50 w-full`;
+            shadowClass = headerShadowSetting ? "shadow-sm" : "";
+        }
+    }
+
     return (
-        <div className="w-full flex flex-col font-sans animate-in fade-in duration-700">
+        <>
             {/* Top Navigation Menu Items */}
             {menuItems.length > 0 && (
-                <div className="bg-[#f8f9fa] h-10 border-b border-gray-100 hidden md:block">
+                <div className="w-full font-sans animate-in fade-in duration-700 bg-[#f8f9fa] h-10 border-b border-gray-100 hidden md:block">
                     <div className="max-w-[1440px] mx-auto w-full px-4 md:px-8 lg:px-12 h-full flex items-center justify-between text-[12px] text-gray-600">
                         <div className="flex items-center gap-6">
                             {menuItems.map((item: any, idx: number) => {
@@ -150,7 +171,7 @@ export function AhizanNavbar({
 
             {/* Main Header */}
             <div
-                className={`w-full transition-all duration-300 animate-in slide-in-from-top-2 duration-500 ${mobileMenuOpen ? 'hidden lg:block' : ''}`}
+                className={`w-full font-sans transition-all duration-300 animate-in slide-in-from-top-2 duration-500 ${mobileMenuOpen ? 'hidden lg:block' : ''} ${positionClass} ${shadowClass}`}
                 style={{
                     backgroundColor: currentBgColor,
                     color: currentTextColor,
@@ -392,6 +413,6 @@ export function AhizanNavbar({
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }

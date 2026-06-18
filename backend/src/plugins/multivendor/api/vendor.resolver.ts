@@ -321,4 +321,28 @@ export class VendorAdminResolver {
         
         return true;
     }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async updateOrderSellerStatus(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('status') status: string
+    ): Promise<boolean> {
+        // Validate status
+        if (!['pending', 'confirmed', 'refused'].includes(status)) {
+            throw new Error('Invalid seller status');
+        }
+
+        const order = await this.connection.getRepository(ctx, Order).findOne({ where: { id: orderId } });
+        if (!order) {
+            throw new Error('Order not found');
+        }
+
+        await this.connection.getRepository(ctx, Order).update(orderId, {
+            customFields: { sellerStatus: status },
+        });
+
+        return true;
+    }
 }

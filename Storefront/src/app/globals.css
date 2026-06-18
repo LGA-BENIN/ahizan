@@ -129,7 +129,6 @@
   }
   html, body {
     @apply bg-transparent text-foreground;
-    overflow-x: clip;
     width: 100%;
   }
   img, video, iframe {

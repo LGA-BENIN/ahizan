@@ -1,7 +1,4 @@
-
-import { gql } from 'graphql-tag';
-
-export const GET_VENDORS = gql`
+export const GET_VENDORS = `
     query GetVendors($options: VendorListOptions) {
         vendors(options: $options) {
             items {
@@ -19,7 +16,7 @@ export const GET_VENDORS = gql`
     }
 `;
 
-export const GET_VENDOR_DETAIL = gql`
+export const GET_VENDOR_DETAIL = `
     query GetVendorDetail($id: ID!) {
         vendor(id: $id) {
             id
@@ -55,7 +52,7 @@ export const GET_VENDOR_DETAIL = gql`
     }
 `;
 
-export const UPDATE_VENDOR = gql`
+export const UPDATE_VENDOR = `
     mutation UpdateVendor($id: ID!, $input: UpdateVendorInput!) {
         updateVendor(id: $id, input: $input) {
             id
@@ -66,7 +63,7 @@ export const UPDATE_VENDOR = gql`
     }
 `;
 
-export const UPDATE_VENDOR_STATUS = gql`
+export const UPDATE_VENDOR_STATUS = `
     mutation UpdateVendorStatus($id: ID!, $status: String!, $reason: String) {
         updateVendorStatus(id: $id, status: $status, reason: $reason) {
             id
@@ -75,7 +72,7 @@ export const UPDATE_VENDOR_STATUS = gql`
     }
 `;
 
-export const GET_PRODUCTS = gql`
+export const GET_PRODUCTS = `
     query GetProducts($options: ProductListOptions) {
         products(options: $options) {
             items {
@@ -112,7 +109,7 @@ export const GET_PRODUCTS = gql`
     }
 `;
 
-export const CREDIT_VENDOR_WALLET = gql`
+export const CREDIT_VENDOR_WALLET = `
     mutation CreditVendorWallet($vendorId: ID!, $amount: Int!, $note: String) {
         creditVendorWallet(vendorId: $vendorId, amount: $amount, note: $note) {
             id
@@ -121,7 +118,7 @@ export const CREDIT_VENDOR_WALLET = gql`
     }
 `;
 
-export const DEBIT_VENDOR_WALLET = gql`
+export const DEBIT_VENDOR_WALLET = `
     mutation DebitVendorWallet($vendorId: ID!, $amount: Int!, $note: String) {
         debitVendorWallet(vendorId: $vendorId, amount: $amount, note: $note) {
             id
@@ -130,7 +127,7 @@ export const DEBIT_VENDOR_WALLET = gql`
     }
 `;
 
-export const SET_VENDOR_ALLOW_NEGATIVE_BALANCE = gql`
+export const SET_VENDOR_ALLOW_NEGATIVE_BALANCE = `
     mutation SetVendorAllowNegativeBalance($vendorId: ID!, $allow: Boolean!) {
         setVendorAllowNegativeBalance(vendorId: $vendorId, allow: $allow) {
             id
@@ -139,7 +136,7 @@ export const SET_VENDOR_ALLOW_NEGATIVE_BALANCE = gql`
     }
 `;
 
-export const GET_COLLECTIONS = gql`
+export const GET_COLLECTIONS = `
     query GetCollections($options: CollectionListOptions) {
         collections(options: $options) {
             items {

@@ -27,12 +27,6 @@ export default defineDashboardExtension({
         {
             path: 'orders',
             component: OrdersListComponent,
-            navMenuItem: {
-                id: 'marketplace-orders',
-                title: 'Commandes',
-                sectionId: 'marketplace',
-                url: '/orders',
-            },
         },
         {
             path: 'settings',
@@ -49,7 +43,7 @@ export default defineDashboardExtension({
             component: OrderStatusesComponent,
             navMenuItem: {
                 id: 'order-statuses',
-                title: 'Statuts commandes',
+                title: 'Configuration des Statuts',
                 sectionId: 'marketplace',
                 url: '/order-statuses',
             },
@@ -71,7 +65,7 @@ export default defineDashboardExtension({
                 id: 'marketplace-products-list',
                 title: 'Produits Marketplace',
                 sectionId: 'marketplace',
-                url: 'marketplace-products',
+                url: '/marketplace-products',
             },
         },
     ],

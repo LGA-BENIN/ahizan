@@ -24,6 +24,31 @@ import { getTopCollections } from "@/lib/vendure/cached";
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata(): Promise<Metadata> {
+    const homePage = await getPageContent('home');
+    const sections = homePage?.sections || [];
+    const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
+    
+    if (theme?.favicon) {
+        const faviconUrl = getAssetUrl(theme.favicon);
+        if (faviconUrl) {
+            return {
+                icons: [
+                    {
+                        rel: 'icon',
+                        url: faviconUrl,
+                    },
+                    {
+                        rel: 'apple-touch-icon',
+                        url: faviconUrl,
+                    }
+                ]
+            };
+        }
+    }
+    return {};
+}
+
 async function DynamicBranding({ children }: { children: React.ReactNode }) {
 
     const homePage = await getPageContent('home');

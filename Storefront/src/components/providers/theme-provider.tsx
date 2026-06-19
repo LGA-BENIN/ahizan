@@ -5,6 +5,9 @@ import { createContext, useContext, ReactNode } from "react";
 
 export interface ThemeSettings {
     defaultProductImage?: string;
+    applyFlashPromoToProducts?: boolean;
+    applyFlashPromoToCollections?: boolean;
+    activeFlashSale?: any;
 }
 
 const ThemeSettingsContext = createContext<ThemeSettings | undefined>(undefined);

@@ -54,7 +54,9 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
             preloader: { type: 'default', url: '', bgColor: '#ffffff', duration: 2 },
             scrollToTop: { enabled: true, style: 'circle', color: '#0f172a' },
             favicon: '',
-            defaultProductImage: ''
+            defaultProductImage: '',
+            applyFlashPromoToProducts: false,
+            applyFlashPromoToCollections: false
         };
         setConfig({ ...defaults, ...data });
     }, [data]);
@@ -386,6 +388,33 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                 </div>
             </div>
 
+            {/* ===== PROMOTION SETTINGS ===== */}
+            <div className="settings-card">
+                <div className="settings-card-header">🏷️ Paramètres de promotion</div>
+                <div className="stack" style={{ gap: '0.8rem' }}>
+                    <div className="toggle-row">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={config.applyFlashPromoToProducts || false} 
+                                onChange={(e) => handleChange('applyFlashPromoToProducts', e.target.checked)} 
+                            /> 
+                            Appliquer le système de prix promotionnel de la Vente Flash d'accueil sur la page produit
+                        </label>
+                    </div>
+                    <div className="toggle-row">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                            <input 
+                                type="checkbox" 
+                                checked={config.applyFlashPromoToCollections || false} 
+                                onChange={(e) => handleChange('applyFlashPromoToCollections', e.target.checked)} 
+                            /> 
+                            Appliquer le système de prix promotionnel de la Vente Flash d'accueil sur les pages de collection/grilles
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             {/* ===== EXTRAS ===== */}
             <div className="settings-card">
                 <div className="settings-card-header">🔧 Fonctionnalités supplémentaires</div>
@@ -400,8 +429,7 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                         </select>
                     </div>
                     <div>
-                        <label className="label-pro">URL du Favicon</label>
-                        <input className="input-pro" value={config.favicon} onChange={(e) => handleChange('favicon', e.target.value)} placeholder="/favicon.ico" />
+                        <FileUploadField label="Favicon" value={config.favicon} onChange={(v) => handleChange('favicon', v)} accept="image/x-icon,image/png,image/jpeg,image/svg+xml,image/*" />
                     </div>
                 </div>
                 <div style={{ marginTop: '1rem' }}>

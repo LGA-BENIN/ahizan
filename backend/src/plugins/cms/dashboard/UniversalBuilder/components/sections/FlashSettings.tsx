@@ -33,7 +33,9 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                 height: 'auto', padding: '32px', borderRadius: '0px',
                 animation: 'none',
                 displayLayout: 'horizontal_scroll',
-                showPromotionalPrice: false
+                showPromotionalPrice: false,
+                icon: 'Zap',
+                applyFakePromotion: false
             }]
         };
         const d = { ...defaults, ...data };
@@ -102,9 +104,10 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                             </select>
                         </div>
                     </div>
-                    <div className="grid-2" style={{ marginTop: '1rem' }}>
+                    <div className="grid-3" style={{ marginTop: '1rem' }}>
                         <div><label className="label-pro">Titre</label><input className="input-pro" value={sv.title} onChange={(e) => updateVersion(sv.id, { title: e.target.value })} /></div>
                         <div><label className="label-pro">Sous-titre</label><input className="input-pro" value={sv.subtitle} onChange={(e) => updateVersion(sv.id, { subtitle: e.target.value })} /></div>
+                        <div><label className="label-pro">Icône de bannière (ex: Zap, Flame, Gift, Sparkles)</label><input className="input-pro" value={sv.icon || 'Zap'} onChange={(e) => updateVersion(sv.id, { icon: e.target.value })} /></div>
                     </div>
                 </div>
 
@@ -151,6 +154,9 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                             <div className="toggle-row" style={{ marginTop: '24px' }}>
                                 <label><input type="checkbox" checked={sv.showPromotionalPrice || false} onChange={(e) => updateVersion(sv.id, { showPromotionalPrice: e.target.checked })} /> Afficher le prix barré promotionnel</label>
                             </div>
+                        </div>
+                        <div className="toggle-row" style={{ marginTop: '1rem' }}>
+                            <label><input type="checkbox" checked={sv.applyFakePromotion || false} onChange={(e) => updateVersion(sv.id, { applyFakePromotion: e.target.checked })} /> Appliquer une promotion fictive aux produits sans prix promotionnel (utilise le pourcentage ci-dessus)</label>
                         </div>
                     </div>
                     {sv.selectionType === 'FILTER' ? (

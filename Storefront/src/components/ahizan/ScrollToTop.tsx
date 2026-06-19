@@ -34,10 +34,10 @@ export function ScrollToTop({ config }: { config?: any }) {
     return (
         <button
             onClick={scrollToTop}
-            className={`fixed bottom-6 right-6 z-50 p-3 shadow-xl transition-all duration-300 hover:scale-110 focus:outline-none flex items-center justify-center ${
+            className={`fixed right-6 lg:!bottom-6 z-50 p-3 shadow-xl transition-all duration-300 hover:scale-110 focus:outline-none flex items-center justify-center ${
                 isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'
             } ${style === 'circle' ? 'rounded-full' : style === 'square' ? 'rounded-md' : 'rounded-xl'}`}
-            style={{ backgroundColor: color, color: '#fff' }}
+            style={{ backgroundColor: color, color: '#fff', bottom: 'var(--mobile-nav-offset, 1.5rem)' }}
             aria-label="Retour en haut"
         >
             <ChevronUp size={24} strokeWidth={3} />

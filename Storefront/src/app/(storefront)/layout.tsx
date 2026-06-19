@@ -77,6 +77,15 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
     }));
 
     const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
+    const flashSection = sections.find(s => s.type === 'FLASH_SALE')?.data;
+    let activeFlash = null;
+    if (flashSection) {
+        if (flashSection.flashVersions && Array.isArray(flashSection.flashVersions)) {
+            activeFlash = flashSection.flashVersions.find((v: any) => v.isActive) || flashSection.flashVersions[0];
+        } else {
+            activeFlash = flashSection;
+        }
+    }
 
     let bgType = 'color';
     let bgValue = '#ffffff';
@@ -128,6 +137,7 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
         '--content-max-width': maxW,
         '--section-spacing': theme?.sectionSpacing || "48px",
         '--container-padding': theme?.containerPadding || "16px",
+        '--mobile-nav-offset': (headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? '5rem' : '1.5rem',
     } as React.CSSProperties;
 
     return (
@@ -139,7 +149,12 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                 <link rel="stylesheet" href={googleFontsUrl} />
             )}
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
-                <ThemeProvider themeSettings={{ defaultProductImage: theme?.defaultProductImage }}>
+                <ThemeProvider themeSettings={{
+                    defaultProductImage: theme?.defaultProductImage,
+                    applyFlashPromoToProducts: (theme as any)?.applyFlashPromoToProducts === true,
+                    applyFlashPromoToCollections: (theme as any)?.applyFlashPromoToCollections === true,
+                    activeFlashSale: activeFlash
+                }}>
                     <MobileMenuProvider>
                     <AhizanPreloader config={{ preloader: theme?.preloader }} />
                     <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">

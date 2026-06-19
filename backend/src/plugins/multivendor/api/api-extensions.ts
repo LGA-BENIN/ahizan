@@ -327,6 +327,7 @@ export const adminApiExtensions = `
         updateVendorStatus(id: ID!, status: String!, reason: String): Vendor!
         createVendor(input: CreateVendorInput!): Vendor!
         updateVendor(id: ID!, input: UpdateVendorInput!): Vendor!
+        deleteVendor(id: ID!, deleteProducts: Boolean!, deleteOrders: Boolean!): Boolean!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
 

@@ -9,6 +9,8 @@ import {ShoppingCart, CheckCircle2} from 'lucide-react';
 import {addToCart} from '@/app/(storefront)/product/[slug]/actions';
 import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
+import { getPromoPriceInfo } from "@/lib/vendure/api-utils";
+import { useThemeSettings } from "@/components/providers/theme-provider";
 
 interface ProductInfoProps {
     product: {
@@ -32,6 +34,15 @@ interface ProductInfoProps {
                     name: string;
                 };
             }>;
+            customFields?: any;
+        }>;
+        collections?: Array<{
+            id: string;
+            name: string;
+            slug: string;
+            parent?: {
+                id: string;
+            } | null;
         }>;
         optionGroups: Array<{
             id: string;
@@ -141,25 +152,58 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
             {/* Product Title */}
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
-                {selectedVariant && (
-                    <div className="flex items-center gap-4 mt-2">
-                        {config?.showPromoPrice ? (
-                            <div className="flex items-center gap-3">
+                {selectedVariant && (() => {
+                    const themeSettings = useThemeSettings();
+                    const activeFlash = themeSettings?.activeFlashSale;
+                    const applyToProduct = themeSettings?.applyFlashPromoToProducts;
+
+                    const priceInfo = getPromoPriceInfo({
+                        price: selectedVariant.priceWithTax,
+                        variantCustomFields: selectedVariant.customFields,
+                        productId: product.id,
+                        collectionIds: product.collections?.map((c: any) => c.id) || [],
+                        activeFlash,
+                        globalApplySettings: {
+                            isProductPage: true,
+                            applyToProduct,
+                        }
+                    });
+
+                    return (
+                        <div className="flex items-center gap-4 mt-2">
+                            {priceInfo.hasPromotion ? (
+                                <div className="flex items-center gap-3">
+                                    <p className={`text-2xl font-bold ${priceInfo.showBothPrices ? 'text-red-600' : 'text-primary'}`}>
+                                        <Price value={priceInfo.promotionalPrice} />
+                                    </p>
+                                    {priceInfo.showBothPrices && (
+                                        <>
+                                            <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
+                                                <Price value={priceInfo.originalPrice} />
+                                            </p>
+                                            <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
+                                                -{priceInfo.discountPercentage}%
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            ) : config?.showPromoPrice ? (
+                                <div className="flex items-center gap-3">
+                                    <p className="text-2xl font-bold text-primary">
+                                        <Price value={selectedVariant.priceWithTax} />
+                                    </p>
+                                    <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
+                                        <Price value={selectedVariant.priceWithTax * 1.25} />
+                                    </p>
+                                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
+                                        -20%
+                                    </span>
+                                </div>
+                            ) : (
                                 <p className="text-2xl font-bold text-primary">
-                                    <Price value={selectedVariant.priceWithTax} />
+                                    <Price value={selectedVariant.priceWithTax}/>
                                 </p>
-                                <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
-                                    <Price value={selectedVariant.priceWithTax * 1.25} />
-                                </p>
-                                <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
-                                    -20%
-                                </span>
-                            </div>
-                        ) : (
-                            <p className="text-2xl font-bold text-primary">
-                                <Price value={selectedVariant.priceWithTax}/>
-                            </p>
-                        )}
+                            )}
                         {isInStock ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -171,7 +215,8 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
                             </span>
                         )}
                     </div>
-                )}
+                );
+            })()}
             </div>
 
             {/* Product Description */}
@@ -218,7 +263,8 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
             <div className="pt-4 lg:pt-0">
                 <Button
                     size="lg"
-                    className="w-[calc(100%-2rem)] max-w-[350px] h-11 rounded-full font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 fixed bottom-6 left-1/2 -translate-x-1/2 z-50 lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:translate-x-0 lg:w-full lg:max-w-none"
+                    style={{ bottom: 'var(--mobile-nav-offset, 1.5rem)' }}
+                    className="w-[calc(100%-2rem)] max-w-[350px] h-11 rounded-full font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 fixed left-1/2 -translate-x-1/2 z-50 lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:translate-x-0 lg:w-full lg:max-w-none"
                     disabled={!canAddToCart || isPending}
                     onClick={handleAddToCart}
                 >

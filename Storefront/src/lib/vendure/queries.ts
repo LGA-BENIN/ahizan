@@ -531,3 +531,44 @@ export const GetCollectionAllowedFacetsQuery = graphql(`
         }
     }
 `);
+
+export const GetVendorProfileQuery = graphql(`
+    query GetVendorProfile($id: ID!) {
+        vendor(id: $id) {
+            id
+            name
+            description
+            zone
+            rating
+            ratingCount
+            createdAt
+            email
+            phoneNumber
+            website
+            facebook
+            instagram
+            logo {
+                preview
+            }
+            coverImage {
+                preview
+            }
+            products {
+                id
+                name
+                slug
+                description
+                enabled
+                featuredAsset {
+                    id
+                    preview
+                }
+                variants {
+                    id
+                    priceWithTax
+                    stockLevel
+                }
+            }
+        }
+    }
+`);

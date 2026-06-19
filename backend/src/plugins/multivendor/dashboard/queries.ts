@@ -48,6 +48,19 @@ export const GET_VENDOR_DETAIL = `
                 preview
                 source
             }
+            products {
+                id
+                name
+                enabled
+                featuredAsset {
+                    id
+                    preview
+                }
+                variants {
+                    id
+                    price
+                }
+            }
         }
     }
 `;
@@ -149,5 +162,11 @@ export const GET_COLLECTIONS = `
                 }
             }
         }
+    }
+`;
+
+export const DELETE_VENDOR = `
+    mutation DeleteVendor($id: ID!, $deleteProducts: Boolean!, $deleteOrders: Boolean!) {
+        deleteVendor(id: $id, deleteProducts: $deleteProducts, deleteOrders: $deleteOrders)
     }
 `;

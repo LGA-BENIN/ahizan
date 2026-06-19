@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Star } from "lucide-react";
 import { useThemeSettings } from '@/components/providers/theme-provider';
-import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { getAssetUrl, getPromoPriceInfo } from '@/lib/vendure/api-utils';
 
 interface DenseProductCardProps {
     product: any;
@@ -55,17 +55,42 @@ export function DenseProductCard({
     const defaultImage = themeSettings?.defaultProductImage;
     const imageUrl = product.productAsset?.preview || defaultImage;
 
-    // Determine discount percentage
+    const activeFlash = themeSettings?.activeFlashSale;
+    const applyToCollection = themeSettings?.applyFlashPromoToCollections;
+
+    const priceInfo = getPromoPriceInfo({
+        price,
+        variantCustomFields: product.customFields || null,
+        productId: product.productId || product.id,
+        collectionIds: product.collectionIds || [],
+        activeFlash,
+        globalApplySettings: {
+            isCollectionPage: true,
+            applyToCollection,
+        }
+    });
+
+    // Determine discount percentage and final display prices
     let discountPercent: number | null = null;
     let oldPrice: number | null = null;
-    if (showStrikethroughPrice && maxPrice && maxPrice > price) {
-        oldPrice = maxPrice;
-        discountPercent = Math.round(((maxPrice - price) / maxPrice) * 100);
-    }
-    // If compareAtPrice custom field is available
-    if (product.compareAtPrice && product.compareAtPrice > price) {
-        oldPrice = product.compareAtPrice;
-        discountPercent = Math.round(((product.compareAtPrice - price) / product.compareAtPrice) * 100);
+    let displayPrice = price;
+
+    if (priceInfo.hasPromotion) {
+        displayPrice = priceInfo.promotionalPrice;
+        if (priceInfo.showBothPrices) {
+            oldPrice = priceInfo.originalPrice;
+            discountPercent = priceInfo.discountPercentage;
+        }
+    } else {
+        if (showStrikethroughPrice && maxPrice && maxPrice > price) {
+            oldPrice = maxPrice;
+            discountPercent = Math.round(((maxPrice - price) / maxPrice) * 100);
+        }
+        // If compareAtPrice custom field is available
+        if (product.compareAtPrice && product.compareAtPrice > price) {
+            oldPrice = product.compareAtPrice;
+            discountPercent = Math.round(((product.compareAtPrice - price) / product.compareAtPrice) * 100);
+        }
     }
 
     // Resolve facet badges
@@ -168,7 +193,7 @@ export function DenseProductCard({
                         </span>
                     )}
                     <span className={`font-black text-[13px] sm:text-[15px] md:text-base tracking-tight ${oldPrice ? 'text-red-600' : 'text-primary'}`}>
-                        {formatCFA(price)}
+                        {formatCFA(displayPrice)}
                     </span>
                 </div>
 

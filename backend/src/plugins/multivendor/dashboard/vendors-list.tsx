@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_VENDORS, GET_VENDOR_DETAIL, UPDATE_VENDOR_STATUS, UPDATE_VENDOR, CREDIT_VENDOR_WALLET, DEBIT_VENDOR_WALLET, SET_VENDOR_ALLOW_NEGATIVE_BALANCE } from './queries';
+import { GET_VENDORS, GET_VENDOR_DETAIL, UPDATE_VENDOR_STATUS, UPDATE_VENDOR, CREDIT_VENDOR_WALLET, DEBIT_VENDOR_WALLET, SET_VENDOR_ALLOW_NEGATIVE_BALANCE, DELETE_VENDOR } from './queries';
 
 // --- Types & Interfaces ---
 interface Toast {
@@ -68,16 +68,32 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[], removeToast:
 }
 
 // --- Vendor Detail Modal ---
-function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: boolean; onClose: () => void; vendorId: string | null; addToast: (msg: string, type: 'success' | 'error') => void }) {
+function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: boolean; onClose: () => void; vendorId: string | null; addToast: (msg: string, type: 'success' | 'error' | 'info') => void }) {
     const queryClient = useQueryClient();
     const [commissionRate, setCommissionRate] = useState<string>('');
     const [walletAmount, setWalletAmount] = useState<string>('');
     const [walletNote, setWalletNote] = useState<string>('');
 
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [deleteProducts, setDeleteProducts] = useState(false);
+    const [deleteOrders, setDeleteOrders] = useState(false);
+    const [confirmName, setConfirmName] = useState('');
+
     const { data, isLoading } = useQuery({
         queryKey: ['vendor', vendorId],
         queryFn: () => fetchGraphQL(GET_VENDOR_DETAIL, { id: vendorId }),
         enabled: !!vendorId && isOpen,
+    });
+
+    const deleteVendorMutation = useMutation({
+        mutationFn: ({ deleteProducts, deleteOrders }: { deleteProducts: boolean; deleteOrders: boolean }) =>
+            fetchGraphQL(DELETE_VENDOR, { id: vendorId, deleteProducts, deleteOrders }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['vendors'] });
+            onClose();
+            addToast('Le vendeur et toutes ses données associées ont été supprimés.', 'success');
+        },
+        onError: (err: any) => addToast(err.message || 'Échec de la suppression', 'error')
     });
 
     useEffect(() => {
@@ -256,6 +272,114 @@ function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: bo
                                 <div><strong>Phone:</strong> {vendor.phoneNumber}</div>
                                 <div><strong>Address:</strong> {vendor.address}</div>
                                 <div><strong>Joined:</strong> {new Date(vendor.createdAt).toLocaleDateString()}</div>
+                            </div>
+
+                            {/* Products List */}
+                            <div style={{ marginTop: '32px', borderTop: '1px solid #e5e7eb', paddingTop: '24px' }}>
+                                <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>
+                                    📦 Produits du vendeur ({vendor.products?.length || 0})
+                                </h3>
+                                {vendor.products && vendor.products.length > 0 ? (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', maxHeight: '250px', overflowY: 'auto', paddingRight: '8px' }}>
+                                        {vendor.products.map((prod: any) => (
+                                            <div key={prod.id} style={{ display: 'flex', gap: '12px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', alignItems: 'center' }}>
+                                                <div style={{ width: '40px', height: '40px', background: '#eee', borderRadius: '4px', backgroundImage: prod.featuredAsset ? `url(${prod.featuredAsset.preview})` : undefined, backgroundSize: 'cover' }}></div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 'bold', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prod.name}</div>
+                                                    <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                                        {prod.variants?.[0]?.price !== undefined ? `${prod.variants[0].price.toLocaleString()} FCFA` : 'N/A'}
+                                                    </div>
+                                                </div>
+                                                <span style={{ fontSize: '10px', background: prod.enabled ? '#d1fae5' : '#fee2e2', color: prod.enabled ? '#065f46' : '#991b1b', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                    {prod.enabled ? 'Actif' : 'Inactif'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p style={{ color: '#64748b', fontSize: '14px', fontStyle: 'italic' }}>Aucun produit en ligne pour ce vendeur.</p>
+                                )}
+                            </div>
+
+                            {/* Danger Zone */}
+                            <div style={{ marginTop: '32px', borderTop: '1px solid #fee2e2', paddingTop: '24px', background: '#fff1f2', padding: '20px', borderRadius: '12px', border: '1px solid #fecaca' }}>
+                                <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#991b1b' }}>⚠️ Zone de Danger</h3>
+                                <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#7f1d1d' }}>Supprimer définitivement ce vendeur ainsi que tout son compte de la plateforme.</p>
+                                
+                                {!isDeleteMode ? (
+                                    <button 
+                                        onClick={() => setIsDeleteMode(true)} 
+                                        style={{ 
+                                            background: '#dc2626', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', 
+                                            cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', transition: 'background-color 0.2s' 
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#b91c1c'}
+                                        onMouseLeave={e => e.currentTarget.style.background = '#dc2626'}
+                                    >
+                                        Supprimer le vendeur
+                                    </button>
+                                ) : (
+                                    <div style={{ background: 'white', padding: '16px', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                                        <h4 style={{ margin: '0 0 12px 0', color: '#991b1b' }}>Confirmation de suppression</h4>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                                                <input type="checkbox" checked={deleteProducts} onChange={e => setDeleteProducts(e.target.checked)} style={{ marginTop: '4px' }} />
+                                                <span>
+                                                    <strong>Supprimer tous les produits</strong>
+                                                    <br/><span style={{ color: '#64748b' }}>Si décoché, les produits seront détachés du vendeur mais conservés.</span>
+                                                </span>
+                                            </label>
+                                            
+                                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                                                <input type="checkbox" checked={deleteOrders} onChange={e => setDeleteOrders(e.target.checked)} style={{ marginTop: '4px' }} />
+                                                <span>
+                                                    <strong>Supprimer l'historique des commandes</strong>
+                                                    <br/><span style={{ color: '#64748b' }}>Si décoché, les commandes seront conservées à des fins d'archives.</span>
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <div style={{ marginBottom: '16px' }}>
+                                            <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#64748b' }}>
+                                                Pour confirmer, tapez le nom du vendeur : <strong>{vendor.name}</strong>
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                value={confirmName} 
+                                                onChange={e => setConfirmName(e.target.value)} 
+                                                placeholder={vendor.name}
+                                                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button 
+                                                onClick={() => {
+                                                    setIsDeleteMode(false);
+                                                    setConfirmName('');
+                                                    setDeleteProducts(false);
+                                                    setDeleteOrders(false);
+                                                }}
+                                                style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button 
+                                                disabled={confirmName !== vendor.name || deleteVendorMutation.isPending}
+                                                onClick={() => deleteVendorMutation.mutate({ deleteProducts, deleteOrders })}
+                                                style={{ 
+                                                    background: confirmName === vendor.name ? '#dc2626' : '#fca5a5', 
+                                                    color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', 
+                                                    cursor: confirmName === vendor.name ? 'pointer' : 'not-allowed', 
+                                                    fontWeight: 'bold' 
+                                                }}
+                                            >
+                                                {deleteVendorMutation.isPending ? 'Suppression...' : 'Confirmer la suppression'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </>

@@ -156,7 +156,8 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
         '--content-max-width': maxW,
         '--section-spacing': theme?.sectionSpacing || "48px",
         '--container-padding': theme?.containerPadding || "16px",
-    }) as React.CSSProperties, [theme, maxW]);
+        '--mobile-nav-offset': (headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? '5rem' : '1.5rem',
+    }) as React.CSSProperties, [theme, maxW, headerConfig]);
 
     // Background from habillage theme
     let bgType = 'color';

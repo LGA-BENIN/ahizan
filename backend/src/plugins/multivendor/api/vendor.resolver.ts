@@ -4,7 +4,7 @@ import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { OrderStatusService } from '../service/order-status.service';
 
-@Resolver()
+@Resolver('Vendor')
 export class VendorResolver {
     constructor(
         private vendorService: VendorService,
@@ -13,6 +13,12 @@ export class VendorResolver {
         private connection: TransactionalConnection,
         private orderStatusService: OrderStatusService,
     ) { }
+
+    @ResolveField()
+    async products(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Product[]> {
+        const products = await this.vendorService.findAllProductsForVendor(ctx, vendor.id.toString());
+        return products || [];
+    }
 
     @Mutation()
     @Allow(Permission.Public)
@@ -139,11 +145,7 @@ export class VendorResolver {
         return true;
     }
 
-    @ResolveField()
-    async products(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Product[]> {
-        const products = await this.vendorService.findAllProductsForVendor(ctx, vendor.id.toString());
-        return products || [];
-    }
+
 
     @Mutation()
     @Allow(Permission.Authenticated)
@@ -212,6 +214,12 @@ export class VendorAdminResolver {
         console.log('VendorAdminResolver initialized with ProductService');
     }
 
+    @ResolveField()
+    async products(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Product[]> {
+        const products = await this.vendorService.findAllProductsForVendor(ctx, vendor.id.toString());
+        return products || [];
+    }
+
     @Query()
     @Allow(Permission.Authenticated)
     async adminVendorProducts(@Ctx() ctx: RequestContext, @Args('options') options: any): Promise<PaginatedList<Product>> {
@@ -258,6 +266,17 @@ export class VendorAdminResolver {
         @Args('input') input: any
     ): Promise<Vendor> {
         return this.vendorService.update(ctx, id, input);
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async deleteVendor(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string,
+        @Args('deleteProducts') deleteProducts: boolean,
+        @Args('deleteOrders') deleteOrders: boolean
+    ): Promise<boolean> {
+        return this.vendorService.deleteVendor(ctx, id, deleteProducts, deleteOrders);
     }
 
     // ---- Wallet Mutations ----

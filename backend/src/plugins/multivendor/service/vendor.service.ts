@@ -83,14 +83,17 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     async findAllProductsForVendor(ctx: RequestContext, vendorId: string): Promise<Product[]> {
+        const numericVendorId = Number(vendorId);
         return this.connection.getRepository(ctx, Product)
             .createQueryBuilder('product')
+            .leftJoinAndSelect('product.translations', 'translations')
             .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
             .leftJoinAndSelect('product.assets', 'assets')
             .leftJoinAndSelect('product.variants', 'variants')
+            .leftJoinAndSelect('variants.translations', 'variantTranslations')
             .leftJoinAndSelect('variants.options', 'options')
             .leftJoinAndSelect('options.group', 'group')
-            .where('product."customFieldsVendorid" = :vendorId', { vendorId })
+            .where('product."customFieldsVendorid" = :vendorId', { vendorId: numericVendorId })
             .andWhere('product.deletedAt IS NULL')
             .getMany();
     }
@@ -820,5 +823,135 @@ export class VendorService implements OnApplicationBootstrap {
             languageCode: channel.defaultLanguageCode,
             session,
         });
+    }
+
+    async deleteVendor(ctx: RequestContext, id: string, deleteProducts: boolean, deleteOrders: boolean): Promise<boolean> {
+        const adminCtx = await this.getSuperAdminContext(ctx);
+        const vendor = await this.findOne(adminCtx, id);
+        if (!vendor) {
+            throw new Error(`Vendor with id ${id} not found`);
+        }
+
+        const userId = vendor.user?.id;
+        const vendorId = vendor.id;
+
+        // 1. Handle Products
+        if (deleteProducts) {
+            // Soft delete product variants
+            await this.connection.rawConnection.query(
+                `UPDATE product_variant SET "deletedAt" = NOW() WHERE "productId" IN (SELECT id FROM product WHERE "customFieldsVendorid" = $1)`,
+                [vendorId]
+            );
+            // Soft delete products
+            await this.connection.rawConnection.query(
+                `UPDATE product SET "deletedAt" = NOW() WHERE "customFieldsVendorid" = $1`,
+                [vendorId]
+            );
+        } else {
+            // Unlink products from this vendor
+            await this.connection.rawConnection.query(
+                `UPDATE product SET "customFieldsVendorid" = NULL WHERE "customFieldsVendorid" = $1`,
+                [vendorId]
+            );
+        }
+
+        // 2. Handle Orders
+        if (deleteOrders) {
+            // Delete order lines of vendor's orders
+            await this.connection.rawConnection.query(
+                `DELETE FROM order_line WHERE "orderId" IN (SELECT id FROM "order" WHERE "customFieldsVendorid" = $1)`,
+                [vendorId]
+            );
+            // Delete payment records for vendor's orders
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM payment WHERE "orderId" IN (SELECT id FROM "order" WHERE "customFieldsVendorid" = $1)`,
+                    [vendorId]
+                );
+            } catch (e) {
+                console.log('Skipping payment delete:', (e as any).message);
+            }
+            // Delete history entries for vendor's orders
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM history_entry WHERE "orderId" IN (SELECT id FROM "order" WHERE "customFieldsVendorid" = $1)`,
+                    [vendorId]
+                );
+            } catch (e) {
+                console.log('Skipping history_entry delete:', (e as any).message);
+            }
+            // Delete the orders
+            await this.connection.rawConnection.query(
+                `DELETE FROM "order" WHERE "customFieldsVendorid" = $1`,
+                [vendorId]
+            );
+        } else {
+            // Unlink orders from this vendor
+            await this.connection.rawConnection.query(
+                `UPDATE "order" SET "customFieldsVendorid" = NULL WHERE "customFieldsVendorid" = $1`,
+                [vendorId]
+            );
+        }
+
+        // 3. Delete user account and associated customer, administrator
+        if (userId) {
+            // Delete customer
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM customer WHERE "userId" = $1`,
+                    [userId]
+                );
+            } catch (e) {
+                console.log('Failed to delete customer:', (e as any).message);
+            }
+
+            // Delete administrator
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM administrator WHERE "userId" = $1`,
+                    [userId]
+                );
+            } catch (e) {
+                console.log('Failed to delete administrator:', (e as any).message);
+            }
+
+            // Delete authentication method
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM native_authentication_method WHERE "userId" = $1`,
+                    [userId]
+                );
+            } catch (e) {
+                console.log('Failed to delete auth method:', (e as any).message);
+            }
+
+            // Delete role mappings
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM user_roles_role WHERE "userId" = $1`,
+                    [userId]
+                );
+            } catch (e) {
+                console.log('Failed to delete user_roles_role:', (e as any).message);
+            }
+
+            // Delete user
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM "user" WHERE id = $1`,
+                    [userId]
+                );
+            } catch (e) {
+                console.log('Failed to delete user:', (e as any).message);
+            }
+        }
+
+        // 4. Finally delete the Vendor record itself
+        await this.connection.rawConnection.query(
+            `DELETE FROM vendor WHERE id = $1`,
+            [vendorId]
+        );
+
+        return true;
     }
 }

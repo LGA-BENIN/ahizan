@@ -17,14 +17,17 @@ interface VendorFilterState {
     minRating: number | '';
 }
 
+import { print } from 'graphql';
+
 // --- GraphQL Fetcher ---
 async function fetchGraphQL(query: any, variables?: any) {
-    const apiUrl = 'http://localhost:3000/admin-api';
+    const apiUrl = '/admin-api';
+    const queryString = typeof query === 'string' ? query : print(query);
     const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ query: query.loc.source.body, variables }),
+        body: JSON.stringify({ query: queryString, variables }),
     });
 
     if (!response.ok) {

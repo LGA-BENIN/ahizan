@@ -414,7 +414,7 @@ export default async function CollectionPage({ params, searchParams }: any) {
 
         // Fallback to default hardcoded layout
         return (
-            <div className="container mx-auto px-4 py-8 mt-16 min-h-screen">
+            <div className="container mx-auto px-4 md:px-6 lg:px-8 py-8 mt-16 min-h-screen">
                 <div className="mb-8 md:mb-12 border-b pb-6">
                     <nav className="flex text-xs md:text-sm text-gray-500 mb-4 whitespace-nowrap overflow-x-auto pb-2 scrollbar-hide">
                         <Link href="/" className="hover:text-red-600 font-medium shrink-0">Accueil</Link>

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function CartPage(_props: PageProps<'/cart'>) {
     return (
-        <div className="container mx-auto px-6 md:px-12 lg:px-20 py-10 md:py-12 min-h-[60vh]">
+        <div className="container mx-auto px-3 sm:px-4 md:px-8 lg:px-12 py-6 md:py-12 min-h-[60vh]">
             <h1 className="text-2xl md:text-3xl font-bold mb-6 tracking-tight">Mon Panier</h1>
 
             <Suspense fallback={<CartSkeleton />}>

@@ -9,8 +9,6 @@ import { HeaderSettings } from './sections/HeaderSettings';
 import { FooterSettings } from './sections/FooterSettings';
 import { PromoSettings } from './sections/PromoSettings';
 import { CustomSettings } from './sections/CustomSettings';
-import { ProductGridSettings } from './sections/ProductGridSettings';
-import { TabbedProductGridSettings } from './sections/TabbedProductGridSettings';
 import { RichTextSettings } from './sections/RichTextSettings';
 import { CodeInjectionPanel } from './sections/CodeInjectionPanel';
 import { CategoryHeaderSettings } from './sections/CategoryHeaderSettings';
@@ -134,12 +132,6 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
 
         case 'FOOTER_CONF':
             return withCodePanel(<FooterSettings data={data} onSave={handleSave} />);
-
-        case 'PRODUCT_GRID':
-            return withCodePanel(<ProductGridSettings data={data} onSave={handleSave} />);
-
-        case 'TABBED_PRODUCT_GRID':
-            return withCodePanel(<TabbedProductGridSettings data={data} onSave={handleSave} />);
 
         case 'QUICK_LINKS':
             return withCodePanel(<PromoSettings data={data} onSave={handleSave} />);

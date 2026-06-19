@@ -64,8 +64,6 @@ const MASTER_ZONE_MAP = [
             { type: 'FLASH_DEALS', icon: '⚡', label: 'Campagnes Flash', mode: 'multi' },
             { type: 'QUICK_LINKS', icon: '🏷️', label: 'Liens Rapides et Bannières', mode: 'multi' },
             { type: 'CATEGORIES', icon: '', label: 'Catégories', mode: 'multi' },
-            { type: 'PRODUCT_GRID', icon: '🛒', label: 'Grille de Produits', mode: 'multi' },
-            { type: 'TABBED_PRODUCT_GRID', icon: '📑', label: 'Grille avec Onglets', mode: 'multi' },
             { type: 'SMART_VISUAL_GRID', icon: '✨', label: 'Smart Visual Grid', mode: 'multi' },
             { type: 'FREEFORM_BUILDER', icon: '🏗️', label: 'Constructeur Libre Drag & Drop', mode: 'multi' },
         ],
@@ -101,7 +99,7 @@ const getZoneMapForSlug = (slug?: string) => {
     const permittedTypes: Record<string, string[]> = {
         home: [
             'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'PRODUCT_GRID', 'TABBED_PRODUCT_GRID', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         category: [

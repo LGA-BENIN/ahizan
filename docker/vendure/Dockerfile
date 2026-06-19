@@ -18,6 +18,9 @@ COPY backend/ .
 # Compilation TypeScript
 RUN if [ -f tsconfig.json ]; then npm run build; fi
 
+# Force production mode so the Vite build uses the production API URL
+ENV NODE_ENV=production
+
 # Compilation du Dashboard Admin UI
 RUN npm run build:dashboard
 

@@ -56,42 +56,8 @@ async function HomeContent() {
         redirect(redirectPath);
     }
 
-    const page = await getPage('home').catch(() => null);
+    redirect('/sign-in');
 
-    if (!page) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <h1 className="text-2xl font-bold">Bienvenue sur AHIZAN</h1>
-                    <p className="text-muted-foreground mt-2">Veuillez configurer la page &apos;home&apos; dans le CMS.</p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="min-h-screen">
-            {(page as any).sections
-                .filter((s: any) => s.isActive)
-                .sort((a: any, b: any) => a.order - b.order)
-                .map((section: any) => {
-                    const SectionComponent = sectionRegistry[section.type] as any;
-                    if (!SectionComponent) {
-                        console.warn(`Unknown section type: ${section.type}`);
-                        return null;
-                    }
-
-                    let data = {};
-                    try {
-                        data = section.dataJson ? JSON.parse(section.dataJson) : {};
-                    } catch (e) {
-                        console.error(`Failed to parse JSON for section ${section.id}`, e);
-                    }
-
-                    return <SectionComponent key={section.id} {...data} />;
-                })}
-        </div>
-    );
 }
 
 export default function Home() {

@@ -31,21 +31,13 @@ export const LivePreview = () => {
                 }
             }).catch(() => {});
         } else if (activePageSlug === 'product') {
-            const apiUrl = window.location.origin.replace(/:(5173|5174|5175|4200)/, ':3000') + '/shop-api';
-            fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: FETCH_PRODUCTS })
-            })
-            .then(res => res.json())
-            .then(result => {
-                const items = result.data?.products?.items || [];
+            fetchGraphQL(FETCH_PRODUCTS).then(data => {
+                const items = data?.products?.items || [];
                 setProducts(items);
                 if (items.length > 0) {
                     setSelectedPreviewSlug(items[0].slug);
                 }
-            })
-            .catch(() => {});
+            }).catch(() => {});
         }
     }, [activePageSlug]);
 

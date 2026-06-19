@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GET_VENDOR_DETAIL, UPDATE_VENDOR, UPDATE_VENDOR_STATUS } from './queries';
 
+import { print } from 'graphql';
+
 // GraphQL fetcher for admin API
 async function fetchGraphQL(query: any, variables?: any) {
-    const apiUrl = 'http://localhost:3000/admin-api';
+    const apiUrl = '/admin-api';
     console.log('[VendorDetail] Fetching from:', apiUrl);
     console.log('[VendorDetail] Current location:', window.location.href);
+
+    const queryString = typeof query === 'string' ? query : print(query);
 
     const response = await fetch(apiUrl, {
         method: 'POST',
@@ -15,7 +19,7 @@ async function fetchGraphQL(query: any, variables?: any) {
         },
         credentials: 'include',
         body: JSON.stringify({
-            query: query.loc.source.body,
+            query: queryString,
             variables,
         }),
     });
@@ -86,9 +90,9 @@ export function VendorDetailComponent() {
     });
 
     const updateStatusMutation = useMutation({
-        mutationFn: (status: string) => fetchGraphQL(UPDATE_VENDOR_STATUS, { id, status }),
+        mutationFn: (status: string) => fetchGraphQL(UPDATE_VENDOR_STATUS, { id: vendorId, status }),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['vendor', id] });
+            queryClient.invalidateQueries({ queryKey: ['vendor', vendorId] });
         },
     });
 
@@ -134,7 +138,7 @@ export function VendorDetailComponent() {
                 deliveryInfo: formState.deliveryInfo,
                 returnPolicy: formState.returnPolicy,
                 commissionRate: parseFloat(formState.commissionRate.toString()),
-                rating: parseFloat(formState.rating).toString(),
+                rating: parseFloat(formState.rating.toString()).toString(),
                 ratingCount: parseInt(formState.ratingCount.toString()),
             });
             alert('Saved successfully');

@@ -126,7 +126,7 @@ function ProductReviews({ config }: { config: any }) {
     ].slice(0, reviewsCount);
 
     return (
-        <section className="max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 mt-8 md:mt-12 py-8 border-t border-gray-200">
+        <section className="max-w-[1440px] mx-auto w-full px-4 sm:px-4 md:px-8 lg:px-12 mt-8 md:mt-12 py-8 border-t border-gray-200">
             <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary tracking-tight mb-6">Avis clients</h2>
             <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
                 <div className="bg-gray-50 p-6 rounded-2xl border flex flex-col items-center justify-center text-center h-fit">

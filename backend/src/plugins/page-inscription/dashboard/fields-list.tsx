@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GET_REGISTRATION_FIELDS, DELETE_REGISTRATION_FIELD, UPDATE_REGISTRATION_FIELD } from './queries';
 
+import { print } from 'graphql';
+
 // Helper for fetching GraphQL
 async function fetchGraphQL(query: any, variables?: any) {
-    const apiUrl = 'http://127.0.0.1:3000/admin-api';
+    const apiUrl = '/admin-api';
     const token = localStorage.getItem('vendure-auth-token');
+    const queryString = typeof query === 'string' ? query : print(query);
     const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -13,7 +16,7 @@ async function fetchGraphQL(query: any, variables?: any) {
             'Authorization': token ? `Bearer ${token}` : '',
         },
         credentials: 'include',
-        body: JSON.stringify({ query: query.loc.source.body, variables }),
+        body: JSON.stringify({ query: queryString, variables }),
     });
     const json = await response.json();
     if (json.errors) throw new Error(json.errors[0].message);
@@ -67,7 +70,7 @@ export function RegistrationFieldsListComponent() {
                 ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <div>
                     <h1 style={{ fontSize: '24px', margin: '0 0 8px 0' }}>Page Inscription Settings</h1>
                     <p style={{ color: '#666' }}>Manage the fields displayed on the public registration page.</p>

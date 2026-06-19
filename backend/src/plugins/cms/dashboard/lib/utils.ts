@@ -1,3 +1,5 @@
+import { print } from 'graphql';
+
 // --- Helper to get the Backend URL ---
 export const getBackendBaseUrl = () => {
     const origin = window.location.origin;
@@ -13,7 +15,16 @@ export async function fetchGraphQL(query: any, variables?: any, file?: File) {
     const headers: Record<string, string> = {};
     let body: any;
 
-    const queryStr = typeof query === 'string' ? query : query.loc?.source?.body || query.definitions?.[0]?.loc?.source?.body;
+    let queryStr: string;
+    if (typeof query === 'string') {
+        queryStr = query;
+    } else if (query.loc?.source?.body) {
+        queryStr = query.loc.source.body;
+    } else if (query.kind === 'Document') {
+        queryStr = print(query);
+    } else {
+        queryStr = String(query);
+    }
     let vars = variables?.variables || variables || {};
     
     let uploadFile = file;

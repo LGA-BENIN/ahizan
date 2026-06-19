@@ -1,19 +1,19 @@
 import React, { createContext, useState, useEffect, useRef } from 'react';
 import { useNode, useEditor } from '@craftjs/core';
 import { MediaUploadField } from '../../MediaUploadField';
-import { fetchGraphQL, getBackendBaseUrl } from '../../../../../lib/utils';
+import { fetchGraphQL } from '../../../../../lib/utils';
 import { GridItem } from './GridItem';
 
 export const GridGlobalContext = createContext<any>({});
 
 const SEARCH_PRODUCTS = `
 query SearchProductsAdmin($term: String!) {
-  search(input: { term: $term, take: 10, groupByProduct: true }) {
+  products(options: { filter: { name: { contains: $term } }, take: 10 }) {
     items {
-      productId
-      productName
+      productId: id
+      productName: name
       slug
-      productAsset {
+      productAsset: featuredAsset {
         preview
       }
     }
@@ -68,24 +68,9 @@ const CatalogSearchField = ({ onSelect }: { onSelect: (data: { title: string, ur
             setLoading(true);
             try {
                 if (type === 'product') {
-                    // Fetch products from shop-api directly to avoid any Admin API permission/schema issues
-                    const shopApiUrl = getBackendBaseUrl() + '/shop-api';
-                    const shopRes = await fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            query: SEARCH_PRODUCTS,
-                            variables: { term }
-                        })
-                    });
-                    const shopJson = await shopRes.json();
-                    
-                    if (shopJson.errors) {
-                        console.error("Shop API errors:", shopJson.errors);
-                        throw new Error(shopJson.errors[0].message);
-                    }
-                    
-                    const items = shopJson?.data?.search?.items || [];
+                    // Use admin-api for product search (admin API includes the search query)
+                    const data = await fetchGraphQL(SEARCH_PRODUCTS, { term });
+                    const items = data?.products?.items || [];
                     setResults(items.map((i: any) => ({
                         id: i.productId,
                         name: i.productName,

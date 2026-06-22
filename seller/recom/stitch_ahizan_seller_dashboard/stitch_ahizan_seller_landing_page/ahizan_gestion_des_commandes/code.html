@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ahizan Marketplace - Gestion des Commandes</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline": "#926f6b",
+                        "inverse-on-surface": "#ffedea",
+                        "background": "#fff8f7",
+                        "surface-variant": "#fddbd7",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed-dim": "#8ecdff",
+                        "tertiary-fixed": "#cbe6ff",
+                        "surface-container-low": "#fff0ee",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#ffe9e6",
+                        "primary-fixed": "#ffdad6",
+                        "on-secondary-fixed": "#0d1c32",
+                        "secondary-fixed": "#d6e3ff",
+                        "inverse-surface": "#402b29",
+                        "primary": "#ba0013",
+                        "surface-container-high": "#ffe2de",
+                        "on-secondary-container": "#55637d",
+                        "surface": "#fff8f7",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#93000d",
+                        "surface-bright": "#fff8f7",
+                        "on-primary-fixed": "#410002",
+                        "secondary": "#515f78",
+                        "tertiary-container": "#007bb5",
+                        "on-tertiary-fixed-variant": "#004b71",
+                        "on-primary-container": "#fffafa",
+                        "outline-variant": "#e7bdb8",
+                        "on-surface-variant": "#5d3f3c",
+                        "on-secondary-fixed-variant": "#39475f",
+                        "surface-tint": "#c00014",
+                        "on-error": "#ffffff",
+                        "on-surface": "#291715",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#006190",
+                        "surface-container-highest": "#fddbd7",
+                        "on-error-container": "#93000a",
+                        "error-container": "#ffdad6",
+                        "primary-fixed-dim": "#ffb4ab",
+                        "surface-dim": "#f4d2cf",
+                        "on-background": "#291715",
+                        "primary-container": "#e31e24",
+                        "secondary-container": "#d2e0fe",
+                        "inverse-primary": "#ffb4ab",
+                        "on-tertiary-container": "#fbfcff",
+                        "secondary-fixed-dim": "#b9c7e4",
+                        "on-tertiary-fixed": "#001e30"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar-width": "260px",
+                        "container-max": "1440px",
+                        "card-padding": "24px",
+                        "stack-sm": "8px",
+                        "stack-lg": "32px",
+                        "gutter": "24px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "headline-lg": ["Plus Jakarta Sans"],
+                        "data-mono": ["JetBrains Mono"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "label-md": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "data-mono": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #f8fafc; color: #291715; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .sidebar-active { background: rgba(255, 255, 255, 0.1); border-left: 4px solid #ba0013; color: white; font-weight: 700; }
+        .stripe-row:hover { background-color: #f1f5f9; transition: background 0.2s ease; }
+        .status-paid { background-color: #dcfce7; color: #166534; }
+        .status-pending { background-color: #fef9c3; color: #854d0e; }
+        .status-delivered { background-color: #dcfce7; color: #166534; }
+        .status-shipped { background-color: #dbeafe; color: #1e40af; }
+        .status-ready { background-color: #f3f4f6; color: #374151; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-[260px] bg-[#0d1c32] dark:bg-surface-dim border-r border-outline-variant flex flex-col z-40">
+<div class="p-gutter">
+<h1 class="font-headline-lg text-headline-lg font-black text-on-primary-container tracking-tight">Ahizan Marketplace</h1>
+<p class="font-label-md text-label-md text-secondary-fixed-dim/70 mt-1 uppercase tracking-widest">Seller Portal</p>
+</div>
+<nav class="flex-1 px-3 space-y-1 overflow-y-auto scrollbar-hide py-4">
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-white/10 text-white border-l-4 border-primary font-bold group" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-label-md text-label-md">Orders</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Customers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">storefront</span>
+<span class="font-label-md text-label-md">Shop</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Payments</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 group" href="#">
+<span class="material-symbols-outlined">security</span>
+<span class="font-label-md text-label-md">Security</span>
+</a>
+</nav>
+<div class="p-4 border-t border-white/10 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-secondary-fixed-dim hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md">Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-secondary-fixed-dim hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="flex-1 ml-[260px] flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="h-16 w-full flex justify-between items-center px-gutter sticky top-0 z-30 bg-surface dark:bg-surface-container-low border-b border-outline-variant">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary/60">search</span>
+<input class="w-full bg-surface-container border-none rounded-lg pl-10 pr-4 py-2 text-body-md focus:ring-2 focus:ring-primary focus:bg-white transition-all" placeholder="Rechercher une commande..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<button class="relative p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">chat_bubble</span>
+</button>
+<button class="p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="h-8 w-[1px] bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="text-right">
+<p class="font-label-md text-label-md text-on-surface">Jean Dupont</p>
+<p class="text-[10px] text-secondary">Boutique Ahizan Pro</p>
+</div>
+<img class="w-10 h-10 rounded-full border-2 border-primary-fixed object-cover" data-alt="A professional studio portrait of a confident West African entrepreneur in business casual attire, smiling warmly. The background is a clean, modern office setting with soft natural lighting and minimalist decor. High-end photography style with a shallow depth of field." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGueyIuUANEShLphWxBUZ9s2MCFVrL_sxJ0-NZlFCoDnMBrVPmpReCoyCpeGFzWA1NbxJkb3O-Yrgvj8bru3QQNlZ84sDMRLknOWcVWwXM09ljjw4yDQOeiYtuFDIy1SIGJ2xZHrth_HZ-4Ftt3_6uvt3jgTYxId76FKZVIRXsRnRtSF1N2-bwsMnYd_JspG3DOHFQ4o3KN0VBxu_aAdw1f9es5Ou-lwb-vSdtU_QoPe82gS_KAd6wvE1VYLelJKnSNvd5RjtmleRO"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 flex max-w-[container-max] mx-auto w-full p-gutter gap-gutter">
+<!-- Table Section -->
+<section class="flex-[2] space-y-6">
+<div class="flex items-center justify-between">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Mes Commandes</h2>
+<p class="font-body-md text-body-md text-secondary">Gérez et suivez les expéditions de votre boutique en temps réel.</p>
+</div>
+<button class="bg-primary text-white px-6 py-2.5 rounded-lg font-label-md text-label-md flex items-center gap-2 hover:bg-primary-container transition-all active:scale-95 shadow-sm">
+<span class="material-symbols-outlined">file_download</span>
+                        Exporter CSV
+                    </button>
+</div>
+<!-- Filters -->
+<div class="flex items-center gap-2 border-b border-outline-variant overflow-x-auto scrollbar-hide">
+<button class="px-4 py-3 font-label-md text-label-md border-b-2 border-primary text-primary transition-all">Toutes (124)</button>
+<button class="px-4 py-3 font-label-md text-label-md border-b-2 border-transparent text-secondary hover:text-on-surface transition-all">À expédier (12)</button>
+<button class="px-4 py-3 font-label-md text-label-md border-b-2 border-transparent text-secondary hover:text-on-surface transition-all">En attente (5)</button>
+<button class="px-4 py-3 font-label-md text-label-md border-b-2 border-transparent text-secondary hover:text-on-surface transition-all">Terminées (107)</button>
+</div>
+<!-- Orders Table -->
+<div class="bg-white border border-outline-variant rounded-xl overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">ID Commande</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Client</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Date</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Total</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Paiement</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Livraison</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="stripe-row cursor-pointer" onclick="selectOrder('#ORD-9923')">
+<td class="px-6 py-4 font-data-mono text-data-mono text-primary font-bold">#ORD-9923</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-secondary font-bold text-[10px]">MK</div>
+<span class="font-body-md text-body-md text-on-surface">Moussa Koné</span>
+</div>
+</td>
+<td class="px-6 py-4 font-body-md text-body-md text-secondary">Aujourd'hui, 14:20</td>
+<td class="px-6 py-4 font-label-md text-label-md text-on-surface font-bold">45.000 FCFA</td>
+<td class="px-6 py-4">
+<span class="status-paid px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">Payé</span>
+</td>
+<td class="px-6 py-4">
+<span class="status-ready px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">Prêt</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-secondary hover:text-primary transition-colors hover:bg-primary-fixed rounded" title="Imprimer bordereau">
+<span class="material-symbols-outlined text-[20px]">print</span>
+</button>
+<button class="p-1.5 text-secondary hover:text-primary transition-colors hover:bg-primary-fixed rounded" title="Confirmer l'envoi">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="stripe-row cursor-pointer" onclick="selectOrder('#ORD-9922')">
+<td class="px-6 py-4 font-data-mono text-data-mono text-primary font-bold">#ORD-9922</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-[10px]">AS</div>
+<span class="font-body-md text-body-md text-on-surface">Aminata S.</span>
+</div>
+</td>
+<td class="px-6 py-4 font-body-md text-body-md text-secondary">Hier, 18:05</td>
+<td class="px-6 py-4 font-label-md text-label-md text-on-surface font-bold">12.500 FCFA</td>
+<td class="px-6 py-4">
+<span class="status-pending px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">En attente</span>
+</td>
+<td class="px-6 py-4">
+<span class="status-shipped px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">En cours</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-secondary hover:text-primary transition-colors hover:bg-primary-fixed rounded">
+<span class="material-symbols-outlined text-[20px]">print</span>
+</button>
+<button class="p-1.5 text-secondary hover:text-primary transition-colors hover:bg-primary-fixed rounded">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="stripe-row cursor-pointer" onclick="selectOrder('#ORD-9921')">
+<td class="px-6 py-4 font-data-mono text-data-mono text-primary font-bold">#ORD-9921</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary font-bold text-[10px]">YD</div>
+<span class="font-body-md text-body-md text-on-surface">Yannick Dogo</span>
+</div>
+</td>
+<td class="px-6 py-4 font-body-md text-body-md text-secondary">12 Oct 2023</td>
+<td class="px-6 py-4 font-label-md text-label-md text-on-surface font-bold">89.000 FCFA</td>
+<td class="px-6 py-4">
+<span class="status-paid px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">Payé</span>
+</td>
+<td class="px-6 py-4">
+<span class="status-delivered px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">Livré</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-secondary hover:text-primary transition-colors hover:bg-primary-fixed rounded">
+<span class="material-symbols-outlined text-[20px]">print</span>
+</button>
+<button class="p-1.5 text-secondary hover:text-primary transition-colors hover:bg-primary-fixed rounded">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="px-6 py-4 bg-surface-container-low flex justify-between items-center">
+<p class="font-label-md text-label-md text-secondary">Affichage de 1-10 sur 124 commandes</p>
+<div class="flex gap-2">
+<button class="p-2 border border-outline-variant rounded hover:bg-white transition-all"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="p-2 border border-outline-variant rounded hover:bg-white transition-all"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+</div>
+</section>
+<!-- Sidebar Contextuelle / Empty State -->
+<aside class="w-[340px] bg-white border border-outline-variant rounded-xl p-card-padding h-fit sticky top-[calc(64px+24px)]" id="context-sidebar">
+<div class="flex flex-col items-center justify-center py-16 text-center space-y-4" id="empty-state">
+<div class="w-20 h-20 bg-surface-container rounded-full flex items-center justify-center text-outline">
+<span class="material-symbols-outlined !text-[40px]">inbox_customize</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Détails de commande</h3>
+<p class="font-body-md text-body-md text-secondary mt-2">Sélectionnez une commande dans la liste pour voir les informations détaillées, le suivi et le récapitulatif des articles.</p>
+</div>
+<div class="pt-4">
+<span class="text-[10px] uppercase font-bold text-outline tracking-widest bg-surface-container px-3 py-1 rounded-full">En attente de sélection</span>
+</div>
+</div>
+<div class="hidden space-y-6 animate-in fade-in slide-in-from-right-4 duration-300" id="order-details">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface" id="selected-id">#ORD-9923</h3>
+<p class="font-body-md text-body-md text-secondary">Passée le 14 Oct 2023 à 14:20</p>
+</div>
+<button class="p-1 hover:bg-surface-container rounded-full transition-colors" onclick="closeDetails()">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="space-y-4">
+<div class="p-3 bg-surface-container-low rounded-lg border border-outline-variant">
+<p class="font-label-md text-label-md text-secondary uppercase mb-2">Informations Client</p>
+<div class="flex items-center gap-3 mb-2">
+<img class="w-8 h-8 rounded-full object-cover" data-alt="A small circular avatar of a professional-looking person with friendly expression, optimized for UI components. High quality, crisp portrait with clear facial features." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8EmbpLqPgupXRuNsXrBruqE03l5MtXErazbdL0mraO14GEt4EdFjCgbN19xBG2at7qN66aDF6hKHauVQ8cpDfDz6aGyiep7Q-pJ95Vx2jmYT8nlw70hOFrcp4vjTTbVVA8_k6anRqDj2drwo7QHLb88c_lgPmcN_xbs_zMWQH8hRfjcBrKJ6jij9D0_CSxIPg-90E9Rqvym1saRGXskTAIZpY-sRhfLm0x9g2sd8XQEsGEkdsaBgUBrfJG9llaR6PQJGzClLdKQtM"/>
+<span class="font-body-lg text-body-lg font-bold" id="selected-client">Moussa Koné</span>
+</div>
+<p class="text-body-md text-secondary">moussa.kone@example.com</p>
+<p class="text-body-md text-secondary">+225 07 00 00 00 00</p>
+</div>
+<div class="space-y-3">
+<p class="font-label-md text-label-md text-secondary uppercase">Articles commandés</p>
+<div class="flex items-center justify-between py-2 border-b border-outline-variant/30">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container rounded flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A high-resolution product shot of a premium handcrafted leather wallet, minimalist design, deep mahogany brown color, studio lighting on a neutral grey background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARRmez883EQePKl-MFKWo8a_N9VYe-DDvCGnOud83473Og0Lz1bHEUk6VQFJBlDyZtQXYK-AVQeKiHetVSQF_rENHL0X4lOWltfJA3ybt0WtHztwA4tfffa1BCdBCSoVy9d8tL3QvetIn1X7dOXjcmsGvP0iM6bt3dEuZOqeFBoLBq3sHOWNAGpaZKnn0Stqm2ZQwT7tkxRT2d4RFcuaH9Yjxpm5CzVMWUgDAjqEfqMRQvXN3A11bCpJCjC_ZSrM-N4KflMba6LQRd"/>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Portefeuille Cuir</p>
+<p class="text-[12px] text-secondary">Quantité: 1</p>
+</div>
+</div>
+<p class="font-label-md text-label-md font-bold">25.000 FCFA</p>
+</div>
+<div class="flex items-center justify-between py-2 border-b border-outline-variant/30">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-surface-container rounded flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close-up of a high-quality braided USB-C cable with metallic connectors, tech aesthetics, professional product photography on white background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7ePfI16aul7NjJQmu1J8ju1XWHXfmrnMvNF5jWXYUyLhQp78Jzjj6cjMcvo_kbcU8cHxXXRwRb_NFGVtemhAE7LHPwa4i8WTze8w49E1rcz6XX_l_nyQMS5_3_2VEWC2qOutio9xfJhief3ojmJDavVnYjibBZyGTUCui4XZgKt2xa2oTcAQXoi8BsdEMjY9oce41iiVmaWMI8LGrinxaAqd6bMXBlUHhIOpeMPowxbV8VwIhexgj2z40DVGYkErCS66QIFwRXRrU"/>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Câble Tressé USB-C</p>
+<p class="text-[12px] text-secondary">Quantité: 2</p>
+</div>
+</div>
+<p class="font-label-md text-label-md font-bold">20.000 FCFA</p>
+</div>
+</div>
+<div class="pt-2 space-y-2">
+<div class="flex justify-between font-body-md text-body-md">
+<span class="text-secondary">Sous-total</span>
+<span class="text-on-surface">45.000 FCFA</span>
+</div>
+<div class="flex justify-between font-body-md text-body-md">
+<span class="text-secondary">Livraison</span>
+<span class="text-on-surface">Gratuit</span>
+</div>
+<div class="flex justify-between font-headline-md text-headline-md border-t border-outline-variant pt-3">
+<span>Total</span>
+<span class="text-primary">45.000 FCFA</span>
+</div>
+</div>
+<div class="pt-4 grid grid-cols-2 gap-3">
+<button class="bg-surface-container-high text-on-surface-variant font-label-md text-label-md py-3 rounded-lg hover:bg-outline-variant/30 transition-all border border-outline-variant">
+                                Modifier
+                            </button>
+<button class="bg-primary text-white font-label-md text-label-md py-3 rounded-lg hover:bg-primary-container transition-all">
+                                Confirmer Envoi
+                            </button>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<script>
+        function selectOrder(orderId) {
+            const emptyState = document.getElementById('empty-state');
+            const details = document.getElementById('order-details');
+            const idSpan = document.getElementById('selected-id');
+            const clientSpan = document.getElementById('selected-client');
+
+            emptyState.classList.add('hidden');
+            details.classList.remove('hidden');
+            idSpan.textContent = orderId;
+
+            // Simple map for simulation
+            const clientNames = {
+                '#ORD-9923': 'Moussa Koné',
+                '#ORD-9922': 'Aminata S.',
+                '#ORD-9921': 'Yannick Dogo'
+            };
+            clientSpan.textContent = clientNames[orderId] || 'Client Inconnu';
+            
+            // Add visual active state to table rows
+            const rows = document.querySelectorAll('.stripe-row');
+            rows.forEach(row => {
+                if(row.innerText.includes(orderId)) {
+                    row.classList.add('bg-primary-fixed/20');
+                } else {
+                    row.classList.remove('bg-primary-fixed/20');
+                }
+            });
+        }
+
+        function closeDetails() {
+            document.getElementById('empty-state').classList.remove('hidden');
+            document.getElementById('order-details').classList.add('hidden');
+            document.querySelectorAll('.stripe-row').forEach(row => row.classList.remove('bg-primary-fixed/20'));
+        }
+
+        // Initialize micro-interactions
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mousedown', () => btn.classList.add('scale-[0.97]'));
+            btn.addEventListener('mouseup', () => btn.classList.remove('scale-[0.97]'));
+            btn.addEventListener('mouseleave', () => btn.classList.remove('scale-[0.97]'));
+        });
+    </script>
+</body></html>

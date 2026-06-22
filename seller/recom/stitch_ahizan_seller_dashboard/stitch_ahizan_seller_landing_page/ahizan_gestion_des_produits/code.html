@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+
+<html class="light" lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ahizan Marketplace - Gestion des Produits</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline": "#926f6b",
+                    "inverse-on-surface": "#ffedea",
+                    "background": "#fff8f7",
+                    "surface-variant": "#fddbd7",
+                    "error": "#ba1a1a",
+                    "tertiary-fixed-dim": "#8ecdff",
+                    "tertiary-fixed": "#cbe6ff",
+                    "surface-container-low": "#fff0ee",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container": "#ffe9e6",
+                    "primary-fixed": "#ffdad6",
+                    "on-secondary-fixed": "#0d1c32",
+                    "secondary-fixed": "#d6e3ff",
+                    "inverse-surface": "#402b29",
+                    "primary": "#ba0013",
+                    "surface-container-high": "#ffe2de",
+                    "on-secondary-container": "#55637d",
+                    "surface": "#fff8f7",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed-variant": "#93000d",
+                    "surface-bright": "#fff8f7",
+                    "on-primary-fixed": "#410002",
+                    "secondary": "#515f78",
+                    "tertiary-container": "#007bb5",
+                    "on-tertiary-fixed-variant": "#004b71",
+                    "on-primary-container": "#fffafa",
+                    "outline-variant": "#e7bdb8",
+                    "on-surface-variant": "#5d3f3c",
+                    "on-secondary-fixed-variant": "#39475f",
+                    "surface-tint": "#c00014",
+                    "on-error": "#ffffff",
+                    "on-surface": "#291715",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "tertiary": "#006190",
+                    "surface-container-highest": "#fddbd7",
+                    "on-error-container": "#93000a",
+                    "error-container": "#ffdad6",
+                    "primary-fixed-dim": "#ffb4ab",
+                    "surface-dim": "#f4d2cf",
+                    "on-background": "#291715",
+                    "primary-container": "#e31e24",
+                    "secondary-container": "#d2e0fe",
+                    "inverse-primary": "#ffb4ab",
+                    "on-tertiary-container": "#fbfcff",
+                    "secondary-fixed-dim": "#b9c7e4",
+                    "on-tertiary-fixed": "#001e30"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "sidebar-width": "260px",
+                    "container-max": "1440px",
+                    "card-padding": "24px",
+                    "stack-sm": "8px",
+                    "stack-lg": "32px",
+                    "gutter": "24px",
+                    "stack-md": "16px"
+            },
+            "fontFamily": {
+                    "headline-xl": ["Plus Jakarta Sans"],
+                    "headline-md": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Plus Jakarta Sans"],
+                    "data-mono": ["JetBrains Mono"],
+                    "body-lg": ["Plus Jakarta Sans"],
+                    "body-md": ["Plus Jakarta Sans"],
+                    "label-md": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "data-mono": ["13px", {"lineHeight": "18px", "fontWeight": "500"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            background-color: #f8fafc;
+            color: #291715;
+            -webkit-font-smoothing: antialiased;
+        }
+        .sidebar-active-indicator {
+            width: 4px;
+            height: 100%;
+            background-color: #ba0013;
+            position: absolute;
+            left: 0;
+        }
+        .table-row-hover:hover {
+            background-color: #f8fafc;
+            transition: background-color 0.2s ease;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden">
+<!-- Side Navigation Bar -->
+<aside class="flex flex-col h-full w-[260px] z-40 fixed left-0 top-0 bg-[#0d1c32] dark:bg-surface-dim border-r border-outline-variant">
+<div class="p-6">
+<h1 class="font-headline-lg text-headline-lg font-black text-on-primary">Ahizan Marketplace</h1>
+<p class="font-label-md text-label-md text-secondary-fixed-dim mt-1">Seller Portal</p>
+</div>
+<nav class="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-label-md text-label-md">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-label-md text-label-md">Orders</span>
+</a>
+<!-- Active Tab: Products -->
+<a class="flex items-center gap-3 px-4 py-3 bg-white/10 text-white border-l-4 border-primary font-bold relative rounded-r-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Customers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<span class="font-label-md text-label-md">Shop</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Payments</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-secondary-fixed-dim hover:text-white transition-all duration-200 hover:bg-white/5 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+<span class="font-label-md text-label-md">Security</span>
+</a>
+</nav>
+<div class="p-4 mt-auto border-t border-white/10">
+<button class="w-full py-2 px-4 bg-primary text-white font-label-md text-label-md rounded-lg hover:bg-opacity-90 transition-all mb-4">
+                View Storefront
+            </button>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-secondary-fixed-dim hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-md text-label-md">Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-secondary-fixed-dim hover:text-white transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Log Out</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[260px] min-h-screen flex flex-col">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 right-0 w-[calc(100%-260px)] h-16 bg-surface dark:bg-surface-container-low border-b border-outline-variant flex justify-between items-center px-gutter z-30">
+<div class="flex items-center flex-1 max-w-xl">
+<div class="relative w-full group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container rounded-lg border-none focus:ring-2 focus:ring-primary text-body-md placeholder:text-secondary-fixed-dim" placeholder="Search orders, products..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+</button>
+<button class="p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-px bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<img class="w-8 h-8 rounded-full border border-outline-variant object-cover" data-alt="A professional headshot of an African entrepreneur, high-end photography, studio lighting, corporate attire, minimalist background with warm tones, high definition, professional profile style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmiNnRBgpd4eRZzQwvBKe4sdWm-LgY7DLnFuaHJOTwWGE3HNUjJQMFFRMnP8MBQ6ottsVURzsczM1B7Ho4aklaLFXYJb9aB_CvGDiQTCjITUeAu7bLt6luPApzQxAAb0QqMw2SmnN3B2G8ux_M2hFTpAi9wxHXUYEeSOHifbJXjFZkImQa4xSEH1BPvZ1rfR50S0jgkke5uYjffwv417_AzB_aKAfplPyysE8W3nXSJJV4KRHkYc3J0N_8oUDqhlDrSzKWpo0uFm0J"/>
+<span class="font-label-md text-label-md text-on-surface">Ahizan Admin</span>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="pt-16 p-gutter flex-1 flex flex-col max-w-container-max mx-auto w-full">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-8 mt-4">
+<div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface mb-1">Mes Produits</h2>
+<p class="text-secondary font-body-md">Gérez votre inventaire, mettez à jour les prix et suivez vos stocks en temps réel.</p>
+</div>
+<button class="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-headline-md text-headline-md hover:shadow-lg transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                    Ajouter un produit
+                </button>
+</div>
+<!-- Filters Bar -->
+<div class="bg-white p-4 rounded-xl border border-outline-variant flex flex-wrap items-center gap-4 mb-6">
+<div class="flex-1 min-w-[300px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary text-[20px]" data-icon="filter_list">filter_list</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-transparent border border-outline-variant rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-body-md" placeholder="Rechercher par nom ou SKU..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<select class="bg-transparent border border-outline-variant rounded-lg py-2.5 px-4 text-body-md focus:ring-primary focus:border-primary">
+<option>Toutes les catégories</option>
+<option>Électronique</option>
+<option>Mode</option>
+<option>Maison</option>
+</select>
+<select class="bg-transparent border border-outline-variant rounded-lg py-2.5 px-4 text-body-md focus:ring-primary focus:border-primary">
+<option>Statut</option>
+<option>Publié</option>
+<option>Brouillon</option>
+<option>En rupture</option>
+</select>
+<div class="flex items-center border border-outline-variant rounded-lg px-3 py-2.5 text-body-md gap-2">
+<span class="text-secondary">Prix</span>
+<input class="w-16 border-none p-0 focus:ring-0 text-sm" placeholder="Min" type="text"/>
+<span class="text-outline-variant">-</span>
+<input class="w-16 border-none p-0 focus:ring-0 text-sm" placeholder="Max" type="text"/>
+</div>
+<button class="p-2.5 border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-secondary" data-icon="refresh">refresh</span>
+</button>
+</div>
+</div>
+<!-- Products Table Container -->
+<div class="bg-white rounded-xl border border-outline-variant overflow-hidden flex-1 shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider w-12">
+<input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Produit</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Statut</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider">Stock</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Prix</th>
+<th class="px-6 py-4 font-label-md text-label-md text-secondary uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="table-row-hover group">
+<td class="px-6 py-4">
+<input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-lg object-cover border border-outline-variant bg-surface-container" data-alt="Close-up high-quality professional product photography of a sleek modern smartphone with obsidian finish, placed on a clean white reflective surface, soft cinematic lighting, premium tech aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdeOqXw1E-K81IsjeAFOHgJV0WZIlorFhM2bzFwqtQPXHMtLK9ljiwv5YXUrbG2F8R3WGJcn02poxEjWeK9V345C1mVkFHJQiWFv74bRjy8f74ceGwWNZmpl9NKAZU-r2aPY2kKTwjSSJopaqr8Y6ryQlA-o3Pfbxp6QGx0muyRJSxuvZTveKGbIXDf8397-WB_YAowa0jz8dVu-NpvI7az7ZdaKmCv_gKYh2tAa6692mnZrDKrJUrbipfmp4rRYCM4g3oxdVQojyx"/>
+<div>
+<div class="font-headline-md text-headline-md text-on-surface">Ahizan Phone Pro X</div>
+<div class="font-data-mono text-data-mono text-secondary">SKU: AHZ-PH-001</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                                    Publié
+                                </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-green-500"></div>
+<span class="font-body-md text-on-surface">42 en stock</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-headline-md text-headline-md text-on-surface">
+                                899.00 €
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Éditer">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 text-secondary hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Dupliquer">
+<span class="material-symbols-outlined" data-icon="content_copy">content_copy</span>
+</button>
+<button class="p-2 text-secondary hover:text-error hover:bg-error/10 rounded-lg transition-all" title="Supprimer">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="table-row-hover group">
+<td class="px-6 py-4">
+<input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-lg object-cover border border-outline-variant bg-surface-container" data-alt="Professional studio shot of high-end wireless noise-canceling headphones in matte gray, soft focus background, elegant minimalist setting, sharp details, luxury electronics marketing style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1F8n3kaIWYUWjAPZnf6LnmphaXWtdonZTfvEFautE3q4R0CD2T4_3bqfxn-0ia-oTCMGF7oWyqwvs-Wqxubom2CVPedHzmxifHDUNusboOI4qDBNHjqmWeSrPnW4TFu5t-EPTEDAQkp_J1RaDUP3UJYT3WtBKF8lTlotVMHODWEPpyVFk7bBxk-C1HLgoEOelJiz07WS1dbhwToTpyizVb6hvN_xAiQcUfcwuAMQpr0bwBgHuuChXJ3ymWYRP7kWz4EnICeUb7SOy"/>
+<div>
+<div class="font-headline-md text-headline-md text-on-surface">Casque Ahizan Sound H1</div>
+<div class="font-data-mono text-data-mono text-secondary">SKU: AHZ-AU-084</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">
+                                    Publié
+                                </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-orange-500"></div>
+<span class="font-body-md text-on-surface">5 restants</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-headline-md text-headline-md text-on-surface">
+                                249.50 €
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 text-secondary hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="content_copy">content_copy</span>
+</button>
+<button class="p-2 text-secondary hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="table-row-hover group">
+<td class="px-6 py-4">
+<input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-lg object-cover border border-outline-variant bg-surface-container" data-alt="High-resolution photography of a smart home thermostat, minimalist circular design with a glowing digital interface, installed on a textured light-colored wall, soft ambient lighting, clean tech lifestyle photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDR3ZqZGYoO7q7dC2Tls_yKkyriIVbfUlqUpczsmNm7GVKYpgbxona3fKvZloZUfyJbFRZ3owOIZOkmP1TAJDGi4XM7mVYWohFySJWOGwypenPOc37NIvnJOAIs0JpEhwgZRMGcG7KOTysiBqh5BMLJQHGb1nI36ludZgG7aebmgwt9Flr95ghlfTT16Sxvi_QugmNiWZwvVr7ddn3-SGXZzgdJg99MrQs3tUvJkGYHcUyG2skPdDi9rOKRWa5YoOVYfZcBkCn8GVF7"/>
+<div>
+<div class="font-headline-md text-headline-md text-on-surface">Thermostat Intelligent</div>
+<div class="font-data-mono text-data-mono text-secondary">SKU: AHZ-SM-112</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200">
+                                    Brouillon
+                                </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-gray-300"></div>
+<span class="font-body-md text-secondary">0 en stock</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-headline-md text-headline-md text-on-surface">
+                                120.00 €
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 text-secondary hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="content_copy">content_copy</span>
+</button>
+<button class="p-2 text-secondary hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="table-row-hover group">
+<td class="px-6 py-4">
+<input class="rounded border-outline-variant text-primary focus:ring-primary" type="checkbox"/>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-lg object-cover border border-outline-variant bg-surface-container" data-alt="High-quality professional kitchen appliance photography, sleek stainless steel coffee maker with glass carafe, steam rising gently, modern kitchen setting, warm morning sunlight, crisp architectural detail." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDfrWWQ6c9UJW1IubAq2-cSzWwsuFg69DIEaIIHvbtZf7Q8_WV9nvf8fCX4bDMf2d0V_7KjniHZY81f10K41vx9Jpl_PMMZQGESPEjXcK8VOLx0IucdS4InhYjEizc8T1WdEieqRvvshGyGorDHUWmdvXokiSQldHL6IhPgeclz9aeFgFloXFotFUiQc-7XfMyDjKkXfCZIlvIXxwcrqaBuTSqk0jIGsJNBAZHPQT7DPd8Inr-l2R2AGHPD5aXrcHQ4Cv50rMJBTi3r"/>
+<div>
+<div class="font-headline-md text-headline-md text-on-surface">Machine Espresso Ahizan</div>
+<div class="font-data-mono text-data-mono text-secondary">SKU: AHZ-HA-552</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+                                    Rupture
+                                </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-red-500"></div>
+<span class="font-body-md text-red-600 font-medium">Épuisé</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right font-headline-md text-headline-md text-on-surface">
+                                450.00 €
+                            </td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-1">
+<button class="p-2 text-secondary hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="edit">edit</span>
+</button>
+<button class="p-2 text-secondary hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="content_copy">content_copy</span>
+</button>
+<button class="p-2 text-secondary hover:text-error hover:bg-error/10 rounded-lg transition-all">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant flex items-center justify-between">
+<div class="text-secondary font-label-md text-label-md">
+                        Affichage de 1 à 4 sur 156 produits
+                    </div>
+<div class="flex items-center gap-2">
+<button class="p-2 border border-outline-variant rounded-lg hover:bg-white transition-colors disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<div class="flex items-center">
+<button class="w-10 h-10 flex items-center justify-center bg-primary text-white rounded-lg font-bold">1</button>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-white rounded-lg transition-colors">2</button>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-white rounded-lg transition-colors">3</button>
+<span class="px-2 text-secondary">...</span>
+<button class="w-10 h-10 flex items-center justify-center hover:bg-white rounded-lg transition-colors">39</button>
+</div>
+<button class="p-2 border border-outline-variant rounded-lg hover:bg-white transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Floating Help Action (Optional but adds to the high-end feel) -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-[#0d1c32] text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95 group">
+<span class="material-symbols-outlined" data-icon="support_agent" style="font-variation-settings: 'FILL' 1;">support_agent</span>
+<span class="absolute right-16 bg-white text-[#0d1c32] px-4 py-2 rounded-lg text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md pointer-events-none border border-outline-variant">Besoin d'aide ?</span>
+</button>
+</div>
+</main>
+<script>
+        // Simple interactions for the demo
+        document.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('click', (e) => {
+                if (e.target.type !== 'checkbox' && !e.target.closest('button')) {
+                    const checkbox = row.querySelector('input[type="checkbox"]');
+                    if (checkbox) checkbox.checked = !checkbox.checked;
+                    row.classList.toggle('bg-primary-container/10');
+                }
+            });
+        });
+
+        // Search bar animation on focus
+        const topSearch = document.querySelector('header input');
+        topSearch.addEventListener('focus', () => {
+            topSearch.parentElement.classList.add('ring-2', 'ring-primary/20');
+        });
+        topSearch.addEventListener('blur', () => {
+            topSearch.parentElement.classList.remove('ring-2', 'ring-primary/20');
+        });
+    </script>
+</body></html>

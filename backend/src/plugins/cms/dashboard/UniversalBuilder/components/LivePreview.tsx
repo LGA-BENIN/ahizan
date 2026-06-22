@@ -4,6 +4,7 @@ import { fetchGraphQL } from '../../lib/utils';
 
 const FETCH_COLLECTIONS = `query { cmsCollectionsTree { id name slug children { id name slug } } }`;
 const FETCH_PRODUCTS = `query { products(options: { take: 20 }) { items { productId: id productName: name slug } } }`;
+const FETCH_PAGES = `query { pages { items { id slug title } } }`;
 
 export const LivePreview = () => {
     const [viewPort, setViewPort] = useState<'desktop' | 'mobile'>('desktop');
@@ -12,10 +13,16 @@ export const LivePreview = () => {
     // For collection/product preview selection
     const [collections, setCollections] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
+    const [pages, setPages] = useState<any[]>([]);
     const [selectedPreviewSlug, setSelectedPreviewSlug] = useState<string>('');
 
     // Load collections/products when page type changes
     useEffect(() => {
+        // Fetch CMS pages to match dynamic titles
+        fetchGraphQL(FETCH_PAGES).then(data => {
+            setPages(data?.pages?.items || []);
+        });
+
         setSelectedPreviewSlug('');
         if (activePageSlug === 'category') {
             fetchGraphQL(FETCH_COLLECTIONS).then(data => {
@@ -71,9 +78,10 @@ export const LivePreview = () => {
             if (selectedPreviewSlug) return `${storefrontOrigin}/product/${selectedPreviewSlug}${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
             return ''; // Do not fall back to home page if no product selected
         }
-        // Home page: use habillage preview
+        // Custom CMS Pages and Home page: use habillage preview
         if (activeHabillage) {
-            return `${storefrontOrigin}/preview?presetId=${activeHabillage.id}&v=${previewVersion}`;
+            const slugParam = (activePageSlug && activePageSlug !== 'home') ? `&pageSlug=${activePageSlug}` : '';
+            return `${storefrontOrigin}/preview?presetId=${activeHabillage.id}&v=${previewVersion}${slugParam}`;
         }
         return '';
     };
@@ -81,20 +89,22 @@ export const LivePreview = () => {
     const previewUrl = getPreviewUrl();
 
     const getPageLabel = () => {
-        switch (activePageSlug) {
-            case 'category': return 'CATÉGORIE';
-            case 'product': return 'PRODUIT';
-            default: return 'ACCUEIL';
-        }
+        const page = pages.find((p: any) => p.slug === activePageSlug);
+        if (page?.title) return page.title.toUpperCase();
+        if (activePageSlug === 'home') return 'ACCUEIL';
+        if (activePageSlug === 'category') return 'CATÉGORIE';
+        if (activePageSlug === 'product') return 'PRODUIT';
+        return activePageSlug ? activePageSlug.toUpperCase() : 'APERÇU';
     };
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#f1f5f9' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8fafc', height: '100%', overflow: 'hidden' }}>
             <div style={{ 
-                padding: '0.75rem 1.5rem', 
-                background: 'white', 
+                height: '40px', 
+                background: '#1e293b', 
                 borderBottom: '1px solid #e2e8f0',
                 display: 'flex',
+                padding: '0 16px',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
@@ -112,8 +122,8 @@ export const LivePreview = () => {
                     }}>
                         {getPageLabel()}
                     </span>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>
-                        {activePageSlug === 'home' && activeHabillage ? `APERÇU — ${activeHabillage.name}` : 'APERÇU EN DIRECT'}
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>
+                        {(activePageSlug === 'home' || (activePageSlug !== 'category' && activePageSlug !== 'product')) && activeHabillage ? `APERÇU — ${activeHabillage.name}` : 'APERÇU EN DIRECT'}
                     </span>
                 </div>
                 

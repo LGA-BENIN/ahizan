@@ -19,7 +19,8 @@ const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
 export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps) {
     const [flashProducts, setFlashProducts] = useState<any[]>([]);
-    const DynamicIcon = (LucideIcons as any)[activeFlash?.icon || 'Zap'] || LucideIcons.Zap;
+    const iconValue = activeFlash?.icon || '⚡';
+    const DynamicIcon = (LucideIcons as any)[iconValue];
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState({ h: '00', m: '00', s: '00' });
@@ -322,8 +323,12 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
 
                 <div className="flex items-center gap-3 sm:gap-4 relative z-10">
                     {!activeFlash.isSimpleMode && (
-                        <div className="bg-primary p-1.5 sm:p-2 rounded-full shadow-sm">
-                            <DynamicIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white" />
+                        <div className="bg-primary p-1.5 sm:p-2 rounded-full shadow-sm flex items-center justify-center min-w-[28px] min-h-[28px] sm:min-w-[32px] sm:min-h-[32px]">
+                            {DynamicIcon ? (
+                                <DynamicIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white" />
+                            ) : (
+                                <span className="text-[14px] sm:text-[16px] leading-none">{iconValue}</span>
+                            )}
                         </div>
                     )}
                     <div>

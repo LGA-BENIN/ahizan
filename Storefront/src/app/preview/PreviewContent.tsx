@@ -34,7 +34,7 @@ interface HabillagePreview {
     sections: PreviewSection[];
 }
 
-export function PreviewContent({ presetId, version }: { presetId: string | null; version: string | null }) {
+export function PreviewContent({ presetId, version, pageSlug }: { presetId: string | null; version: string | null; pageSlug: string | null }) {
     const [habillage, setHabillage] = useState<HabillagePreview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -104,8 +104,9 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
     // Parse sections into CmsSection[] with parsed data
     const cmsSections: CmsSection[] = useMemo(() => {
         if (!habillage) return [];
+        const targetSlug = pageSlug || 'home';
         return habillage.sections
-            .filter(s => (s.pageSlug || 'home') === 'home')
+            .filter(s => (s.pageSlug || 'home') === targetSlug)
             .map(s => {
             let parsedData: any = {};
             try {
@@ -125,9 +126,20 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
     }, [habillage]);
 
     // Extract theme, header, footer from habillage sections (NOT from live page)
-    const theme = cmsSections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData | undefined;
-    const headerConfig = cmsSections.find(s => s.type === 'HEADER_CONF')?.data as HeaderConfData | undefined;
-    const footerConfig = cmsSections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData | undefined;
+    const globalSections = useMemo(() => {
+        if (!habillage) return [];
+        return habillage.sections.map(s => {
+            let parsedData: any = {};
+            try {
+                parsedData = s.dataJson ? JSON.parse(s.dataJson) : {};
+            } catch {}
+            return { type: s.type, data: parsedData };
+        });
+    }, [habillage]);
+
+    const theme = globalSections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData | undefined;
+    const headerConfig = globalSections.find(s => s.type === 'HEADER_CONF')?.data as HeaderConfData | undefined;
+    const footerConfig = globalSections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData | undefined;
 
     // Build theme CSS vars from habillage (same logic as layout.tsx DynamicBranding)
     const maxW = theme?.layoutMode === 'full' ? '100%' : theme?.layoutMode === 'wide' ? '1440px' : (theme?.maxWidth || '1280px');
@@ -221,6 +233,9 @@ export function PreviewContent({ presetId, version }: { presetId: string | null;
             {/* Preview Banner (always on top) */}
             <div className="sticky top-0 z-[60] py-2 px-4 text-center text-sm font-bold flex items-center justify-center gap-3" style={{ background: '#7c3aed', color: '#fff' }}>
                 <span>👁️ Aperçu — {habillage?.name || `Habillage #${presetId}`}</span>
+                {pageSlug && pageSlug !== 'home' && (
+                    <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase">{pageSlug}</span>
+                )}
                 <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">ID: {presetId}</span>
                 <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">{habillage?.sections?.length || 0} sections</span>
                 {habillage?.isDefault && (

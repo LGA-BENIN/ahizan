@@ -146,6 +146,88 @@ export class CMSService {
         } else {
             console.log('[CMSService] "home" page already exists and is fully populated.');
         }
+
+        // Provision Parallel Worlds
+        const presetsCount = await this.connection.getRepository(ctx, PagePreset).count();
+        if (presetsCount === 0) {
+            console.log('[CMSService] No habillages found. Creating parallel worlds...');
+            await this.createParallelWorldHabillages(ctx, homepage.id);
+        }
+    }
+
+    async createParallelWorldHabillages(ctx: RequestContext, homePageId: ID) {
+        // Base sections from home page to guarantee functional layout
+        const homePage = await this.findOne(ctx, homePageId);
+        const baseSections = (homePage?.sections || []).map(s => ({
+            type: s.type,
+            title: s.title,
+            description: s.description,
+            layout: s.layout,
+            order: s.order,
+            isActive: s.isActive,
+            pageSlug: 'home',
+            dataJson: s.dataJson,
+        }));
+
+        // 1. Thème Sombre (Dark Mode)
+        const darkSections = baseSections.map(s => {
+            if (s.type === 'THEME_SETTINGS') {
+                return { ...s, dataJson: JSON.stringify({
+                    primaryColor: '#ffffff',
+                    secondaryColor: '#f59e0b',
+                    backgroundColor: '#0f172a', // Dark background
+                    textColor: '#f8fafc',
+                    surfaceColor: '#1e293b',
+                    borderColor: '#334155',
+                    fontFamily: 'Inter, sans-serif',
+                    backgroundType: 'color'
+                })};
+            }
+            if (s.type === 'HEADER_CONF') {
+                const hData = JSON.parse(s.dataJson || '{}');
+                return { ...s, dataJson: JSON.stringify({ ...hData, headerBgColor: '#0f172a', headerTextColor: '#ffffff' })};
+            }
+            return s;
+        });
+
+        await this.createPreset(ctx, {
+            name: "Thème Sombre",
+            description: "Un univers parallèle avec un design élégant et sombre.",
+            sectionsJson: JSON.stringify(darkSections),
+            isBuiltIn: true,
+            isDraft: false,
+            status: 'published'
+        });
+
+        // 2. Thème Moderne (Vibrant)
+        const modernSections = baseSections.map(s => {
+            if (s.type === 'THEME_SETTINGS') {
+                return { ...s, dataJson: JSON.stringify({
+                    primaryColor: '#e31837', // Vibrant Red
+                    secondaryColor: '#2563eb', // Blue accent
+                    backgroundColor: '#ffffff',
+                    textColor: '#111827',
+                    surfaceColor: '#f3f4f6',
+                    fontFamily: 'Outfit, sans-serif', // Modern font
+                    borderRadius: '16px', // Extra rounded
+                    cardRadius: '24px'
+                })};
+            }
+            if (s.type === 'HEADER_CONF') {
+                const hData = JSON.parse(s.dataJson || '{}');
+                return { ...s, dataJson: JSON.stringify({ ...hData, headerBgColor: '#ffffff', headerTextColor: '#111827', headerShadow: true })};
+            }
+            return s;
+        });
+
+        await this.createPreset(ctx, {
+            name: "Thème Moderne",
+            description: "Un univers parallèle vibrant, arrondi et moderne.",
+            sectionsJson: JSON.stringify(modernSections),
+            isBuiltIn: true,
+            isDraft: false,
+            status: 'published'
+        });
     }
 
     async migrateLegacyData(ctx: RequestContext, pageId: ID) {
@@ -474,24 +556,36 @@ export class CMSService {
                 `auto-backup-${Date.now()}`, "Sauvegarde automatique avant changement d'habillage");
         }
 
-        await this.clearPageSections(ctx, pageId);
-
         const sections = JSON.parse(preset.sectionsJson);
-        const pageSlug = currentPage?.slug || 'home';
-        for (const sectionData of sections) {
-            const sectionPageSlug = sectionData.pageSlug || 'home';
-            if (sectionPageSlug !== pageSlug) continue; // Only apply sections for this page slug
 
-            await this.createSection(ctx, {
-                pageId,
-                type: sectionData.type,
-                title: sectionData.title || '',
-                description: sectionData.description || '',
-                layout: sectionData.layout || 'grid',
-                order: sectionData.order || 0,
-                isActive: sectionData.isActive !== false,
-                dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
-            });
+        // Group sections by pageSlug
+        const sectionsBySlug: Record<string, any[]> = {};
+        for (const sectionData of sections) {
+            const slug = sectionData.pageSlug || 'home';
+            if (!sectionsBySlug[slug]) sectionsBySlug[slug] = [];
+            sectionsBySlug[slug].push(sectionData);
+        }
+
+        // Apply sections to all referenced pages
+        for (const [slug, pageSections] of Object.entries(sectionsBySlug)) {
+            let targetPage = await this.findOneBySlug(ctx, slug);
+            if (!targetPage) {
+                targetPage = await this.createPage(ctx, { slug, title: slug, type: 'CUSTOM', isActive: true });
+            }
+
+            await this.clearPageSections(ctx, targetPage.id);
+            for (const sectionData of pageSections) {
+                await this.createSection(ctx, {
+                    pageId: targetPage.id,
+                    type: sectionData.type,
+                    title: sectionData.title || '',
+                    description: sectionData.description || '',
+                    layout: sectionData.layout || 'grid',
+                    order: sectionData.order || 0,
+                    isActive: sectionData.isActive !== false,
+                    dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
+                });
+            }
         }
 
         return this.findOne(ctx, pageId);
@@ -627,24 +721,39 @@ export class CMSService {
                 `auto-backup-${Date.now()}`, "Sauvegarde automatique avant publication du draft");
         }
 
-        // Apply draft sections to page
-        await this.clearPageSections(ctx, pageId);
         const sections = JSON.parse(draft.sectionsJson);
-        const pageSlug = currentPage?.slug || 'home';
-        for (const sectionData of sections) {
-            const sectionPageSlug = sectionData.pageSlug || 'home';
-            if (sectionPageSlug !== pageSlug) continue; // Only apply sections for this page slug
 
-            await this.createSection(ctx, {
-                pageId,
-                type: sectionData.type,
-                title: sectionData.title || '',
-                description: sectionData.description || '',
-                layout: sectionData.layout || 'grid',
-                order: sectionData.order || 0,
-                isActive: sectionData.isActive !== false,
-                dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
-            });
+        // Group sections by pageSlug
+        const sectionsBySlug: Record<string, any[]> = {};
+        for (const sectionData of sections) {
+            const slug = sectionData.pageSlug || 'home';
+            if (!sectionsBySlug[slug]) sectionsBySlug[slug] = [];
+            sectionsBySlug[slug].push(sectionData);
+        }
+
+        // Apply sections to all referenced pages
+        for (const [slug, pageSections] of Object.entries(sectionsBySlug)) {
+            let targetPage = await this.findOneBySlug(ctx, slug);
+            if (!targetPage) {
+                targetPage = await this.createPage(ctx, { slug, title: slug, type: 'CUSTOM', isActive: true });
+            }
+
+            await this.clearPageSections(ctx, targetPage.id);
+            for (const sectionData of pageSections) {
+                await this.createSection(ctx, {
+                    pageId: targetPage.id,
+                    type: sectionData.type,
+                    title: sectionData.title || '',
+                    description: sectionData.description || '',
+                    layout: sectionData.layout || 'grid',
+                    order: sectionData.order || 0,
+                    isActive: sectionData.isActive !== false,
+                    dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
+                });
+            }
+
+            // Set activePreset on the target page using update
+            await this.connection.getRepository(ctx, Page).update(targetPage.id, { activePreset: draft });
         }
 
         // Update draft status → published
@@ -657,12 +766,7 @@ export class CMSService {
         draft.draftSessionId = null as any;
         await this.connection.getRepository(ctx, PagePreset).save(draft);
 
-        // Set activePreset on the page
-        const page = await this.findOne(ctx, pageId);
-        if (page) {
-            page.activePreset = draft;
-            await this.connection.getRepository(ctx, Page).save(page);
-        }
+        // Note: activePreset was set in the loop above for all pages
 
         return this.findOne(ctx, pageId) as Promise<Page>;
     }
@@ -894,24 +998,34 @@ export class CMSService {
         if (status) {
             qb.andWhere('preset.status = :status', { status });
         }
+        
         if (isBackup !== undefined) {
             qb.andWhere('preset.isBackup = :isBackup', { isBackup });
+        } else {
+            qb.andWhere('preset.isBackup = false');
         }
         return qb.getMany();
     }
 
     async createInstantHabillage(ctx: RequestContext, name: string): Promise<PagePreset> {
-        // Snapshot current storefront state
-        const homePage = await this.findOneBySlug(ctx, 'home');
-        const sectionsData = homePage ? (homePage.sections || []).map(s => ({
-            type: s.type,
-            title: s.title,
-            description: s.description,
-            layout: s.layout,
-            order: s.order,
-            isActive: s.isActive,
-            dataJson: s.dataJson,
-        })) : [];
+        // Snapshot ALL storefront pages
+        const pages = await this.connection.getRepository(ctx, Page).find({ relations: ['sections'] });
+        const sectionsData: any[] = [];
+        
+        for (const page of pages) {
+            if (page.sections && page.sections.length > 0) {
+                sectionsData.push(...page.sections.map(s => ({
+                    type: s.type,
+                    title: s.title,
+                    description: s.description,
+                    layout: s.layout,
+                    order: s.order,
+                    isActive: s.isActive,
+                    pageSlug: page.slug,
+                    dataJson: s.dataJson,
+                })));
+            }
+        }
 
         const sectionsJson = JSON.stringify(sectionsData);
         const history = [sectionsJson];
@@ -1054,32 +1168,42 @@ export class CMSService {
             }
         }
 
-        // Apply preset sections to page
-        await this.clearPageSections(ctx, pageId);
         const sections = JSON.parse(preset.sectionsJson);
-        const pageSlug = currentPage?.slug || 'home';
+
+        // Group sections by pageSlug
+        const sectionsBySlug: Record<string, any[]> = {};
         for (const sectionData of sections) {
-            const sectionPageSlug = sectionData.pageSlug || 'home';
-            if (sectionPageSlug !== pageSlug) continue; // Only apply sections for this page slug
-
-            await this.createSection(ctx, {
-                pageId,
-                type: sectionData.type,
-                title: sectionData.title || '',
-                description: sectionData.description || '',
-                layout: sectionData.layout || 'grid',
-                order: sectionData.order || 0,
-                isActive: sectionData.isActive !== false,
-                dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
-            });
+            const slug = sectionData.pageSlug || 'home';
+            if (!sectionsBySlug[slug]) sectionsBySlug[slug] = [];
+            sectionsBySlug[slug].push(sectionData);
         }
 
-        // Set activePreset on the page
-        const page = await this.findOne(ctx, pageId);
-        if (page) {
-            page.activePreset = preset;
-            await this.connection.getRepository(ctx, Page).save(page);
+        // Apply sections to all referenced pages
+        for (const [slug, pageSections] of Object.entries(sectionsBySlug)) {
+            let targetPage = await this.findOneBySlug(ctx, slug);
+            if (!targetPage) {
+                targetPage = await this.createPage(ctx, { slug, title: slug, type: 'CUSTOM', isActive: true });
+            }
+
+            await this.clearPageSections(ctx, targetPage.id);
+            for (const sectionData of pageSections) {
+                await this.createSection(ctx, {
+                    pageId: targetPage.id,
+                    type: sectionData.type,
+                    title: sectionData.title || '',
+                    description: sectionData.description || '',
+                    layout: sectionData.layout || 'grid',
+                    order: sectionData.order || 0,
+                    isActive: sectionData.isActive !== false,
+                    dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
+                });
+            }
+
+            // Set activePreset on the target page using update to prevent relation overrides
+            await this.connection.getRepository(ctx, Page).update(targetPage.id, { activePreset: preset });
         }
+
+        // Note: activePreset was set in the loop above for all pages
 
         return this.findOne(ctx, pageId) as Promise<Page>;
     }

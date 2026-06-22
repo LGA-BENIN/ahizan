@@ -7,5 +7,6 @@ export function SearchParamsProvider() {
     const searchParams = useSearchParams();
     const presetId = searchParams.get("presetId");
     const version = searchParams.get("v");
-    return <PreviewContent presetId={presetId} version={version} />;
+    const pageSlug = searchParams.get("pageSlug");
+    return <PreviewContent presetId={presetId} version={version} pageSlug={pageSlug} />;
 }

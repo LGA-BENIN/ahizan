@@ -27,11 +27,15 @@ export function getBannerApiUrl(endpoint: string): string {
 
 export function getAssetUrl(path: string | null | undefined): string | undefined {
     if (!path) return undefined;
-    if (path.startsWith('http')) return encodeURI(path);
-    if (path.startsWith('data:')) return path;
+    
+    // Normalize path to use forward slashes (fixes Windows paths in DB)
+    const normalizedPath = path.replace(/\\/g, '/');
+
+    if (normalizedPath.startsWith('http')) return encodeURI(normalizedPath);
+    if (normalizedPath.startsWith('data:')) return normalizedPath;
     
     const baseUrl = getBaseUrl();
-    let cleanPath = path.startsWith('/') ? path : `/${path}`;
+    let cleanPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
     // Vendure preview thumbnails use /preview/ subdir and __preview suffix
     // Convert to original asset path: /assets/preview/32/xxx__preview.jpg → /assets/32/xxx.jpg
     cleanPath = cleanPath.replace(/\/preview\//, '/');

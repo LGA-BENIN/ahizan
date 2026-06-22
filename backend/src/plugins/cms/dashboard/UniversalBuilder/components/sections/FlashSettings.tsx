@@ -107,7 +107,7 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                     <div className="grid-3" style={{ marginTop: '1rem' }}>
                         <div><label className="label-pro">Titre</label><input className="input-pro" value={sv.title} onChange={(e) => updateVersion(sv.id, { title: e.target.value })} /></div>
                         <div><label className="label-pro">Sous-titre</label><input className="input-pro" value={sv.subtitle} onChange={(e) => updateVersion(sv.id, { subtitle: e.target.value })} /></div>
-                        <div><label className="label-pro">Icône de bannière (ex: Zap, Flame, Gift, Sparkles)</label><input className="input-pro" value={sv.icon || 'Zap'} onChange={(e) => updateVersion(sv.id, { icon: e.target.value })} /></div>
+                        <div><label className="label-pro">Emoji de bannière (ex: ⚡, 🔥)</label><input className="input-pro" value={sv.icon || '⚡'} onChange={(e) => updateVersion(sv.id, { icon: e.target.value })} /></div>
                     </div>
                 </div>
 

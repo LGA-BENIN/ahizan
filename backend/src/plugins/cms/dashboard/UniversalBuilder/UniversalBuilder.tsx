@@ -332,11 +332,10 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
         }
       }
       
-      // If we exploded anything, auto-save the new structure back
       if (didExplode) {
         const cleanSections = exploded.map((s, i) => ({
           type: s.type, title: s.title, description: s.description || '', layout: s.layout || 'grid',
-          order: i, isActive: s.isActive, dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || {}),
+          order: i, isActive: s.isActive, pageSlug: s.pageSlug || activePageSlug, dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || {}),
         }));
         // Fire-and-forget save of the migrated data
         autoSaveToHabillage(JSON.stringify(cleanSections));

@@ -60,14 +60,14 @@ export function MobileBottomNav({
     ];
 
     return (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[100] pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-b from-white to-white/60 backdrop-blur-md border-t border-white/80 z-[100] pb-safe shadow-[0_-4px_15px_rgba(255,255,255,0.6)]">
             <div className="flex justify-around items-center h-14">
                 {navItems.map((item, idx) => {
                     const Icon = item.icon;
                     const content = (
                         <>
                             <div className="relative">
-                                <Icon className={`w-5 h-5 mb-1 transition-colors ${item.isActive ? 'text-primary stroke-[2.5]' : 'text-gray-500 stroke-[2]'}`} />
+                                <Icon className={`w-5 h-5 mb-1 transition-colors ${item.isActive ? 'text-[#d8263e] stroke-[2.5]' : 'text-[#d8263e]/60 stroke-[2]'}`} />
                                 {item.badge && (
                                     <span 
                                         className="absolute -top-1.5 -right-2 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white"
@@ -77,7 +77,7 @@ export function MobileBottomNav({
                                     </span>
                                 )}
                             </div>
-                            <span className={`text-[10px] font-medium transition-colors ${item.isActive ? 'text-primary' : 'text-gray-500'}`}>
+                            <span className={`text-[10px] font-medium transition-colors ${item.isActive ? 'text-[#d8263e]' : 'text-[#d8263e]/60'}`}>
                                 {item.label}
                             </span>
                         </>

@@ -24,6 +24,26 @@ interface Props {
 
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
+function ShadowWrapper({ html, css }: { html: string, css?: string }) {
+    const hostRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (hostRef.current) {
+            if (!hostRef.current.shadowRoot) {
+                hostRef.current.attachShadow({ mode: 'open' });
+            }
+            if (hostRef.current.shadowRoot) {
+                hostRef.current.shadowRoot.innerHTML = `
+                    ${css ? `<style>${css}</style>` : ''}
+                    <div>${html}</div>
+                `;
+            }
+        }
+    }, [html, css]);
+
+    return <div ref={hostRef} />;
+}
+
 function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrapper }: { config: any, siteCategories: any[], globalPromoConfig: any, wrapper: string }) {
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
     
@@ -409,8 +429,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             if (!html || html.trim() === '') return null;
             return (
                 <section className={`${wrapper} mt-8 md:mt-12 overflow-hidden`}>
-                    {config.customCss && <style dangerouslySetInnerHTML={{ __html: config.customCss }} />}
-                    <div dangerouslySetInnerHTML={{ __html: html }} />
+                    <ShadowWrapper html={html} css={config.customCss} />
                     {config.customJs && (
                         <Script id={`custom-js-${config.id || Math.random().toString(36).substr(2, 9)}`} strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: config.customJs }} />
                     )}

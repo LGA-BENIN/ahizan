@@ -68,36 +68,41 @@ export function MobileCategorySidebar({ categories = [] }: { categories?: any[] 
                                 className="group/cat relative"
                                 onMouseEnter={() => setHoveredCat(cat)}
                             >
-                                <Link
-                                    href={cat.id ? `/collection/${cat.slug}` : '#'}
-                                    onClick={(e) => {
-                                        if (cat.children?.length > 0) {
-                                            e.preventDefault();
-                                            setExpandedMobileCat(expandedMobileCat === cat ? null : cat);
-                                        } else {
-                                            setMobileMenuOpen(false);
-                                        }
-                                    }}
-                                    className={`flex items-center gap-3 px-5 py-2.5 text-[13px] text-foreground/80 hover:text-primary hover:bg-muted/30 transition-all ${!cat.id ? 'opacity-50 pointer-events-none' : ''}`}
-                                >
-                                    <div className="w-5 h-5 flex items-center justify-center text-foreground group-hover/cat:text-primary transition-colors">
-                                        {cat.id && promoConfig?.heroIcons?.[cat.slug] ? (
-                                            <img src={getAssetUrl(promoConfig.heroIcons[cat.slug])} className="w-full h-full object-cover rounded-sm" alt="" />
-                                        ) : cat.id && promoConfig?.collectionMedia?.[cat.slug] ? (
-                                            <img src={getAssetUrl(promoConfig.collectionMedia[cat.slug])} className="w-full h-full object-cover rounded-sm" alt="" />
-                                        ) : cat.featuredAsset?.preview ? (
-                                            <img src={cat.featuredAsset.preview} className="w-full h-full object-cover rounded-sm" alt="" />
-                                        ) : (
-                                            cat.id ? <Smartphone className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 bg-muted animate-pulse rounded-full" />
-                                        )}
-                                    </div>
-                                    <span className={`truncate font-semibold tracking-tight flex-1 ${!cat.id ? 'bg-muted animate-pulse text-transparent rounded w-20 h-3' : ''}`}>
-                                        {cat.name || '...'}
-                                    </span>
+                                <div className={`flex items-center justify-between px-5 py-2.5 hover:bg-muted/30 transition-all ${!cat.id ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <Link
+                                        href={cat.id ? `/collection/${cat.slug}` : '#'}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className="flex items-center gap-3 flex-1 min-w-0 text-[13px] text-foreground/80 hover:text-primary"
+                                    >
+                                        <div className="w-5 h-5 flex items-center justify-center text-foreground group-hover/cat:text-primary transition-colors">
+                                            {cat.id && promoConfig?.heroIcons?.[cat.slug] ? (
+                                                <img src={getAssetUrl(promoConfig.heroIcons[cat.slug])} className="w-full h-full object-cover rounded-sm" alt="" />
+                                            ) : cat.id && promoConfig?.collectionMedia?.[cat.slug] ? (
+                                                <img src={getAssetUrl(promoConfig.collectionMedia[cat.slug])} className="w-full h-full object-cover rounded-sm" alt="" />
+                                            ) : cat.featuredAsset?.preview ? (
+                                                <img src={cat.featuredAsset.preview} className="w-full h-full object-cover rounded-sm" alt="" />
+                                            ) : (
+                                                cat.id ? <Smartphone className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 bg-muted animate-pulse rounded-full" />
+                                            )}
+                                        </div>
+                                        <span className={`truncate font-semibold tracking-tight flex-1 ${!cat.id ? 'bg-muted animate-pulse text-transparent rounded w-20 h-3' : ''}`}>
+                                            {cat.name || '...'}
+                                        </span>
+                                    </Link>
                                     {cat.children?.length > 0 && (
-                                        <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform ${expandedMobileCat === cat ? 'rotate-90' : ''}`} />
+                                        <button 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setExpandedMobileCat(expandedMobileCat === cat ? null : cat);
+                                            }}
+                                            className="p-2 -mr-2 ml-2 text-muted-foreground hover:bg-muted rounded-md transition-colors"
+                                            aria-label="Toggle subcategories"
+                                        >
+                                            <ChevronRight className={`w-4 h-4 transition-transform ${expandedMobileCat === cat ? 'rotate-90' : ''}`} />
+                                        </button>
                                     )}
-                                </Link>
+                                </div>
                                 {/* Mobile subcategories inline expansion */}
                                 {cat.children?.length > 0 && expandedMobileCat === cat && (
                                     <div className="pl-10 pr-5 py-2 space-y-1 animate-in slide-in-from-top-2 duration-200">

@@ -5,18 +5,18 @@ import { usePathname } from "next/navigation";
 import { Home, LayoutGrid, Search, ShoppingCart, UserRound } from "lucide-react";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
 
-export function MobileBottomNav({ 
-    customer, 
+export function MobileBottomNav({
+    customer,
     order,
     config
-}: { 
+}: {
     customer?: any;
     order?: any;
     config?: any;
 }) {
     const pathname = usePathname();
     const { setMobileMenuOpen } = useMobileMenu();
-    
+
     const cartCount = order?.totalQuantity || 0;
     const cartBadgeColor = config?.cartBadgeColor || "#e31837";
 
@@ -60,7 +60,9 @@ export function MobileBottomNav({
     ];
 
     return (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-b from-white to-white/60 backdrop-blur-md border-t border-white/80 z-[100] pb-safe shadow-[0_-4px_15px_rgba(255,255,255,0.6)]">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white z-[100] pb-safe">
+            {/* Gradient transition overlay extending 48px above the bottom bar */}
+            <div className="absolute bottom-full left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent pointer-events-none" />
             <div className="flex justify-around items-center h-14">
                 {navItems.map((item, idx) => {
                     const Icon = item.icon;
@@ -69,7 +71,7 @@ export function MobileBottomNav({
                             <div className="relative">
                                 <Icon className={`w-5 h-5 mb-1 transition-colors ${item.isActive ? 'text-[#d8263e] stroke-[2.5]' : 'text-[#d8263e]/60 stroke-[2]'}`} />
                                 {item.badge && (
-                                    <span 
+                                    <span
                                         className="absolute -top-1.5 -right-2 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white"
                                         style={{ backgroundColor: cartBadgeColor }}
                                     >
@@ -99,8 +101,8 @@ export function MobileBottomNav({
                     }
 
                     return (
-                        <Link 
-                            key={idx} 
+                        <Link
+                            key={idx}
                             href={item.href}
                             className="flex flex-col items-center justify-center w-full h-full"
                         >

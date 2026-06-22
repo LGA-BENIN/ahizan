@@ -29,6 +29,7 @@ import {
     ShieldCheck,
     Heart,
     Settings as SettingsIcon,
+    Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logoutAction } from '@/app/sign-in/actions';
@@ -54,6 +55,33 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, vendor, dashboardConfig }: DashboardLayoutProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [isInstallable, setIsInstallable] = useState(false);
+
+    useEffect(() => {
+        const handleBeforeInstallPrompt = (e: Event) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setIsInstallable(true);
+        };
+        window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        if (window.matchMedia("(display-mode: standalone)").matches) {
+            setIsInstallable(false);
+        }
+        return () => {
+            window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        };
+    }, []);
+
+    const handleInstallClick = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`PWA Install Choice: ${outcome}`);
+        setDeferredPrompt(null);
+        setIsInstallable(false);
+    };
     const pathname = usePathname();
     const { theme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
@@ -235,6 +263,17 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
 
                     {/* Right Side Icons */}
                     <div className="flex items-center gap-1 md:gap-2">
+                        {isInstallable && (
+                            <Button 
+                                onClick={handleInstallClick}
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-9 gap-1.5 px-3 bg-muted/50 hover:bg-muted text-primary transition-colors font-semibold"
+                            >
+                                <Download className="h-4 w-4 animate-bounce" />
+                                <span className="hidden sm:inline text-xs">Installer l'app</span>
+                            </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-9 w-9 bg-muted/50 hover:bg-muted transition-colors">
                             <Bell className="h-4 w-4 text-muted-foreground" />
                         </Button>

@@ -4,6 +4,7 @@ import {Pagination} from '@/components/shared/pagination';
 import {SortDropdown} from './sort-dropdown';
 import {SearchProductsQuery} from "@/lib/vendure/queries";
 import {getActiveChannel} from '@/lib/vendure/actions';
+import {LottieSearchEmpty} from '@/components/shared/animations/LottieSearchEmpty';
 
 interface ProductGridProps {
     productData?: {
@@ -31,8 +32,11 @@ export async function ProductGrid({productData, productDataPromise, currentPage,
 
     if (!searchResult.items.length) {
         return (
-            <div className="text-center py-12">
-                <p className="text-muted-foreground text-sm">Aucun produit trouvé</p>
+            <div className="text-center py-12 flex flex-col items-center">
+                <div className="w-48 h-48 mb-2 flex items-center justify-center">
+                    <LottieSearchEmpty />
+                </div>
+                <p className="text-muted-foreground text-sm font-medium">Aucun produit trouvé</p>
             </div>
         );
     }

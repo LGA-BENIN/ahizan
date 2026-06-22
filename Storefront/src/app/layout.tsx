@@ -47,11 +47,14 @@ export const viewport: Viewport = {
     ],
 };
 
+import { PWAInstallPrompt } from "@/components/shared/PWAInstallPrompt";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="fr" suppressHydrationWarning>
             <body className="font-sans antialiased min-h-screen flex flex-col">
                 {children}
+                <PWAInstallPrompt />
             </body>
         </html>
     );

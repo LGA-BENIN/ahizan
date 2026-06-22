@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, UserRound, UserRoundCheck, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu, ShoppingBag, ArrowLeft, ChevronLeft } from "lucide-react";
+import { Search, UserRound, UserRoundCheck, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu, ShoppingBag, ArrowLeft, ChevronLeft, Download } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
@@ -25,6 +25,36 @@ export function AhizanNavbar({
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
+
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [isInstallable, setIsInstallable] = useState(false);
+
+    useEffect(() => {
+        const handleBeforeInstallPrompt = (e: Event) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setIsInstallable(true);
+        };
+
+        window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+        if (window.matchMedia("(display-mode: standalone)").matches) {
+            setIsInstallable(false);
+        }
+
+        return () => {
+            window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+        };
+    }, []);
+
+    const handleInstallClick = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`PWA Install Choice: ${outcome}`);
+        setDeferredPrompt(null);
+        setIsInstallable(false);
+    };
 
     useEffect(() => {
         const handleScroll = () => {
@@ -226,6 +256,15 @@ export function AhizanNavbar({
                             {/* Right: Icons */}
                             {showTopIconsOnMobile && (
                                 <div className="flex items-center gap-1">
+                                    {isInstallable && (
+                                        <button 
+                                            onClick={handleInstallClick} 
+                                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-primary animate-pulse flex items-center justify-center"
+                                            aria-label="Installer l'application"
+                                        >
+                                            <Download className="h-5 w-5" />
+                                        </button>
+                                    )}
                                     {showAccountIcon && (
                                         <Link href={isLoggedIn ? "/account" : "/sign-in"} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
                                             {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
@@ -368,6 +407,15 @@ export function AhizanNavbar({
 
                         {/* Actions */}
                         <div className="flex items-center gap-4 xl:gap-8 shrink-0">
+                            {isInstallable && (
+                                <button 
+                                    onClick={handleInstallClick}
+                                    className="flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity text-primary cursor-pointer border border-border px-3 py-1.5 rounded-full hover:bg-muted"
+                                >
+                                    <Download className="h-4 w-4 animate-bounce" />
+                                    <span className="hidden xl:inline">Installer l'application</span>
+                                </button>
+                            )}
                             {showVendorLink && (
                                 <Link href={vendorLinkUrl} className="font-medium text-sm hidden md:block hover:opacity-80 transition-opacity" style={{ color: cartBadgeColor }}>
                                     {vendorLinkText}

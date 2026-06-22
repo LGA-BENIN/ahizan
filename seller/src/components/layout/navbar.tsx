@@ -3,6 +3,7 @@ import { NavbarUser } from '@/components/layout/navbar/navbar-user';
 import { ThemeSwitcher } from '@/components/layout/navbar/theme-switcher';
 import { Suspense } from "react";
 import { NavbarUserSkeleton } from '@/components/shared/skeletons/navbar-user-skeleton';
+import { PWAHeaderInstallButton } from '@/components/layout/pwa-install-button';
 
 export function Navbar() {
     return (
@@ -15,6 +16,7 @@ export function Navbar() {
                         </Link>
                     </div>
                     <div className="flex items-center gap-4">
+                        <PWAHeaderInstallButton />
                         <ThemeSwitcher />
                         <Suspense fallback={<NavbarUserSkeleton />}>
                             <NavbarUser />
@@ -24,4 +26,4 @@ export function Navbar() {
             </div>
         </header>
     );
-}
+}

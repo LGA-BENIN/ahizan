@@ -4,6 +4,7 @@ import {Button} from '@/components/ui/button';
 import {Minus, Plus, X, ShoppingCart} from 'lucide-react';
 import {Price} from '@/components/commerce/price';
 import {removeFromCart, adjustQuantity} from './actions';
+import {LottieEmptyCart} from '@/components/shared/animations/LottieEmptyCart';
 
 type ActiveOrder = {
     id: string;
@@ -33,8 +34,8 @@ export async function CartItems({activeOrder}: { activeOrder: ActiveOrder | null
         return (
             <div className="container mx-auto px-4 py-16">
                 <div className="text-center flex flex-col items-center">
-                    <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-6">
-                        <ShoppingCart className="w-12 h-12 text-muted-foreground" />
+                    <div className="w-48 h-48 mb-2 flex items-center justify-center">
+                        <LottieEmptyCart />
                     </div>
                     <h1 className="text-xl font-bold mb-3 tracking-tight">Votre panier est vide</h1>
                     <p className="text-sm text-muted-foreground mb-6 max-w-md">

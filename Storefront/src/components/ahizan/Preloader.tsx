@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { LottiePreloader } from '@/components/shared/animations/LottiePreloader';
 
 export function AhizanPreloader({ config }: { config: any }) {
     const [isVisible, setIsVisible] = useState(true);
@@ -67,6 +68,10 @@ export function AhizanPreloader({ config }: { config: any }) {
                         className="w-full h-full object-cover"
                     />
                 </div>
+            )}
+
+            {type === 'lottie' && mediaUrl && (
+                <LottiePreloader url={mediaUrl} />
             )}
         </div>
     );

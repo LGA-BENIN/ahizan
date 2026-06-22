@@ -47,6 +47,8 @@ export const viewport: Viewport = {
 import {Navbar} from "@/components/layout/navbar";
 import {Footer} from "@/components/layout/footer";
 
+import {PWAInstallPrompt} from "@/components/shared/PWAInstallPrompt";
+
 export default function RootLayout({children}: { children: React.ReactNode }) {
     return (
         <html lang="en" suppressHydrationWarning>
@@ -58,9 +60,10 @@ export default function RootLayout({children}: { children: React.ReactNode }) {
                         navbar={<Navbar />} 
                         footer={<Footer />}
                     >
-                        {children}
+                          {children}
                     </ConditionalLayout>
                     <Toaster />
+                    <PWAInstallPrompt />
                 </ThemeProvider>
             </body>
         </html>

@@ -9,6 +9,7 @@ import Image from 'next/image';
 import {Separator} from '@/components/ui/separator';
 import {Price} from '@/components/commerce/price';
 import {notFound} from "next/navigation";
+import {LottieOrderSuccess} from '@/components/shared/animations/LottieOrderSuccess';
 
 const GetOrderByCodeQuery = graphql(`
     query GetOrderByCode($code: String!) {
@@ -67,6 +68,8 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
 
     return (
         <div className="container mx-auto px-4 py-12">
+            {/* Confetti celebration shower overlay */}
+            <LottieOrderSuccess />
             <div className="max-w-2xl mx-auto">
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 dark:bg-green-500/20 mb-4 border border-green-500/20">

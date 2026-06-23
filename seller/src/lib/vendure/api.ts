@@ -57,7 +57,7 @@ function extractAuthToken(headers: Headers): string | null {
  * Execute a GraphQL query against the Vendure API
  */
 export async function query<TResult, TVariables>(
-    document: TadaDocumentNode<TResult, TVariables>,
+    document: TadaDocumentNode<TResult, TVariables> | any,
     ...[variables, options]: TVariables extends Record<string, never>
         ? [variables?: TVariables, options?: VendureRequestOptions]
         : [variables: TVariables, options?: VendureRequestOptions]
@@ -118,7 +118,7 @@ export async function query<TResult, TVariables>(
     if (files.length > 0) {
         const formData = new FormData();
         const operations = {
-            query: print(document),
+            query: typeof document === 'string' ? document : print(document),
             variables: variables || {}
         };
 
@@ -143,7 +143,7 @@ export async function query<TResult, TVariables>(
         delete headers['Content-Type']; // Let browser set boundary
     } else {
         body = JSON.stringify({
-            query: print(document),
+            query: typeof document === 'string' ? document : print(document),
             variables: variables || {},
         });
     }
@@ -184,7 +184,7 @@ export async function query<TResult, TVariables>(
  * Execute a GraphQL mutation against the Vendure API
  */
 export async function mutate<TResult, TVariables>(
-    document: TadaDocumentNode<TResult, TVariables>,
+    document: TadaDocumentNode<TResult, TVariables> | any,
     ...[variables, options]: TVariables extends Record<string, never>
         ? [variables?: TVariables, options?: VendureRequestOptions]
         : [variables: TVariables, options?: VendureRequestOptions]

@@ -56,7 +56,7 @@ async function DashboardContentWrapper({ children }: { children: React.ReactNode
     ]);
 
     if (!vendor) {
-        redirect('/register');
+        redirect('/onboarding');
     }
 
     return (

@@ -53,7 +53,7 @@ export function MobileBottomNav({
         {
             label: "Compte",
             icon: UserRound,
-            href: customer ? "/account" : "/sign-in",
+            href: customer ? "/account/profile" : "/sign-in",
             isActive: pathname?.startsWith("/account") || pathname === "/sign-in",
             action: null
         }

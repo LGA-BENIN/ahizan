@@ -28,22 +28,63 @@ export function AhizanNavbar({
 
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [isInstallable, setIsInstallable] = useState(false);
+    const [isStandalone, setIsStandalone] = useState(false);
 
     useEffect(() => {
+        const checkStandalone = () => {
+            const standalone = 
+                window.matchMedia("(display-mode: standalone)").matches || 
+                window.matchMedia("(display-mode: fullscreen)").matches || 
+                window.matchMedia("(display-mode: minimal-ui)").matches || 
+                (window.navigator as any).standalone === true;
+            setIsStandalone(standalone);
+            return standalone;
+        };
+
+        const standalone = checkStandalone();
+        if (standalone) {
+            setIsInstallable(false);
+            return;
+        }
+
+        // Check if event was already captured globally
+        if ((window as any).deferredPrompt) {
+            setDeferredPrompt((window as any).deferredPrompt);
+            setIsInstallable(true);
+        }
+
+        const handleReady = () => {
+            if (checkStandalone()) return;
+            setDeferredPrompt((window as any).deferredPrompt);
+            setIsInstallable(true);
+        };
+
+        const handleInstalled = () => {
+            setIsInstallable(false);
+            setIsStandalone(true);
+        };
+
         const handleBeforeInstallPrompt = (e: Event) => {
+            if (checkStandalone()) {
+                setIsInstallable(false);
+                return;
+            }
             e.preventDefault();
+            (window as any).deferredPrompt = e;
             setDeferredPrompt(e);
             setIsInstallable(true);
         };
 
+        window.addEventListener("pwa-install-ready", handleReady);
+        window.addEventListener("pwa-installed", handleInstalled);
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
-        if (window.matchMedia("(display-mode: standalone)").matches) {
-            setIsInstallable(false);
-        }
+        window.addEventListener("appinstalled", handleInstalled);
 
         return () => {
+            window.removeEventListener("pwa-install-ready", handleReady);
+            window.removeEventListener("pwa-installed", handleInstalled);
             window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+            window.removeEventListener("appinstalled", handleInstalled);
         };
     }, []);
 
@@ -256,7 +297,7 @@ export function AhizanNavbar({
                             {/* Right: Icons */}
                             {showTopIconsOnMobile && (
                                 <div className="flex items-center gap-1">
-                                    {isInstallable && (
+                                    {isInstallable && !isStandalone && (
                                         <button 
                                             onClick={handleInstallClick} 
                                             className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-primary animate-pulse flex items-center justify-center"
@@ -266,7 +307,7 @@ export function AhizanNavbar({
                                         </button>
                                     )}
                                     {showAccountIcon && (
-                                        <Link href={isLoggedIn ? "/account" : "/sign-in"} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <Link href={isLoggedIn ? "/account/profile" : "/sign-in"} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
                                             {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
                                         </Link>
                                     )}
@@ -407,7 +448,7 @@ export function AhizanNavbar({
 
                         {/* Actions */}
                         <div className="flex items-center gap-4 xl:gap-8 shrink-0">
-                            {isInstallable && (
+                            {isInstallable && !isStandalone && (
                                 <button 
                                     onClick={handleInstallClick}
                                     className="flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity text-primary cursor-pointer border border-border px-3 py-1.5 rounded-full hover:bg-muted"
@@ -423,7 +464,7 @@ export function AhizanNavbar({
                             )}
 
                             {showAccountIcon && (
-                                <Link href={isLoggedIn ? "/account" : "/sign-in"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                                <Link href={isLoggedIn ? "/account/profile" : "/sign-in"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                                     {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
                                     <div className="flex flex-col leading-tight hidden lg:flex">
                                         <span className="text-[11px] opacity-70">

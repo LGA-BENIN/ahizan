@@ -1,7 +1,155 @@
 @import "tailwindcss";
 
+@theme {
+  --font-display-lg: "Outfit", sans-serif;
+  --font-body-lg: "Outfit", sans-serif;
+  --font-headline-lg: "Outfit", sans-serif;
+  --font-headline-md: "Outfit", sans-serif;
+  --font-body-md: "Outfit", sans-serif;
+  --font-label-md: "Outfit", sans-serif;
+  --font-label-sm: "Outfit", sans-serif;
+  --font-headline-lg-mobile: "Outfit", sans-serif;
+
+  --text-display-lg: 48px;
+  --text-display-lg--line-height: 56px;
+  --text-display-lg--letter-spacing: -0.02em;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--letter-spacing: -0.01em;
+
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+
+  --text-label-md: 14px;
+  --text-label-md--line-height: 20px;
+  --text-label-md--letter-spacing: 0.01em;
+
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
+
+  --text-headline-lg-mobile: 28px;
+  --text-headline-lg-mobile--line-height: 36px;
+  --text-headline-lg-mobile--letter-spacing: -0.01em;
+
+  --spacing-gutter: 24px;
+  --spacing-margin-desktop: 40px;
+  --spacing-base: 8px;
+  --spacing-auth-card-width: 480px;
+  --spacing-margin-mobile: 16px;
+  --spacing-container-max: 1200px;
+  
+  --color-surface: #f9f9ff;
+  --color-outline-variant: #e2bebd;
+  --color-error-container: #ffdad6;
+  --color-error: #DC2626;
+  --color-surface-dim: #d3daea;
+  --color-inverse-primary: #ffb3b3;
+  --color-surface-tint: #b81d34;
+  --color-on-primary-fixed: #400009;
+  --color-primary: #7e001b;
+  --color-surface-bright: #f9f9ff;
+  --color-inverse-on-surface: #ebf1ff;
+  --color-surface-variant: #dce2f3;
+  --color-on-tertiary-fixed: #40000a;
+  --color-surface-container-highest: #dce2f3;
+  --color-surface-light: #F6F7F9;
+  --color-secondary-fixed: #ffdada;
+  --color-on-surface: #151c27;
+  --color-tertiary-fixed-dim: #ffb3b4;
+  --color-secondary-container: #e41745;
+  --color-on-secondary-fixed: #40000c;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #ffb4b4;
+  --color-secondary: #ba0033;
+  --color-bg-white: #ffffff;
+  --color-on-secondary-container: #fffbff;
+  --color-on-error: #ffffff;
+  --color-on-secondary-fixed-variant: #920026;
+  --color-on-primary-fixed-variant: #920021;
+  --color-background: #f9f9ff;
+  --color-inverse-surface: #2a313d;
+  --color-secondary-fixed-dim: #ffb3b5;
+  --color-on-surface-variant: #5a4040;
+  --color-border: #E5E7EB;
+  --color-success: #16A34A;
+  --color-on-tertiary-fixed-variant: #8c1427;
+  --color-surface-container-low: #f0f3ff;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-error-container: #93000a;
+  --color-tertiary: #7c041d;
+  --color-primary-container: #a70b2a;
+  --color-tertiary-container: #9d2332;
+  --color-on-tertiary-container: #ffb3b4;
+  --color-surface-container-high: #e2e8f8;
+  --color-on-tertiary: #ffffff;
+  --color-surface-container: #e7eefe;
+  --color-primary-fixed: #ffdad9;
+  --color-tertiary-fixed: #ffdad9;
+  --color-primary-fixed-dim: #ffb3b3;
+  --color-on-secondary: #ffffff;
+  --color-on-background: #151c27;
+  --color-outline: #8e706f;
+}
+
+@utility font-display-lg {
+  font-family: var(--font-display-lg);
+  font-weight: 700;
+}
+@utility font-body-lg {
+  font-family: var(--font-body-lg);
+  font-weight: 400;
+}
+@utility font-headline-lg {
+  font-family: var(--font-headline-lg);
+  font-weight: 600;
+}
+@utility font-headline-md {
+  font-family: var(--font-headline-md);
+  font-weight: 600;
+}
+@utility font-body-md {
+  font-family: var(--font-body-md);
+  font-weight: 400;
+}
+@utility font-label-md {
+  font-family: var(--font-label-md);
+  font-weight: 500;
+}
+@utility font-label-sm {
+  font-family: var(--font-label-sm);
+  font-weight: 600;
+}
+@utility font-headline-lg-mobile {
+  font-family: var(--font-headline-lg-mobile);
+  font-weight: 600;
+}
+
 @layer base {
   body {
     font-family: 'Outfit', sans-serif;
   }
 }
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+}
+
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(2deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-float-delayed { animation: float 8s ease-in-out infinite 1s; }
+.animate-float-slow { animation: float 10s ease-in-out infinite 2s; }

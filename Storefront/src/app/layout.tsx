@@ -52,6 +52,23 @@ import { PWAInstallPrompt } from "@/components/shared/PWAInstallPrompt";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="fr" suppressHydrationWarning>
+            <head>
+                <script
+                    dangerouslySetInnerHTML={{
+                        __html: `
+                            window.addEventListener('beforeinstallprompt', (e) => {
+                                e.preventDefault();
+                                window.deferredPrompt = e;
+                                window.dispatchEvent(new CustomEvent('pwa-install-ready'));
+                            });
+                            window.addEventListener('appinstalled', () => {
+                                window.deferredPrompt = null;
+                                window.dispatchEvent(new CustomEvent('pwa-installed'));
+                            });
+                        `
+                    }}
+                />
+            </head>
             <body className="font-sans antialiased min-h-screen flex flex-col">
                 {children}
                 <PWAInstallPrompt />

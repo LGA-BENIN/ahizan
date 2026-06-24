@@ -83,17 +83,29 @@ export function PWAInstallPrompt() {
     if (!isVisible || isStandalone) return null;
 
     return (
-        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 bg-card border border-border rounded-xl shadow-2xl p-4 flex gap-3 items-center animate-in slide-in-from-bottom-5 text-card-foreground">
-            <div className="flex-grow min-w-0">
-                <h4 className="font-bold text-sm leading-snug">Installer Ahizan sur votre {deviceType === "mobile" ? "mobile" : "PC"}</h4>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-normal">Accédez à l'application plus rapidement et utilisez-la hors ligne !</p>
+        <div className="fixed bottom-20 left-4 right-4 md:bottom-4 md:left-auto md:right-4 md:w-96 z-50 bg-card border border-border rounded-2xl shadow-2xl p-3 flex gap-3 items-center animate-in slide-in-from-bottom-5 text-card-foreground">
+            {/* Icône PWA */}
+            <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden shadow-sm border border-border/50 bg-white flex items-center justify-center">
+                <img
+                    src="/icons/icon-96x96.png"
+                    alt="Ahizan"
+                    className="w-10 h-10 object-contain"
+                />
             </div>
-            <div className="flex items-center gap-1">
-                <Button size="sm" onClick={handleInstallClick} className="gap-1 px-3 text-xs font-bold rounded-lg h-9">
+            {/* Texte */}
+            <div className="flex-grow min-w-0">
+                <h4 className="font-bold text-sm leading-snug">Installer Ahizan</h4>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-normal">
+                    Accès rapide et utilisation hors ligne sur votre {deviceType === "mobile" ? "mobile" : "PC"}.
+                </p>
+            </div>
+            {/* Actions */}
+            <div className="flex items-center gap-1 shrink-0">
+                <Button size="sm" onClick={handleInstallClick} className="gap-1 px-3 text-xs font-bold rounded-xl h-9">
                     <Download className="w-3.5 h-3.5" />
                     Installer
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:bg-muted" onClick={() => setIsVisible(false)}>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:bg-muted rounded-xl" onClick={() => setIsVisible(false)}>
                     <X className="w-4 h-4" />
                 </Button>
             </div>

@@ -42,7 +42,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         stock: variant?.stockOnHand !== undefined && variant?.stockOnHand !== null ? variant.stockOnHand : 0,
         parentCategory: '',
         category: initialCategoryId,
-        enabled: product.enabled !== false,
+        enabled: product.enabled !== false || product.customFields?.approvalStatus === 'pending' || product.customFields?.approvalStatus === 'rejected',
         onPromotion: (variant?.customFields as any)?.onPromotion || false,
         promotionalPrice: (variant?.customFields as any)?.promotionalPrice ? priceFromSubunit((variant.customFields as any).promotionalPrice, variant.currencyCode) : 0,
     });
@@ -195,19 +195,28 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                         />
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="enabled" className="text-sm font-bold text-foreground">Visibilité du produit</Label>
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-                                {formData.enabled ? "Le produit est visible en boutique" : "Le produit est masqué"}
-                            </p>
-                        </div>
-                        <Switch 
-                            id="enabled"
-                            checked={formData.enabled}
-                            onCheckedChange={checked => setFormData({ ...formData, enabled: checked })}
-                        />
-                    </div>
+                    {(() => {
+                        const isPendingOrRejected = product.customFields?.approvalStatus === 'pending' || product.customFields?.approvalStatus === 'rejected';
+                        
+                        return (
+                            <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="enabled" className="text-sm font-bold text-foreground">Visibilité du produit</Label>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                                        {isPendingOrRejected 
+                                            ? "Sera visible automatiquement après validation" 
+                                            : (formData.enabled ? "Le produit est visible en boutique" : "Le produit est masqué")}
+                                    </p>
+                                </div>
+                                <Switch 
+                                    id="enabled"
+                                    checked={formData.enabled}
+                                    disabled={isPendingOrRejected}
+                                    onCheckedChange={checked => setFormData({ ...formData, enabled: checked })}
+                                />
+                            </div>
+                        );
+                    })()}
 
                     <div className="space-y-2">
                         <Label htmlFor="category">Catégorie <span className="text-destructive">*</span></Label>

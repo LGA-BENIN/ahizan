@@ -3,6 +3,7 @@ import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/g
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { OrderStatusService } from '../service/order-status.service';
+import { LikeService } from '../service/like.service';
 
 @Resolver('Vendor')
 export class VendorResolver {
@@ -12,12 +13,18 @@ export class VendorResolver {
         private assetService: AssetService,
         private connection: TransactionalConnection,
         private orderStatusService: OrderStatusService,
+        private likeService: LikeService,
     ) { }
 
     @ResolveField()
     async products(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Product[]> {
         const products = await this.vendorService.findAllProductsForVendor(ctx, vendor.id.toString());
         return products || [];
+    }
+
+    @ResolveField()
+    async followersCount(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<number> {
+        return this.likeService.getVendorLikesCount(ctx, vendor.id);
     }
 
     @Mutation()
@@ -209,7 +216,8 @@ export class VendorAdminResolver {
     constructor(
         private vendorService: VendorService,
         private productService: ProductService,
-        private connection: TransactionalConnection
+        private connection: TransactionalConnection,
+        private likeService: LikeService,
     ) {
         console.log('VendorAdminResolver initialized with ProductService');
     }
@@ -218,6 +226,11 @@ export class VendorAdminResolver {
     async products(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Product[]> {
         const products = await this.vendorService.findAllProductsForVendor(ctx, vendor.id.toString());
         return products || [];
+    }
+
+    @ResolveField()
+    async followersCount(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<number> {
+        return this.likeService.getVendorLikesCount(ctx, vendor.id);
     }
 
     @Query()

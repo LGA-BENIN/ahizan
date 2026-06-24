@@ -39,7 +39,10 @@ export class VendorService implements OnApplicationBootstrap {
 
     findAll(ctx: RequestContext, options?: ListQueryOptions<Vendor>): Promise<PaginatedList<Vendor>> {
         return this.listQueryBuilder
-            .build(Vendor, options, { ctx })
+            .build(Vendor, options, { 
+                ctx,
+                relations: ['logo', 'coverImage']
+            })
             .getManyAndCount()
             .then(([items, totalItems]) => ({
                 items,

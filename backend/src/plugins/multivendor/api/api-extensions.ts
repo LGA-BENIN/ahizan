@@ -1,10 +1,6 @@
 import { gql } from 'graphql-tag';
 
 export const commonApiExtensions = `
-    extend type ProductVariant {
-        customFields: JSON
-    }
-
     type Vendor implements Node {
         id: ID!
         createdAt: DateTime!
@@ -22,6 +18,7 @@ export const commonApiExtensions = `
         returnPolicy: String
         rating: Float
         ratingCount: Int
+        followersCount: Int
         type: String
         verificationStatus: Boolean
         commissionRate: Float
@@ -278,6 +275,27 @@ export const commonApiExtensions = `
         enabled: Boolean
         order: Int
     }
+
+    # ── Chat & Message ──
+    type ChatMessage {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        vendor: Vendor!
+        customer: Customer!
+        sender: String!
+        content: String!
+    }
+
+    type Conversation {
+        customer: Customer!
+        lastMessage: ChatMessage!
+    }
+
+    type ProductLikesStats {
+        product: Product!
+        likesCount: Int!
+    }
 `;
 
 export const shopApiExtensions = `
@@ -296,6 +314,22 @@ export const shopApiExtensions = `
         orderStatuses: [OrderStatus!]!
         vendorOrderStatuses: [OrderStatus!]!
         deliveryZones: [DeliveryZone!]!
+
+        # Likes system queries (Shop API)
+        isVendorLiked(id: ID!): Boolean!
+        isProductLiked(id: ID!): Boolean!
+        myLikedVendors(options: VendorListOptions): VendorList!
+        myLikedProducts(options: ProductListOptions): ProductList!
+        
+        # Vendor dashboard queries (Shop API side)
+        myVendorLikesCount: Int!
+        myVendorLikers(options: CustomerListOptions): CustomerList!
+        myVendorProductsLikes: [ProductLikesStats!]!
+
+        # Chat system queries (Shop API)
+        myChatHistoryWithVendor(vendorId: ID!): [ChatMessage!]!
+        myConversations: [Conversation!]!
+        conversationHistoryWithCustomer(customerId: ID!): [ChatMessage!]!
     }
 
     extend type Mutation {
@@ -310,6 +344,14 @@ export const shopApiExtensions = `
         updateMyProduct(id: ID!, input: UpdateVendorProductInput!): Product!
         updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
         deleteMyProduct(id: ID!): DeletionResponse!
+
+        # Likes system mutations (Shop API)
+        toggleLikeVendor(id: ID!): Boolean!
+        toggleLikeProduct(id: ID!): Boolean!
+
+        # Chat system mutations (Shop API)
+        sendChatMessageToVendor(vendorId: ID!, content: String!): ChatMessage!
+        replyToCustomer(customerId: ID!, content: String!): ChatMessage!
     }
 `;
 

@@ -260,8 +260,9 @@ export function ProductListComponent() {
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         const currency = variants[0].currencyCode;
-        if (min === max) return `${(min / 100).toFixed(0)} ${currency}`;
-        return `${(min / 100).toFixed(0)} - ${(max / 100).toFixed(0)} ${currency}`;
+        const factor = 100;
+        if (min === max) return `${(min / factor).toFixed(0)} ${currency}`;
+        return `${(min / factor).toFixed(0)} - ${(max / factor).toFixed(0)} ${currency}`;
     };
 
     return (
@@ -467,7 +468,7 @@ export function ProductListComponent() {
                                                     })()}
                                                     {/* Edit Link to Vendure native product editor */}
                                                     <a
-                                                        href={`/admin/catalog/products/${product.id}`}
+                                                        href={`/admin/products/${product.id}`}
                                                         style={{
                                                             padding: '6px 12px',
                                                             borderRadius: '6px',

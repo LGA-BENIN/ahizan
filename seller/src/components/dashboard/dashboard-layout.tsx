@@ -1,5 +1,7 @@
 'use client';
 
+import { Check } from 'lucide-react';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -30,6 +32,7 @@ import {
     Heart,
     Settings as SettingsIcon,
     Download,
+    MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logoutAction } from '@/app/sign-in/actions';
@@ -54,6 +57,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, vendor, dashboardConfig }: DashboardLayoutProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isCopied, setIsCopied] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -143,6 +147,8 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
         { name: 'Tableau de bord', href: '/dashboard', icon: Home },
         { name: 'Ventes', href: '/dashboard/orders', icon: ShoppingBag },
         { name: 'Produits', href: '/dashboard/products', icon: Package },
+        { name: 'Abonnés & Likes', href: '/dashboard/likes', icon: Heart },
+        { name: 'Messagerie', href: '/dashboard/messages', icon: MessageSquare },
         { name: 'Portefeuille', href: '/dashboard/wallet', icon: DollarSign, key: 'wallet' },
         { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
     ];
@@ -236,9 +242,41 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                 })}
             </nav>
             
-            {/* Merchant Badge & Support */}
+            {/* Merchant Badge & Actions rapides */}
             {(isSidebarOpen || mobile) && (
-                <div className="mt-auto pt-4 border-t border-slate-200 dark:border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="mt-auto pt-4 border-t border-slate-200 dark:border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-3">
+                    {/* Boutique quick actions */}
+                    {vendor?.id && (
+                        <div className="flex gap-2">
+                            <a
+                                href={`${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${vendor.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                            >
+                                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                                Ma boutique
+                            </a>
+                            <button
+                                onClick={() => {
+                                    const url = `${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${vendor.id}`;
+                                    navigator.clipboard.writeText(url).then(() => {
+                                        setIsCopied(true);
+                                        setTimeout(() => setIsCopied(false), 2000);
+                                    });
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
+                                title="Copier le lien de ma boutique"
+                            >
+                                {isCopied ? (
+                                    <Check className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                )}
+                            </button>
+                        </div>
+                    )}
+                    {/* Vendor info badge */}
                     <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 flex flex-col gap-1">
                         <p className="text-slate-900 dark:text-white font-bold text-xs truncate">{vendorName}</p>
                         <p className="text-slate-500 dark:text-slate-400 text-[9px] truncate">{vendorEmail}</p>

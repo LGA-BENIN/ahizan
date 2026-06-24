@@ -1,6 +1,6 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant } from '@vendure/core';
 import { In } from 'typeorm';
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
 
@@ -654,6 +654,21 @@ export class VendorShopResolver {
         }
         
         return Array.from(facetValueIds);
+    }
+}
+
+@Resolver('ProductVariant')
+export class ProductVariantShopResolver {
+    constructor(private connection: TransactionalConnection) {}
+
+    @ResolveField('stockOnHand')
+    async stockOnHand(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<number> {
+        const variantWithStock = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: variant.id },
+            relations: ['stockLevels'],
+        });
+        const stockLevels = variantWithStock?.stockLevels || [];
+        return stockLevels.reduce((sum, sl) => sum + (sl.stockOnHand || 0), 0);
     }
 }
 

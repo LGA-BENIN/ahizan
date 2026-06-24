@@ -120,12 +120,13 @@ async function fetchGraphQL(query: string, variables?: any) {
 }
 
 function formatPrice(price: number, currency: string = 'XOF') {
+    const factor = 100;
     return new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-    }).format((price || 0) / 100);
+    }).format((price || 0) / factor);
 }
 
 function formatDate(dateStr: string) {

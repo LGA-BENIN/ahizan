@@ -16,8 +16,13 @@ export const GetMyVendorProductsQuery = graphql(`
                     id
                     price
                     priceWithTax
+                    currencyCode
                     stockLevel
-                    customFields
+                    customFields {
+                        compareAtPrice
+                        onPromotion
+                        promotionalPrice
+                    }
                 }
                 featuredAsset {
                     preview
@@ -62,9 +67,14 @@ export const GetMyVendorProductQuery = graphql(`
                 id
                 price
                 priceWithTax
+                currencyCode
                 stockLevel
                 stockOnHand
-                customFields
+                customFields {
+                    compareAtPrice
+                    onPromotion
+                    promotionalPrice
+                }
             }
             assets {
                 id

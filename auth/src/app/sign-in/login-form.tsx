@@ -90,8 +90,11 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         <section className="w-full lg:w-1/2 flex items-center justify-center p-gutter relative pt-24 pb-12 lg:py-12">
           <div className="bg-white rounded-[28px] shadow-[0px_10px_30px_rgba(0,0,0,0.04)] w-full max-w-[450px] p-10 z-10 flex flex-col">
             <div className="flex flex-col items-center mb-8">
-              <div className="w-16 h-16 bg-primary-container rounded-2xl flex items-center justify-center mb-4 text-white">
-                <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>hub</span>
+              <div className="flex items-center justify-center mb-4">
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-3xl font-black tracking-[0.15em] text-primary" style={{ fontFamily: 'Outfit, sans-serif' }}>AHIZAN</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant opacity-60">Marketplace</span>
+                </div>
               </div>
               <div className="bg-surface-light px-4 py-1.5 rounded-full inline-flex items-center gap-2 mb-6 border border-outline-variant/30">
                 <span className="material-symbols-outlined text-[16px] text-primary">security</span>
@@ -200,7 +203,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
             <a className="font-label-sm text-label-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Aide</a>
           </div>
           <div className="w-full text-center mt-4">
-            <p className="font-body-md text-body-md text-on-surface-variant opacity-60">© 2024 Ahizan Universe. Tous droits réservés.</p>
+            <p className="font-body-md text-body-md text-on-surface-variant opacity-60">© {new Date().getFullYear()} Ahizan Universe. Tous droits réservés.</p>
           </div>
         </div>
       </footer>

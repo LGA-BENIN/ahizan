@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ahizan - Vendor Storefront</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#D62828", // Red from the logo cart
+                        secondary: "#0B1C38", // Dark Blue from the logo background
+                        "background-light": "#F8F9FA",
+                        "background-dark": "#0F172A",
+                        "surface-light": "#FFFFFF",
+                        "surface-dark": "#1E293B",
+                        "border-light": "#E2E8F0",
+                        "border-dark": "#334155",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                    },
+                },
+            },
+        };
+    </script>
+<style>::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col transition-colors duration-200">
+<nav class="bg-surface-light dark:bg-surface-dark border-b border-border-light dark:border-border-dark sticky top-0 z-50">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex justify-between h-16">
+<div class="flex items-center flex-1">
+<div class="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+<div class="w-8 h-8 rounded bg-primary flex items-center justify-center text-white">
+<span class="material-icons-outlined text-lg">shopping_cart</span>
+</div>
+<span class="font-bold text-xl tracking-tight text-secondary dark:text-white">ahizan</span>
+</div>
+<div class="hidden md:flex ml-8 flex-1 max-w-lg">
+<div class="relative w-full">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-icons-outlined text-slate-400">search</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-2 border border-border-light dark:border-border-dark rounded-full leading-5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition-colors" placeholder="Search products, brands and categories..." type="text"/>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-500 dark:text-slate-400 hover:text-primary transition-colors">
+<span class="material-icons-outlined">favorite_border</span>
+</button>
+<button class="text-slate-500 dark:text-slate-400 hover:text-primary transition-colors relative">
+<span class="material-icons-outlined">shopping_bag</span>
+<span class="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold px-1.5 rounded-full">2</span>
+</button>
+<button class="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-primary transition-colors">
+<div class="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+<span class="material-icons-outlined text-lg">person</span>
+</div>
+<span class="hidden sm:inline">Account</span>
+</button>
+</div>
+</div>
+</div>
+</nav>
+<main class="flex-grow pb-12">
+<div class="relative w-full h-48 md:h-64 bg-secondary overflow-hidden">
+<div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#ffffff 2px, transparent 2px); background-size: 24px 24px;"></div>
+<img alt="Store Banner" class="w-full h-full object-cover opacity-60" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKpth2v6mHe2oB-URewiCxxk8lRA1ootu_I1apgbgNqHa-59Z5OFoNBvLZLPf9bT9wPmb4aIq9tCbiDo4Z_YXpm2uYByjJH5mgwQQdA23t0F87JECA2p1GWsQH3Rey_oDAD_-54MIb5qXI8ewGRxlvLf__fRbJ2LVrjOnu9ucQaE7cnvSGu31rC_lbAelJHUqAO2NhkESiJa8N6EUU94vAfMqjL9nRG2_FH28yongokl4TU8Qq8DA-pNHVzpW0SWHH2B8Dm8YmWA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+</div>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 relative z-10">
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-lg border border-border-light dark:border-border-dark p-6 flex flex-col md:flex-row gap-6 items-start">
+<div class="relative">
+<div class="h-32 w-32 rounded-full border-4 border-surface-light dark:border-surface-dark bg-white shadow-md flex items-center justify-center overflow-hidden">
+<img alt="TechHaven Logo" class="h-full w-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuACwpuV7Rp6Rk-Af7B9eDQC7UlyeCXFg-JhaYVy19vh0sy0vZoTxTfjxGTqDJWjUaAJllexev-Qm2dAkOOZWIk2ow0vVI4CYiToyNg42rxP4Kr03_k8Qc0itOTInuwH_el-c0lmRWeBvMKMqrTawEf1G8YvO7-wOoGeAnpZHZpysvQZ-ZUfbYOfOvrNymJqjVnCPzO7U1oap-VFt_CC4kqp0Jg4FXcHCQc-I0BmrU7Cz3B3dWnG48uYiASJIWngwfXrLCgPWJysbg"/>
+</div>
+<div class="absolute bottom-2 right-2 h-6 w-6 bg-green-500 rounded-full border-2 border-white dark:border-slate-800" title="Online Now"></div>
+</div>
+<div class="flex-1 w-full">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<div class="flex items-center gap-2">
+<h1 class="text-2xl font-bold text-slate-900 dark:text-white">TechHaven Electronics</h1>
+<span class="material-icons-outlined text-blue-500 text-xl" title="Verified Vendor">verified</span>
+</div>
+<div class="flex items-center gap-4 mt-1 text-sm text-slate-500 dark:text-slate-400">
+<span class="flex items-center gap-1">@techhaven_official</span>
+<span class="w-1 h-1 rounded-full bg-slate-400"></span>
+<span class="flex items-center gap-1"><span class="font-semibold text-slate-700 dark:text-slate-300">12.5k</span> Followers</span>
+<span class="w-1 h-1 rounded-full bg-slate-400"></span>
+<span class="flex items-center gap-1 text-yellow-500">
+<span class="material-icons-outlined text-sm">star</span>
+<span class="font-semibold text-slate-700 dark:text-slate-300">4.9</span> (3,240 Reviews)
+                                </span>
+</div>
+<p class="mt-3 text-slate-600 dark:text-slate-300 max-w-2xl text-sm leading-relaxed">
+                                Premium electronics retailer specializing in high-performance laptops, gaming gear, and smart home accessories. Authorized dealer for top brands. Fast shipping worldwide.
+                            </p>
+</div>
+<div class="flex gap-3 w-full md:w-auto mt-2 md:mt-0">
+<button class="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-red-700 text-white font-medium rounded-lg transition-colors shadow-sm">
+<span class="material-icons-outlined text-sm">person_add</span>
+                                Follow
+                            </button>
+<button class="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-700 border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium rounded-lg transition-colors shadow-sm">
+<span class="material-icons-outlined text-sm">chat</span>
+                                Chat
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+<div class="border-b border-border-light dark:border-border-dark">
+<nav aria-label="Tabs" class="-mb-px flex space-x-8 overflow-x-auto">
+<a class="border-primary text-primary whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2" href="#">
+<span class="material-icons-outlined text-lg">grid_view</span> All Products
+                    </a>
+<a class="border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2" href="#">
+<span class="material-icons-outlined text-lg">local_offer</span> Top Deals
+                    </a>
+<a class="border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2" href="#">
+<span class="material-icons-outlined text-lg">new_releases</span> New Arrivals
+                    </a>
+<a class="border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2" href="#">
+<span class="material-icons-outlined text-lg">star_outline</span> Reviews
+                    </a>
+</nav>
+</div>
+</div>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+<aside class="lg:col-span-1 space-y-6">
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark p-5">
+<h3 class="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+<span class="material-icons-outlined text-primary">storefront</span> Store Info
+                    </h3>
+<ul class="space-y-4 text-sm">
+<li class="flex items-start gap-3">
+<span class="material-icons-outlined text-slate-400 mt-0.5">location_on</span>
+<span class="text-slate-600 dark:text-slate-300">
+                                123 Tech Avenue,<br/>
+                                Silicon District,<br/>
+                                San Francisco, CA 94105
+                            </span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-icons-outlined text-slate-400">schedule</span>
+<span class="text-slate-600 dark:text-slate-300">Joined March 2021</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-icons-outlined text-slate-400">inventory_2</span>
+<span class="text-slate-600 dark:text-slate-300">1,450 Products</span>
+</li>
+</ul>
+<div class="mt-6 pt-6 border-t border-border-light dark:border-border-dark">
+<h4 class="font-medium text-slate-900 dark:text-white mb-3 text-sm">Seller Performance</h4>
+<div class="space-y-3">
+<div>
+<div class="flex justify-between text-xs mb-1">
+<span class="text-slate-500 dark:text-slate-400">Response Rate</span>
+<span class="text-green-600 font-bold">98%</span>
+</div>
+<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+<div class="bg-green-500 h-1.5 rounded-full" style="width: 98%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs mb-1">
+<span class="text-slate-500 dark:text-slate-400">On-time Delivery</span>
+<span class="text-blue-600 font-bold">95%</span>
+</div>
+<div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+<div class="bg-blue-500 h-1.5 rounded-full" style="width: 95%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl shadow-sm border border-border-light dark:border-border-dark p-5">
+<h3 class="font-bold text-slate-900 dark:text-white mb-4">Categories</h3>
+<div class="space-y-2">
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary dark:bg-slate-800 dark:border-slate-600" type="checkbox"/>
+<span class="text-slate-600 dark:text-slate-300 text-sm group-hover:text-primary transition-colors">Laptops &amp; Computers</span>
+<span class="ml-auto text-xs text-slate-400">320</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary dark:bg-slate-800 dark:border-slate-600" type="checkbox"/>
+<span class="text-slate-600 dark:text-slate-300 text-sm group-hover:text-primary transition-colors">Smartphones</span>
+<span class="ml-auto text-xs text-slate-400">145</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary dark:bg-slate-800 dark:border-slate-600" type="checkbox"/>
+<span class="text-slate-600 dark:text-slate-300 text-sm group-hover:text-primary transition-colors">Audio &amp; Headphones</span>
+<span class="ml-auto text-xs text-slate-400">89</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary dark:bg-slate-800 dark:border-slate-600" type="checkbox"/>
+<span class="text-slate-600 dark:text-slate-300 text-sm group-hover:text-primary transition-colors">Gaming Accessories</span>
+<span class="ml-auto text-xs text-slate-400">210</span>
+</label>
+<label class="flex items-center space-x-3 cursor-pointer group">
+<input class="form-checkbox h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary dark:bg-slate-800 dark:border-slate-600" type="checkbox"/>
+<span class="text-slate-600 dark:text-slate-300 text-sm group-hover:text-primary transition-colors">Smart Home</span>
+<span class="ml-auto text-xs text-slate-400">56</span>
+</label>
+</div>
+</div>
+</aside>
+<div class="lg:col-span-3">
+<div class="flex justify-between items-center mb-6">
+<p class="text-slate-500 dark:text-slate-400 text-sm">Showing <span class="font-bold text-slate-900 dark:text-white">1-12</span> of <span class="font-bold text-slate-900 dark:text-white">1,450</span> products</p>
+<div class="flex items-center gap-3">
+<select class="form-select text-sm border-border-light dark:border-border-dark rounded-lg py-2 pl-3 pr-8 bg-surface-light dark:bg-surface-dark text-slate-700 dark:text-slate-200 focus:ring-primary focus:border-primary">
+<option>Sort by: Recommended</option>
+<option>Price: Low to High</option>
+<option>Price: High to Low</option>
+<option>Newest First</option>
+</select>
+<div class="flex bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-1">
+<button class="p-1.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white">
+<span class="material-icons-outlined text-lg">grid_view</span>
+</button>
+<button class="p-1.5 rounded text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+<span class="material-icons-outlined text-lg">view_list</span>
+</button>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="relative aspect-w-1 aspect-h-1 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+<span class="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">-20%</span>
+<img alt="UltraBook Pro Laptop" class="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAg7x13i63wE3Jtuz4wYY_EvtpLoIMyj8CnZFnYD1shK2LY_bj1wvu61zu_6J3nxWyDKiaKQegPXtsSJvgDVzTgaoQJfcsdbiKfUPSb7Ceu9iV8X8v4WNpeGT8gwQzAi5HKImzxJ9gWzyXPuCw593ZaLOBuKqR5wY8K_GxzTzbddA-j7C497jkWJ1o6SyEwLpIN5fFp82TqvZOfnF1n5Dy4zLjypBiaENNfEh1DtHP5wdbH1-8Yi0S6SvdVCfDvbIjW5Y9gsPXjLQ"/>
+<button class="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined text-lg">favorite_border</span>
+</button>
+</div>
+<div class="p-4">
+<p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Laptops</p>
+<h3 class="font-medium text-slate-900 dark:text-white mb-2 truncate group-hover:text-primary transition-colors">UltraBook Pro X1 Carbon 14"</h3>
+<div class="flex items-center gap-1 mb-2">
+<span class="material-icons-outlined text-yellow-400 text-sm">star</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">4.8</span>
+<span class="text-xs text-slate-400">(128)</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<span class="text-lg font-bold text-primary">$1,299</span>
+<span class="text-sm text-slate-400 line-through ml-1">$1,620</span>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-primary hover:text-white dark:hover:bg-primary transition-colors">
+<span class="material-icons-outlined">add_shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="relative aspect-w-1 aspect-h-1 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+<img alt="Noise Cancelling Headphones" class="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPuQCI_etjE2kBo5XKL9Dji4KxaZPOm7zMZzrgD38R7gndTj5YHFquHsWbU9EcfxM4oYB4KlIsYizZOH8G0ILnapilF-gfdsZQ4aRfhtpcX1uN4zee-_UFwLP7TlJ96gclGvRqiy-L8ZBwYkAvTJG3JPjSUPaqsiYPnucVHALCQ4Q9C9axXZnk_dpBGFAlmunEDCHOd3ZBaoiS7AqjSWyLwN3nhVhkaal-ttUb2qU7H2Z2eHil46_fArQ-KACdReHe9dRDG6Ycyw"/>
+<button class="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined text-lg">favorite_border</span>
+</button>
+</div>
+<div class="p-4">
+<p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Audio</p>
+<h3 class="font-medium text-slate-900 dark:text-white mb-2 truncate group-hover:text-primary transition-colors">SonicBlast Noise Cancelling Headphones</h3>
+<div class="flex items-center gap-1 mb-2">
+<span class="material-icons-outlined text-yellow-400 text-sm">star</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">4.9</span>
+<span class="text-xs text-slate-400">(450)</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<span class="text-lg font-bold text-slate-900 dark:text-white">$249</span>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-primary hover:text-white dark:hover:bg-primary transition-colors">
+<span class="material-icons-outlined">add_shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="relative aspect-w-1 aspect-h-1 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+<span class="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">New</span>
+<img alt="Smart Watch Series 6" class="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDE2hTFF-JwfSEkkCbBAA2d6xy3XCYpiVaziNdRSSvhlEH5dmffhSbJywBlWdtSEyE8tihQaVMc40ou31DyLjy2Th-YMQj67IbD71-OI4C7s-BSEeJxPJzsEwKBzx6Prg_i0pS0KP7_9adzJAVSBwGqiaKFFfqIvgrKhxebMFs3dxvmW-PEJxkVzxdb1Ya33YbZsYMhpTmixmpPtO4--JzQsPdyee8CysPsYN6RkTvXkw3ZsxMb1q_DorgzRT7Kc050eS0r4XPn4w"/>
+<button class="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined text-lg">favorite_border</span>
+</button>
+</div>
+<div class="p-4">
+<p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Wearables</p>
+<h3 class="font-medium text-slate-900 dark:text-white mb-2 truncate group-hover:text-primary transition-colors">Smart Watch Series 6 - GPS</h3>
+<div class="flex items-center gap-1 mb-2">
+<span class="material-icons-outlined text-yellow-400 text-sm">star</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">4.7</span>
+<span class="text-xs text-slate-400">(89)</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<span class="text-lg font-bold text-slate-900 dark:text-white">$399</span>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-primary hover:text-white dark:hover:bg-primary transition-colors">
+<span class="material-icons-outlined">add_shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="relative aspect-w-1 aspect-h-1 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+<img alt="Mechanical Keyboard" class="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFwHzw-STAGGICHZQ2u4mTMDU-EWJRRTtKf6BI-L4qrd8BXs2_LL25AqOzvmIiocdLBW2_YWUPGjQR776iee4mfNH9kvpKZRX7pDTT9oG98evauuWB6uZk-ZuViYNwi_a8wF9c8eLCJH1keYkp420fjA-dKb52AtubzP-5F8LMdhAVtfwJl-n_cTIlz3KPWdl91LYWAxc4otvcJMeQLgq3ibpPrvVPaBh75LVUFK-uj5MgV8J-hZHItoK6SA2XhSxqsUacKmQ-0g"/>
+<button class="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined text-lg">favorite_border</span>
+</button>
+</div>
+<div class="p-4">
+<p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Accessories</p>
+<h3 class="font-medium text-slate-900 dark:text-white mb-2 truncate group-hover:text-primary transition-colors">RGB Mechanical Gaming Keyboard</h3>
+<div class="flex items-center gap-1 mb-2">
+<span class="material-icons-outlined text-yellow-400 text-sm">star</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">5.0</span>
+<span class="text-xs text-slate-400">(42)</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<span class="text-lg font-bold text-slate-900 dark:text-white">$149</span>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-primary hover:text-white dark:hover:bg-primary transition-colors">
+<span class="material-icons-outlined">add_shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="relative aspect-w-1 aspect-h-1 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+<span class="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">-15%</span>
+<img alt="4K Monitor" class="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDpb6Tm8Of-H6s6zMW_7WcZBvjxogC5eJLV96mY4oy85mLB-ronOKh0q3wnUL5DOjkttrAWbBYL3khJEOCY0jmNZld_9E8M8PxTJyn10MVFVnHb4lJO_jlipyjYiGH5kGUGJkO6rzRROMQhX3EpfusgMKHM4EfB62AJI1gek-eIYW9TPTaH1UKtVCBnzjPJNmw_pW_lB_voCtS606bF78mZzPnweounpqehHUqaeHki83detWxE0_7bmVbeFyFsCpR9SnmTRA9hZg"/>
+<button class="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined text-lg">favorite_border</span>
+</button>
+</div>
+<div class="p-4">
+<p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Monitors</p>
+<h3 class="font-medium text-slate-900 dark:text-white mb-2 truncate group-hover:text-primary transition-colors">Curved 34" 4K Gaming Monitor</h3>
+<div class="flex items-center gap-1 mb-2">
+<span class="material-icons-outlined text-yellow-400 text-sm">star</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">4.6</span>
+<span class="text-xs text-slate-400">(76)</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<span class="text-lg font-bold text-primary">$599</span>
+<span class="text-sm text-slate-400 line-through ml-1">$699</span>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-primary hover:text-white dark:hover:bg-primary transition-colors">
+<span class="material-icons-outlined">add_shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+<div class="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="relative aspect-w-1 aspect-h-1 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+<img alt="iPhone Case" class="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7oX7n96MvotZG67US9C_abd7imBvYkdHpLX-YOpgdHpumLvj2hKnuXgi9Ir6f6ls1p6tr2kAqrO9NzIyYAPoSqugYApvmbTPDd5LQyXWlvEwin8LS2RjMe7WtLvzzzl4kOX36UFJuUjBUVNalwBC7Miw37LfE2XqTkpt54eTHfV4rG8_bch1nGc4FT00xhj-JCTIXGIsuzBLDy2lb4SMHrveU3S1dE0fJodiNldWL-tnxaPUfmhN2yydr8502l0saGDxTv6eozg"/>
+<button class="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 dark:bg-black/50 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined text-lg">favorite_border</span>
+</button>
+</div>
+<div class="p-4">
+<p class="text-xs text-slate-500 dark:text-slate-400 mb-1">Accessories</p>
+<h3 class="font-medium text-slate-900 dark:text-white mb-2 truncate group-hover:text-primary transition-colors">Leather MagSafe Case</h3>
+<div class="flex items-center gap-1 mb-2">
+<span class="material-icons-outlined text-yellow-400 text-sm">star</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-300">4.5</span>
+<span class="text-xs text-slate-400">(210)</span>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<span class="text-lg font-bold text-slate-900 dark:text-white">$49</span>
+</div>
+<button class="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-primary hover:text-white dark:hover:bg-primary transition-colors">
+<span class="material-icons-outlined">add_shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-12 flex justify-center">
+<nav aria-label="Pagination" class="flex items-center space-x-2">
+<a class="p-2 rounded-lg border border-border-light dark:border-border-dark text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50" href="#">
+<span class="material-icons-outlined">chevron_left</span>
+</a>
+<a class="px-4 py-2 rounded-lg bg-primary text-white font-medium" href="#">1</a>
+<a class="px-4 py-2 rounded-lg border border-border-light dark:border-border-dark text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium" href="#">2</a>
+<a class="px-4 py-2 rounded-lg border border-border-light dark:border-border-dark text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium" href="#">3</a>
+<span class="text-slate-400">...</span>
+<a class="px-4 py-2 rounded-lg border border-border-light dark:border-border-dark text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium" href="#">12</a>
+<a class="p-2 rounded-lg border border-border-light dark:border-border-dark text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800" href="#">
+<span class="material-icons-outlined">chevron_right</span>
+</a>
+</nav>
+</div>
+</div>
+</div>
+</main>
+<footer class="bg-surface-light dark:bg-surface-dark border-t border-border-light dark:border-border-dark pt-12 pb-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+<div class="col-span-1 md:col-span-1">
+<div class="flex items-center gap-2 mb-4">
+<div class="w-8 h-8 rounded bg-primary flex items-center justify-center text-white">
+<span class="material-icons-outlined text-lg">shopping_cart</span>
+</div>
+<span class="font-bold text-xl tracking-tight text-secondary dark:text-white">ahizan</span>
+</div>
+<p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Your trusted marketplace for premium goods from verified sellers. Experience shopping like never before.
+                    </p>
+</div>
+<div>
+<h4 class="font-bold text-slate-900 dark:text-white mb-4">For Buyers</h4>
+<ul class="space-y-2 text-sm text-slate-500 dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Buyer Protection</a></li>
+<li><a class="hover:text-primary" href="#">Returns Policy</a></li>
+<li><a class="hover:text-primary" href="#">Support Center</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold text-slate-900 dark:text-white mb-4">For Sellers</h4>
+<ul class="space-y-2 text-sm text-slate-500 dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Become a Vendor</a></li>
+<li><a class="hover:text-primary" href="#">Seller Dashboard</a></li>
+<li><a class="hover:text-primary" href="#">Guidelines</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold text-slate-900 dark:text-white mb-4">Stay Connected</h4>
+<div class="flex gap-4">
+<a class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors" href="#">
+<span class="material-icons-outlined text-sm">facebook</span>
+</a>
+<a class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors" href="#">
+<span class="material-icons-outlined text-sm">camera_alt</span>
+</a>
+<a class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-primary hover:text-white transition-colors" href="#">
+<span class="material-icons-outlined text-sm">alternate_email</span>
+</a>
+</div>
+</div>
+</div>
+<div class="border-t border-border-light dark:border-border-dark pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+<p>© 2023 Ahizan Marketplace. All rights reserved.</p>
+<div class="flex gap-6">
+<a class="hover:text-primary" href="#">Privacy Policy</a>
+<a class="hover:text-primary" href="#">Terms of Service</a>
+</div>
+</div>
+</div>
+</footer>
+<script>
+        // Check local storage or system preference
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+    </script>
+
+</body></html>

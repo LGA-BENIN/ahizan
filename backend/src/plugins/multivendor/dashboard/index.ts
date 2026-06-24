@@ -7,6 +7,7 @@ import { OrderStatusesComponent } from './order-statuses';
 import { DeliveryZonesComponent } from './delivery-zones';
 import { OrdersListComponent } from './orders-list';
 import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
+import { VendorSelector } from './vendor-selector';
 
 export default defineDashboardExtension({
     routes: [
@@ -75,6 +76,14 @@ export default defineDashboardExtension({
             title: 'Marketplace',
         },
     ],
+    customFormComponents: {
+        customFields: [
+            {
+                id: 'vendor-selector',
+                component: VendorSelector,
+            },
+        ],
+    },
     /*
     dataTableColumns: [
         {

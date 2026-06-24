@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import DeleteProductDialog from '@/components/dashboard/products/delete-dialog';
 import { toast } from 'sonner';
+import { priceFromSubunit } from '@/lib/format';
 
 interface ProductListTableProps {
     initialProducts: any[];
@@ -51,7 +52,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
             if (!product) return false;
             const variant = product.variants?.[0];
             const approvalStatus = product.customFields?.approvalStatus || 'pending';
-            const price = variant?.priceWithTax ? variant.priceWithTax / 100 : 0; // Convert to main unit for comparison
+            const price = variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode) : 0; // Convert to main unit for comparison
             
             // 1. Search Query (Name, SKU, or Slug)
             const matchesSearch = 
@@ -327,7 +328,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
 
                                             {/* Price in CFA */}
                                             <td className="px-6 py-4 whitespace-nowrap text-right font-serif font-black text-foreground text-sm">
-                                                {variant?.priceWithTax ? (variant.priceWithTax / 100).toLocaleString('fr-FR') : '0'} F CFA
+                                                {variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF').toLocaleString('fr-FR') : '0'} F CFA
                                             </td>
 
                                             {/* Action Buttons (discretes, scale on hover) */}

@@ -74,7 +74,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {order.lines.map((line) => (
+                                {order.lines.map((line: any) => (
                                     <div key={line.id} className="flex gap-4">
                                         <div
                                             className="relative h-20 w-20 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
@@ -135,7 +135,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                 </div>
                                 {order.discounts.length > 0 && (
                                     <>
-                                        {order.discounts.map((discount, idx) => (
+                                        {order.discounts.map((discount: any, idx: any) => (
                                             <div key={idx} className="flex justify-between text-sm">
                                                 <span className="text-muted-foreground">
                                                     {discount.description}
@@ -221,7 +221,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                 <CardTitle>Payment</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {order.payments.map((payment) => (
+                                {order.payments.map((payment: any) => (
                                     <div key={payment.id} className="space-y-1 text-sm">
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Method</span>
@@ -259,7 +259,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                 <CardTitle>Shipping Method</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {order.shippingLines.map((line, idx) => (
+                                {order.shippingLines.map((line: any, idx: any) => (
                                     <div key={idx} className="space-y-1 text-sm">
                                         <p className="font-medium">{line.shippingMethod.name}</p>
                                         {line.shippingMethod.description && (

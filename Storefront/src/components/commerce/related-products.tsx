@@ -26,7 +26,7 @@ async function getRelatedProducts(collectionSlug: string, currentProductId: stri
 
     // Filter out the current product
     return result.data.search.items
-        .filter(item => {
+        .filter((item: any) => {
             const product = readFragment(ProductCardFragment, item);
             return product.productId !== currentProductId;
         });

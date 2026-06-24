@@ -174,7 +174,7 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
         notFound();
     }
 
-    const primaryCollection = product.collections?.find(c => c.parent?.id) ?? product.collections?.[0];
+    const primaryCollection = product.collections?.find((c: any) => c.parent?.id) ?? product.collections?.[0];
 
     // Load CMS configurations (preset preview or published page)
     const presetId = searchParamsResolved?.presetId;
@@ -201,7 +201,7 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                                     Accueil
                                 </Link>
                                 <span className="text-gray-400">/</span>
-                                {product.collections.map((collection, index) => (
+                                {product.collections.map((collection: any, index: any) => (
                                     <React.Fragment key={collection.id}>
                                         <Link 
                                             href={`/collection/${collection.slug}`}
@@ -277,7 +277,7 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                                 Accueil
                             </Link>
                             <span className="text-gray-400">/</span>
-                            {product.collections.map((collection, index) => (
+                            {product.collections.map((collection: any, index: any) => (
                                 <React.Fragment key={collection.id}>
                                     <Link 
                                         href={`/collection/${collection.slug}`}

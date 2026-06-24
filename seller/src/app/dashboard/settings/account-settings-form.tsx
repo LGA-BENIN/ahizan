@@ -202,7 +202,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
 
                     {/* Middle Bento Form Fields (7 Cols equivalent) */}
                     <div className="flex-1 min-w-0">
-                        <form ref={formRef} action={profileAction} onChange={handleFormChange} encType="multipart/form-data">
+                        <form ref={formRef} action={profileAction} onChange={handleFormChange}>
                             
                             {/* Tab 1: Identity/General */}
                             <TabsContent value="general" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">

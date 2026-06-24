@@ -47,7 +47,7 @@ export default async function CheckoutPage(_props: PageProps<'/checkout'>) {
     const addresses = addressesRes.data.activeCustomer?.addresses || [];
     const shippingMethods = shippingMethodsRes.data.eligibleShippingMethods || [];
     const paymentMethods =
-        paymentMethodsRes.data.eligiblePaymentMethods?.filter((m) => m.isEligible) || [];
+        paymentMethodsRes.data.eligiblePaymentMethods?.filter((m: any) => m.isEligible) || [];
 
     return (
         <div className="container mx-auto px-3 sm:px-4 md:px-8 lg:px-12 py-6 md:py-12">

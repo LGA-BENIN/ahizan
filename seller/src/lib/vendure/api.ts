@@ -157,8 +157,10 @@ export async function query<TResult = any, TVariables = any>(
     });
 
     if (!response.ok) {
-        console.error(`Fetch failed for URL: ${VENDURE_API_URL}`);
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`Fetch failed for URL: ${VENDURE_API_URL}. Request body:`, body);
+        console.error(`Response: ${errorText}`);
+        throw new Error(`HTTP error! status: ${response.status}. Body: ${errorText}`);
     }
 
     const result: VendureResponse<TResult> = await response.json();

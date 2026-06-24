@@ -216,15 +216,15 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                             className={cn(
                                 "flex items-center gap-3 px-4 py-3 text-sm transition-all group relative border-l-4",
                                 isActive
-                                    ? "bg-white/10 text-white border-primary font-bold rounded-r-xl"
-                                    : "border-transparent text-slate-400 hover:text-white hover:bg-white/5 rounded-r-xl"
+                                    ? "bg-primary/10 dark:bg-white/10 text-primary dark:text-white border-primary font-bold rounded-r-xl"
+                                    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 rounded-r-xl"
                             )}
                         >
-                            <Icon className={cn("h-5 w-5 shrink-0 transition-all group-hover:scale-110", isActive ? "text-primary" : "text-slate-400 group-hover:text-white")} />
+                            <Icon className={cn("h-5 w-5 shrink-0 transition-all group-hover:scale-110", isActive ? "text-primary" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white")} />
                             {(isSidebarOpen || mobile) ? (
                                 <span className="flex-1 truncate animate-in fade-in slide-in-from-left-2 duration-300">{item.name}</span>
                             ) : (
-                                <div className="absolute left-full ml-4 px-3 py-2 bg-[#0d1c32] text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] shadow-xl">
+                                <div className="absolute left-full ml-4 px-3 py-2 bg-slate-900 dark:bg-[#0d1c32] text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] shadow-xl">
                                     {item.name}
                                 </div>
                             )}
@@ -238,10 +238,10 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
             
             {/* Merchant Badge & Support */}
             {(isSidebarOpen || mobile) && (
-                <div className="mt-auto pt-4 border-t border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-1">
-                        <p className="text-white font-bold text-xs truncate">{vendorName}</p>
-                        <p className="text-slate-400 text-[9px] truncate">{vendorEmail}</p>
+                <div className="mt-auto pt-4 border-t border-slate-200 dark:border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 flex flex-col gap-1">
+                        <p className="text-slate-900 dark:text-white font-bold text-xs truncate">{vendorName}</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-[9px] truncate">{vendorEmail}</p>
                     </div>
                 </div>
             )}
@@ -253,7 +253,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
             {/* Desktop Sidebar */}
             <aside
                 className={cn(
-                    "hidden md:flex flex-col bg-[#0d1c32] border-r border-white/10 transition-all duration-500 ease-in-out shadow-2xl",
+                    "hidden md:flex flex-col bg-white dark:bg-[#0d1c32] border-r border-slate-200 dark:border-white/10 transition-all duration-500 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-2xl z-50",
                     isSidebarOpen ? "w-64" : "w-24"
                 )}
             >
@@ -271,7 +271,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
             {/* Mobile Drawer */}
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-[101] w-72 bg-[#0d1c32] border-r border-white/10 transition-transform duration-500 ease-in-out md:hidden shadow-2xl",
+                    "fixed inset-y-0 left-0 z-[101] w-72 bg-white dark:bg-[#0d1c32] border-r border-slate-200 dark:border-white/10 transition-transform duration-500 ease-in-out md:hidden shadow-2xl",
                     isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
                 )}
             >

@@ -8,12 +8,16 @@ export const GetMyVendorProductsQuery = graphql(`
                 name
                 slug
                 enabled
-                customFields
+                customFields {
+                    approvalStatus
+                    rejectionReason
+                }
                 variants {
                     id
                     price
                     priceWithTax
                     stockLevel
+                    customFields
                 }
                 featuredAsset {
                     preview
@@ -37,7 +41,10 @@ export const GetMyVendorProductQuery = graphql(`
             description
             slug
             enabled
-            customFields
+            customFields {
+                approvalStatus
+                rejectionReason
+            }
             collections {
                 id
                 name

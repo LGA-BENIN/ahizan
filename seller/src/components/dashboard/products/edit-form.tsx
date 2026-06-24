@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { priceFromSubunit } from '@/lib/format';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 interface EditProductFormProps {
     product: any;
@@ -190,6 +192,20 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                             className="h-12 rounded-xl focus-visible:ring-primary/20"
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="enabled" className="text-sm font-bold text-foreground">Visibilité du produit</Label>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                                {formData.enabled ? "Le produit est visible en boutique" : "Le produit est masqué"}
+                            </p>
+                        </div>
+                        <Switch 
+                            id="enabled"
+                            checked={formData.enabled}
+                            onCheckedChange={checked => setFormData({ ...formData, enabled: checked })}
                         />
                     </div>
 

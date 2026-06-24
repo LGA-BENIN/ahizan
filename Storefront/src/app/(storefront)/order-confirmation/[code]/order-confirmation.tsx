@@ -87,7 +87,7 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
                         <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Récapitulatif de la commande</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {order.lines.map((line) => (
+                        {order.lines.map((line: any) => (
                             <div key={line.id} className="flex gap-3 items-center">
                                 {line.productVariant.product.featuredAsset && (
                                     <div className="flex-shrink-0 relative">

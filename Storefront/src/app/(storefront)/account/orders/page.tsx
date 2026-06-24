@@ -77,7 +77,7 @@ export default async function OrdersPage(props: PageProps<'/account/orders'>) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {orders.map((order) => (
+                                {orders.map((order: any) => (
                                     <TableRow key={order.id} className="hover:bg-muted/50">
                                         <TableCell className="font-medium">
                                             <Button asChild variant="outline">

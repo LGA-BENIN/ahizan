@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 
 export default async function ProfileSettingsPage() {
     const token = await getAuthToken();
-    const { data } = await query(GetMyVendorProfileQuery, {}, { token });
+    const { data } = await query(GetMyVendorProfileQuery, {}, { token }).catch((err) => {
+        console.error('[ProfileSettingsPage] Failed to fetch profile:', err);
+        return { data: null };
+    });
     const vendor = (data as any)?.myVendorProfile;
 
     return (

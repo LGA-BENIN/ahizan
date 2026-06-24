@@ -53,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
         <html lang="fr" suppressHydrationWarning>
             <head>
+                <link rel="preload" href="/logo-ahizan-official.svg" as="image" type="image/svg+xml" />
                 <script
                     dangerouslySetInnerHTML={{
                         __html: `

@@ -147,7 +147,7 @@ export class VendorShopResolver {
                 slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
                 description: input.description,
             }],
-            enabled: true,
+            enabled: false,
             assetIds: input.assetIds,
             facetValueIds: finalFacetValueIds,
             featuredAssetId: input.featuredAssetId,
@@ -239,10 +239,16 @@ export class VendorShopResolver {
 
         // 1. Update the product FIRST (facets, name, description, assets)
         // This triggers Vendure's internal collection re-evaluation
+        // We force enabled to false and reset validation status to pending
         const updated = await this.productService.update(ctx, { 
             id, 
             ...productInput,
-            facetValueIds: finalFacetValueIds
+            facetValueIds: finalFacetValueIds,
+            enabled: false,
+            customFields: {
+                approvalStatus: 'pending',
+                rejectionReason: '',
+            }
         });
 
         // 2. Get variants AFTER update (Vendure may have re-evaluated collections here)

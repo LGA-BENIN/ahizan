@@ -281,6 +281,10 @@ export const commonApiExtensions = `
 `;
 
 export const shopApiExtensions = `
+    extend type ProductVariant {
+        stockOnHand: Int
+    }
+
     extend type Query {
         vendor(id: ID!): Vendor
         vendors(options: VendorListOptions): VendorList!

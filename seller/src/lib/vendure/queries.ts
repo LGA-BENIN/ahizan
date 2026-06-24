@@ -225,6 +225,12 @@ export const GetMyVendorFullProfileQuery = graphql(`
             rccmNumber
             ifuNumber
             idCardNumber
+            logo {
+                preview
+            }
+            coverImage {
+                preview
+            }
         }
     }
 `);

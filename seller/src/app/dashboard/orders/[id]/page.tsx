@@ -12,8 +12,11 @@ export default async function VendorOrderDetailPage({ params }: { params: Promis
     const token = await getAuthToken();
 
     // Fetch all orders and find the one matching the ID
-    const { data } = await query(GetMyVendorOrderDetailQuery, { options: { take: 100 } }, { token });
-    const orders = (data as any).myVendorOrders?.items || [];
+    const { data } = await query(GetMyVendorOrderDetailQuery, { options: { take: 100 } }, { token }).catch((err) => {
+        console.error('[VendorOrderDetailPage] Failed to fetch order details:', err);
+        return { data: { myVendorOrders: { items: [], totalItems: 0 } } };
+    });
+    const orders = (data as any)?.myVendorOrders?.items || [];
     const order = orders.find((o: any) => o.id === id);
 
     if (!order) {

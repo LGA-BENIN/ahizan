@@ -220,18 +220,64 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
 export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
     return (
         <Suspense fallback={
-            <div className="flex flex-col min-h-screen relative">
+            <div className="flex flex-col min-h-screen relative bg-background">
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-background">
-                    <div className="flex gap-4 items-center justify-center overflow-hidden w-full px-10">
-                        {['A', 'H', 'I', 'Z', 'A', 'N'].map((char, i) => (
-                            <span 
-                                key={i} 
-                                className="text-5xl md:text-8xl font-black text-[#002f6c] italic tracking-tighter animate-ahizan-rush drop-shadow-2xl"
-                                style={{ animationDelay: `${i * 0.08}s` }}
-                            >
-                                {char}
-                            </span>
-                        ))}
+                    <div className="flex items-center justify-center" style={{ width: '260px', height: '260px', position: 'relative' }}>
+                        {/* Circle spinner around the logo in fallback */}
+                        <svg className="preloader-circle-spinner" viewBox="0 0 100 100" style={{
+                            position: 'absolute',
+                            width: '100%',
+                            height: '100%',
+                            top: 0,
+                            left: 0,
+                            pointerEvents: 'none',
+                            transformOrigin: 'center center',
+                            animation: 'preloader-spin 1.2s linear infinite',
+                            opacity: 0.3
+                        }}>
+                            <circle 
+                                cx="50" 
+                                cy="50" 
+                                r="46" 
+                                fill="none" 
+                                stroke="#E31E24" 
+                                strokeWidth="0.6" 
+                                strokeDasharray="132 12"
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                        {/* Wrapper for robust animations */}
+                        <div style={{
+                            width: '70%',
+                            height: '70%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transformOrigin: 'center center',
+                            position: 'relative',
+                            zIndex: 10,
+                            animation: 'fallback-pulse 1.6s ease-in-out infinite'
+                        }}>
+                            <img 
+                                src="/logo-ahizan-official.svg" 
+                                alt="Ahizan Logo" 
+                                style={{ 
+                                    width: '100%', 
+                                    height: '100%'
+                                }} 
+                            />
+                        </div>
+                        <style dangerouslySetInnerHTML={{ __html: `
+                            @keyframes fallback-pulse {
+                                0% { transform: scale(1); opacity: 0.9; }
+                                50% { transform: scale(1.03); opacity: 1; filter: drop-shadow(0 0 12px rgba(227, 30, 36, 0.2)); }
+                                100% { transform: scale(1); opacity: 0.9; }
+                            }
+                            @keyframes preloader-spin {
+                                0% { transform: rotate(0deg); }
+                                100% { transform: rotate(360deg); }
+                            }
+                        ` }} />
                     </div>
                 </div>
             </div>

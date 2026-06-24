@@ -17,6 +17,8 @@ interface Product {
             zone: string;
             logo?: { preview: string };
         };
+        approvalStatus?: string;
+        rejectionReason?: string;
     };
     featuredAsset?: { preview: string };
     variants: Array<{ price: number; currencyCode: string; stockLevel: string }>;
@@ -186,17 +188,28 @@ export function ProductListComponent() {
         queryFn: () => fetchGraphQL(GET_PRODUCTS, queryVariables),
     });
 
-    // Toggle product status (active/draft) using core UpdateProduct mutation
-    const toggleStatusMutation = useMutation({
-        mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => fetchGraphQL(
-            `mutation ToggleProductStatus($input: UpdateProductInput!) {
+    // Mutation to update product validation status (approve/reject) using standard UpdateProduct mutation
+    const updateProductApprovalMutation = useMutation({
+        mutationFn: ({ id, enabled, approvalStatus, rejectionReason }: { id: string; enabled: boolean; approvalStatus: string; rejectionReason?: string }) => fetchGraphQL(
+            `mutation UpdateProductApproval($input: UpdateProductInput!) {
                 updateProduct(input: $input) {
                     id
                     enabled
+                    customFields {
+                        approvalStatus
+                        rejectionReason
+                    }
                 }
             }`,
             {
-                input: { id, enabled }
+                input: {
+                    id,
+                    enabled,
+                    customFields: {
+                        approvalStatus,
+                        rejectionReason: rejectionReason || ""
+                    }
+                }
             }
         ),
         onSuccess: () => {
@@ -210,9 +223,26 @@ export function ProductListComponent() {
         }
     });
 
-    const handleToggleStatus = (product: Product) => {
+    const handleApprove = (product: Product) => {
         setTogglingId(product.id);
-        toggleStatusMutation.mutate({ id: product.id, enabled: !product.enabled });
+        updateProductApprovalMutation.mutate({
+            id: product.id,
+            enabled: true,
+            approvalStatus: 'approved',
+            rejectionReason: ''
+        });
+    };
+
+    const handleReject = (product: Product) => {
+        const reason = prompt("Motif de rejet du produit :");
+        if (reason === null) return; // User cancelled the prompt
+        setTogglingId(product.id);
+        updateProductApprovalMutation.mutate({
+            id: product.id,
+            enabled: false,
+            approvalStatus: 'rejected',
+            rejectionReason: reason
+        });
     };
 
     const { items = [], totalItems = 0 } = data?.products || {};
@@ -332,34 +362,109 @@ export function ProductListComponent() {
                                                 {getPriceDisplay(product.variants)}
                                             </td>
                                             <td style={{ padding: '14px 16px' }}>
-                                                <span style={{
-                                                    padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
-                                                    background: product.enabled ? '#dcfce7' : '#f3f4f6',
-                                                    color: product.enabled ? '#166534' : '#4b5563'
-                                                }}>
-                                                    {product.enabled ? 'Actif' : 'Brouillon'}
-                                                </span>
+                                                {(() => {
+                                                    const status = product.customFields?.approvalStatus || 'pending';
+                                                    let label = 'En attente';
+                                                    let bg = '#ffedd5';
+                                                    let color = '#c2410c';
+                                                    if (status === 'approved') {
+                                                        label = 'Approuvé';
+                                                        bg = '#dcfce7';
+                                                        color = '#15803d';
+                                                    } else if (status === 'rejected') {
+                                                        label = 'Rejeté';
+                                                        bg = '#fee2e2';
+                                                        color = '#b91c1c';
+                                                    }
+                                                    return (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                            <span style={{
+                                                                padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700,
+                                                                background: bg,
+                                                                color: color,
+                                                                display: 'inline-block',
+                                                                width: 'fit-content'
+                                                            }}>
+                                                                {label}
+                                                            </span>
+                                                            {status === 'rejected' && product.customFields?.rejectionReason && (
+                                                                <span style={{ fontSize: '10px', color: '#ef4444', fontStyle: 'italic', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={product.customFields.rejectionReason}>
+                                                                    Motif: {product.customFields.rejectionReason}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
                                             </td>
                                             <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                                                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                    {/* Toggle Switch/Button for Inline status update */}
-                                                    <button
-                                                        onClick={() => handleToggleStatus(product)}
-                                                        disabled={togglingId === product.id}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            borderRadius: '6px',
-                                                            background: product.enabled ? '#fee2e2' : '#dcfce7',
-                                                            color: product.enabled ? '#b91c1c' : '#166534',
-                                                            border: 'none',
-                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer',
-                                                            fontWeight: 600,
-                                                            fontSize: '12px',
-                                                            transition: 'opacity 0.1s'
-                                                        }}
-                                                    >
-                                                        {togglingId === product.id ? '...' : (product.enabled ? 'Désactiver' : 'Activer')}
-                                                    </button>
+                                                    {(() => {
+                                                        const status = product.customFields?.approvalStatus || 'pending';
+                                                        const isDisabled = togglingId === product.id;
+                                                        if (status === 'pending' || status === 'rejected') {
+                                                            return (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleApprove(product)}
+                                                                        disabled={isDisabled}
+                                                                        style={{
+                                                                            padding: '6px 12px',
+                                                                            borderRadius: '6px',
+                                                                            background: '#dcfce7',
+                                                                            color: '#15803d',
+                                                                            border: 'none',
+                                                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                                                            fontWeight: 600,
+                                                                            fontSize: '12px',
+                                                                            transition: 'opacity 0.1s'
+                                                                        }}
+                                                                    >
+                                                                        {isDisabled ? '...' : 'Approuver'}
+                                                                    </button>
+                                                                    {status !== 'rejected' && (
+                                                                        <button
+                                                                            onClick={() => handleReject(product)}
+                                                                            disabled={isDisabled}
+                                                                            style={{
+                                                                                padding: '6px 12px',
+                                                                                borderRadius: '6px',
+                                                                                background: '#fee2e2',
+                                                                                color: '#b91c1c',
+                                                                                border: 'none',
+                                                                                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                                                                fontWeight: 600,
+                                                                                fontSize: '12px',
+                                                                                transition: 'opacity 0.1s'
+                                                                            }}
+                                                                        >
+                                                                            {isDisabled ? '...' : 'Rejeter'}
+                                                                        </button>
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        } else {
+                                                            // status is approved
+                                                            return (
+                                                                <button
+                                                                    onClick={() => handleReject(product)}
+                                                                    disabled={isDisabled}
+                                                                    style={{
+                                                                        padding: '6px 12px',
+                                                                        borderRadius: '6px',
+                                                                        background: '#fee2e2',
+                                                                        color: '#b91c1c',
+                                                                        border: 'none',
+                                                                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                                                        fontWeight: 600,
+                                                                        fontSize: '12px',
+                                                                        transition: 'opacity 0.1s'
+                                                                    }}
+                                                                >
+                                                                    {isDisabled ? '...' : 'Désactiver / Rejeter'}
+                                                                </button>
+                                                            );
+                                                        }
+                                                    })()}
                                                     {/* Edit Link to Vendure native product editor */}
                                                     <a
                                                         href={`/admin/catalog/products/${product.id}`}

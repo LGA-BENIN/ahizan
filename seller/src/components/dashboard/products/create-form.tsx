@@ -405,6 +405,9 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                 >
                                     Annuler
                                 </Button>
+                                <p className="text-[10px] text-muted-foreground text-center mt-2 font-medium italic">
+                                    Note : Votre produit sera enregistré en tant que brouillon et soumis à la validation de l'administrateur avant d'être publié.
+                                </p>
                             </div>
                         </div>
                     </div>

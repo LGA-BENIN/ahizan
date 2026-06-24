@@ -9,9 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag, Star, Percent } from 'lucide-react';
+import { Package, ImageIcon, Ruler, Save, X, Trash2, Info, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { priceFromSubunit } from '@/lib/format';
 
 interface EditProductFormProps {
     product: any;
@@ -36,12 +36,13 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     const [formData, setFormData] = useState({
         name: product.name,
         description: product.description,
-        price: variant?.price || 0,
-        stock: variant?.stockLevel === 'IN_STOCK' ? 100 : (parseInt(variant?.stockLevel) || 0),
+        price: variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode) : 0,
+        stock: variant?.stockOnHand !== undefined && variant?.stockOnHand !== null ? variant.stockOnHand : 0,
         parentCategory: '',
         category: initialCategoryId,
+        enabled: product.enabled !== false,
         onPromotion: (variant?.customFields as any)?.onPromotion || false,
-        promotionalPrice: (variant?.customFields as any)?.promotionalPrice || 0,
+        promotionalPrice: (variant?.customFields as any)?.promotionalPrice ? priceFromSubunit((variant.customFields as any).promotionalPrice, variant.currencyCode) : 0,
     });
     const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
     const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
@@ -138,6 +139,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             data.append('price', formData.price.toString());
             data.append('stock', formData.stock.toString());
             data.append('category', formData.category);
+            data.append('enabled', formData.enabled.toString());
             data.append('assetIds', JSON.stringify(assetIds));
             data.append('featuredAssetId', featuredAssetId || '');
             data.append('facetValueIds', JSON.stringify(facetValueIds));
@@ -226,6 +228,54 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                         </Select>
                     </div>
                     )}
+
+                    {(() => {
+                        const approvalStatus = product.customFields?.approvalStatus || 'pending';
+                        const reason = product.customFields?.rejectionReason;
+                        
+                        if (approvalStatus === 'pending') {
+                            return (
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3.5 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-300">
+                                    <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider">En cours de validation</h4>
+                                        <p className="text-xs mt-1 leading-relaxed font-medium">Ce produit est en cours de validation par l'administrateur. Il sera visible sur la boutique dès qu'il sera approuvé.</p>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        
+                        if (approvalStatus === 'approved') {
+                            return (
+                                <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex items-start gap-3.5 text-green-800 dark:bg-green-950/20 dark:border-green-900/30 dark:text-green-300">
+                                    <CheckCircle2 className="w-5 h-5 shrink-0 text-green-600 dark:text-green-400 mt-0.5" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider">Produit Approuvé</h4>
+                                        <p className="text-xs mt-1 leading-relaxed font-medium">Ce produit a été approuvé par l'administrateur et est actuellement en ligne sur la boutique.</p>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        
+                        if (approvalStatus === 'rejected') {
+                            return (
+                                <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-start gap-3.5 text-red-800 dark:bg-red-950/20 dark:border-red-900/30 dark:text-red-300">
+                                    <AlertOctagon className="w-5 h-5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider">Produit Rejeté</h4>
+                                        <p className="text-xs mt-1 leading-relaxed font-medium">Ce produit a été rejeté par l'administrateur.</p>
+                                        {reason && (
+                                            <div className="mt-2 text-xs font-semibold bg-red-100/50 dark:bg-red-950/40 p-3 rounded-lg border border-red-200/50 dark:border-red-900/30">
+                                                Motif du rejet : {reason}
+                                            </div>
+                                        )}
+                                        <p className="text-[10px] font-bold uppercase tracking-wider mt-3 text-red-700 dark:text-red-400">Veuillez corriger le produit et l'enregistrer pour le soumettre à nouveau.</p>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
 
                     <div className="space-y-2">
                         <Label htmlFor="description">Description <span className="text-destructive">*</span></Label>

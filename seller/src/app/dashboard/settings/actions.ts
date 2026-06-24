@@ -67,6 +67,10 @@ export async function updateVendorProfileAction(
     const deliveryInfo = formData.get('deliveryInfo') as string;
     const returnPolicy = formData.get('returnPolicy') as string;
 
+    // File fields
+    const logo = formData.get('logo') as File | null;
+    const coverImage = formData.get('coverImage') as File | null;
+
     // If name is missing (because tab unmounted), fetch it from current profile
     if (!name) {
         const profile = await getMyVendorProfile();
@@ -90,6 +94,8 @@ export async function updateVendorProfileAction(
                 instagram: instagram || undefined,
                 deliveryInfo: deliveryInfo || undefined,
                 returnPolicy: returnPolicy || undefined,
+                logo: (logo && logo.size > 0 ? logo : undefined) as any,
+                coverImage: (coverImage && coverImage.size > 0 ? coverImage : undefined) as any,
             }
         }, { useAuthToken: true });
 

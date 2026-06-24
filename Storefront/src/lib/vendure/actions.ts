@@ -9,10 +9,16 @@ import {getAuthToken} from "@/lib/auth";
 
 export const getActiveCustomer = cache(async () => {
     const token = await getAuthToken();
-    const result = await query(GetActiveCustomerQuery, undefined, {
-        token
-    });
-    return readFragment(ActiveCustomerFragment, result.data.activeCustomer);
+    if (!token) return null;
+    try {
+        const result = await query(GetActiveCustomerQuery, undefined, {
+            token
+        });
+        return readFragment(ActiveCustomerFragment, (result.data as any)?.activeCustomer);
+    } catch (e) {
+        console.error('[getActiveCustomer] Failed to fetch customer:', e);
+        return null;
+    }
 })
 
 export const getActiveOrder = cache(async () => {

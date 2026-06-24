@@ -214,36 +214,46 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                             href={item.href}
                             onClick={() => mobile && setIsMobileMenuOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 px-4 py-3 rounded-2xl text-sm transition-all group relative",
+                                "flex items-center gap-3 px-4 py-3 text-sm transition-all group relative border-l-4",
                                 isActive
-                                    ? "bg-brand-navy text-white shadow-lg shadow-brand-navy/20 font-bold"
-                                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                                    ? "bg-white/10 text-white border-primary font-bold rounded-r-xl"
+                                    : "border-transparent text-slate-400 hover:text-white hover:bg-white/5 rounded-r-xl"
                             )}
                         >
-                            <Icon className={cn("h-5 w-5 shrink-0 transition-transform group-hover:scale-110", isActive ? "text-white" : "group-hover:text-brand-navy")} />
+                            <Icon className={cn("h-5 w-5 shrink-0 transition-all group-hover:scale-110", isActive ? "text-primary" : "text-slate-400 group-hover:text-white")} />
                             {(isSidebarOpen || mobile) ? (
                                 <span className="flex-1 truncate animate-in fade-in slide-in-from-left-2 duration-300">{item.name}</span>
                             ) : (
-                                <div className="absolute left-full ml-4 px-3 py-2 bg-brand-navy text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] shadow-xl">
+                                <div className="absolute left-full ml-4 px-3 py-2 bg-[#0d1c32] text-white text-xs rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] shadow-xl">
                                     {item.name}
                                 </div>
                             )}
                             {isActive && (isSidebarOpen || mobile) && (
-                                <div className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                             )}
                         </Link>
                     );
                 })}
             </nav>
+            
+            {/* Merchant Badge & Support */}
+            {(isSidebarOpen || mobile) && (
+                <div className="mt-auto pt-4 border-t border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-1">
+                        <p className="text-white font-bold text-xs truncate">{vendorName}</p>
+                        <p className="text-slate-400 text-[9px] truncate">{vendorEmail}</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 
     return (
-        <div className="flex h-screen bg-dashboard-bg text-foreground transition-colors duration-300 overflow-hidden">
+        <div className="flex h-screen bg-dashboard-bg text-foreground transition-colors duration-300 overflow-hidden stitch-theme">
             {/* Desktop Sidebar */}
             <aside
                 className={cn(
-                    "hidden md:flex flex-col bg-sidebar border-r transition-all duration-500 ease-in-out shadow-2xl shadow-black/5",
+                    "hidden md:flex flex-col bg-[#0d1c32] border-r border-white/10 transition-all duration-500 ease-in-out shadow-2xl",
                     isSidebarOpen ? "w-64" : "w-24"
                 )}
             >
@@ -261,7 +271,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
             {/* Mobile Drawer */}
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-[101] w-72 bg-sidebar border-r transition-transform duration-500 ease-in-out md:hidden shadow-2xl",
+                    "fixed inset-y-0 left-0 z-[101] w-72 bg-[#0d1c32] border-r border-white/10 transition-transform duration-500 ease-in-out md:hidden shadow-2xl",
                     isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
                 )}
             >

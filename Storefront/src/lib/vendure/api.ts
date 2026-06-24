@@ -56,11 +56,10 @@ function extractAuthToken(headers: Headers): string | null {
 /**
  * Execute a GraphQL query against the Vendure API
  */
-export async function query<TResult, TVariables>(
-    document: TadaDocumentNode<TResult, TVariables>,
-    ...[variables, options]: TVariables extends Record<string, never>
-        ? [variables?: TVariables, options?: VendureRequestOptions]
-        : [variables: TVariables, options?: VendureRequestOptions]
+export async function query<TResult = any, TVariables = any>(
+    document: TadaDocumentNode<TResult, TVariables> | any,
+    variables?: TVariables | any,
+    options?: VendureRequestOptions
 ): Promise<{ data: TResult; token?: string }> {
     const {
         token,
@@ -145,13 +144,10 @@ Variables: ${JSON.stringify(variables)}
 /**
  * Execute a GraphQL mutation against the Vendure API
  */
-export async function mutate<TResult, TVariables>(
-    document: TadaDocumentNode<TResult, TVariables>,
-    ...[variables, options]: TVariables extends Record<string, never>
-        ? [variables?: TVariables, options?: VendureRequestOptions]
-        : [variables: TVariables, options?: VendureRequestOptions]
+export async function mutate<TResult = any, TVariables = any>(
+    document: TadaDocumentNode<TResult, TVariables> | any,
+    variables?: TVariables | any,
+    options?: VendureRequestOptions
 ): Promise<{ data: TResult; token?: string }> {
-    // Mutations use the same underlying implementation as queries in GraphQL
-    // @ts-expect-error - Complex conditional type inference, runtime behavior is correct
     return query(document, variables, options);
 }

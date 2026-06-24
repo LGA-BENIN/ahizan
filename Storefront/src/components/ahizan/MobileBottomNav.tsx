@@ -69,7 +69,7 @@ export function MobileBottomNav({
                     const content = (
                         <>
                             <div className="relative">
-                                <Icon className={`w-5 h-5 mb-1 transition-colors ${item.isActive ? 'text-[#d8263e] stroke-[2.5]' : 'text-[#d8263e]/60 stroke-[2]'}`} />
+                                <Icon className={`w-5 h-5 mb-1 transition-colors ${item.isActive ? 'text-[#E31E24] stroke-[2.8]' : 'text-[#002f6c] stroke-[2.2]'}`} />
                                 {item.badge && (
                                     <span
                                         className="absolute -top-1.5 -right-2 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white"
@@ -79,7 +79,7 @@ export function MobileBottomNav({
                                     </span>
                                 )}
                             </div>
-                            <span className={`text-[10px] font-medium transition-colors ${item.isActive ? 'text-[#d8263e]' : 'text-[#d8263e]/60'}`}>
+                            <span className={`text-[10px] font-bold transition-colors ${item.isActive ? 'text-[#E31E24]' : 'text-[#002f6c]'}`}>
                                 {item.label}
                             </span>
                         </>

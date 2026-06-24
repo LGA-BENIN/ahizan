@@ -75,7 +75,7 @@ ${shopApiExtensions}
         }
 
         // ---------------------------
-        // PRODUCT CUSTOM FIELD
+        // PRODUCT CUSTOM FIELDS
         // ---------------------------
 
         config.customFields.Product.push({
@@ -85,6 +85,28 @@ ${shopApiExtensions}
             public: true,
             nullable: true,
             ui: { component: 'item-search-input' },
+        });
+
+        config.customFields.Product.push({
+            name: 'approvalStatus',
+            type: 'string',
+            public: true,
+            nullable: true,
+            defaultValue: 'pending',
+            options: [
+                { value: 'pending' },
+                { value: 'approved' },
+                { value: 'rejected' },
+            ],
+            label: [{ languageCode: 'fr' as any, value: 'Statut de validation' }],
+        });
+
+        config.customFields.Product.push({
+            name: 'rejectionReason',
+            type: 'string',
+            public: true,
+            nullable: true,
+            label: [{ languageCode: 'fr' as any, value: 'Motif de rejet' }],
         });
 
         // ---------------------------

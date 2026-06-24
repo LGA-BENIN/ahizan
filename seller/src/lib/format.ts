@@ -30,3 +30,15 @@ export function formatDate(dateString: string, format: DateFormat = 'short'): st
     return new Date(dateString).toLocaleDateString('fr-FR', options);
 }
 
+const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
+
+export function priceToSubunit(amount: number, currencyCode: string = 'XOF'): number {
+    const isZeroDecimal = zeroDecimalCurrencies.includes(currencyCode.toUpperCase());
+    return isZeroDecimal ? amount : amount * 100;
+}
+
+export function priceFromSubunit(subunitAmount: number, currencyCode: string = 'XOF'): number {
+    const isZeroDecimal = zeroDecimalCurrencies.includes(currencyCode.toUpperCase());
+    return isZeroDecimal ? subunitAmount : subunitAmount / 100;
+}
+

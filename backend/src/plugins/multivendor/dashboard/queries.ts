@@ -105,6 +105,8 @@ export const GET_PRODUCTS = `
                             preview
                         }
                     }
+                    approvalStatus
+                    rejectionReason
                 }
                 featuredAsset {
                     id

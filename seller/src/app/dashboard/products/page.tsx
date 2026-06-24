@@ -2,6 +2,7 @@ import { query } from '@/lib/vendure/api';
 import { GetMyVendorProductsQuery } from '@/lib/vendure/vendor-product-mutations';
 import { GetCollectionsTreeQuery } from '@/lib/vendure/queries';
 import { getAuthToken } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { Package, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -10,9 +11,15 @@ import ProductListTable from '@/components/dashboard/products/product-list-table
 export default async function ProductListPage() {
     // Force recompile
     const token = await getAuthToken();
+    if (!token) {
+        redirect('/onboarding');
+    }
 
     const [{ data: productData }, collectionsResult] = await Promise.all([
-        query(GetMyVendorProductsQuery, { options: { take: 50, sort: { updatedAt: 'DESC' } } }, { token }),
+        query(GetMyVendorProductsQuery, { options: { take: 50 } }, { token }).catch((err) => {
+            console.error('[ProductListPage] Failed to fetch products:', err);
+            return { data: { myVendorProducts: { items: [], totalItems: 0 } } };
+        }),
         query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
             console.error('[ProductListPage] Failed to fetch collections:', err);
             return { data: null };

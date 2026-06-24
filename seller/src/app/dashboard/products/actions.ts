@@ -3,18 +3,19 @@
 import { revalidateTag } from 'next/cache';
 import { mutate } from '@/lib/vendure/api';
 import { CreateMyProductMutation, UpdateMyProductMutation, UpdateMyProductVariantMutation, UploadVendorFileMutation, DeleteMyProductMutation } from '@/lib/vendure/vendor-product-mutations';
+import { priceToSubunit } from '@/lib/format';
 
 export async function createProductAction(prevState: any, formData: FormData) {
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
-    const price = parseInt(formData.get('price') as string);
+    const price = priceToSubunit(parseInt(formData.get('price') as string) || 0);
     const stock = parseInt(formData.get('stock') as string);
     const collectionId = formData.get('category') as string;
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
     const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
     const onPromotion = formData.get('onPromotion') === 'true';
-    const promotionalPrice = parseInt(formData.get('promotionalPrice') as string) || 0;
+    const promotionalPrice = priceToSubunit(parseInt(formData.get('promotionalPrice') as string) || 0);
 
     try {
         console.log(`[ACTION] Creating product: ${name}`);
@@ -46,14 +47,15 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const variantId = formData.get('variantId') as string;
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
-    const price = formData.get('price') ? parseInt(formData.get('price') as string) : undefined;
+    const price = formData.get('price') ? priceToSubunit(parseInt(formData.get('price') as string)) : undefined;
     const stock = formData.get('stock') ? parseInt(formData.get('stock') as string) : undefined;
     const collectionId = formData.get('category') as string;
+    const enabled = formData.get('enabled') === 'true';
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
     const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
     const onPromotion = formData.get('onPromotion') === 'true';
-    const promotionalPrice = parseInt(formData.get('promotionalPrice') as string) || 0;
+    const promotionalPrice = priceToSubunit(parseInt(formData.get('promotionalPrice') as string) || 0);
 
     try {
         await mutate(UpdateMyProductMutation, {
@@ -65,6 +67,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
                 facetValueIds,
                 assetIds,
                 featuredAssetId: featuredAssetId || assetIds[0],
+                enabled,
             },
         } as any, { useAuthToken: true });
 

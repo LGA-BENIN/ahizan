@@ -17,7 +17,10 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
     // Parallel fetch
     const [productResult, collectionsResult] = await Promise.all([
-        query(GetMyVendorProductQuery, { id }, { token }),
+        query(GetMyVendorProductQuery, { id }, { token }).catch((err) => {
+            console.error('[EditProductPage] Failed to fetch product:', err);
+            return { data: { myVendorProduct: null } };
+        }),
         query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
             console.error('[EditProductPage] Failed to fetch collections:', err);
             return { data: null };

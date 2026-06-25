@@ -3,8 +3,7 @@ import { query } from '@/lib/vendure/api';
 import { GetActiveCustomerQuery } from '@/lib/vendure/queries';
 import { redirect } from 'next/navigation';
 import { AuthorizeClient } from './authorize-client';
-
-const STOREFRONT_URL = process.env.STOREFRONT_URL || 'http://localhost:3001';
+import { getUrlContext, sanitizeRedirectUrl } from '@/lib/url-utils';
 
 export default async function Page({
   searchParams,
@@ -12,7 +11,8 @@ export default async function Page({
   searchParams: Promise<{ redirectTo?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const redirectTo = resolvedSearchParams.redirectTo;
+  const { storefrontUrl, useProdUrls } = await getUrlContext();
+  const redirectTo = sanitizeRedirectUrl(resolvedSearchParams.redirectTo, useProdUrls);
 
   const token = await getAuthToken();
 
@@ -21,7 +21,7 @@ export default async function Page({
   }
 
   if (!redirectTo) {
-    redirect(STOREFRONT_URL);
+    redirect(storefrontUrl);
   }
 
   let customerName = 'Utilisateur';
@@ -41,7 +41,7 @@ export default async function Page({
     <AuthorizeClient
       customerName={customerName}
       redirectTo={redirectTo}
-      storefrontUrl={STOREFRONT_URL}
+      storefrontUrl={storefrontUrl}
     />
   );
 }

@@ -144,8 +144,11 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
                     name="phoneNumber"
                     required
                     disabled={isPending}
+                    pattern="^[0-9\s]{10,14}$"
+                    maxLength={14}
+                    title="Le numéro doit comporter exactement 10 chiffres (ex: 01 XX XX XX XX)"
                     className="w-full h-12 pl-16 pr-4 rounded-xl border border-border bg-surface-light font-body-md text-body-md transition-all focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none"
-                    placeholder="97 00 00 00"
+                    placeholder="01 XX XX XX XX"
                     type="tel"
                   />
                 </div>

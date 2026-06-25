@@ -37,9 +37,7 @@ export async function NavbarUser() {
         );
     }
 
-    const ssoUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://auth.ahizan.com/select-role' 
-        : 'http://localhost:3003/select-role';
+    const ssoUrl = process.env.NEXT_PUBLIC_SSO_ROLE_URL || 'https://auth.ahizan.com/select-role';
 
     return (
         <DropdownMenu>

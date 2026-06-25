@@ -14,8 +14,9 @@ async function VerifyPendingContent({searchParams}: {searchParams: Promise<Recor
     const resolvedParams = await searchParams;
     const redirectTo = resolvedParams?.redirectTo as string | undefined;
 
-    const signInHref = redirectTo
-        ? `/sign-in?redirectTo=${encodeURIComponent(redirectTo)}`
+    const safeRedirect = redirectTo && !redirectTo.includes('seller') ? redirectTo : undefined;
+    const signInHref = safeRedirect
+        ? `/sign-in?redirectTo=${encodeURIComponent(safeRedirect)}`
         : '/sign-in';
 
     return (
@@ -25,22 +26,22 @@ async function VerifyPendingContent({searchParams}: {searchParams: Promise<Recor
                     <CheckCircle className="h-16 w-16 text-green-600" />
                 </div>
                 <div className="space-y-2 text-center">
-                    <h1 className="text-2xl font-bold">Check Your Email</h1>
+                    <h1 className="text-2xl font-bold">Vérifiez votre adresse e-mail</h1>
                     <p className="text-muted-foreground">
-                        We&apos;ve sent a verification link to your email address.
-                        Please check your inbox and click the link to verify your account.
+                        Nous avons envoyé un lien de confirmation à votre adresse e-mail.
+                        Veuillez vérifier votre boîte de réception et cliquer sur le lien pour activer votre compte.
                     </p>
                 </div>
                 <div className="bg-muted p-4 rounded-md">
                     <p className="text-sm text-muted-foreground">
-                        Don&apos;t see the email? Check your spam folder or request a new verification link.
+                        Vous ne trouvez pas l&apos;e-mail ? Vérifiez votre dossier spams ou demandez un nouveau lien de confirmation.
                     </p>
                 </div>
             </CardContent>
             <CardFooter className="flex flex-col space-y-2">
                 <Link href={signInHref} className="w-full">
                     <Button className="w-full">
-                        Go to Sign In
+                        Aller à la page de connexion
                     </Button>
                 </Link>
             </CardFooter>

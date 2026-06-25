@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Clock, ChevronRight, ChevronLeft } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import Link from "next/link";
+import { ProductCard } from "@/components/commerce/product-card";
 import { getAssetUrl, getShopApiUrl, getPromoPriceInfo } from "@/lib/vendure/api-utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -96,7 +97,11 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 productVariants(options: { take: $take }) {
                                     items {
                                         priceWithTax
-                                        customFields
+                                        customFields {
+                                            compareAtPrice
+                                            onPromotion
+                                            promotionalPrice
+                                        }
                                         product {
                                             id
                                             name
@@ -172,7 +177,12 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             query: productsQuery, 
-                            variables: { options: { take } } 
+                            variables: { 
+                                options: { 
+                                    take,
+                                    filter: { approvalStatus: { eq: "approved" } }
+                                } 
+                            } 
                         })
                     })
                     .then(res => res.json())
@@ -226,16 +236,15 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 items = items.slice(0, limit);
 
                 setFlashProducts(items.map((item: any) => ({
-                    id: item.productId,
-                    name: item.productName,
+                    productId: item.productId,
+                    productName: item.productName,
                     slug: item.slug,
-                    assets: item.productAsset ? [{ preview: item.productAsset.preview }] : [],
-                    variants: [{
-                        price: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0,
-                        priceWithTax: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0,
-                        stockLevel: 'IN_STOCK',
-                        customFields: item.customFields
-                    }]
+                    productAsset: item.productAsset || null,
+                    priceWithTax: { __typename: 'SinglePrice', value: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0 },
+                    currencyCode: 'XOF',
+                    inStock: true,
+                    collectionIds: [],
+                    facetValueIds: []
                 })));
                 setLoading(false);
             })
@@ -262,7 +271,11 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                         price
                                         priceWithTax
                                         stockLevel
-                                        customFields
+                                        customFields {
+                                            compareAtPrice
+                                            onPromotion
+                                            promotionalPrice
+                                        }
                                     }
                                     assets {
                                         preview
@@ -281,7 +294,18 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             })
             .then(res => res.json())
             .then(data => {
-                setFlashProducts(data.data?.products?.items || []);
+                const items = data.data?.products?.items || [];
+                setFlashProducts(items.map((p: any) => ({
+                    productId: p.id,
+                    productName: p.name,
+                    slug: p.slug,
+                    productAsset: p.assets?.[0] || null,
+                    priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
+                    currencyCode: 'XOF',
+                    inStock: p.variants?.[0]?.stockLevel === 'IN_STOCK',
+                    collectionIds: [],
+                    facetValueIds: []
+                })));
                 setLoading(false);
             })
             .catch(err => { console.error('Error fetching manual products:', err); setLoading(false); });
@@ -432,73 +456,27 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 )}
                 {(loading ? [1, 2, 3, 4, 5, 6, 7, 8] : flashProducts).map((p: any, i) => {
                     const isPlaceholder = typeof p === 'number';
-                    const price = isPlaceholder ? (199 + i * 50) : (p.variants?.[0]?.price || p.variants?.[0]?.priceWithTax || 0);
                     
-                    const priceInfo = getPromoPriceInfo({
-                        price,
-                        variantCustomFields: isPlaceholder ? null : p.variants?.[0]?.customFields,
-                        productId: isPlaceholder ? null : p.id,
-                        collectionIds: isPlaceholder ? [] : p.collections?.map((c: any) => c.id) || [],
-                        activeFlash,
-                    });
+                    if (isPlaceholder) {
+                        return (
+                            <div key={i} className={
+                                activeFlash.displayLayout === 'vertical_grid'
+                                ? "w-full aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
+                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
+                            }>
+                                <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                            </div>
+                        );
+                    }
 
                     return (
-                        <Link
-                            key={isPlaceholder ? i : p.id}
-                            href={isPlaceholder ? "#" : `/product/${p.slug}`}
-                            className={`${activeFlash.displayLayout === 'vertical_grid' ? 'w-full' : 'snap-start flex-shrink-0 w-[120px] sm:w-[130px] md:w-[145px] lg:w-[160px]'} group relative flex flex-col bg-white rounded-xl overflow-hidden border border-border/30 hover:border-primary/30 hover:shadow-md transition-all duration-300`}
-                        >
-                            <div className="relative aspect-square bg-muted/10 overflow-hidden flex items-center justify-center">
-                                {priceInfo.hasPromotion && priceInfo.showBothPrices && priceInfo.discountPercentage > 0 && (
-                                    <Badge className="absolute top-1.5 left-1.5 bg-primary text-white font-black text-[8px] px-1 py-0.5 z-10 rounded-sm">
-                                        -{priceInfo.discountPercentage}%
-                                    </Badge>
-                                )}
-                                
-                                {isPlaceholder ? (
-                                    <div className="w-4 h-4 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-                                ) : (
-                                    <img 
-                                        src={getAssetUrl(p.assets?.[0]?.preview || defaultImage)} 
-                                        className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 p-1" 
-                                        alt={p.name} 
-                                    />
-                                )}
-                            </div>
-                            
-                            <div className="flex flex-col p-1.5 sm:p-2 flex-1">
-                                <h4 className="text-[12px] sm:text-[13px] md:text-[14px] font-semibold text-secondary line-clamp-2 leading-tight mb-0 group-hover:text-primary transition-colors">
-                                    {isPlaceholder ? `Produit #${i+1}` : p.name}
-                                </h4>
-                                                                <div className="mt-auto flex flex-col justify-end">
-                                        {priceInfo.hasPromotion ? (
-                                            <>
-                                                {priceInfo.showBothPrices && (
-                                                    <span className="font-bold text-[11px] sm:text-[12px] md:text-[13px] text-muted-foreground line-through opacity-70">
-                                                        {priceInfo.originalPrice.toLocaleString()} XOF
-                                                    </span>
-                                                )}
-                                                <span className={`font-black text-[14px] sm:text-[16px] md:text-[18px] tracking-tight leading-none mt-0 ${priceInfo.showBothPrices ? 'text-red-600' : 'text-primary'}`}>
-                                                    {priceInfo.promotionalPrice.toLocaleString()} <span className="text-[9px] sm:text-[10px] font-bold">XOF</span>
-                                                </span>
-                                            </>
-                                        ) : (
-                                            <span className="font-black text-[13px] sm:text-[15px] md:text-[18px] text-primary tracking-tight leading-none">
-                                                {priceInfo.originalPrice.toLocaleString()} <span className="text-[8px] sm:text-[10px] font-bold">XOF</span>
-                                            </span>
-                                        )}
-
-                                    {/* Stock Status */}
-                                    <div className="mt-0 pt-0">
-                                        <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${
-                                            isPlaceholder ? 'text-green-600' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'text-green-600' : 'text-red-600')
-                                        }`}>
-                                            {isPlaceholder ? 'EN STOCK' : (p.variants?.[0]?.stockLevel === 'IN_STOCK' ? 'EN STOCK' : 'RUPTURE')}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
+                        <div key={p.productId} className={
+                            activeFlash.displayLayout === 'vertical_grid'
+                            ? "w-full"
+                            : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
+                        }>
+                            <ProductCard product={p} />
+                        </div>
                     );
                 })}
             </div>

@@ -1,14 +1,15 @@
 import { redirect } from 'next/navigation';
 
-export default async function RegisterPage({ searchParams }: PageProps<'/register'>) {
+export default async function RegisterPage({ searchParams }: any) {
     const resolvedParams = await searchParams;
     const redirectTo = resolvedParams?.redirectTo as string | undefined;
 
-    const ssoUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://auth.ahizan.com/register' 
-        : 'http://localhost:3003/register';
+    let returnUrl = redirectTo || process.env.NEXT_PUBLIC_SELLER_URL || 'https://seller.ahizan.com/dashboard';
+    if (returnUrl.includes('localhost:3002')) {
+        returnUrl = returnUrl.replace('http://localhost:3002', 'https://seller.ahizan.com');
+    }
 
-    const returnUrl = redirectTo || 'http://localhost:3002/dashboard';
-    
+    const ssoUrl = process.env.NEXT_PUBLIC_SSO_REGISTER_URL || 'https://auth.ahizan.com/register';
+
     redirect(`${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}`);
 }

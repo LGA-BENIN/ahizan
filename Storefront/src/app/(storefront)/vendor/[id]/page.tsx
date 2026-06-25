@@ -1,5 +1,5 @@
+import type { Metadata } from 'next';
 import { rawQuery } from '@/lib/vendure/raw-api';
-import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { VendorShopClient } from './vendor-shop-client';
 
@@ -7,43 +7,58 @@ interface VendorPageProps {
     params: Promise<{ id: string }>;
 }
 
-const GET_VENDOR_DETAIL = `
-    query GetVendorDetail($id: ID!) {
+const GET_VENDOR_PROFILE = `
+    query GetVendorProfile($id: ID!) {
         vendor(id: $id) {
             id
             name
             description
             address
-            phoneNumber
-            email
             zone
             deliveryInfo
             returnPolicy
             rating
             ratingCount
             followersCount
+            createdAt
+            email
+            phoneNumber
+            website
             facebook
             instagram
-            website
-            logo { preview }
-            coverImage { preview }
+            logo {
+                preview
+            }
+            coverImage {
+                preview
+            }
             products {
                 id
                 name
                 slug
+                description
                 enabled
-                featuredAsset { preview }
-                customFields {
-                    approvalStatus
+                featuredAsset {
+                    id
+                    preview
                 }
                 collections {
                     id
                     name
                     slug
                 }
+                customFields {
+                    approvalStatus
+                }
                 variants {
                     id
                     priceWithTax
+                    stockLevel
+                    customFields {
+                        compareAtPrice
+                        onPromotion
+                        promotionalPrice
+                    }
                 }
             }
         }
@@ -52,7 +67,7 @@ const GET_VENDOR_DETAIL = `
 
 async function getVendorData(id: string) {
     try {
-        const data = await rawQuery(GET_VENDOR_DETAIL, {
+        const data = await rawQuery(GET_VENDOR_PROFILE, {
             variables: { id },
         });
         return data?.vendor || null;
@@ -71,7 +86,7 @@ export async function generateMetadata({ params }: VendorPageProps): Promise<Met
         };
     }
     return {
-        title: `${vendor.name} | Boutique Partenaire Ahizan`,
+        title: `${vendor.name} - Boutique Officielle | Ahizan`,
         description: vendor.description || `Découvrez l'ensemble des produits de la boutique ${vendor.name} sur Ahizan.`,
     };
 }

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { HeroSection } from "@/components/ahizan/HeroSection";
 import { QuickLinks } from "@/components/ahizan/QuickLinks";
 import { FlashSaleSection } from "@/components/ahizan/FlashSaleSection";
+import { getShopApiUrl } from "@/lib/vendure/api-utils";
 
 // Cache categories globally so all wrappers share it instead of fetching multiple times
 let cachedCategories: any[] | null = null;
@@ -26,7 +27,7 @@ function useAhizanCategories() {
             }
         `;
 
-        fetch('http://localhost:3000/shop-api', {
+        fetch(getShopApiUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: gqlQuery })

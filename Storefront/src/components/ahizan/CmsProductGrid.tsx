@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
+import { ProductCard } from "@/components/commerce/product-card";
 import { getShopApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 
 interface CmsProductGridProps {
@@ -99,7 +100,11 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                                     productName: item.product.name,
                                     slug: item.product.slug,
                                     productAsset: item.product.assets?.[0],
-                                    priceWithTax: { value: item.priceWithTax }
+                                    priceWithTax: { __typename: 'SinglePrice', value: item.priceWithTax },
+                                    currencyCode: 'XOF',
+                                    inStock: true,
+                                    collectionIds: [],
+                                    facetValueIds: []
                                 });
                             }
                             return acc;
@@ -129,7 +134,12 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             query: productsQuery, 
-                            variables: { options: { take } } 
+                            variables: { 
+                                options: { 
+                                    take,
+                                    filter: { approvalStatus: { eq: "approved" } }
+                                } 
+                            } 
                         })
                     });
                     const data = await res.json();
@@ -145,7 +155,11 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                             productName: prod.name,
                             slug: prod.slug,
                             productAsset: prod.assets?.[0],
-                            priceWithTax: { value: prod.variants?.[0]?.priceWithTax || 0 }
+                            priceWithTax: { __typename: 'SinglePrice', value: prod.variants?.[0]?.priceWithTax || 0 },
+                            currencyCode: 'XOF',
+                            inStock: true,
+                            collectionIds: [],
+                            facetValueIds: []
                         }));
                     }
                 }
@@ -254,40 +268,19 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                     }
 
                     const isPlaceholder = typeof p === 'number';
-                    const price = isPlaceholder ? 0 : (p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0);
                     
+                    if (isPlaceholder) {
+                        return (
+                            <div key={i} className="snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] bg-white rounded-xl overflow-hidden border border-border/30 p-4 flex flex-col items-center justify-center aspect-square">
+                                <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                            </div>
+                        );
+                    }
+
                     return (
-                        <Link 
-                            key={isPlaceholder ? i : p.productId}
-                            href={isPlaceholder ? "#" : `/product/${p.slug}`}
-                            className="snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] group bg-white rounded-xl overflow-hidden border border-border/30 hover:border-primary/20 hover:shadow-lg transition-all duration-300"
-                        >
-                            <div className="aspect-square bg-muted/10 relative flex items-center justify-center overflow-hidden">
-                                {!isPlaceholder && p.productAsset && (
-                                    <img 
-                                        src={p.productAsset.preview} 
-                                        alt={p.productName}
-                                        className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
-                                    />
-                                )}
-                                {isPlaceholder && (
-                                    <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-                                )}
-                            </div>
-                            <div className="p-3 md:p-4">
-                                <h3 className="font-semibold text-xs md:text-sm text-secondary line-clamp-2 min-h-[36px] mb-2 group-hover:text-primary transition-colors">
-                                    {isPlaceholder ? "Chargement..." : p.productName}
-                                </h3>
-                                <div className="flex items-center justify-between">
-                                    <span className="font-black text-base md:text-lg text-primary">
-                                        {isPlaceholder ? "---" : price.toLocaleString()} <span className="text-[9px] font-bold">XOF</span>
-                                    </span>
-                                    <div className="w-7 h-7 rounded-full bg-primary/5 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
-                                        <ChevronRight className="w-3.5 h-3.5" />
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
+                        <div key={p.productId} className="snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]">
+                            <ProductCard product={p} />
+                        </div>
                     );
                 })}
             </div>

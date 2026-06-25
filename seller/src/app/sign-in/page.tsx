@@ -6,15 +6,16 @@ export const metadata: Metadata = {
     description: 'Sign in to your account to access your orders, wishlist, and more.',
 };
 
-export default async function SignInPage({ searchParams }: PageProps<'/sign-in'>) {
+export default async function SignInPage({ searchParams }: any) {
     const resolvedParams = await searchParams;
     const redirectTo = resolvedParams?.redirectTo as string | undefined;
 
-    const ssoUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://auth.ahizan.com/sign-in' 
-        : 'http://localhost:3003/sign-in';
+    let returnUrl = redirectTo || process.env.NEXT_PUBLIC_SELLER_URL || 'https://seller.ahizan.com/dashboard';
+    if (returnUrl.includes('localhost:3002')) {
+        returnUrl = returnUrl.replace('http://localhost:3002', 'https://seller.ahizan.com');
+    }
 
-    const returnUrl = redirectTo || 'http://localhost:3002/dashboard';
-    
+    const ssoUrl = process.env.NEXT_PUBLIC_SSO_URL || 'https://auth.ahizan.com/sign-in';
+
     redirect(`${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}`);
 }

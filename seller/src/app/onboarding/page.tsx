@@ -10,12 +10,8 @@ export default async function OnboardingPage() {
 
     // Si l'utilisateur n'est pas connecté, le renvoyer vers l'inscription SSO
     if (!token) {
-        const ssoUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://auth.ahizan.com/register' 
-            : 'http://localhost:3003/register';
-        const returnUrl = process.env.NODE_ENV === 'production'
-            ? 'https://seller.ahizan.com/onboarding'
-            : 'http://localhost:3002/onboarding';
+        const ssoUrl = process.env.NEXT_PUBLIC_SSO_REGISTER_URL || 'https://auth.ahizan.com/register';
+        const returnUrl = process.env.NEXT_PUBLIC_SELLER_URL ? `${process.env.NEXT_PUBLIC_SELLER_URL}/onboarding` : 'https://seller.ahizan.com/onboarding';
         redirect(`${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}`);
     }
 

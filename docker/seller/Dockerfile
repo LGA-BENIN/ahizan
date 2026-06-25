@@ -1,7 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY seller/package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY seller/ .
 # Inject ENV variables for build if needed
 ARG VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api

@@ -67,6 +67,25 @@ services:
       - web
       - internal
 
+  auth:
+    build:
+      context: .
+      dockerfile: docker/auth/Dockerfile
+    container_name: ahizan_auth
+    restart: unless-stopped
+    ports:
+      - "3000"
+    env_file: .env
+    environment:
+      - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
+      - NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
+    labels:
+      - "VIRTUAL_HOST=auth.ahizan.com"
+      - "VIRTUAL_PORT=3000"
+    networks:
+      - web
+      - internal
+
   media:
     build: ./docker/media
     container_name: ahizan_media

@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import { Price } from '@/components/commerce/price';
 import { Suspense, useState, useEffect, useTransition } from "react";

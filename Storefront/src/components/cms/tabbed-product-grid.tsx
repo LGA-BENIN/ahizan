@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
+import { ProductCard } from "@/components/commerce/product-card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,6 +76,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         slug
                         productAsset { id preview }
                         priceWithTax {
+                            __typename
                             ... on PriceRange { min max }
                             ... on SinglePrice { value }
                         }
@@ -144,9 +146,11 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             productName: v.product.name,
                             slug: v.product.slug,
                             productAsset: v.product.assets?.[0],
-                            priceWithTax: { value: v.priceWithTax },
+                            priceWithTax: { __typename: 'SinglePrice', value: v.priceWithTax },
                             currencyCode: v.currencyCode,
-                            inStock: true
+                            inStock: true,
+                            collectionIds: [],
+                            facetValueIds: []
                         }));
                     }
                 }
@@ -219,7 +223,11 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         } as React.CSSProperties}
                     >
                         {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]">
+                            <div key={i} className={
+                                props.cardStyle === 'dense'
+                                ? "snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]"
+                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
+                            }>
                                 <Card className="overflow-hidden h-full">
                                     <Skeleton className="aspect-[4/3] w-full" />
                                     <CardContent className="p-1.5 space-y-1.5">
@@ -285,36 +293,15 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         } as React.CSSProperties}
                     >
                         {products.map((p: any) => (
-                            <div key={p.productId} className="snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]">
+                            <div key={p.productId} className={
+                                props.cardStyle === 'dense' 
+                                ? "snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]"
+                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
+                            }>
                                 {props.cardStyle === 'dense' ? (
                                     <DenseProductCard product={p} />
                                 ) : (
-                                    <Link
-                                        href={`/product/${p.slug}`}
-                                        className="group bg-white rounded-xl overflow-hidden border border-border/30 hover:shadow-lg transition-all block h-full"
-                                    >
-                                        <div className="aspect-square bg-muted/10 relative overflow-hidden">
-                                            {(p.productAsset?.preview || defaultImage) ? (
-                                                <img
-                                                    src={getAssetUrl(p.productAsset?.preview || defaultImage)}
-                                                    alt={p.productName}
-                                                    className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
-                                                    Aucune image
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="p-2 flex flex-col justify-between" style={{ height: 'calc(100% - auto)' }}>
-                                            <h3 className="font-bold text-[11px] sm:text-[12px] md:text-[13px] line-clamp-2 mb-1 group-hover:text-primary transition-colors">
-                                                {p.productName}
-                                            </h3>
-                                            <span className="font-black text-[12px] sm:text-[13px] md:text-[14px] text-primary">
-                                                {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
-                                            </span>
-                                        </div>
-                                    </Link>
+                                    <ProductCard product={p} />
                                 )}
                             </div>
                         ))}
@@ -329,27 +316,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     props.cardStyle === 'dense' ? (
                         <DenseProductCard key={p.productId} product={p} />
                     ) : (
-                        <Link
-                            key={p.productId}
-                            href={`/product/${p.slug}`}
-                            className="group bg-white rounded-xl overflow-hidden border border-border/30 hover:shadow-lg transition-all"
-                        >
-                            <div className="aspect-square bg-muted/10 relative overflow-hidden">
-                                <img
-                                    src={getAssetUrl(p.productAsset?.preview || defaultImage)}
-                                    alt={p.productName}
-                                    className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
-                                />
-                            </div>
-                            <div className="p-2">
-                                <h3 className="font-bold text-[11px] sm:text-[12px] md:text-[13px] line-clamp-2 mb-1 group-hover:text-primary transition-colors">
-                                    {p.productName}
-                                </h3>
-                                <span className="font-black text-[12px] sm:text-[13px] md:text-[14px] text-primary">
-                                    {formatCFA(p.priceWithTax?.min ?? p.priceWithTax?.value ?? 0)}
-                                </span>
-                            </div>
-                        </Link>
+                        <ProductCard key={p.productId} product={p} />
                     )
                 )}
             </div>

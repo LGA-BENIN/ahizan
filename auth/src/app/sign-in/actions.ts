@@ -4,9 +4,7 @@ import { mutate, query } from '@/lib/vendure/api';
 import { LoginMutation } from '@/lib/vendure/mutations';
 import { GetMyVendorProfileQuery } from '@/lib/vendure/queries';
 import { setAuthToken } from '@/lib/auth';
-
-const STOREFRONT_URL = process.env.STOREFRONT_URL || 'http://localhost:3001';
-const SELLER_URL = process.env.SELLER_URL || 'http://localhost:3002';
+import { getUrlContext, sanitizeRedirectUrl } from '@/lib/url-utils';
 
 export async function loginAction(formData: FormData) {
     const username = formData.get('identifier') as string;
@@ -30,13 +28,25 @@ export async function loginAction(formData: FormData) {
 
         // 3. Détermination de la redirection
         let redirectUrl = '';
+        const { useProdUrls } = await getUrlContext();
+
+        if (redirectTo && redirectTo.includes('seller')) {
+            try {
+                const profileResult = await query(GetMyVendorProfileQuery, {}, { token: result.token });
+                if (!profileResult.data?.myVendorProfile) {
+                    return { success: true, redirectUrl: '/select-role' };
+                }
+            } catch (err) {
+                console.warn('Could not verify vendor profile during loginAction:', err);
+            }
+        }
 
         // Cas A : Redirection explicite demandée
         if (redirectTo && redirectTo.startsWith('http') && (
             redirectTo.includes('ahizan.com') || 
             redirectTo.includes('localhost')
         )) {
-            redirectUrl = redirectTo;
+            redirectUrl = sanitizeRedirectUrl(redirectTo, useProdUrls) || redirectTo;
         } else {
             // Cas B : Connexion directe -> Aller toujours au sélecteur de rôle
             redirectUrl = '/select-role';

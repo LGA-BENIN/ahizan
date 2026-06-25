@@ -3,12 +3,11 @@ import { query } from '@/lib/vendure/api';
 import { GetActiveCustomerQuery, GetMyVendorProfileQuery } from '@/lib/vendure/queries';
 import { redirect } from 'next/navigation';
 import { SelectRoleClient } from './select-role-client';
-
-const STOREFRONT_URL = process.env.STOREFRONT_URL || 'http://localhost:3001';
-const SELLER_URL = process.env.SELLER_URL || 'http://localhost:3002';
+import { getUrlContext } from '@/lib/url-utils';
 
 export default async function Page() {
   const token = await getAuthToken();
+  const { storefrontUrl, sellerUrl } = await getUrlContext();
 
   if (!token) {
     redirect('/sign-in');
@@ -54,8 +53,8 @@ export default async function Page() {
       customerName={customerName}
       customerEmail={customerEmail}
       vendorName={vendorName}
-      storefrontUrl={STOREFRONT_URL}
-      sellerUrl={SELLER_URL}
+      storefrontUrl={storefrontUrl}
+      sellerUrl={sellerUrl}
       hasVendor={hasVendor}
       vendorStatus={vendorStatus}
     />

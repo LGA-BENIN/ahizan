@@ -1,10 +1,10 @@
 FROM node:20-slim AS builder
 WORKDIR /app
-COPY Storefront/package.json ./
+COPY auth/package.json ./
 RUN npm install --legacy-peer-deps
-COPY Storefront/ .
+COPY auth/ .
 
-# Variables d'environnement nécessaires au build
+# Environmental variables for build
 ARG VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
 ARG NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
 ENV VENDURE_SHOP_API_URL=$VENDURE_SHOP_API_URL
@@ -26,4 +26,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["npm", "start", "--", "--port", "3000"]

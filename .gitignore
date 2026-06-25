@@ -19,7 +19,7 @@ yarn-error.log*
 
 # Dépendances
 node_modules/
-vendor/
+/vendor/
 
 # Builds & Dist
 dist/

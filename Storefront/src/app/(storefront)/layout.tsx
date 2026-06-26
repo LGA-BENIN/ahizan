@@ -142,12 +142,24 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
 
     return (
         <div
-            className="flex flex-col min-h-screen relative font-sans overflow-x-hidden"
+            className="flex flex-col min-h-screen relative font-sans overflow-x-clip"
             style={themeStyles}
         >
             {googleFontsUrl && (
                 <link rel="stylesheet" href={googleFontsUrl} />
             )}
+            <style dangerouslySetInnerHTML={{ __html: `
+                :root {
+                    --font-family: ${theme?.fontFamily || "Inter, sans-serif"};
+                    --heading-font: ${theme?.headingFontFamily || theme?.fontFamily || "Inter, sans-serif"};
+                }
+                body {
+                    font-family: var(--font-family) !important;
+                }
+                h1, h2, h3, h4, h5, h6 {
+                    font-family: var(--heading-font) !important;
+                }
+            ` }} />
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
                 <ThemeProvider themeSettings={{
                     defaultProductImage: theme?.defaultProductImage,

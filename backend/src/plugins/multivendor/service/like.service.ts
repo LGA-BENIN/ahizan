@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionalConnection, RequestContext, Customer, Product, ID } from '@vendure/core';
+import { TransactionalConnection, RequestContext, Customer, Product, ID, TranslatorService } from '@vendure/core';
 import { VendorLike } from '../entities/vendor-like.entity';
 import { ProductLike } from '../entities/product-like.entity';
 import { Vendor } from '../entities/vendor.entity';
 
 @Injectable()
 export class LikeService {
-    constructor(private connection: TransactionalConnection) {}
+    constructor(
+        private connection: TransactionalConnection,
+        private translator: TranslatorService
+    ) {}
 
     /**
      * Toggle like state on a Product for a specific Customer
@@ -192,14 +195,17 @@ export class LikeService {
 
         const [likes, totalItems] = await this.connection.getRepository(ctx, ProductLike).findAndCount({
             where: { customer: { id: numericCustomerId } },
-            relations: ['product', 'product.featuredAsset', 'product.variants'],
+            relations: ['product', 'product.featuredAsset', 'product.variants', 'product.translations'],
             skip,
             take,
             order: { createdAt: 'DESC' },
         });
 
+        const products = likes.map(l => l.product).filter(Boolean);
+        const translatedProducts = products.map(product => this.translator.translate(product, ctx));
+
         return {
-            items: likes.map(l => l.product).filter(Boolean),
+            items: translatedProducts,
             totalItems,
         };
     }
@@ -218,19 +224,20 @@ export class LikeService {
                     }
                 }
             },
-            relations: ['product', 'product.featuredAsset', 'product.variants']
+            relations: ['product', 'product.featuredAsset', 'product.variants', 'product.translations']
         });
 
         const productMap = new Map<string, { product: Product; likesCount: number }>();
         for (const like of likes) {
             if (!like.product) continue;
-            const productId = String(like.product.id);
+            const translatedProduct = this.translator.translate(like.product, ctx);
+            const productId = String(translatedProduct.id);
             const existing = productMap.get(productId);
             if (existing) {
                 existing.likesCount += 1;
             } else {
                 productMap.set(productId, {
-                    product: like.product,
+                    product: translatedProduct,
                     likesCount: 1
                 });
             }

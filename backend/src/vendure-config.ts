@@ -124,11 +124,20 @@ export const config: VendureConfig = {
             route: 'mailbox',
             handlers: defaultEmailHandlers.filter(h => h.type !== 'password-reset'),
             templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
-            globalTemplateVars: {
-                fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
-                verifyEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify`,
-                passwordResetUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/password-reset`,
-                changeEmailAddressUrl: `${process.env.STOREFRONT_URL || 'http://localhost:3001'}/verify-email-address-change`,
+            globalTemplateVars: async (ctx: any) => {
+                const req = ctx?.req;
+                const refererOrOrigin = req?.headers?.origin || req?.headers?.referer || '';
+                const isSeller = typeof refererOrOrigin === 'string' && refererOrOrigin.includes('seller');
+                const baseUrl = isSeller
+                    ? (process.env.SELLER_URL || 'http://localhost:3002')
+                    : (process.env.STOREFRONT_URL || 'http://localhost:3001');
+
+                return {
+                    fromAddress: process.env.BREVO_FROM_EMAIL || '"Ahizan" <noreply@ahizan.com>',
+                    verifyEmailAddressUrl: `${baseUrl}/verify`,
+                    passwordResetUrl: `${baseUrl}/reset-password`,
+                    changeEmailAddressUrl: `${baseUrl}/verify-email-address-change`,
+                };
             },
         } as any),
         DashboardPlugin.init({

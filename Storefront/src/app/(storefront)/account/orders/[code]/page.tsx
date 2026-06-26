@@ -14,16 +14,16 @@ import {OrderStatusBadge} from '@/components/commerce/order-status-badge';
 import {formatDate} from '@/lib/format';
 import Link from "next/link";
 
-type OrderDetailPageProps = PageProps<'/account/orders/[code]'>;
+type OrderDetailPageProps = any;
 
 export async function generateMetadata({params}: OrderDetailPageProps): Promise<Metadata> {
     const {code} = await params;
     return {
-        title: `Order ${code}`,
+        title: `Commande ${code}`,
     };
 }
 
-export default async function OrderDetailPage(props: PageProps<'/account/orders/[code]'>) {
+export default async function OrderDetailPage(props: any) {
     const params = await props.params;
     const {code} = params;
     const activeCustomer = await getActiveCustomer();
@@ -50,14 +50,14 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                 <Button variant="ghost" size="sm" asChild className="mb-4">
                     <Link href="/account/orders">
                         <ChevronLeft className="h-4 w-4 mr-2"/>
-                        Back to Orders
+                        Retour aux commandes
                     </Link>
                 </Button>
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold">Order {order.code}</h1>
+                        <h1 className="text-3xl font-bold">Commande {order.code}</h1>
                         <p className="text-muted-foreground mt-1">
-                            Placed on {formatDate(order.createdAt, 'long')}
+                            Passée le {formatDate(order.createdAt, 'long')}
                         </p>
                     </div>
                     <OrderStatusBadge state={order.state}/>
@@ -70,7 +70,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                     {/* Order Items */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Order Items</CardTitle>
+                            <CardTitle>Articles commandés</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
@@ -106,7 +106,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                                                 <Price value={line.linePriceWithTax} currencyCode={order.currencyCode}/>
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                Qty: {line.quantity} × <Price value={line.unitPriceWithTax}
+                                                Qté : {line.quantity} × <Price value={line.unitPriceWithTax}
                                                                               currencyCode={order.currencyCode}/>
                                             </p>
                                         </div>
@@ -119,17 +119,17 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                     {/* Order Totals */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Order Summary</CardTitle>
+                            <CardTitle>Récapitulatif de la commande</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Subtotal</span>
+                                    <span className="text-muted-foreground">Sous-total</span>
                                     <span><Price value={order.subTotalWithTax}
                                                  currencyCode={order.currencyCode}/></span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Shipping</span>
+                                    <span className="text-muted-foreground">Livraison</span>
                                     <span><Price value={order.shippingWithTax}
                                                  currencyCode={order.currencyCode}/></span>
                                 </div>
@@ -164,7 +164,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                     {order.shippingAddress && (
                         <Card>
                             <CardHeader>
-                                <CardTitle>Shipping Address</CardTitle>
+                                <CardTitle>Adresse de livraison</CardTitle>
                             </CardHeader>
                             <CardContent className="text-sm">
                                 <p className="font-medium">{order.shippingAddress.fullName}</p>
@@ -191,7 +191,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                     {order.billingAddress && (
                         <Card>
                             <CardHeader>
-                                <CardTitle>Billing Address</CardTitle>
+                                <CardTitle>Adresse de facturation</CardTitle>
                             </CardHeader>
                             <CardContent className="text-sm">
                                 <p className="font-medium">{order.billingAddress.fullName}</p>
@@ -218,29 +218,29 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                     {order.payments && order.payments.length > 0 && (
                         <Card>
                             <CardHeader>
-                                <CardTitle>Payment</CardTitle>
+                                <CardTitle>Paiement</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {order.payments.map((payment: any) => (
                                     <div key={payment.id} className="space-y-1 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Method</span>
+                                            <span className="text-muted-foreground">Méthode</span>
                                             <span className="font-medium">{payment.method}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Amount</span>
+                                            <span className="text-muted-foreground">Montant</span>
                                             <span><Price value={payment.amount}
                                                          currencyCode={order.currencyCode}/></span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Status</span>
+                                            <span className="text-muted-foreground">Statut</span>
                                             <Badge variant="secondary" className="text-xs">
                                                 {payment.state}
                                             </Badge>
                                         </div>
                                         {payment.transactionId && (
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Transaction ID</span>
+                                                <span className="text-muted-foreground">ID de transaction</span>
                                                 <span className="font-mono text-xs">
                                                     {payment.transactionId}
                                                 </span>
@@ -256,7 +256,7 @@ export default async function OrderDetailPage(props: PageProps<'/account/orders/
                     {order.shippingLines && order.shippingLines.length > 0 && (
                         <Card>
                             <CardHeader>
-                                <CardTitle>Shipping Method</CardTitle>
+                                <CardTitle>Méthode de livraison</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {order.shippingLines.map((line: any, idx: any) => (

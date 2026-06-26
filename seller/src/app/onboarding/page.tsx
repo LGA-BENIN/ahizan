@@ -1,11 +1,16 @@
 import { OnboardingForm } from "./onboarding-form";
-import { getMyVendorProfile } from "@/lib/vendure/actions";
+import { getMyVendorProfile, getActiveCustomer } from "@/lib/vendure/actions";
 import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from 'next/cache';
 import { getAuthToken } from "@/lib/auth";
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+    searchParams
+}: {
+    searchParams: Promise<{ notice?: string }>;
+}) {
     noStore();
+    const resolvedSearchParams = await searchParams;
     const token = await getAuthToken();
 
     // Si l'utilisateur n'est pas connecté, le renvoyer vers l'inscription SSO
@@ -15,7 +20,10 @@ export default async function OnboardingPage() {
         redirect(`${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}`);
     }
 
-    const vendor = await getMyVendorProfile();
+    const [vendor, customer] = await Promise.all([
+        getMyVendorProfile(),
+        getActiveCustomer()
+    ]);
 
     // Si l'utilisateur a déjà un profil vendeur, le rediriger selon son statut
     if (vendor) {
@@ -39,7 +47,7 @@ export default async function OnboardingPage() {
                     Complétez les informations suivantes pour soumettre votre boutique à la validation.
                 </p>
             </div>
-            <OnboardingForm />
+            <OnboardingForm customer={customer} isRecognized={resolvedSearchParams?.notice === 'recognized'} />
         </div>
     );
 }

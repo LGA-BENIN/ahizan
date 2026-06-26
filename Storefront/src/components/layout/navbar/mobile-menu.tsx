@@ -1,6 +1,6 @@
 import { getTopCollections } from '@/lib/vendure/cached';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, ChevronRight } from 'lucide-react';
+import { Menu, ChevronRight, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -19,6 +19,15 @@ export async function MobileMenu() {
                     <SheetTitle className="text-lg font-bold bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text text-transparent">Menu</SheetTitle>
                 </SheetHeader>
                 <div className="flex-1 overflow-y-auto py-4">
+                    <div className="px-4 pb-4 border-b border-border/50 mb-4">
+                        <Link 
+                            href="https://seller.ahizan.com" 
+                            className="flex items-center gap-3 py-3 px-4 rounded-xl bg-primary/10 text-primary font-bold text-sm shadow-sm transition-transform active:scale-95"
+                        >
+                            <Store className="w-5 h-5 text-primary" />
+                            <span>Espace Vendeur</span>
+                        </Link>
+                    </div>
                     <div className="px-4 pb-2">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Catégories</h3>
                         <div className="flex flex-col space-y-1">

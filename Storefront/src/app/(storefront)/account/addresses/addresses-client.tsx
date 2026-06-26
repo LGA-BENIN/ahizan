@@ -27,6 +27,7 @@ import { AddressForm } from './address-form';
 import { useRouter } from 'next/navigation';
 import { createAddress, updateAddress, deleteAddress, setDefaultShippingAddress, setDefaultBillingAddress } from './actions';
 import { getShopApiUrl } from '@/lib/vendure/api-utils';
+import { toast } from 'sonner';
 
 interface Country {
     id: string;
@@ -110,29 +111,31 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
         setDeleteDialogOpen(true);
     };
 
-   const handleSetDefaultShipping = async (addressId: string) => {
-    setSettingDefault({ id: addressId, type: 'shipping' });
+    const handleSetDefaultShipping = async (addressId: string) => {
+        setSettingDefault({ id: addressId, type: 'shipping' });
 
-    try {
-        console.log('TEMP set default shipping:', addressId);
-
-        router.refresh();
-    } catch (error) {
-        console.error('Error setting default shipping address:', error);
-    } finally {
-        setSettingDefault(null);
-    }
+        try {
+            await setDefaultShippingAddress(addressId);
+            toast.success('Adresse de livraison par défaut mise à jour');
+            router.refresh();
+        } catch (error) {
+            console.error('Error setting default shipping address:', error);
+            toast.error('Erreur lors de la définition de l\'adresse de livraison par défaut');
+        } finally {
+            setSettingDefault(null);
+        }
     };
 
     const handleSetDefaultBilling = async (addressId: string) => {
         setSettingDefault({ id: addressId, type: 'billing' });
 
         try {
-            console.log('TEMP set default billing:', addressId);
-
+            await setDefaultBillingAddress(addressId);
+            toast.success('Adresse de facturation par défaut mise à jour');
             router.refresh();
         } catch (error) {
             console.error('Error setting default billing address:', error);
+            toast.error('Erreur lors de la définition de l\'adresse de facturation par défaut');
         } finally {
             setSettingDefault(null);
         }
@@ -144,14 +147,14 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
         setIsDeleting(true);
 
         try {
-            console.log('TEMP delete address:', addressToDelete);
-
+            await deleteAddress(addressToDelete);
+            toast.success('Adresse supprimée avec succès');
             setDeleteDialogOpen(false);
             setAddressToDelete(null);
-
             router.refresh();
         } catch (error) {
             console.error('Error deleting address:', error);
+            toast.error('Erreur lors de la suppression de l\'adresse');
         } finally {
             setIsDeleting(false);
         }
@@ -161,14 +164,19 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
         setIsSubmitting(true);
 
         try {
-            console.log('TEMP submit address:', data);
-
+            if (editingAddress) {
+                await updateAddress({ ...data, id: editingAddress.id });
+                toast.success('Adresse mise à jour avec succès');
+            } else {
+                await createAddress(data);
+                toast.success('Adresse ajoutée avec succès');
+            }
             setDialogOpen(false);
             setEditingAddress(null);
-
             router.refresh();
         } catch (error) {
             console.error('Error saving address:', error);
+            toast.error('Erreur lors de l\'enregistrement de l\'adresse');
         } finally {
             setIsSubmitting(false);
         }
@@ -180,7 +188,7 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
                 <div></div>
                 <Button onClick={handleAddNew}>
                     <Plus className="mr-2 h-4 w-4" />
-                    Add new address
+                    Ajouter une adresse
                 </Button>
             </div>
 
@@ -191,10 +199,10 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
             ) : addresses.length === 0 ? (
                 <Card>
                     <CardContent className="py-12 text-center">
-                        <p className="text-muted-foreground mb-4">No addresses saved yet</p>
+                        <p className="text-muted-foreground mb-4">Aucune adresse enregistrée pour le moment</p>
                         <Button onClick={handleAddNew}>
                             <Plus className="mr-2 h-4 w-4" />
-                            Add your first address
+                            Ajouter votre première adresse
                         </Button>
                     </CardContent>
                 </Card>
@@ -209,10 +217,10 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
                                         {(address.defaultShippingAddress || address.defaultBillingAddress) && (
                                             <div className="flex gap-2">
                                                 {address.defaultShippingAddress && (
-                                                    <Badge variant="secondary">Default Shipping</Badge>
+                                                    <Badge variant="secondary">Livraison par défaut</Badge>
                                                 )}
                                                 {address.defaultBillingAddress && (
-                                                    <Badge variant="secondary">Default Billing</Badge>
+                                                    <Badge variant="secondary">Facturation par défaut</Badge>
                                                 )}
                                             </div>
                                         )}
@@ -230,7 +238,7 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem onClick={() => handleEdit(address)}>
                                                 <Edit2 className="mr-2 h-4 w-4" />
-                                                Edit
+                                                Modifier
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem
@@ -241,7 +249,7 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
                                                 }
                                             >
                                                 <Home className="mr-2 h-4 w-4" />
-                                                {address.defaultShippingAddress ? 'Default Shipping' : 'Set as Shipping'}
+                                                {address.defaultShippingAddress ? 'Livraison par défaut' : 'Définir pour la livraison'}
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() => handleSetDefaultBilling(address.id)}
@@ -251,7 +259,7 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
                                                 }
                                             >
                                                 <CreditCard className="mr-2 h-4 w-4" />
-                                                {address.defaultBillingAddress ? 'Default Billing' : 'Set as Billing'}
+                                                {address.defaultBillingAddress ? 'Facturation par défaut' : 'Définir pour la facturation'}
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem
@@ -259,7 +267,7 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
                                                 className="text-destructive focus:text-destructive"
                                             >
                                                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
-                                                Delete
+                                                Supprimer
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -287,11 +295,11 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{editingAddress ? 'Edit address' : 'Add new address'}</DialogTitle>
+                        <DialogTitle>{editingAddress ? "Modifier l'adresse" : "Ajouter une adresse"}</DialogTitle>
                         <DialogDescription>
                             {editingAddress
-                                ? 'Update the details of your address'
-                                : 'Fill in the form below to add a new address'}
+                                ? "Mettez à jour les détails de votre adresse."
+                                : "Remplissez le formulaire ci-dessous pour ajouter une adresse."}
                         </DialogDescription>
                     </DialogHeader>
                     <AddressForm
@@ -310,15 +318,15 @@ export function AddressesClient({ addresses: serverAddresses, countries: serverC
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete this address.
+                            Cette action est irréversible. L'adresse sera définitivement supprimée.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmDelete} disabled={isDeleting}>
-                            {isDeleting ? 'Deleting...' : 'Delete'}
+                            {isDeleting ? 'Suppression...' : 'Supprimer'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

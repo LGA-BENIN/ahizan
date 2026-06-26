@@ -20,15 +20,15 @@ export function ChangePasswordForm() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Change Password</CardTitle>
+                <CardTitle>Changer le mot de passe</CardTitle>
                 <CardDescription>
-                    Update your password to keep your account secure.
+                    Mettez à jour votre mot de passe pour sécuriser votre compte.
                 </CardDescription>
             </CardHeader>
             <form id="change-password-form" action={formAction}>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password</Label>
+                        <Label htmlFor="currentPassword">Mot de passe actuel</Label>
                         <Input
                             id="currentPassword"
                             name="currentPassword"
@@ -39,7 +39,7 @@ export function ChangePasswordForm() {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="newPassword">New Password</Label>
+                        <Label htmlFor="newPassword">Nouveau mot de passe</Label>
                         <Input
                             id="newPassword"
                             name="newPassword"
@@ -50,7 +50,7 @@ export function ChangePasswordForm() {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                        <Label htmlFor="confirmPassword">Confirmer le nouveau mot de passe</Label>
                         <Input
                             id="confirmPassword"
                             name="confirmPassword"
@@ -67,11 +67,11 @@ export function ChangePasswordForm() {
                     )}
                     {state?.success && (
                         <div className="text-sm text-green-600">
-                            Password updated successfully!
+                            Mot de passe mis à jour avec succès !
                         </div>
                     )}
                     <Button type="submit" disabled={isPending}>
-                        {isPending ? 'Updating...' : 'Update Password'}
+                        {isPending ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
                     </Button>
                 </CardContent>
             </form>

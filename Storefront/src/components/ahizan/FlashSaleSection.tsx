@@ -462,7 +462,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             <div key={i} className={
                                 activeFlash.displayLayout === 'vertical_grid'
                                 ? "w-full aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
-                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
+                                : "snap-start flex-shrink-0 w-[160px] sm:w-[180px] md:w-[200px] lg:w-[220px] aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
                             }>
                                 <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
                             </div>

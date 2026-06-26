@@ -6,6 +6,15 @@ import { Search, UserRound, UserRoundCheck, HelpCircle, ShoppingCart, ChevronDow
 import { useState, useRef, useEffect } from "react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
+import { logoutAction } from "@/app/(storefront)/sign-in/actions";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function AhizanNavbar({ 
     config, 
@@ -307,9 +316,43 @@ export function AhizanNavbar({
                                         </button>
                                     )}
                                     {showAccountIcon && (
-                                        <Link href={isLoggedIn ? "/account/profile" : "/sign-in"} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                            {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
-                                        </Link>
+                                        isLoggedIn ? (
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer">
+                                                        <UserRoundCheck className="h-5 w-5" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-50 animate-in fade-in slide-in-from-top-4 duration-200" align="end">
+                                                    <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                                                        Mon Compte
+                                                    </DropdownMenuLabel>
+                                                    <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
+                                                        <Link href="/account/profile" className="flex items-center gap-3 w-full font-bold">
+                                                            Profil
+                                                        </Link>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
+                                                        <Link href="/account/orders" className="flex items-center gap-3 w-full font-bold">
+                                                            Mes Commandes
+                                                        </Link>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator className="my-2 border-t border-border" />
+                                                    <DropdownMenuItem 
+                                                        onClick={async () => {
+                                                            await logoutAction();
+                                                        }}
+                                                        className="rounded-lg py-2.5 cursor-pointer text-destructive focus:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 w-full font-bold"
+                                                    >
+                                                        Déconnexion
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        ) : (
+                                            <Link href="/sign-in" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                                <UserRound className="h-5 w-5" />
+                                            </Link>
+                                        )
                                     )}
                                     {false && showWishlistIcon && (
                                         <Link href="/account/wishlist" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -464,16 +507,55 @@ export function AhizanNavbar({
                             )}
 
                             {showAccountIcon && (
-                                <Link href={isLoggedIn ? "/account/profile" : "/sign-in"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                                    {isLoggedIn ? <UserRoundCheck className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
-                                    <div className="flex flex-col leading-tight hidden lg:flex">
-                                        <span className="text-[11px] opacity-70">
-                                            {isLoggedIn ? `Bonjour, ${customer.firstName}` : "Se connecter"}
-                                        </span>
-                                        <span className="text-sm font-semibold">{isLoggedIn ? "Mon Compte" : "Compte"}</span>
-                                    </div>
-                                    <ChevronDown className="h-3 w-3 hidden lg:inline" />
-                                </Link>
+                                isLoggedIn ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none cursor-pointer">
+                                                <UserRoundCheck className="h-5 w-5" />
+                                                <div className="flex flex-col leading-tight hidden lg:flex text-left">
+                                                    <span className="text-[11px] opacity-70">
+                                                        Bonjour, {customer.firstName}
+                                                    </span>
+                                                    <span className="text-sm font-semibold">Mon Compte</span>
+                                                </div>
+                                                <ChevronDown className="h-3 w-3 hidden lg:inline" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-50 animate-in fade-in slide-in-from-top-4 duration-200" align="end">
+                                            <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                                                Mon Compte
+                                            </DropdownMenuLabel>
+                                            <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
+                                                <Link href="/account/profile" className="flex items-center gap-3 w-full font-bold">
+                                                    Profil
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
+                                                <Link href="/account/orders" className="flex items-center gap-3 w-full font-bold">
+                                                    Mes Commandes
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator className="my-2 border-t border-border" />
+                                            <DropdownMenuItem 
+                                                onClick={async () => {
+                                                    await logoutAction();
+                                                }}
+                                                className="rounded-lg py-2.5 cursor-pointer text-destructive focus:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 w-full font-bold"
+                                            >
+                                                Déconnexion
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : (
+                                    <Link href="/sign-in" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                                        <UserRound className="h-5 w-5" />
+                                        <div className="flex flex-col leading-tight hidden lg:flex">
+                                            <span className="text-[11px] opacity-70">Se connecter</span>
+                                            <span className="text-sm font-semibold">Compte</span>
+                                        </div>
+                                        <ChevronDown className="h-3 w-3 hidden lg:inline" />
+                                    </Link>
+                                )
                             )}
 
                             {false && showWishlistIcon && (

@@ -14,15 +14,15 @@ export async function updatePasswordAction(prevState: { error?: string; success?
     const confirmPassword = formData.get('confirmPassword') as string;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-        return {error: 'All fields are required'};
+        return {error: 'Tous les champs sont requis'};
     }
 
     if (newPassword !== confirmPassword) {
-        return {error: 'New passwords do not match'};
+        return {error: 'Les nouveaux mots de passe ne correspondent pas'};
     }
 
     if (currentPassword === newPassword) {
-        return {error: 'New password must be different from current password'};
+        return {error: 'Le nouveau mot de passe doit être différent du mot de passe actuel'};
     }
 
     try {
@@ -39,7 +39,7 @@ export async function updatePasswordAction(prevState: { error?: string; success?
 
         return {success: true};
     } catch (error: unknown) {
-        return {error: 'An unexpected error occurred. Please try again.'};
+        return {error: 'Une erreur inattendue est survenue. Veuillez réessayer.'};
     }
 }
 
@@ -48,7 +48,7 @@ export async function updateCustomerAction(prevState: { error?: string; success?
     const lastName = formData.get('lastName') as string;
 
     if (!firstName || !lastName) {
-        return {error: 'First name and last name are required'};
+        return {error: 'Le prénom et le nom sont requis'};
     }
 
     try {
@@ -62,7 +62,7 @@ export async function updateCustomerAction(prevState: { error?: string; success?
         const updateResult = result.data.updateCustomer;
 
         if (!updateResult || !updateResult.id) {
-            return {error: 'Failed to update customer information'};
+            return {error: 'Échec de la mise à jour des informations de profil'};
         }
 
         revalidatePath('/account/profile');
@@ -77,13 +77,13 @@ export async function requestEmailUpdateAction(prevState: { error?: string; succ
     const newEmailAddress = formData.get('newEmailAddress') as string;
 
     if (!password || !newEmailAddress) {
-        return {error: 'Password and new email address are required'};
+        return {error: 'Le mot de passe et la nouvelle adresse e-mail sont requis'};
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newEmailAddress)) {
-        return {error: 'Please enter a valid email address'};
+        return {error: 'Veuillez saisir une adresse e-mail valide'};
     }
 
     try {
@@ -100,6 +100,6 @@ export async function requestEmailUpdateAction(prevState: { error?: string; succ
 
         return {success: true};
     } catch (error: unknown) {
-        return {error: 'An unexpected error occurred. Please try again.'};
+        return {error: 'Une erreur inattendue est survenue. Veuillez réessayer.'};
     }
 }

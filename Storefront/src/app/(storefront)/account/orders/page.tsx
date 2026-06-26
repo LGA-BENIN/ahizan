@@ -2,7 +2,7 @@ import type {Metadata} from 'next';
 import {query} from '@/lib/vendure/api';
 
 export const metadata: Metadata = {
-    title: 'My Orders',
+    title: 'Mes Commandes',
 };
 import {GetCustomerOrdersQuery} from '@/lib/vendure/queries';
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from '@/components/ui/table';
@@ -25,7 +25,7 @@ import {redirect} from "next/navigation";
 
 const ITEMS_PER_PAGE = 10;
 
-export default async function OrdersPage(props: PageProps<'/account/orders'>) {
+export default async function OrdersPage(props: any) {
     const searchParams = await props.searchParams;
     const pageParam = searchParams.page;
     const currentPage = parseInt(Array.isArray(pageParam) ? pageParam[0] : pageParam || '1', 10);
@@ -57,11 +57,11 @@ export default async function OrdersPage(props: PageProps<'/account/orders'>) {
 
     return (
         <div>
-            <h1 className="text-3xl font-bold mb-6">My Orders</h1>
+            <h1 className="text-3xl font-bold mb-6">Mes Commandes</h1>
 
             {orders.length === 0 ? (
                 <div className="text-center py-12">
-                    <p className="text-gray-500">You haven&apos;t placed any orders yet.</p>
+                    <p className="text-gray-500">Vous n'avez pas encore passé de commande.</p>
                 </div>
             ) : (
                 <>
@@ -69,10 +69,10 @@ export default async function OrdersPage(props: PageProps<'/account/orders'>) {
                         <Table>
                             <TableHeader className="bg-muted">
                                 <TableRow>
-                                    <TableHead>Order Number</TableHead>
+                                    <TableHead>Numéro de commande</TableHead>
                                     <TableHead>Date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Items</TableHead>
+                                    <TableHead>Statut</TableHead>
+                                    <TableHead>Articles</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -96,7 +96,7 @@ export default async function OrdersPage(props: PageProps<'/account/orders'>) {
                                         </TableCell>
                                         <TableCell>
                                             {order.lines.length}{' '}
-                                            {order.lines.length === 1 ? 'item' : 'items'}
+                                            {order.lines.length === 1 ? 'article' : 'articles'}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Price value={order.totalWithTax} currencyCode={order.currencyCode}/>

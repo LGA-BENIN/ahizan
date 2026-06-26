@@ -24,15 +24,15 @@ export function EditEmailForm({ currentEmail }: EditEmailFormProps) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Email Address</CardTitle>
+                <CardTitle>Adresse E-mail</CardTitle>
                 <CardDescription>
-                    Update your email address. You'll need to verify the new email.
+                    Mettez à jour votre adresse e-mail. Vous devrez vérifier la nouvelle adresse.
                 </CardDescription>
             </CardHeader>
             <form id="edit-email-form" action={formAction}>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="currentEmail">Current Email</Label>
+                        <Label htmlFor="currentEmail">Adresse e-mail actuelle</Label>
                         <Input
                             id="currentEmail"
                             type="email"
@@ -42,18 +42,18 @@ export function EditEmailForm({ currentEmail }: EditEmailFormProps) {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="newEmailAddress">New Email Address</Label>
+                        <Label htmlFor="newEmailAddress">Nouvelle adresse e-mail</Label>
                         <Input
                             id="newEmailAddress"
                             name="newEmailAddress"
                             type="email"
-                            placeholder="new.email@example.com"
+                            placeholder="nouvelle.adresse@exemple.com"
                             required
                             disabled={isPending}
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="password">Current Password</Label>
+                        <Label htmlFor="password">Mot de passe actuel</Label>
                         <Input
                             id="password"
                             name="password"
@@ -63,7 +63,7 @@ export function EditEmailForm({ currentEmail }: EditEmailFormProps) {
                             disabled={isPending}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Enter your password to confirm this change.
+                            Saisissez votre mot de passe pour confirmer cette modification.
                         </p>
                     </div>
                     {state?.error && (
@@ -73,11 +73,11 @@ export function EditEmailForm({ currentEmail }: EditEmailFormProps) {
                     )}
                     {state?.success && (
                         <div className="text-sm text-green-600">
-                            Verification email sent! Please check your inbox and click the link to confirm your new email address.
+                            E-mail de vérification envoyé ! Veuillez consulter votre boîte de réception et cliquer sur le lien pour confirmer votre nouvelle adresse e-mail.
                         </div>
                     )}
                     <Button type="submit" disabled={isPending}>
-                        {isPending ? 'Sending...' : 'Update Email'}
+                        {isPending ? 'Envoi...' : "Mettre à jour l'e-mail"}
                     </Button>
                 </CardContent>
             </form>

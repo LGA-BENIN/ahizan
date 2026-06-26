@@ -5,7 +5,7 @@ import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
-import {ShoppingCart, CheckCircle2} from 'lucide-react';
+import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy} from 'lucide-react';
 import {addToCart} from '@/app/(storefront)/product/[slug]/actions';
 import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
@@ -294,6 +294,54 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
                     REF: {selectedVariant.sku}
                 </div>
             )}
+
+            {/* Social Sharing */}
+            <div className="pt-4 border-t flex items-center gap-3">
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Share2 className="w-3.5 h-3.5" /> Partager :
+                </span>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950"
+                        onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')}
+                        title="Partager sur Facebook"
+                    >
+                        <Facebook className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950"
+                        onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(product.name + ' - ' + window.location.href)}`, '_blank')}
+                        title="Partager sur WhatsApp"
+                    >
+                        <MessageCircle className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full hover:bg-sky-50 hover:text-sky-500 dark:hover:bg-sky-950"
+                        onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(product.name)}&url=${encodeURIComponent(window.location.href)}`, '_blank')}
+                        title="Partager sur X (Twitter)"
+                    >
+                        <Twitter className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-full hover:bg-muted"
+                        onClick={() => {
+                            navigator.clipboard.writeText(window.location.href);
+                            toast.success('Lien copié dans le presse-papier !');
+                        }}
+                        title="Copier le lien"
+                    >
+                        <Copy className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 }

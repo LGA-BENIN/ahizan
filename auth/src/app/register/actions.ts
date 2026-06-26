@@ -48,8 +48,8 @@ export async function registerClientAction(formData: FormData) {
 
         const safeRedirect = redirectTo && !redirectTo.includes('seller') ? redirectTo : undefined;
         const verifyUrl = safeRedirect
-            ? `${storefrontUrl}/verify-pending?redirectTo=${encodeURIComponent(safeRedirect)}`
-            : `${storefrontUrl}/verify-pending`;
+            ? `/verify-pending?role=client&redirectTo=${encodeURIComponent(safeRedirect)}`
+            : `/verify-pending?role=client`;
 
         return { success: true, redirectUrl: verifyUrl };
     } catch (e: any) {
@@ -119,7 +119,7 @@ export async function registerVendorAction(formData: FormData) {
             console.warn('Auto-login failed after vendor registration:', loginErr);
         }
 
-        return { success: true, redirectUrl: `${sellerUrl}/verify-pending` };
+        return { success: true, redirectUrl: `/verify-pending?role=vendor` };
     } catch (e: any) {
         console.error('Vendor registration error:', e);
         return { error: e.message || 'Une erreur est survenue.' };

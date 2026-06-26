@@ -11,7 +11,7 @@ interface RegisterFormProps {
 
 export function RegisterForm({ redirectTo }: RegisterFormProps) {
   const router = useRouter();
-  const [role, setRole] = useState<'client' | 'vendor'>('client');
+  const [role, setRole] = useState<'client' | 'vendor'>(redirectTo && redirectTo.includes('seller') ? 'vendor' : 'client');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -54,24 +54,32 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
   return (
     <main className="min-h-screen flex flex-col md:flex-row">
       {/* Left Column: Branding Panel */}
-      <section className="hidden md:flex w-1/2 relative overflow-hidden bg-primary items-center justify-center p-12">
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-secondary-container opacity-20 blur-[100px]"></div>
-        <div className="absolute bottom-[-5%] left-[-5%] w-[400px] h-[400px] rounded-full bg-tertiary-container opacity-10 blur-[80px]"></div>
-        <div className="relative z-10 max-w-lg text-on-primary">
+      <section className="hidden md:flex w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0d213d] to-[#071325] items-center justify-center p-12">
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-primary opacity-20 blur-[100px]"></div>
+        <div className="absolute bottom-[-5%] left-[-5%] w-[400px] h-[400px] rounded-full bg-white opacity-5 blur-[80px]"></div>
+        <div className="relative z-10 max-w-lg text-white">
           <div className="mb-12">
-            <span className="inline-block px-4 py-1 rounded-full glass-accent font-label-md text-label-md mb-6">Plateforme de Confiance</span>
-            <h1 className="font-display-lg text-display-lg mb-6 leading-tight">Sécurité sans compromis.</h1>
-            <p className="font-body-lg text-body-lg text-on-primary-container opacity-90">
-              Accédez à tout l'univers Ahizan avec un identifiant unique. Plus simple, plus rapide, et conçu pour votre sérénité digitale.
+            <span className="inline-block px-4 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 font-label-md text-label-md mb-6">
+              {role === 'vendor' ? 'Espace Vendeur Ahizan' : 'Plateforme de Confiance'}
+            </span>
+            <h1 className="font-display-lg text-display-lg mb-6 leading-tight">
+              {role === 'vendor' 
+                ? 'Lancez et développez votre activité en ligne au Bénin.' 
+                : 'Votre compte, tous vos achats.'}
+            </h1>
+            <p className="font-body-lg text-body-lg text-white/90">
+              {role === 'vendor'
+                ? 'Vendez vos produits à des milliers de clients grâce à une boutique en ligne clé en main, des paiements sécurisés et une gestion simplifiée.'
+                : 'Inscrivez-vous pour suivre vos commandes, enregistrer vos favoris, profiter d\'offres personnalisées et acheter en toute sécurité sur Ahizan.'}
             </p>
           </div>
-          <div className="relative rounded-[28px] overflow-hidden shadow-2xl">
-            <div className="absolute inset-0 bg-gradient-to-t from-primary/60 to-transparent"></div>
+          <div className="relative rounded-[28px] overflow-hidden shadow-2xl border border-white/10">
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0d213d]/80 to-transparent z-10"></div>
             <img className="w-full aspect-[4/3] object-cover" src="https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=600&q=80" alt="Sécurité numérique" />
-            <div className="absolute bottom-6 left-6 right-6">
-              <div className="p-4 glass-accent rounded-xl">
+            <div className="absolute bottom-6 left-6 right-6 z-20">
+              <div className="p-4 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-primary-fixed">verified_user</span>
+                  <span className="material-symbols-outlined text-primary">verified_user</span>
                   <span className="font-label-md text-label-md">Certifié ISO 27001 - Standard de Sécurité Global</span>
                 </div>
               </div>
@@ -83,8 +91,11 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
       {/* Right Column: Authentication Form */}
       <section className="w-full md:w-1/2 flex items-center justify-center p-margin-mobile md:p-margin-desktop bg-surface pt-24 md:pt-0">
         <div className="w-full max-w-auth-card-width bg-white rounded-[28px] p-8 md:p-10 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+          <div className="flex items-center justify-center mb-6">
+            <img src="/logo-ahizan-official.svg" alt="Ahizan Logo" className="h-12 w-auto object-contain" />
+          </div>
           <div className="mb-6">
-            <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-3">
+            <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-3 text-center">
               Créer votre compte Ahizan
             </h2>
             <p className="font-body-md text-body-md text-on-surface-variant">

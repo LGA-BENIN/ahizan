@@ -26,14 +26,14 @@ export function VerifyResult({resultPromise}: VerifyResultProps) {
                             <CheckCircle className="h-16 w-16 text-green-600"/>
                         </div>
                         <div className="space-y-2 text-center">
-                            <h1 className="text-2xl font-bold">Account Verified!</h1>
+                            <h1 className="text-2xl font-bold">Compte vérifié !</h1>
                             <p className="text-muted-foreground">
-                                Your email has been successfully verified. You can now sign in to your account.
+                                Votre adresse e-mail a été vérifiée avec succès. Bienvenue sur Ahizan.
                             </p>
                         </div>
-                        <Link href="/sign-in" className="block">
-                            <Button className="w-full">
-                                Sign In
+                        <Link href="/" className="block">
+                            <Button className="w-full bg-[#0d213d] hover:bg-[#0d213d]/90 text-white">
+                                Continuer vers la boutique
                             </Button>
                         </Link>
                     </>

@@ -10,8 +10,9 @@ export function Navbar() {
         <header className="stitch-theme fixed top-0 left-0 right-0 z-50 border-b bg-surface/85 backdrop-blur-md transition-all duration-300 font-body-lg text-body-lg" id="top-nav">
             <div className="flex justify-between items-center w-full px-6 md:px-10 py-4 max-w-[1440px] mx-auto z-50">
                 <div className="flex items-center gap-2">
-                    <Link href="/" className="font-headline-lg text-headline-lg font-bold text-primary">
-                        Ahizan Marketplace
+                    <Link href="/" className="flex items-center gap-2.5">
+                        <img src="/logo-ahizan-official.svg" alt="Ahizan" className="h-9 w-auto dark:brightness-0 dark:invert" />
+                        <span className="font-bold text-sm tracking-tight hidden sm:inline">Marketplace</span>
                     </Link>
                 </div>
                 <nav className="hidden md:flex items-center gap-10">

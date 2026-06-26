@@ -27,15 +27,15 @@ export function EditProfileForm({ customer }: EditProfileFormProps) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
+                <CardTitle>Informations Personnelles</CardTitle>
                 <CardDescription>
-                    Update your personal details.
+                    Mettez à jour vos informations personnelles.
                 </CardDescription>
             </CardHeader>
             <form id="edit-profile-form" action={formAction}>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name</Label>
+                        <Label htmlFor="firstName">Prénom</Label>
                         <Input
                             id="firstName"
                             name="firstName"
@@ -47,7 +47,7 @@ export function EditProfileForm({ customer }: EditProfileFormProps) {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name</Label>
+                        <Label htmlFor="lastName">Nom de famille</Label>
                         <Input
                             id="lastName"
                             name="lastName"
@@ -65,11 +65,11 @@ export function EditProfileForm({ customer }: EditProfileFormProps) {
                     )}
                     {state?.success && (
                         <div className="text-sm text-green-600">
-                            Profile updated successfully!
+                            Profil mis à jour avec succès !
                         </div>
                     )}
                     <Button type="submit" disabled={isPending}>
-                        {isPending ? 'Updating...' : 'Update Profile'}
+                        {isPending ? 'Mise à jour...' : 'Mettre à jour le profil'}
                     </Button>
                 </CardContent>
             </form>

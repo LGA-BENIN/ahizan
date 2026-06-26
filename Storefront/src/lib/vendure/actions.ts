@@ -9,12 +9,15 @@ import {getAuthToken} from "@/lib/auth";
 
 export const getActiveCustomer = cache(async () => {
     const token = await getAuthToken();
+    console.log('[getActiveCustomer] COOKIE TOKEN READ IN STOREFRONT:', token ? `${token.substring(0, 15)}...` : 'NULL OR MISSING');
     if (!token) return null;
     try {
         const result = await query(GetActiveCustomerQuery, undefined, {
             token
         });
-        return readFragment(ActiveCustomerFragment, (result.data as any)?.activeCustomer);
+        const cust = readFragment(ActiveCustomerFragment, (result.data as any)?.activeCustomer);
+        console.log('[getActiveCustomer] QUERY RESULT CUSTOMER:', cust ? cust.firstName : 'NULL RESULT FROM VENDURE');
+        return cust;
     } catch (e) {
         console.error('[getActiveCustomer] Failed to fetch customer:', e);
         return null;

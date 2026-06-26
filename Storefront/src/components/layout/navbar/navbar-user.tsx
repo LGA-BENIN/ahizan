@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getActiveCustomer } from "@/lib/vendure/actions";
+import { logoutAction } from "@/app/(storefront)/sign-in/actions";
 
 export function NavbarUser() {
     const [customer, setCustomer] = useState<any>(null);
@@ -59,17 +60,21 @@ export function NavbarUser() {
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator className="my-2" />
-                            <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer text-destructive focus:text-destructive">
-                                <Link href="/logout" className="flex items-center gap-3">
-                                    <LogOut className="w-4 h-4" />
-                                    <span className="font-bold">Déconnexion</span>
-                                </Link>
+                            <DropdownMenuItem 
+                                onClick={async () => {
+                                    await logoutAction();
+                                    setCustomer(null);
+                                }}
+                                className="rounded-lg py-2.5 cursor-pointer text-destructive focus:text-destructive flex items-center gap-3"
+                            >
+                                <LogOut className="w-4 h-4" />
+                                <span className="font-bold">Déconnexion</span>
                             </DropdownMenuItem>
                         </>
                     ) : (
                         <div className="p-2 space-y-3">
                             <Button asChild className="w-full bg-primary font-black rounded-xl h-10 shadow-lg shadow-primary/20">
-                                <Link href="/login">SE CONNECTER</Link>
+                                <Link href="/sign-in">SE CONNECTER</Link>
                             </Button>
                             <div className="border-t border-border/50 pt-2">
                                 <Link href="/register" className="text-[12px] font-bold text-primary hover:underline transition-all block text-center">

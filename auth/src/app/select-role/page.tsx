@@ -40,8 +40,8 @@ export default async function Page() {
       vendorStatus = vendor.status;
     }
   } catch (err) {
-    console.error('Failed to load profiles in select-role:', err);
-    redirect('/sign-in');
+    console.error('Failed to load profiles in select-role, delegating purge to sign-in:', err);
+    redirect('/sign-in?purge=1');
   }
 
   if (!hasCustomer && !hasVendor) {

@@ -39,7 +39,7 @@ export async function toggleProductLikeAction(productId: string) {
     } catch (e: any) {
         const errorMessage = e.message || '';
         // If unauthorized/unauthenticated error is detected in GraphQL errors
-        if (errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authenticated')) {
+        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
             return { success: false, authenticated: false };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la mise à jour du favori' };
@@ -58,7 +58,7 @@ export async function toggleVendorLikeAction(vendorId: string) {
         return { success: true, liked: data.toggleLikeVendor };
     } catch (e: any) {
         const errorMessage = e.message || '';
-        if (errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authenticated')) {
+        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
             return { success: false, authenticated: false };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la mise à jour de l\'abonnement' };
@@ -129,7 +129,7 @@ export async function sendChatMessageAction(vendorId: string, content: string) {
         return { success: true, message: data.sendChatMessageToVendor };
     } catch (e: any) {
         const errorMessage = e.message || '';
-        if (errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authenticated')) {
+        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
             return { success: false, authenticated: false };
         }
         return { success: false, error: errorMessage || 'Erreur lors de l\'envoi du message' };
@@ -148,7 +148,7 @@ export async function getChatHistoryAction(vendorId: string) {
         return { success: true, history: data.myChatHistoryWithVendor || [] };
     } catch (e: any) {
         const errorMessage = e.message || '';
-        if (errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authenticated')) {
+        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
             return { success: false, authenticated: false };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la récupération des messages' };
@@ -156,7 +156,7 @@ export async function getChatHistoryAction(vendorId: string) {
 }
 
 const MY_LIKED_PRODUCTS = `
-    query MyLikedProducts($options: Object) {
+    query MyLikedProducts($options: ProductListOptions) {
         myLikedProducts(options: $options) {
             items {
                 id
@@ -193,7 +193,7 @@ export async function getMyLikedProductsAction(options?: any) {
         };
     } catch (e: any) {
         const errorMessage = e.message || '';
-        if (errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authenticated')) {
+        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
             return { success: false, authenticated: false };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la récupération des favoris' };

@@ -72,6 +72,9 @@ export function SelectRoleClient({
               <div className="h-full bg-primary w-1/3"></div>
             </div>
             <div className="text-center mb-8">
+              <div className="flex items-center justify-center mt-4 mb-6">
+                <img src="/logo-ahizan-official.svg" alt="Ahizan Logo" className="h-12 w-auto object-contain" />
+              </div>
               <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2">Choisir un compte</h2>
               <p className="font-body-md text-body-md text-on-surface-variant">
                 Sélectionnez le compte avec lequel vous souhaitez continuer.

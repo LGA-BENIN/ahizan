@@ -2,21 +2,21 @@ import type {Metadata} from 'next';
 import { getActiveCustomer } from '@/lib/vendure/actions';
 
 export const metadata: Metadata = {
-    title: 'Profile',
+    title: 'Mon Profil',
 };
 import { ChangePasswordForm } from './change-password-form';
 import { EditProfileForm } from './edit-profile-form';
 import { EditEmailForm } from './edit-email-form';
 
-export default async function ProfilePage(_props: PageProps<'/account/profile'>) {
+export default async function ProfilePage(_props: any) {
     const customer = await getActiveCustomer();
 
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold">Profile</h1>
+                <h1 className="text-3xl font-bold">Mon Profil</h1>
                 <p className="text-muted-foreground mt-2">
-                    Manage your account information
+                    Gérez les informations de votre compte
                 </p>
             </div>
 

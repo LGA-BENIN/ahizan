@@ -455,6 +455,25 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                     </CardContent>
                                 </Card>
                             </TabsContent>
+                            <div className="pt-6 mt-6 border-t border-border flex justify-end">
+                                <Button 
+                                    type="submit" 
+                                    disabled={isProfilePending} 
+                                    className="h-12 px-8 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-2 uppercase text-xs tracking-widest transition-all active:scale-95 shadow-lg shadow-primary/20 cursor-pointer"
+                                >
+                                    {isProfilePending ? (
+                                        <>
+                                            <RefreshCw className="w-4 h-4 animate-spin" />
+                                            Enregistrement...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-4 h-4" />
+                                            Enregistrer les paramètres
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </form>
 
                         {/* Tab 4: Security (handled via its own form submission) */}

@@ -1,18 +1,25 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { loginAction } from './actions';
+import { useState, useTransition, useEffect } from 'react';
+import { loginAction, purgeCookieAction } from './actions';
 import { useRouter } from 'next/navigation';
 
 interface LoginFormProps {
   redirectTo?: string;
+  purgeStale?: boolean;
 }
 
-export function LoginForm({ redirectTo }: LoginFormProps) {
+export function LoginForm({ redirectTo, purgeStale }: LoginFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (purgeStale) {
+      purgeCookieAction().catch(console.error);
+    }
+  }, [purgeStale]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -42,8 +49,9 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       {/* Top Navigation */}
       <header className="fixed top-0 left-0 right-0 z-50">
         <nav className="flex justify-between items-center w-full px-gutter py-4 max-w-container-max mx-auto">
-          <div className="font-headline-md text-headline-md font-bold text-primary lg:text-white">
-            Compte Ahizan
+          <div className="flex items-center gap-2">
+            <img src="/logo-ahizan-official.svg" alt="Ahizan Logo" className="h-8 w-auto object-contain brightness-0 invert lg:brightness-100 lg:invert-0" />
+            <span className="font-headline-md text-headline-md font-bold text-primary lg:text-white">Ahizan</span>
           </div>
           <div className="flex items-center gap-4">
             <button className="material-symbols-outlined text-primary hover:scale-110 transition-transform cursor-pointer">language</button>
@@ -55,7 +63,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       {/* Main Content Area */}
       <main className="flex-grow flex items-stretch">
         {/* Left Panel: Branding & Story (Visible on lg+) */}
-        <section className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#A70B2A] to-[#7F071F] p-20 flex-col justify-center">
+        <section className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0d213d] to-[#071325] p-20 flex-col justify-center">
           <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-white opacity-5 rounded-full blur-3xl"></div>
           <div className="absolute bottom-[-5%] left-[-5%] w-80 h-80 bg-primary opacity-20 rounded-full blur-3xl"></div>
           <div className="relative z-10 max-w-xl">
@@ -90,11 +98,8 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
         <section className="w-full lg:w-1/2 flex items-center justify-center p-gutter relative pt-24 pb-12 lg:py-12">
           <div className="bg-white rounded-[28px] shadow-[0px_10px_30px_rgba(0,0,0,0.04)] w-full max-w-[450px] p-10 z-10 flex flex-col">
             <div className="flex flex-col items-center mb-8">
-              <div className="flex items-center justify-center mb-4">
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-3xl font-black tracking-[0.15em] text-primary" style={{ fontFamily: 'Outfit, sans-serif' }}>AHIZAN</span>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant opacity-60">Marketplace</span>
-                </div>
+              <div className="flex items-center justify-center mb-6">
+                <img src="/logo-ahizan-official.svg" alt="Ahizan Logo" className="h-12 w-auto object-contain" />
               </div>
               <div className="bg-surface-light px-4 py-1.5 rounded-full inline-flex items-center gap-2 mb-6 border border-outline-variant/30">
                 <span className="material-symbols-outlined text-[16px] text-primary">security</span>
@@ -152,7 +157,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
                   <input className="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary accent-primary" type="checkbox" name="remember" />
                   <span className="font-label-md text-label-md text-on-surface-variant group-hover:text-primary transition-colors">Se souvenir de moi</span>
                 </label>
-                <a className="font-label-md text-label-md text-primary hover:underline" href="#">Mot de passe oublié ?</a>
+                <a className="font-label-md text-label-md text-primary hover:underline" href={redirectTo ? `/forgot-password?redirectTo=${encodeURIComponent(redirectTo)}` : '/forgot-password'}>Mot de passe oublié ?</a>
               </div>
 
               <button

@@ -3,8 +3,12 @@
 import { mutate, query } from '@/lib/vendure/api';
 import { LoginMutation } from '@/lib/vendure/mutations';
 import { GetMyVendorProfileQuery } from '@/lib/vendure/queries';
-import { setAuthToken } from '@/lib/auth';
+import { setAuthToken, removeAuthToken } from '@/lib/auth';
 import { getUrlContext, sanitizeRedirectUrl } from '@/lib/url-utils';
+
+export async function purgeCookieAction() {
+    await removeAuthToken();
+}
 
 export async function loginAction(formData: FormData) {
     const username = formData.get('identifier') as string;
@@ -28,28 +32,32 @@ export async function loginAction(formData: FormData) {
 
         // 3. Détermination de la redirection
         let redirectUrl = '';
-        const { useProdUrls } = await getUrlContext();
+        const { storefrontUrl, sellerUrl, useProdUrls } = await getUrlContext();
 
-        if (redirectTo && redirectTo.includes('seller')) {
-            try {
-                const profileResult = await query(GetMyVendorProfileQuery, {}, { token: result.token });
-                if (!profileResult.data?.myVendorProfile) {
-                    return { success: true, redirectUrl: '/select-role' };
-                }
-            } catch (err) {
-                console.warn('Could not verify vendor profile during loginAction:', err);
-            }
+        let vendor = null;
+        try {
+            const profileResult = await query(GetMyVendorProfileQuery, {}, { token: result.token });
+            vendor = profileResult.data?.myVendorProfile;
+        } catch (err) {
+            console.warn('Could not verify vendor profile during loginAction:', err);
         }
 
-        // Cas A : Redirection explicite demandée
-        if (redirectTo && redirectTo.startsWith('http') && (
-            redirectTo.includes('ahizan.com') || 
-            redirectTo.includes('localhost')
-        )) {
-            redirectUrl = sanitizeRedirectUrl(redirectTo, useProdUrls) || redirectTo;
+        if (vendor) {
+            if (vendor.status === 'PENDING') {
+                redirectUrl = `${sellerUrl}/pending`;
+            } else if (vendor.status === 'REJECTED') {
+                redirectUrl = `${sellerUrl}/rejected`;
+            } else {
+                // Compte vendeur existant -> Page de choix de compte
+                redirectUrl = '/select-role';
+            }
         } else {
-            // Cas B : Connexion directe -> Aller toujours au sélecteur de rôle
-            redirectUrl = '/select-role';
+            // Uniquement un compte acheteur -> Storefront
+            if (redirectTo && redirectTo.startsWith('http') && !redirectTo.includes('seller')) {
+                redirectUrl = sanitizeRedirectUrl(redirectTo, useProdUrls) || redirectTo;
+            } else {
+                redirectUrl = storefrontUrl;
+            }
         }
 
         return { success: true, redirectUrl };

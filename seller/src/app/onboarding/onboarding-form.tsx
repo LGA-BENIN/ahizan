@@ -9,7 +9,7 @@ import { query } from '@/lib/vendure/api';
 import { GetRegistrationFieldsQuery } from '@/lib/vendure/queries';
 import { applyToBecomeVendorAction } from './actions';
 
-export function OnboardingForm() {
+export function OnboardingForm({ customer, isRecognized }: { customer?: any; isRecognized?: boolean }) {
     const [dynamicFields, setDynamicFields] = useState<any[]>([]);
     const [sellerType, setSellerType] = useState<string>('ONLINE');
     const [isPending, startTransition] = useTransition();

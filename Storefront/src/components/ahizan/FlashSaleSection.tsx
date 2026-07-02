@@ -75,20 +75,23 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         return () => clearInterval(timer);
     }, [activeFlash]);
 
-    useEffect(() => {
-        console.log("DEBUG: activeFlash =", activeFlash);
-        if (!activeFlash) return;
+    const activeFlashStr = JSON.stringify(activeFlash);
 
-        const isFilterMode = activeFlash.selectionType === 'FILTER';
-        console.log("DEBUG: isFilterMode =", isFilterMode, "collectionIds =", activeFlash.filterCriteria?.collectionIds);
+    useEffect(() => {
+        const activeFlashObj = activeFlashStr ? JSON.parse(activeFlashStr) : null;
+        if (!activeFlashObj) return;
+
+        const isFilterMode = activeFlashObj.selectionType === 'FILTER';
+        console.log("DEBUG: isFilterMode =", isFilterMode, "collectionIds =", activeFlashObj.filterCriteria?.collectionIds);
         setLoading(true);
+        setErrorMsg(null);
         
         if (isFilterMode) {
-            const collectionIds = activeFlash.filterCriteria?.collectionIds || [];
+            const collectionIds = activeFlashObj.filterCriteria?.collectionIds || [];
             const shopApiUrl = getShopApiUrl();
 
             const fetchForCollection = (collectionId?: string) => {
-                const take = activeFlash.filterCriteria?.take || 50;
+                const take = activeFlashObj.filterCriteria?.take || 50;
                 
                 if (collectionId) {
                     const collectionQuery = `
@@ -218,8 +221,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     return true;
                 });
                 
-                if (activeFlash.filterCriteria) {
-                    const { minPrice, maxPrice } = activeFlash.filterCriteria;
+                if (activeFlashObj.filterCriteria) {
+                    const { minPrice, maxPrice } = activeFlashObj.filterCriteria;
                     
                     items = items.filter((item: any) => {
                         const price = item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0;
@@ -232,7 +235,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     });
                 }
 
-                const limit = activeFlash.filterCriteria?.take || 12;
+                const limit = activeFlashObj.filterCriteria?.take || 12;
                 items = items.slice(0, limit);
 
                 setFlashProducts(items.map((item: any) => ({
@@ -249,12 +252,12 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 setLoading(false);
             })
             .catch(err => { 
-                console.error(`Fetch error for flash sale ${activeFlash.id}:`, err); 
+                console.error(`Fetch error for flash sale ${activeFlashObj.id}:`, err); 
                 setErrorMsg(err.message);
                 setLoading(false); 
             });
 
-        } else if (activeFlash.selectionType === 'MANUAL' && activeFlash.manualProductIds?.length > 0) {
+        } else if (activeFlashObj.selectionType === 'MANUAL' && activeFlashObj.manualProductIds?.length > 0) {
             const shopApiUrl = getShopApiUrl();
             fetch(shopApiUrl, {
                 method: 'POST',
@@ -286,8 +289,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     `, 
                     variables: { 
                         options: { 
-                            filter: { id: { in: activeFlash.manualProductIds } },
-                            take: activeFlash.filterCriteria?.take || 12
+                            filter: { id: { in: activeFlashObj.manualProductIds } },
+                            take: activeFlashObj.filterCriteria?.take || 12
                         } 
                     } 
                 })
@@ -309,8 +312,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 setLoading(false);
             })
             .catch(err => { console.error('Error fetching manual products:', err); setLoading(false); });
+        } else {
+            setLoading(false);
         }
-    }, [activeFlash]);
+    }, [activeFlashStr]);
 
     const now = new Date();
     const isStarted = !activeFlash.startTime || now >= new Date(activeFlash.startTime);

@@ -10,6 +10,7 @@ ARG NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
 ENV VENDURE_SHOP_API_URL=$VENDURE_SHOP_API_URL
 ENV NEXT_PUBLIC_VENDURE_SHOP_API_URL=$NEXT_PUBLIC_VENDURE_SHOP_API_URL
 
+RUN npx esbuild src/app/sw.ts --bundle --minify --outfile=public/sw.js --platform=browser
 RUN npm run build
 
 FROM node:20-slim AS runner

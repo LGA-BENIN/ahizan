@@ -39,6 +39,8 @@ import { logoutAction } from '@/app/sign-in/actions';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from './theme-toggle';
+import { NotificationBell } from './NotificationBell';
+import { PushPermissionManager } from './PushPermissionManager';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -365,9 +367,21 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                                 <span className="hidden sm:inline text-xs">Installer l'app</span>
                             </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-9 w-9 bg-muted/50 hover:bg-muted transition-colors">
-                            <Bell className="h-4 w-4 text-muted-foreground" />
-                        </Button>
+                        <NotificationBell
+                            apiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
+                            authToken={vendor?.authToken}
+                            userId={vendor?.userId}
+                            sseBaseUrl={(process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api').replace('/shop-api', '')}
+                            iconColor="currentColor"
+                        />
+                        {vendor?.userId && (
+                            <PushPermissionManager
+                                authToken={vendor?.authToken}
+                                userId={String(vendor?.userId)}
+                                shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_ADMIN_API_URL || 'https://api.ahizan.com/admin-api'}
+                                vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
+                            />
+                        )}
 
                         <div className="hidden sm:block">
                             <ThemeToggle />

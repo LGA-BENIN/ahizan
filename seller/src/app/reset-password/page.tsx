@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 export default function ResetPasswordPage({searchParams}: PageProps<'/reset-password'>) {
     return (
-        <div className="container mx-auto px-4 py-16">
-            <div className="max-w-md mx-auto">
+        <div className="min-h-[75vh] flex items-center justify-center px-4 pb-20">
+            <div className="w-full max-w-md">
                 <Suspense fallback={
                     <div className="flex justify-center">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

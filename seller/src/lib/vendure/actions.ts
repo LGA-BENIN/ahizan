@@ -38,8 +38,14 @@ export const getMyVendorProfile = async () => {
         ]);
 
         const profile = data?.myVendorProfile;
-        if (profile && customerData?.activeCustomer) {
-            profile.customer = customerData.activeCustomer;
+        if (profile) {
+            profile.authToken = token;
+            if (customerData?.activeCustomer) {
+                profile.customer = customerData.activeCustomer;
+            }
+            if (customerData?.me) {
+                profile.userId = customerData.me.id;
+            }
         }
         return profile;
     } catch (error) {

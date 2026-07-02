@@ -28,6 +28,7 @@ import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
 import { BulkCollectionImportPlugin } from './plugins/bulk-collection-import/bulk-collection-import.plugin';
+import { WatermarkedLocalAssetStorageStrategy } from './watermarked-storage.strategy';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -59,7 +60,7 @@ export const config: VendureConfig = {
     },
     authOptions: {
         tokenMethod: ['bearer', 'cookie'],
-        requireVerification: false, 
+        requireVerification: true, 
         verificationTokenStrategy: new ShortCodeVerificationTokenStrategy(),
         verificationTokenDuration: '15m', 
         superadminCredentials: {
@@ -111,6 +112,13 @@ export const config: VendureConfig = {
             route: 'assets',
             assetUploadDir: path.join(__dirname, '../static/assets'),
             assetUrlPrefix: IS_DEV ? undefined : (process.env.ASSET_URL_PREFIX || undefined),
+            storageStrategyFactory: (options) => new WatermarkedLocalAssetStorageStrategy(
+                options.assetUploadDir,
+                IS_DEV ? undefined : (req: any, id: string) => {
+                    const prefix = process.env.ASSET_URL_PREFIX || '';
+                    return prefix.endsWith('/') ? `${prefix}${id}` : `${prefix}/${id}`;
+                }
+            )
         }),
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
@@ -122,7 +130,7 @@ export const config: VendureConfig = {
             transport: { type: 'none' }, 
             emailSender: emailSenderNode,
             route: 'mailbox',
-            handlers: defaultEmailHandlers.filter(h => h.type !== 'password-reset'),
+            handlers: defaultEmailHandlers.filter(h => h.type !== 'password-reset' && h.type !== 'email-verification'),
             templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
             globalTemplateVars: async (ctx: any) => {
                 const req = ctx?.req;

@@ -1,3 +1,4 @@
+// @ts-ignore
 import * as XLSX from 'xlsx';
 import { ParsedExcelData, CollectionRow, FacetRow, FacetValueRow, ImportError } from '../types/import-types';
 
@@ -86,7 +87,7 @@ export class ExcelParserService {
         console.log('[ExcelParserService] Facet Values raw data (first 5 rows):', JSON.stringify(jsonData.slice(0, 5), null, 2));
       }
 
-      jsonData.forEach((row, index) => {
+      jsonData.forEach((row: any, index: number) => {
         const rowNum = index + 2; // Excel rows are 1-indexed, header is row 1
 
         // Skip empty rows

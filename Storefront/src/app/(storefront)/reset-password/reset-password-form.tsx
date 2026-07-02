@@ -22,15 +22,15 @@ export function ResetPasswordForm({ searchParams }: ResetPasswordFormProps) {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Invalid reset link</CardTitle>
+                    <CardTitle>Lien de réinitialisation invalide</CardTitle>
                     <CardDescription>
-                        The password reset link is invalid or has expired.
+                        Le lien de réinitialisation de mot de passe est invalide ou a expiré.
                     </CardDescription>
                 </CardHeader>
-                <CardFooter>
-                    <Link href="/forgot-password">
+                <CardFooter className="pt-4">
+                    <Link href="/forgot-password" title="Demander un nouveau lien">
                         <Button variant="outline" className="w-full">
-                            Request a new reset link
+                            Demander un nouveau lien
                         </Button>
                     </Link>
                 </CardFooter>
@@ -41,16 +41,16 @@ export function ResetPasswordForm({ searchParams }: ResetPasswordFormProps) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Reset your password</CardTitle>
+                <CardTitle>Réinitialiser votre mot de passe</CardTitle>
                 <CardDescription>
-                    Enter your new password below.
+                    Entrez votre nouveau mot de passe ci-dessous.
                 </CardDescription>
             </CardHeader>
             <form action={formAction}>
                 <input type="hidden" name="token" value={token} />
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="password">New Password</Label>
+                        <Label htmlFor="password">Nouveau mot de passe</Label>
                         <Input
                             id="password"
                             name="password"
@@ -61,7 +61,7 @@ export function ResetPasswordForm({ searchParams }: ResetPasswordFormProps) {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirm Password</Label>
+                        <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
                         <Input
                             id="confirmPassword"
                             name="confirmPassword"
@@ -72,20 +72,20 @@ export function ResetPasswordForm({ searchParams }: ResetPasswordFormProps) {
                         />
                     </div>
                     {state?.error && (
-                        <div className="text-sm text-destructive">
+                        <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
                             {state.error}
                         </div>
                     )}
                 </CardContent>
-                <CardFooter className="flex flex-col space-y-4">
-                    <Button type="submit" className="w-full" disabled={isPending}>
-                        {isPending ? 'Resetting password...' : 'Reset password'}
+                <CardFooter className="flex flex-col space-y-4 pt-6">
+                    <Button type="submit" className="w-full bg-[#0d213d] hover:bg-[#0d213d]/90 text-white" disabled={isPending}>
+                        {isPending ? 'Réinitialisation...' : 'Réinitialiser le mot de passe'}
                     </Button>
                     <Link
                         href="/sign-in"
                         className="text-sm text-center text-muted-foreground hover:text-primary"
                     >
-                        Back to Sign In
+                        Retour à la connexion
                     </Link>
                 </CardFooter>
             </form>

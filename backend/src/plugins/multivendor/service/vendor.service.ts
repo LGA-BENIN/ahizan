@@ -64,6 +64,31 @@ export class VendorService implements OnApplicationBootstrap {
         });
     }
 
+    /**
+     * Creates a minimal "shell" Vendor record linked to an existing user account.
+     * Used when a Client wants to add the Vendor role without creating a new account.
+     * The vendor will be in PENDING status and must complete onboarding.
+     */
+    async createVendorShellForExistingUser(ctx: RequestContext, userId: string): Promise<Vendor> {
+        const adminCtx = await this.getSuperAdminContext(ctx);
+        const user = await this.connection.getRepository(adminCtx, User).findOne({
+            where: { id: userId },
+        });
+        if (!user) {
+            throw new Error(`User ${userId} not found`);
+        }
+
+        const timestamp = Date.now();
+        const vendor = new Vendor();
+        vendor.name = `Boutique ${timestamp}`;
+        vendor.email = user.identifier;
+        vendor.status = VendorStatus.PENDING;
+        (vendor as any).user = { id: userId };
+
+        const saved = await this.connection.getRepository(adminCtx, Vendor).save(vendor);
+        return saved;
+    }
+
     async findOrdersForVendor(ctx: RequestContext, vendorId: string, options?: any): Promise<PaginatedList<Order>> {
         const skip = options?.skip || 0;
         const take = options?.take || 10;
@@ -709,6 +734,23 @@ export class VendorService implements OnApplicationBootstrap {
             console.log('assignVendorRole: Role assigned successfully.');
         } else {
             console.log('assignVendorRole: User already has role.');
+        }
+
+        // Ensure user has an Administrator entity for dashboard access
+        const existingAdmin = await this.connection.getRepository(ctx, Administrator).findOne({
+            where: { user: { id: userId } }
+        });
+        if (!existingAdmin) {
+            console.log('assignVendorRole: Creating Administrator entity for user...');
+            const nameParts = user.identifier.split('@')[0].split('.');
+            const administrator = new Administrator({
+                emailAddress: user.identifier,
+                firstName: nameParts[0] || 'Vendor',
+                lastName: nameParts[1] || 'Admin',
+                user: user,
+            });
+            await this.connection.getRepository(ctx, Administrator).save(administrator);
+            console.log('assignVendorRole: Administrator entity created successfully.');
         }
     }
 

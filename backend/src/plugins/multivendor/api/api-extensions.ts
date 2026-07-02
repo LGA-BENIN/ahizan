@@ -50,6 +50,13 @@ export const commonApiExtensions = `
         allowNegativeBalance: Boolean
     }
 
+    type EmailRolesResult {
+        exists: Boolean!
+        hasClientRole: Boolean!
+        hasVendorRole: Boolean!
+        isVerified: Boolean!
+    }
+
     input CreateVendorInput {
         name: String
         firstName: String
@@ -292,6 +299,11 @@ export const commonApiExtensions = `
         lastMessage: ChatMessage!
     }
 
+    type CustomerConversation {
+        vendor: Vendor!
+        lastMessage: ChatMessage!
+    }
+
     type ProductLikesStats {
         product: Product!
         likesCount: Int!
@@ -302,6 +314,8 @@ export const shopApiExtensions = `
     extend type ProductVariant {
         stockOnHand: Int
     }
+
+    # ── Unified account system ──
 
     extend type Query {
         vendor(id: ID!): Vendor
@@ -314,6 +328,9 @@ export const shopApiExtensions = `
         orderStatuses: [OrderStatus!]!
         vendorOrderStatuses: [OrderStatus!]!
         deliveryZones: [DeliveryZone!]!
+
+        # Email role checking (public — no auth required)
+        checkEmailRoles(email: String!): EmailRolesResult!
 
         # Likes system queries (Shop API)
         isVendorLiked(id: ID!): Boolean!
@@ -329,6 +346,7 @@ export const shopApiExtensions = `
         # Chat system queries (Shop API)
         myChatHistoryWithVendor(vendorId: ID!): [ChatMessage!]!
         myConversations: [Conversation!]!
+        myCustomerConversations: [CustomerConversation!]!
         conversationHistoryWithCustomer(customerId: ID!): [ChatMessage!]!
     }
 
@@ -345,6 +363,10 @@ export const shopApiExtensions = `
         updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
         deleteMyProduct(id: ID!): DeletionResponse!
 
+        # Unified account: add roles to existing accounts
+        addVendorRoleToExistingClient: Vendor!
+        addClientRoleToExistingVendor: Boolean!
+
         # Likes system mutations (Shop API)
         toggleLikeVendor(id: ID!): Boolean!
         toggleLikeProduct(id: ID!): Boolean!
@@ -354,6 +376,7 @@ export const shopApiExtensions = `
         replyToCustomer(customerId: ID!, content: String!): ChatMessage!
     }
 `;
+
 
 export const adminApiExtensions = `
     extend type Query {
@@ -367,6 +390,9 @@ export const adminApiExtensions = `
         platformSettings: PlatformSettings
         orderStatuses: [OrderStatus!]!
         deliveryZones: [DeliveryZone!]!
+
+        # Email role checking (public — no auth required)
+        checkEmailRoles(email: String!): EmailRolesResult!
     }
 
     extend type Mutation {
@@ -376,6 +402,10 @@ export const adminApiExtensions = `
         deleteVendor(id: ID!, deleteProducts: Boolean!, deleteOrders: Boolean!): Boolean!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
+
+        # Unified account: add roles to existing accounts
+        addVendorRoleToExistingClient: Vendor!
+        addClientRoleToExistingVendor: Boolean!
 
         # Wallet Management (Super-Admin only)
         creditVendorWallet(vendorId: ID!, amount: Int!, note: String): Vendor!

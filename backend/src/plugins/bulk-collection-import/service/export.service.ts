@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+// @ts-ignore
 import * as XLSX from 'xlsx';
 import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, FacetValue } from '@vendure/core';
 

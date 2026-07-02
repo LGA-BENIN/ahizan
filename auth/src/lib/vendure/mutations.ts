@@ -80,3 +80,20 @@ export const ResetPasswordMutation = `
         }
     }
 `;
+
+export const AddClientRoleToExistingVendorMutation = `
+    mutation AddClientRoleToExistingVendor {
+        addClientRoleToExistingVendor
+    }
+`;
+
+export const AddVendorRoleToExistingClientMutation = `
+    mutation AddVendorRoleToExistingClient {
+        addVendorRoleToExistingClient {
+            id
+            name
+            status
+        }
+    }
+`;
+

@@ -80,6 +80,8 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         globalShape = 'circle',
         globalImageWidth = '120px',
         globalImageHeight = '120px',
+        globalImagePosX = 0,
+        globalImagePosY = 0,
         globalAnimEntrance = 'none',
         globalAnimHover = 'scale',
         
@@ -88,7 +90,12 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         globalItemTitleWeight = 'bold',
         globalItemDescSize = '14px',
         globalItemDescWeight = 'normal',
+        autoplay = false,
+        autoplaySpeed = 3000,
+        autoplayDirection = 'right',
     } = rootProps;
+
+    const [isHovered, setIsHovered] = useState(false);
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -122,8 +129,12 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         return {
             ...itemProps,
             imageShape: globalShape,
-            imageWidth: globalImageWidth,
-            imageHeight: globalImageHeight,
+            imageWidth: itemProps.imageWidth,
+            imageHeight: itemProps.imageHeight,
+            globalImageWidth,
+            globalImageHeight,
+            globalImagePosX,
+            globalImagePosY,
             animEntrance: globalAnimEntrance,
             animHover: globalAnimHover,
             itemAlignment: globalItemAlignment,
@@ -142,6 +153,38 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
     else if (sectionAnimation === 'zoom-in') sectionAnimClass = 'animate-zoom-in';
 
     const isCarousel = scrollMode === 'carousel';
+
+    React.useEffect(() => {
+        if (!isCarousel || !autoplay || itemsToRender.length === 0) return;
+
+        const interval = setInterval(() => {
+            if (isHovered) return;
+
+            const container = scrollContainerRef.current;
+            if (!container) return;
+
+            const maxScrollLeft = container.scrollWidth - container.clientWidth;
+            const itemWidth = container.scrollWidth / itemsToRender.length;
+            let newScrollLeft = container.scrollLeft + (autoplayDirection === 'right' ? itemWidth : -itemWidth);
+
+            if (autoplayDirection === 'right') {
+                if (container.scrollLeft >= maxScrollLeft - 5) {
+                    newScrollLeft = 0;
+                }
+            } else {
+                if (container.scrollLeft <= 5) {
+                    newScrollLeft = maxScrollLeft;
+                }
+            }
+
+            container.scrollTo({
+                left: newScrollLeft,
+                behavior: 'smooth'
+            });
+        }, autoplaySpeed);
+
+        return () => clearInterval(interval);
+    }, [isCarousel, autoplay, autoplaySpeed, autoplayDirection, itemsToRender.length, isHovered]);
 
     return (
         <section 
@@ -239,6 +282,8 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                 {itemsToRender.length > 0 ? (
                     <div 
                         ref={scrollContainerRef}
+                        onMouseEnter={() => setIsHovered(true)}
+                        onMouseLeave={() => setIsHovered(false)}
                         className={`${gridColsClass} ${isCarousel ? 'flex overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4' : ''} transition-opacity duration-300`}
                         style={{
                             display: isCarousel ? 'flex' : 'grid',

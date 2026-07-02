@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { TransactionalConnection, RequestContext, Customer, ID } from '@vendure/core';
+import { TransactionalConnection, RequestContext, Customer, ID, EventBus } from '@vendure/core';
 import { ChatMessage } from '../entities/chat-message.entity';
 import { Vendor } from '../entities/vendor.entity';
+import { ChatMessageEvent } from '../events/chat-message-event';
 
 @Injectable()
 export class ChatService {
-    constructor(private connection: TransactionalConnection) {}
+    constructor(
+        private connection: TransactionalConnection,
+        private eventBus: EventBus
+    ) {}
 
     /**
      * Send a message from a Customer to a Vendor
@@ -39,7 +43,9 @@ export class ChatService {
             content,
         });
 
-        return this.connection.getRepository(ctx, ChatMessage).save(chatMessage);
+        const savedMessage = await this.connection.getRepository(ctx, ChatMessage).save(chatMessage);
+        this.eventBus.publish(new ChatMessageEvent(ctx, savedMessage));
+        return savedMessage;
     }
 
     /**
@@ -74,7 +80,9 @@ export class ChatService {
             content,
         });
 
-        return this.connection.getRepository(ctx, ChatMessage).save(chatMessage);
+        const savedMessage = await this.connection.getRepository(ctx, ChatMessage).save(chatMessage);
+        this.eventBus.publish(new ChatMessageEvent(ctx, savedMessage));
+        return savedMessage;
     }
 
     /**
@@ -161,4 +169,38 @@ export class ChatService {
             relations: ['customer', 'vendor'],
         });
     }
+
+    /**
+     * Get all conversations for a Customer
+     */
+    async getConversationsForCustomer(ctx: RequestContext, customerUserId: ID): Promise<any[]> {
+        const customer = await this.connection.getRepository(ctx, Customer).findOne({
+            where: { user: { id: customerUserId } },
+        });
+
+        if (!customer) {
+            return [];
+        }
+
+        const messages = await this.connection.getRepository(ctx, ChatMessage).find({
+            where: { customer: { id: customer.id } },
+            relations: ['vendor', 'vendor.logo'],
+            order: { createdAt: 'DESC' },
+        });
+
+        const conversationMap = new Map<string, any>();
+        for (const msg of messages) {
+            if (!msg.vendor) continue;
+            const vendorId = String(msg.vendor.id);
+            if (!conversationMap.has(vendorId)) {
+                conversationMap.set(vendorId, {
+                    vendor: msg.vendor,
+                    lastMessage: msg,
+                });
+            }
+        }
+
+        return Array.from(conversationMap.values());
+    }
 }
+

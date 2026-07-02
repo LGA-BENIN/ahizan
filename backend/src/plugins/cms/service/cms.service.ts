@@ -1213,4 +1213,18 @@ export class CMSService {
         await this.connection.getRepository(ctx, PagePreset).remove(preset);
         return { result: 'DELETED' as any };
     }
+
+    async getThemeSettingsDirect(): Promise<any | null> {
+        const repository = this.connection.rawConnection.getRepository(PageSection);
+        const section = await repository.findOne({
+            where: { type: 'THEME_SETTINGS', isActive: true },
+            order: { updatedAt: 'DESC' }
+        });
+        if (!section || !section.dataJson) return null;
+        try {
+            return JSON.parse(section.dataJson);
+        } catch (e) {
+            return null;
+        }
+    }
 }

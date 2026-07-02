@@ -9,20 +9,30 @@ import { query } from '@/lib/vendure/api';
 import { GetRegistrationFieldsQuery } from '@/lib/vendure/queries';
 import { applyToBecomeVendorAction } from './actions';
 
+const DEFAULT_REGISTRATION_FIELDS = [
+    { name: 'name', label: 'Nom de la Boutique', type: 'string', required: true, order: 1, enabled: true, placeholder: 'Ex: Ahizan Fashion Store' },
+    { name: 'type', label: 'Type de Vendeur', type: 'select', required: true, order: 2, enabled: true, description: 'Sélectionnez la catégorie qui correspond à votre activité' },
+    { name: 'phoneNumber', label: 'Numéro WhatsApp / Téléphone Pro', type: 'string', required: true, order: 3, enabled: true, placeholder: '+229 01 02 03 04' },
+    { name: 'address', label: 'Ville et Adresse', type: 'string', required: true, order: 4, enabled: true, placeholder: 'Ex: Cotonou, Littoral' },
+    { name: 'description', label: 'Présentation de vos produits', type: 'string', required: false, order: 5, enabled: true, placeholder: 'Décrivez brièvement les articles que vous vendez...' },
+];
+
 export function OnboardingForm({ customer, isRecognized }: { customer?: any; isRecognized?: boolean }) {
     const [dynamicFields, setDynamicFields] = useState<any[]>([]);
     const [sellerType, setSellerType] = useState<string>('ONLINE');
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
-    // Charger les champs d'inscription configurés
+    // Charger les champs d'inscription configurés (ou fallback)
     useEffect(() => {
         const fetchFields = async () => {
             try {
                 const result = await query(GetRegistrationFieldsQuery, undefined);
-                setDynamicFields((result.data as any)?.registrationFields || []);
+                const fields = (result.data as any)?.registrationFields || [];
+                setDynamicFields(fields.length > 0 ? fields : DEFAULT_REGISTRATION_FIELDS);
             } catch (err) {
-                console.error('Failed to load dynamic fields:', err);
+                console.error('Failed to load dynamic fields, using fallback:', err);
+                setDynamicFields(DEFAULT_REGISTRATION_FIELDS);
             }
         };
         fetchFields();

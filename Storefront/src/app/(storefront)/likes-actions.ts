@@ -199,3 +199,39 @@ export async function getMyLikedProductsAction(options?: any) {
         return { success: false, error: errorMessage || 'Erreur lors de la récupération des favoris' };
     }
 }
+
+const MY_CUSTOMER_CONVERSATIONS = `
+    query MyCustomerConversations {
+        myCustomerConversations {
+            vendor {
+                id
+                name
+                logo {
+                    preview
+                }
+            }
+            lastMessage {
+                id
+                createdAt
+                sender
+                content
+            }
+        }
+    }
+`;
+
+export async function getMyConversationsAction() {
+    try {
+        const data = await rawQuery(MY_CUSTOMER_CONVERSATIONS, {
+            useAuthToken: true,
+        });
+        return { success: true, conversations: data.myCustomerConversations || [] };
+    } catch (e: any) {
+        const errorMessage = e.message || '';
+        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
+            return { success: false, authenticated: false };
+        }
+        return { success: false, error: errorMessage || 'Erreur lors de la récupération des conversations' };
+    }
+}
+

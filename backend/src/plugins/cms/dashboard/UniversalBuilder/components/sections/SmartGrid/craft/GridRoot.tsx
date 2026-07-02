@@ -172,9 +172,9 @@ export interface GridRootProps {
     paddingRight: number;
     bgColor: string;
     bgImage: string;
-    bgGradient: string;
+    bgGradient?: string;
     sectionAnimation: 'none' | 'fade-in' | 'fade-up' | 'zoom-in';
-    contentLayout: 'image-above-text' | 'image-below-text';
+    contentLayout: 'image-above-text' | 'image-below-text' | 'image-left-text-right' | 'text-left-image-right' | 'image-overlay' | 'image-on-shape';
     gridAlignment: 'left' | 'center' | 'right';
     
     // NEW PROPS
@@ -184,9 +184,15 @@ export interface GridRootProps {
     scrollMode: 'grid' | 'carousel';
     carouselArrows: 'none' | 'simple' | 'circle' | 'square';
     
+    autoplay: boolean;
+    autoplaySpeed: number;
+    autoplayDirection: 'left' | 'right';
+    
     globalShape: 'circle' | 'square' | 'rounded-square' | 'rectangle' | 'rounded-rectangle';
     globalImageWidth: string;
     globalImageHeight: string;
+    globalImagePosX?: number;
+    globalImagePosY?: number;
     globalAnimEntrance: 'none' | 'fade-in' | 'fade-up' | 'zoom-in';
     globalAnimHover: 'none' | 'scale' | 'lift' | 'glow';
     
@@ -223,6 +229,8 @@ export const GridRoot = ({
     globalShape = 'circle',
     globalImageWidth = '120px',
     globalImageHeight = '120px',
+    globalImagePosX = 0,
+    globalImagePosY = 0,
     globalAnimEntrance = 'none',
     globalAnimHover = 'scale',
     globalItemAlignment = 'center',
@@ -230,6 +238,9 @@ export const GridRoot = ({
     globalItemTitleWeight = 'bold',
     globalItemDescSize = '14px',
     globalItemDescWeight = 'normal',
+    autoplay = false,
+    autoplaySpeed = 3000,
+    autoplayDirection = 'right',
     children
 }: GridRootProps) => {
     const { connectors: { connect, drag } } = useNode();
@@ -251,7 +262,7 @@ export const GridRoot = ({
 
     return (
         <GridGlobalContext.Provider value={{
-            globalShape, globalImageWidth, globalImageHeight, globalAnimEntrance, globalAnimHover,
+            globalShape, globalImageWidth, globalImageHeight, globalImagePosX, globalImagePosY, globalAnimEntrance, globalAnimHover,
             globalItemAlignment, globalItemTitleSize, globalItemTitleWeight, globalItemDescSize, globalItemDescWeight,
             globalContentLayout: contentLayout,
             isCarousel,
@@ -438,15 +449,39 @@ export const GridRootSettings = () => {
                         </select>
                     </div>
                     {props.scrollMode === 'carousel' && (
-                        <div>
-                            <label className="label-pro">Style des flèches</label>
-                            <select className="input-pro" value={props.carouselArrows} onChange={(e) => setProp((p: any) => p.carouselArrows = e.target.value)}>
-                                <option value="none">Aucune (Scroll tactile)</option>
-                                <option value="simple">Flèches simples</option>
-                                <option value="circle">Boutons ronds</option>
-                                <option value="square">Boutons carrés</option>
-                            </select>
-                        </div>
+                        <>
+                            <div>
+                                <label className="label-pro">Style des flèches</label>
+                                <select className="input-pro" value={props.carouselArrows} onChange={(e) => setProp((p: any) => p.carouselArrows = e.target.value)}>
+                                    <option value="none">Aucune (Scroll tactile)</option>
+                                    <option value="simple">Flèches simples</option>
+                                    <option value="circle">Boutons ronds</option>
+                                    <option value="square">Boutons carrés</option>
+                                </select>
+                            </div>
+                            <div style={{ gridColumn: 'span 2', marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                                <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, marginBottom: '12px' }}>
+                                    <input type="checkbox" checked={props.autoplay || false} onChange={(e) => setProp((p: any) => p.autoplay = e.target.checked)} />
+                                    Activer le défilement automatique (Autoplay)
+                                </label>
+                                
+                                {props.autoplay && (
+                                    <div className="grid-2">
+                                        <div>
+                                            <label className="label-pro">Vitesse (ms)</label>
+                                            <input className="input-pro" type="number" min={500} step={500} value={props.autoplaySpeed || 3000} onChange={(e) => setProp((p: any) => p.autoplaySpeed = parseInt(e.target.value) || 3000)} />
+                                        </div>
+                                        <div>
+                                            <label className="label-pro">Sens du défilement</label>
+                                            <select className="input-pro" value={props.autoplayDirection || 'right'} onChange={(e) => setProp((p: any) => p.autoplayDirection = e.target.value)}>
+                                                <option value="right">Vers la droite ➔</option>
+                                                <option value="left">Vers la gauche ↵</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
@@ -487,6 +522,33 @@ export const GridRootSettings = () => {
                         <input className="input-pro" type="text" placeholder="ex: 120px" value={props.globalImageHeight} onChange={(e) => setProp((p: any) => p.globalImageHeight = e.target.value)} />
                     </div>
                 </div>
+
+                <div className="grid-2" style={{ marginTop: '1rem' }}>
+                    <div>
+                        <label className="label-pro">Déplacer X Global : {props.globalImagePosX !== undefined ? props.globalImagePosX : 0}%</label>
+                        <input 
+                            className="range-pro" 
+                            type="range" 
+                            min="-100" 
+                            max="100" 
+                            step="1" 
+                            value={props.globalImagePosX !== undefined ? props.globalImagePosX : 0} 
+                            onChange={(e) => setProp((p: any) => p.globalImagePosX = parseInt(e.target.value) || 0)} 
+                        />
+                    </div>
+                    <div>
+                        <label className="label-pro">Déplacer Y Global : {props.globalImagePosY !== undefined ? props.globalImagePosY : 0}%</label>
+                        <input 
+                            className="range-pro" 
+                            type="range" 
+                            min="-100" 
+                            max="100" 
+                            step="1" 
+                            value={props.globalImagePosY !== undefined ? props.globalImagePosY : 0} 
+                            onChange={(e) => setProp((p: any) => p.globalImagePosY = parseInt(e.target.value) || 0)} 
+                        />
+                    </div>
+                </div>
             </div>
 
             <div className="settings-card">
@@ -517,6 +579,8 @@ export const GridRootSettings = () => {
                             <option value="image-below-text">Image en-dessous du texte</option>
                             <option value="image-left-text-right">Image à gauche (Liste)</option>
                             <option value="text-left-image-right">Image à droite (Liste)</option>
+                            <option value="image-overlay">Image à l'intérieur (Overlay)</option>
+                            <option value="image-on-shape">Image sur forme (dépassant)</option>
                         </select>
                     </div>
                     <div>
@@ -677,6 +741,8 @@ GridRoot.craft = {
         globalShape: 'circle',
         globalImageWidth: '120px',
         globalImageHeight: '120px',
+        globalImagePosX: 0,
+        globalImagePosY: 0,
         globalAnimEntrance: 'none',
         globalAnimHover: 'scale',
         globalItemAlignment: 'center',
@@ -684,6 +750,9 @@ GridRoot.craft = {
         globalItemTitleWeight: 'bold',
         globalItemDescSize: '14px',
         globalItemDescWeight: 'normal',
+        autoplay: false,
+        autoplaySpeed: 3000,
+        autoplayDirection: 'right',
     },
     related: {
         settings: GridRootSettings

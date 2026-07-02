@@ -54,15 +54,19 @@ export async function loginAction(prevState: { error?: string } | undefined, for
     // Otherwise, check vendor status and redirect to the right page
     try {
         const profileResult = await query(GetMyVendorProfileQuery, {}, { token: authToken, useAuthToken: !authToken });
-        const status = profileResult.data.myVendorProfile?.status;
+        const vendor = profileResult.data.myVendorProfile;
+        const status = vendor?.status;
 
-        if (status === 'PENDING') {
+        if (!vendor || !status) {
+            return { success: true, redirectTo: '/onboarding' };
+        } else if (status === 'PENDING') {
             return { success: true, redirectTo: '/pending' };
         } else if (status === 'REJECTED') {
             return { success: true, redirectTo: '/rejected' };
         }
     } catch (e) {
-        console.warn('Could not fetch vendor status after login, defaulting to /dashboard', e);
+        console.warn('Could not fetch vendor status after login, defaulting to /onboarding', e);
+        return { success: true, redirectTo: '/onboarding' };
     }
 
     return { success: true, redirectTo: '/dashboard' };

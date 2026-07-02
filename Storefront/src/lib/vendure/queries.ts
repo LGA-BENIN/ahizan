@@ -30,6 +30,9 @@ export const GetActiveCustomerQuery = graphql(`
         activeCustomer {
             ...ActiveCustomer
         }
+        me {
+            id
+        }
     }
 `, [ActiveCustomerFragment]);
 

@@ -1,6 +1,7 @@
 import { getAuthToken } from '@/lib/auth';
-import { query } from '@/lib/vendure/api';
+import { query, mutate } from '@/lib/vendure/api';
 import { GetActiveCustomerQuery, GetMyVendorProfileQuery } from '@/lib/vendure/queries';
+import { AddClientRoleToExistingVendorMutation } from '@/lib/vendure/mutations';
 import { redirect } from 'next/navigation';
 import { SelectRoleClient } from './select-role-client';
 import { getUrlContext } from '@/lib/url-utils';
@@ -26,14 +27,29 @@ export default async function Page() {
       query(GetMyVendorProfileQuery, {}, { token }),
     ]);
 
-    const customer = customerRes.data.activeCustomer;
+    let customer = customerRes.data.activeCustomer;
+    const vendor = vendorRes.data.myVendorProfile;
+
+    // Si l'utilisateur a un profil Vendeur mais pas de profil Client,
+    // on lui associe automatiquement le rôle Client en tâche de fond.
+    if (!customer && vendor) {
+      try {
+        const addClientRoleRes = await mutate(AddClientRoleToExistingVendorMutation, {}, { token });
+        if (addClientRoleRes.data?.addClientRoleToExistingVendor) {
+          const customerRes2 = await query(GetActiveCustomerQuery, {}, { token });
+          customer = customerRes2.data.activeCustomer;
+        }
+      } catch (err) {
+        console.error('Failed to automatically add client role to vendor:', err);
+      }
+    }
+
     if (customer) {
       hasCustomer = true;
       customerName = `${customer.firstName} ${customer.lastName}`.trim() || 'Acheteur';
       customerEmail = customer.emailAddress;
     }
 
-    const vendor = vendorRes.data.myVendorProfile;
     if (vendor) {
       hasVendor = true;
       vendorName = vendor.name || 'Boutique Vendeur';

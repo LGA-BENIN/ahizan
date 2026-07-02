@@ -17,6 +17,10 @@ export const getActiveCustomer = cache(async () => {
         });
         const cust = readFragment(ActiveCustomerFragment, (result.data as any)?.activeCustomer);
         console.log('[getActiveCustomer] QUERY RESULT CUSTOMER:', cust ? cust.firstName : 'NULL RESULT FROM VENDURE');
+        if (cust) {
+            (cust as any).authToken = token;
+            (cust as any).userId = (result.data as any)?.me?.id;
+        }
         return cust;
     } catch (e) {
         console.error('[getActiveCustomer] Failed to fetch customer:', e);

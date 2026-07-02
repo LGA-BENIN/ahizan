@@ -120,7 +120,7 @@ export function ChatWidget({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed bottom-0 right-0 sm:right-6 z-50 w-full sm:w-[400px] h-[500px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-t-2xl shadow-2xl flex flex-col transform animate-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] sm:bottom-0 right-0 sm:right-6 z-[200] w-full sm:w-[400px] h-[500px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-t-2xl shadow-2xl flex flex-col transform animate-in slide-in-from-bottom duration-300">
             {/* Chat Header */}
             <div className="bg-slate-900 dark:bg-slate-950 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-md">
                 <div className="flex items-center gap-2.5 min-w-0">

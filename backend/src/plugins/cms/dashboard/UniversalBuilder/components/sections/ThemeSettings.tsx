@@ -56,7 +56,14 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
             favicon: '',
             defaultProductImage: '',
             applyFlashPromoToProducts: false,
-            applyFlashPromoToCollections: false
+            applyFlashPromoToCollections: false,
+            watermarkUrl: '',
+            watermarkOpacity: 0.4,
+            watermarkSize: 25,
+            watermarkPosition: 'center',
+            pushNotificationDelay: 3,
+            pushNotificationMaxPerDay: 3,
+            pushNotificationInterval: 30
         };
         setConfig({ ...defaults, ...data });
     }, [data]);
@@ -411,6 +418,113 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                             /> 
                             Appliquer le système de prix promotionnel de la Vente Flash d'accueil sur les pages de collection/grilles
                         </label>
+                    </div>
+                </div>
+            </div>
+
+            {/* ===== WATERMARK SETTINGS ===== */}
+            <div className="settings-card">
+                <div className="settings-card-header">🛡️ Paramètres de filigrane (Watermark)</div>
+                <p style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>
+                    Le filigrane sera appliqué sur toutes les images téléchargées et affichées depuis le site.
+                </p>
+                <div>
+                    <FileUploadField 
+                        label="Image du filigrane" 
+                        value={config.watermarkUrl || ''} 
+                        onChange={(v) => handleChange('watermarkUrl', v)} 
+                        accept="image/png,image/jpeg,image/webp,image/*" 
+                    />
+                </div>
+                {config.watermarkUrl && (
+                    <div className="grid-3" style={{ marginTop: '1rem' }}>
+                        <div>
+                            <label className="label-pro">Opacité ({Math.round((config.watermarkOpacity ?? 0.4) * 100)}%)</label>
+                            <input 
+                                type="range" 
+                                className="range-pro" 
+                                min="0.1" 
+                                max="1.0" 
+                                step="0.05" 
+                                value={config.watermarkOpacity ?? 0.4} 
+                                onChange={(e) => handleChange('watermarkOpacity', parseFloat(e.target.value))} 
+                            />
+                        </div>
+                        <div>
+                            <label className="label-pro">Taille (% de l'image) : {config.watermarkSize ?? 25}%</label>
+                            <input 
+                                type="range" 
+                                className="range-pro" 
+                                min="10" 
+                                max="80" 
+                                step="5" 
+                                value={config.watermarkSize ?? 25} 
+                                onChange={(e) => handleChange('watermarkSize', parseInt(e.target.value))} 
+                            />
+                        </div>
+                        <div>
+                            <label className="label-pro">Position</label>
+                            <select 
+                                className="input-pro" 
+                                value={config.watermarkPosition || 'center'} 
+                                onChange={(e) => handleChange('watermarkPosition', e.target.value)}
+                            >
+                                <option value="center">Centre</option>
+                                <option value="bottom-right">Bas-Droite</option>
+                                <option value="bottom-left">Bas-Gauche</option>
+                                <option value="top-right">Haut-Droite</option>
+                                <option value="top-left">Haut-Gauche</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ===== NOTIFICATIONS SETTINGS ===== */}
+            <div className="settings-card">
+                <div className="settings-card-header">🔔 Paramètres des notifications (Ahizan Notifications)</div>
+                <div className="grid-3">
+                    <div>
+                        <label className="label-pro">Délai avant affichage (secondes)</label>
+                        <input 
+                            type="number" 
+                            className="input-pro" 
+                            min="0" 
+                            max="60" 
+                            value={config.pushNotificationDelay !== undefined ? config.pushNotificationDelay : 3} 
+                            onChange={(e) => handleChange('pushNotificationDelay', parseInt(e.target.value) || 0)} 
+                        />
+                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                            Temps d'attente avant que le modal ne s'affiche.
+                        </p>
+                    </div>
+                    <div>
+                        <label className="label-pro">Affichages max par jour</label>
+                        <input 
+                            type="number" 
+                            className="input-pro" 
+                            min="1" 
+                            max="20" 
+                            value={config.pushNotificationMaxPerDay !== undefined ? config.pushNotificationMaxPerDay : 3} 
+                            onChange={(e) => handleChange('pushNotificationMaxPerDay', parseInt(e.target.value) || 1)} 
+                        />
+                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                            Nombre de fois maximum que l'alerte peut s'afficher en 24h.
+                        </p>
+                    </div>
+                    <div>
+                        <label className="label-pro">Intervalle entre affichages (minutes)</label>
+                        <input 
+                            type="number" 
+                            className="input-pro" 
+                            min="1" 
+                            max="1440" 
+                            value={config.pushNotificationInterval !== undefined ? config.pushNotificationInterval : 30} 
+                            onChange={(e) => handleChange('pushNotificationInterval', parseInt(e.target.value) || 1)} 
+                        />
+                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                            Temps d'attente minimum avant réapparition si rejeté.
+                        </p>
                     </div>
                 </div>
             </div>

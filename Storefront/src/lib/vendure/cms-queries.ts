@@ -88,6 +88,9 @@ export interface ThemeSettingsData {
     favicon?: string;
     defaultProductImage?: string;
     cookieConsent?: any;
+    pushNotificationDelay?: number;
+    pushNotificationMaxPerDay?: number;
+    pushNotificationInterval?: number;
 }
 
 export interface TopBarData {

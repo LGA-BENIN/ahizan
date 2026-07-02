@@ -1,46 +1,46 @@
 import type { MetadataRoute } from 'next';
 
-export default function manifest(): MetadataRoute.Manifest {
+export const dynamic = 'force-dynamic';
+
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+    const siteName = "Ahizan Portail Vendeur";
+    const primaryColor = "#E31E24";
+    const backgroundColor = "#ffffff";
+
     return {
-        name: 'Ahizan Espace Vendeur',
-        short_name: 'Ahizan Vendeur',
-        description: 'Gérez vos produits, commandes et votre boutique sur la marketplace Ahizan.',
-        start_url: '/dashboard',
+        name: siteName,
+        short_name: siteName,
+        description: "Gérez votre boutique, vos produits et vos commandes sur le Portail Vendeur Ahizan.",
+        start_url: '/',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#ffffff',
-        theme_color: '#002f6c',
+        background_color: backgroundColor,
+        theme_color: primaryColor,
         icons: [
-            { src: '/icons/seller-icon-72x72.png',   sizes: '72x72',   type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-96x96.png',   sizes: '96x96',   type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-128x128.png', sizes: '128x128', type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-144x144.png', sizes: '144x144', type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-152x152.png', sizes: '152x152', type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-384x384.png', sizes: '384x384', type: 'image/png', purpose: 'any' },
-            { src: '/icons/seller-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+            { src: '/logo-ahizan-official.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+            { src: '/logo-ahizan-official.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' }
         ],
         shortcuts: [
             {
                 name: 'Tableau de bord',
                 short_name: 'Dashboard',
-                description: 'Accéder à votre tableau de bord',
+                description: 'Accédez à votre tableau de bord vendeur',
                 url: '/dashboard',
-                icons: [{ src: '/icons/seller-icon-192x192.png', sizes: '192x192', type: 'image/png' }]
+                icons: [{ src: '/logo-ahizan-official.svg', sizes: '192x192', type: 'image/svg+xml' }]
             },
             {
                 name: 'Mes Produits',
                 short_name: 'Produits',
-                description: 'Gérer vos produits',
+                description: 'Gérez vos produits',
                 url: '/dashboard/products',
-                icons: [{ src: '/icons/seller-icon-192x192.png', sizes: '192x192', type: 'image/png' }]
+                icons: [{ src: '/logo-ahizan-official.svg', sizes: '192x192', type: 'image/svg+xml' }]
             },
             {
-                name: 'Mes Ventes',
-                short_name: 'Ventes',
-                description: 'Suivre vos commandes et ventes',
+                name: 'Commandes',
+                short_name: 'Commandes',
+                description: 'Suivez les commandes clients',
                 url: '/dashboard/orders',
-                icons: [{ src: '/icons/seller-icon-192x192.png', sizes: '192x192', type: 'image/png' }]
+                icons: [{ src: '/logo-ahizan-official.svg', sizes: '192x192', type: 'image/svg+xml' }]
             }
         ]
     };

@@ -25,10 +25,14 @@ import { CMSAdminResolver, CMSShopResolver } from './api/cms.resolver';
     compatibility: '^3.0.0',
 })
 export class CMSPlugin implements OnApplicationBootstrap {
+    static cmsServiceInstance: CMSService;
+
     constructor(
         private cmsService: CMSService,
         private channelService: ChannelService,
-    ) { }
+    ) { 
+        CMSPlugin.cmsServiceInstance = cmsService;
+    }
 
     async onApplicationBootstrap() {
         try {

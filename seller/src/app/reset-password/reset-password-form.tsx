@@ -78,8 +78,8 @@ export function ResetPasswordForm({ searchParams }: ResetPasswordFormProps) {
                         </div>
                     )}
                 </CardContent>
-                <CardFooter className="flex flex-col space-y-4">
-                    <Button type="submit" className="w-full" disabled={isPending}>
+                <CardFooter className="flex flex-col space-y-4 pt-6">
+                    <Button type="submit" className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold" disabled={isPending}>
                         {isPending ? 'Réinitialisation...' : 'Réinitialiser le mot de passe'}
                     </Button>
                     <Link

@@ -15,13 +15,17 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { NotificationBell } from './NotificationBell';
 
-export function AhizanNavbar({ 
-    config, 
-    customer, 
+const SHOP_API_URL = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
+const SSE_BASE_URL = SHOP_API_URL.replace('/shop-api', '');
+
+export function AhizanNavbar({
+    config,
+    customer,
     order,
     isPreview = false
-}: { 
+}: {
     config?: any;
     customer?: any;
     order?: any;
@@ -41,10 +45,10 @@ export function AhizanNavbar({
 
     useEffect(() => {
         const checkStandalone = () => {
-            const standalone = 
-                window.matchMedia("(display-mode: standalone)").matches || 
-                window.matchMedia("(display-mode: fullscreen)").matches || 
-                window.matchMedia("(display-mode: minimal-ui)").matches || 
+            const standalone =
+                window.matchMedia("(display-mode: standalone)").matches ||
+                window.matchMedia("(display-mode: fullscreen)").matches ||
+                window.matchMedia("(display-mode: minimal-ui)").matches ||
                 (window.navigator as any).standalone === true;
             setIsStandalone(standalone);
             return standalone;
@@ -194,19 +198,19 @@ export function AhizanNavbar({
 
     const topOffset = isPreview ? "top-[36px]" : "top-0";
     const headerShadowSetting = config?.headerShadow !== false;
-    
+
     let positionClass = "relative";
     let shadowClass = "";
 
     if (isStickySetting) {
         if (stickyStyleSetting === 'transparent-to-solid') {
-            positionClass = isScrolled 
-                ? `fixed ${topOffset} left-0 w-full z-50 transition-all duration-300` 
-                : `absolute ${topOffset} left-0 w-full z-50 transition-all duration-300`;
+            positionClass = isScrolled
+                ? `fixed ${topOffset} left-0 w-full z-40 transition-all duration-300`
+                : `absolute ${topOffset} left-0 w-full z-40 transition-all duration-300`;
             shadowClass = (headerShadowSetting && isScrolled) ? "shadow-sm" : "";
         } else {
             // 'solid' or 'shrink'
-            positionClass = `sticky ${topOffset} z-50 w-full`;
+            positionClass = `sticky ${topOffset} z-40 w-full`;
             shadowClass = headerShadowSetting ? "shadow-sm" : "";
         }
     }
@@ -222,16 +226,15 @@ export function AhizanNavbar({
                                 const isPill = item.style === 'pill';
                                 const isRect = item.style === 'rectangle';
                                 const hasStyle = isPill || isRect;
-                                
+
                                 return (
-                                    <Link 
-                                        key={idx} 
-                                        href={item.link || '#'} 
-                                        className={`font-medium transition-all flex items-center justify-center ${
-                                            hasStyle 
+                                    <Link
+                                        key={idx}
+                                        href={item.link || '#'}
+                                        className={`font-medium transition-all flex items-center justify-center ${hasStyle
                                                 ? `px-4 py-1.5 ${isPill ? 'rounded-full' : 'rounded-md'} hover:opacity-90 shadow-sm text-[12px] font-bold`
                                                 : `hover:text-[${cartBadgeColor}] ${item.isHighlighted ? 'text-red-600 font-bold' : ''}`
-                                        }`}
+                                            }`}
                                         style={hasStyle ? { backgroundColor: item.bgColor || '#e31837', color: item.textColor || '#ffffff' } : undefined}
                                     >
                                         {item.label}
@@ -258,7 +261,7 @@ export function AhizanNavbar({
                     borderBottom: `1px solid ${currentBorderColor}`
                 }}
             >
-                <div 
+                <div
                     className="max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 transition-all duration-300"
                     style={{ minHeight: currentHeight }}
                 >
@@ -288,10 +291,10 @@ export function AhizanNavbar({
                                 )}
                                 <Link href="/" className={`flex items-center gap-1.5 flex-shrink-0 ${showTopIconsOnMobile ? 'ml-1' : ''}`}>
                                     {logoUrl ? (
-                                        <img 
-                                            src={getAssetUrl(logoUrl)} 
-                                            className="h-8 w-auto object-contain transition-all duration-300" 
-                                            alt={siteName} 
+                                        <img
+                                            src={getAssetUrl(logoUrl)}
+                                            className="h-8 w-auto object-contain transition-all duration-300"
+                                            alt={siteName}
                                             style={isTransparentState ? { filter: 'brightness(0) invert(1)' } : undefined}
                                         />
                                     ) : (
@@ -307,8 +310,8 @@ export function AhizanNavbar({
                             {showTopIconsOnMobile && (
                                 <div className="flex items-center gap-1">
                                     {isInstallable && !isStandalone && (
-                                        <button 
-                                            onClick={handleInstallClick} 
+                                        <button
+                                            onClick={handleInstallClick}
                                             className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-primary animate-pulse flex items-center justify-center"
                                             aria-label="Installer l'application"
                                         >
@@ -317,13 +320,13 @@ export function AhizanNavbar({
                                     )}
                                     {showAccountIcon && (
                                         isLoggedIn ? (
-                                            <DropdownMenu>
+                                            <DropdownMenu modal={false}>
                                                 <DropdownMenuTrigger asChild>
                                                     <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer">
                                                         <UserRoundCheck className="h-5 w-5" />
                                                     </button>
                                                 </DropdownMenuTrigger>
-                                                <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-50 animate-in fade-in slide-in-from-top-4 duration-200" align="end">
+                                                <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
                                                     <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                                                         Mon Compte
                                                     </DropdownMenuLabel>
@@ -338,7 +341,7 @@ export function AhizanNavbar({
                                                         </Link>
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator className="my-2 border-t border-border" />
-                                                    <DropdownMenuItem 
+                                                    <DropdownMenuItem
                                                         onClick={async () => {
                                                             await logoutAction();
                                                         }}
@@ -359,11 +362,20 @@ export function AhizanNavbar({
                                             <Heart className="h-5 w-5" />
                                         </Link>
                                     )}
+                                    {isLoggedIn && (
+                                        <NotificationBell
+                                            apiUrl={SHOP_API_URL}
+                                            authToken={customer?.authToken}
+                                            userId={customer?.userId}
+                                            sseBaseUrl={SSE_BASE_URL}
+                                            iconColor={currentTextColor}
+                                        />
+                                    )}
                                     {showCartIcon && (
                                         <Link href="/cart" className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative">
                                             <ShoppingCart className="h-5 w-5" />
                                             {cartCount > 0 && (
-                                                <span 
+                                                <span
                                                     className="absolute -top-1 -right-1 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
                                                     style={{ backgroundColor: cartBadgeColor }}
                                                 >
@@ -398,7 +410,8 @@ export function AhizanNavbar({
                             </div>
                         )}
                     </div>
-                     {/* Desktop/Tablet Layout */}
+
+                    {/* Desktop/Tablet Layout */}
                     <div className="hidden lg:flex items-center gap-6 md:gap-12 transition-all duration-300"
                         style={{ height: currentHeight, minHeight: '56px' }}
                     >
@@ -414,10 +427,10 @@ export function AhizanNavbar({
                         {/* Logo */}
                         <Link href="/" className="flex items-center gap-1.5 flex-shrink-0">
                             {logoUrl ? (
-                                <img 
-                                    src={getAssetUrl(logoUrl)} 
-                                    className="h-10 w-auto object-contain transition-all duration-300" 
-                                    alt={siteName} 
+                                <img
+                                    src={getAssetUrl(logoUrl)}
+                                    className="h-10 w-auto object-contain transition-all duration-300"
+                                    alt={siteName}
                                     style={isTransparentState ? { filter: 'brightness(0) invert(1)' } : undefined}
                                 />
                             ) : (
@@ -432,7 +445,7 @@ export function AhizanNavbar({
                         {showSearch && (
                             <div className={`flex items-center transition-all duration-300 ${searchStyle === 'icon-only' && !isSearchExpanded ? 'w-auto' : 'flex-grow max-w-3xl'}`} ref={searchRef}>
                                 {searchStyle === 'icon-only' && !isSearchExpanded ? (
-                                    <button 
+                                    <button
                                         onClick={() => setIsSearchExpanded(true)}
                                         className="p-2 lg:p-3 rounded-full hover:bg-gray-100 transition-colors"
                                     >
@@ -459,7 +472,7 @@ export function AhizanNavbar({
                                                 onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
                                             />
                                             {searchStyle === 'icon-only' && (
-                                                <button 
+                                                <button
                                                     onClick={() => setIsSearchExpanded(false)}
                                                     className="absolute right-3 p-1 hover:bg-gray-200 rounded-full"
                                                 >
@@ -468,7 +481,7 @@ export function AhizanNavbar({
                                             )}
                                         </div>
                                         {searchStyle !== 'icon-only' && (
-                                            <button 
+                                            <button
                                                 onClick={handleSearch}
                                                 className={`text-white px-3 sm:px-6 py-2 sm:py-2.5 text-sm font-semibold transition-colors flex items-center justify-center
                                                     ${searchStyle === 'rounded' ? 'rounded-r-full' : ''}
@@ -492,7 +505,7 @@ export function AhizanNavbar({
                         {/* Actions */}
                         <div className="flex items-center gap-4 xl:gap-8 shrink-0">
                             {isInstallable && !isStandalone && (
-                                <button 
+                                <button
                                     onClick={handleInstallClick}
                                     className="flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity text-primary cursor-pointer border border-border px-3 py-1.5 rounded-full hover:bg-muted"
                                 >
@@ -508,7 +521,7 @@ export function AhizanNavbar({
 
                             {showAccountIcon && (
                                 isLoggedIn ? (
-                                    <DropdownMenu>
+                                    <DropdownMenu modal={false}>
                                         <DropdownMenuTrigger asChild>
                                             <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none cursor-pointer">
                                                 <UserRoundCheck className="h-5 w-5" />
@@ -521,7 +534,7 @@ export function AhizanNavbar({
                                                 <ChevronDown className="h-3 w-3 hidden lg:inline" />
                                             </button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-50 animate-in fade-in slide-in-from-top-4 duration-200" align="end">
+                                        <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
                                             <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
                                                 Mon Compte
                                             </DropdownMenuLabel>
@@ -536,7 +549,7 @@ export function AhizanNavbar({
                                                 </Link>
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator className="my-2 border-t border-border" />
-                                            <DropdownMenuItem 
+                                            <DropdownMenuItem
                                                 onClick={async () => {
                                                     await logoutAction();
                                                 }}
@@ -564,12 +577,22 @@ export function AhizanNavbar({
                                 </Link>
                             )}
 
+                            {isLoggedIn && (
+                                <NotificationBell
+                                    apiUrl={SHOP_API_URL}
+                                    authToken={customer?.authToken}
+                                    userId={customer?.userId}
+                                    sseBaseUrl={SSE_BASE_URL}
+                                    iconColor={currentTextColor}
+                                />
+                            )}
+
                             {showCartIcon && (
                                 <Link href="/cart" className="flex items-center gap-2 hover:opacity-80 transition-opacity relative">
                                     <div className="relative">
                                         <ShoppingCart className="h-5 w-5" />
                                         {cartCount > 0 && (
-                                            <span 
+                                            <span
                                                 className="absolute -top-1.5 -right-1.5 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
                                                 style={{ backgroundColor: cartBadgeColor }}
                                             >

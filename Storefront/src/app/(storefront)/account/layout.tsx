@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Package, User, MapPin, Heart } from 'lucide-react';
+import { Package, User, MapPin, Heart, Bell, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -11,6 +11,8 @@ const navItems = [
     { href: '/account/orders', label: 'Mes Commandes', icon: Package },
     { href: '/account/addresses', label: 'Mes Adresses', icon: MapPin },
     { href: '/account/favorites', label: 'Mes Favoris', icon: Heart },
+    { href: '/account/notifications', label: 'Notifications', icon: Bell },
+    { href: '/account/messages', label: 'Messagerie', icon: MessageSquare },
 ];
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {

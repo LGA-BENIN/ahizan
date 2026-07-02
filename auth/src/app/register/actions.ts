@@ -1,10 +1,31 @@
 'use server';
 
-import { mutate } from '@/lib/vendure/api';
+import { mutate, query } from '@/lib/vendure/api';
 import { RegisterCustomerAccountMutation, ApplyToBecomeVendorMutation, LoginMutation } from '@/lib/vendure/mutations';
 import { setAuthToken } from '@/lib/auth';
 import { formatPhoneE164 } from '@/lib/format-phone';
 import { getUrlContext, sanitizeRedirectUrl } from '@/lib/url-utils';
+const CheckEmailRolesQuery = `
+  query CheckEmailRoles($email: String!) {
+    checkEmailRoles(email: $email) {
+      exists
+      hasClientRole
+      hasVendorRole
+      isVerified
+    }
+  }
+`;
+
+export async function checkEmailRolesAction(email: string) {
+  try {
+    const result = await query(CheckEmailRolesQuery, { email });
+    return (result.data as any)?.checkEmailRoles ?? { exists: false, hasClientRole: false, hasVendorRole: false, isVerified: false };
+  } catch {
+    // Fail open — allow form submission if check fails
+    return { exists: false, hasClientRole: false, hasVendorRole: false, isVerified: false };
+  }
+}
+
 
 export async function registerClientAction(formData: FormData) {
     const emailAddress = formData.get('emailAddress') as string;
@@ -48,8 +69,8 @@ export async function registerClientAction(formData: FormData) {
 
         const safeRedirect = redirectTo && !redirectTo.includes('seller') ? redirectTo : undefined;
         const verifyUrl = safeRedirect
-            ? `/verify-pending?role=client&redirectTo=${encodeURIComponent(safeRedirect)}`
-            : `/verify-pending?role=client`;
+            ? `/verify-pending?role=client&email=${encodeURIComponent(emailAddress)}&redirectTo=${encodeURIComponent(safeRedirect)}`
+            : `/verify-pending?role=client&email=${encodeURIComponent(emailAddress)}`;
 
         return { success: true, redirectUrl: verifyUrl };
     } catch (e: any) {
@@ -119,7 +140,7 @@ export async function registerVendorAction(formData: FormData) {
             console.warn('Auto-login failed after vendor registration:', loginErr);
         }
 
-        return { success: true, redirectUrl: `/verify-pending?role=vendor` };
+        return { success: true, redirectUrl: `/verify-pending?role=vendor&email=${encodeURIComponent(email)}` };
     } catch (e: any) {
         console.error('Vendor registration error:', e);
         return { error: e.message || 'Une erreur est survenue.' };

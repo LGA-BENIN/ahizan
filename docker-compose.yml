@@ -8,7 +8,7 @@ services:
     container_name: ahizan_backend
     restart: unless-stopped
     ports:
-      - "3000" # Expose interne pour le réseau, pas public
+      - "3000:3000"
     env_file: .env
     environment:
       - DB_HOST=${DB_HOST}
@@ -19,6 +19,9 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS}
       - STOREFRONT_URL=https://ahizan.com
       - ASSET_URL_PREFIX=https://api.ahizan.com/assets/
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_EMAIL=${VAPID_EMAIL}
       # Autres variables Vendure
     labels:
       - "VIRTUAL_HOST=api.ahizan.com,administrator.ahizan.com"
@@ -36,11 +39,12 @@ services:
     container_name: ahizan_storefront
     restart: unless-stopped
     ports:
-      - "3000"
+      - "3001:3000"
     env_file: .env
     environment:
       - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
       - NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
     labels:
       - "VIRTUAL_HOST=ahizan.com,www.ahizan.com"
       - "VIRTUAL_PORT=3000"
@@ -55,7 +59,7 @@ services:
     container_name: ahizan_seller
     restart: unless-stopped
     ports:
-      - "3000"
+      - "3002:3000"
     env_file: .env
     environment:
       - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
@@ -74,7 +78,7 @@ services:
     container_name: ahizan_auth
     restart: unless-stopped
     ports:
-      - "3000"
+      - "3003:3000"
     env_file: .env
     environment:
       - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api

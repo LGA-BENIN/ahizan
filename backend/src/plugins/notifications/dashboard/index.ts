@@ -1,6 +1,8 @@
 import { defineDashboardExtension } from '@vendure/dashboard';
-import { Cloud, Mail } from 'lucide-react';
+import { Cloud, Mail, Bell, Send } from 'lucide-react';
 import { NotificationsSettingsComponent } from './pages/notifications-settings';
+import { NotificationLogsComponent } from './pages/notification-logs';
+import { SendNotificationComponent } from './pages/send-notification';
 
 export default defineDashboardExtension({
     navSections: [
@@ -20,6 +22,28 @@ export default defineDashboardExtension({
                 sectionId: 'integrations',
                 icon: Mail,
                 url: '/notifications',
+            },
+        },
+        {
+            path: 'notification-logs',
+            component: NotificationLogsComponent,
+            navMenuItem: {
+                id: 'notification-logs',
+                title: 'Journal Notifications',
+                sectionId: 'integrations',
+                icon: Bell,
+                url: '/notification-logs',
+            },
+        },
+        {
+            path: 'send-notification',
+            component: SendNotificationComponent,
+            navMenuItem: {
+                id: 'send-notification',
+                title: 'Envoyer une notification',
+                sectionId: 'integrations',
+                icon: Send,
+                url: '/send-notification',
             },
         },
     ],

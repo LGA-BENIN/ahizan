@@ -11,6 +11,12 @@ export function PWAInstallPrompt() {
     const [isStandalone, setIsStandalone] = useState(false);
 
     useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(err => {
+                console.error('Service Worker registration failed:', err);
+            });
+        }
+
         const checkStandalone = () => {
             const standalone = 
                 window.matchMedia("(display-mode: standalone)").matches || 

@@ -150,18 +150,22 @@ export class BrevoSmsService implements OnApplicationBootstrap {
                     sender: { name: fromName, email: fromEmail },
                     to: [{ email: recipientEmail }],
                     subject,
-                    htmlContent: `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
+                    htmlContent: (htmlContent.trim().toLowerCase().startsWith('<') || htmlContent.includes('</') || htmlContent.includes('<br'))
+                        ? htmlContent 
+                        : `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
                 }),
             });
 
             if (!response.ok) {
                 const error = await response.text();
                 this.logger.error(`Failed to send Email to ${recipientEmail} via API: ${error}`);
+                throw new Error(`Erreur API Brevo : ${error}`);
             } else {
                 this.logger.log(`Email sent successfully to ${recipientEmail} via API`);
             }
         } catch (err: any) {
             this.logger.error(`Error sending Email to ${recipientEmail} via API: ${err.message}`);
+            throw err;
         }
     }
 
@@ -173,8 +177,14 @@ export class BrevoSmsService implements OnApplicationBootstrap {
 
         if (!host || !user) {
             this.logger.warn('SMTP settings not configured. Skipping SMTP Email send.');
-            return;
+            throw new Error('Configuration SMTP incomplète : l\'hôte ou le login SMTP est manquant. Vérifiez vos paramètres dans la page Notifications.');
         }
+
+        if (!pass) {
+            this.logger.warn('SMTP password is empty. Authentication will likely fail.');
+        }
+
+        this.logger.log(`Attempting SMTP connection: host=${host}, port=${port}, user=${user}, from=${fromAddress}`);
 
         const transporter = nodemailer.createTransport({
             host,
@@ -187,11 +197,36 @@ export class BrevoSmsService implements OnApplicationBootstrap {
                 from: fromAddress,
                 to: recipientEmail,
                 subject,
-                html: `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
+                html: (htmlContent.trim().toLowerCase().startsWith('<') || htmlContent.includes('</') || htmlContent.includes('<br'))
+                    ? htmlContent 
+                    : `<div style="font-family: sans-serif; white-space: pre-wrap;">${htmlContent}</div>`,
             });
             this.logger.log(`Email sent successfully to ${recipientEmail} via SMTP`);
         } catch (err: any) {
             this.logger.error(`Error sending Email to ${recipientEmail} via SMTP: ${err.message}`);
+            
+            // Provide user-friendly error messages for common SMTP errors
+            if (err.message?.includes('525') || err.message?.includes('Unauthorized IP address')) {
+                throw new Error(
+                    `Erreur Brevo (525 Unauthorized IP) : L'adresse IP du serveur d'envoi est bloquée par votre compte Brevo. ` +
+                    `Connectez-vous à Brevo → Paramètres → Sécurité → IP autorisées (ou Liste blanche), ` +
+                    `et ajoutez l'IP de votre serveur ou désactivez la restriction IP.`
+                );
+            }
+            if (err.message?.includes('535') || err.message?.includes('Authentication failed')) {
+                throw new Error(
+                    `Échec d'authentification SMTP (535). Les identifiants SMTP enregistrés sont incorrects. ` +
+                    `Vérifiez le Login (${user}) et le Mot de passe SMTP dans Brevo → Paramètres → SMTP & API, ` +
+                    `puis mettez-les à jour dans cette page et cliquez "Enregistrer" avant de retester.`
+                );
+            }
+            if (err.message?.includes('ECONNREFUSED') || err.message?.includes('ENOTFOUND')) {
+                throw new Error(
+                    `Impossible de se connecter au serveur SMTP (${host}:${port}). ` +
+                    `Vérifiez l'hôte et le port SMTP.`
+                );
+            }
+            throw err;
         }
     }
 

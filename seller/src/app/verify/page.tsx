@@ -5,8 +5,8 @@ import {Loader2} from 'lucide-react';
 import {VerifyContent} from './verify-content';
 
 export const metadata: Metadata = {
-    title: 'Verify Email',
-    description: 'Verify your email address to complete registration.',
+    title: "Vérification de l'adresse e-mail",
+    description: "Vérifiez votre adresse e-mail pour finaliser votre inscription vendeur.",
 };
 
 function VerifyLoading() {
@@ -17,9 +17,9 @@ function VerifyLoading() {
                     <Loader2 className="h-16 w-16 text-primary animate-spin"/>
                 </div>
                 <div className="space-y-2 text-center">
-                    <h1 className="text-2xl font-bold">Verifying Your Account</h1>
+                    <h1 className="text-2xl font-bold">Vérification de votre compte</h1>
                     <p className="text-muted-foreground">
-                        Please wait while we verify your email address...
+                        Veuillez patienter pendant que nous vérifions votre adresse e-mail...
                     </p>
                 </div>
             </CardContent>

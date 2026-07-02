@@ -42,13 +42,13 @@ export class FixJsonColumns1776100000000 implements MigrationInterface {
             WHERE "config" = '' OR "config" = 'null'::text
         `, undefined);
 
-        // Fix collection_custom_fields.allowedFacetIds - replace empty strings with null
+        // Fix collection.customFieldsAllowedfacetids - replace empty strings with null
         await queryRunner.query(`
-            UPDATE collection_custom_fields 
-            SET "allowedFacetIds" = NULL 
-            WHERE "allowedFacetIds" = '' 
-               OR "allowedFacetIds" = 'null'::text 
-               OR "allowedFacetIds" = '[]'::text
+            UPDATE collection 
+            SET "customFieldsAllowedfacetids" = NULL 
+            WHERE "customFieldsAllowedfacetids" = '' 
+               OR "customFieldsAllowedfacetids" = 'null'::text 
+               OR "customFieldsAllowedfacetids" = '[]'::text
         `, undefined);
     }
 

@@ -39,5 +39,5 @@ export default async function Page({
     }
   }
 
-  return <RegisterForm redirectTo={redirectTo} isAlreadyLoggedIn={isAlreadyLoggedIn} />;
+  return <RegisterForm redirectTo={redirectTo} />;
 }

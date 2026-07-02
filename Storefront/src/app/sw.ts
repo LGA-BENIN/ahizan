@@ -30,3 +30,44 @@ self.addEventListener("fetch", (event: FetchEvent) => {
   serwist.handleFetch(event);
 });
 
+// ─── Web Push Notifications ───────────────────────────────────────────────────
+
+self.addEventListener("push", (event: PushEvent) => {
+  let data: { title?: string; body?: string; icon?: string; url?: string } = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    data = { title: "Ahizan", body: event.data?.text() ?? "" };
+  }
+
+  const title = data.title || "Ahizan";
+  const options = {
+    body: data.body || "",
+    icon: data.icon || "/icons/icon-192x192.png",
+    badge: "/icons/icon-72x72.png",
+    data: { url: data.url || "/" },
+    vibrate: [100, 50, 100],
+  } as NotificationOptions;
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event: NotificationEvent) => {
+  event.notification.close();
+  const targetUrl: string = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    (self as any).clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList: WindowClient[]) => {
+        for (const client of clientList) {
+          if (client.url === targetUrl && "focus" in client) {
+            return client.focus();
+          }
+        }
+        if ((self as any).clients.openWindow) {
+          return (self as any).clients.openWindow(targetUrl);
+        }
+      })
+  );
+});

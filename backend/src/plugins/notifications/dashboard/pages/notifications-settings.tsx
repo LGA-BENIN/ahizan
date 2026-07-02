@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_BREVO_SETTINGS, UPDATE_BREVO_SETTINGS } from '../queries';
+import { GET_BREVO_SETTINGS, UPDATE_BREVO_SETTINGS, TEST_SMTP_CONNECTION, TEST_SMTP_CONNECTION_DIRECT } from '../queries';
 
 function getAuthToken(): string | null {
     for (let i = 0; i < localStorage.length; i++) {
@@ -72,6 +72,7 @@ export function NotificationsSettingsComponent() {
             VendorRejected: { ...defaultChannelConfig },
             PasswordReset: { ...defaultChannelConfig },
             StockAlert: { ...defaultChannelConfig },
+            BuyerRegistration: { ...defaultChannelConfig },
         }
     });
 
@@ -115,6 +116,40 @@ export function NotificationsSettingsComponent() {
         },
         onError: (err: any) => addToast(err.message, 'error')
     });
+
+    const [testEmail, setTestEmail] = useState('');
+    const [isTesting, setIsTesting] = useState(false);
+
+    const testSmtpMutation = useMutation({
+        mutationFn: (payload: any) => fetchGraphQL(TEST_SMTP_CONNECTION_DIRECT, payload),
+        onSuccess: () => {
+            setIsTesting(false);
+            addToast('E-mail de test envoyé avec succès ! Vérifiez votre boîte.', 'success');
+        },
+        onError: (err: any) => {
+            setIsTesting(false);
+            addToast(`Échec du test : ${err.message}`, 'error');
+        }
+    });
+
+    const handleTest = () => {
+        if (!testEmail) {
+            addToast("Veuillez saisir une adresse e-mail pour le test.", "error");
+            return;
+        }
+        setIsTesting(true);
+        testSmtpMutation.mutate({
+            email: testEmail,
+            emailMethod: formData.emailMethod || 'smtp',
+            smtpHost: formData.smtpHost || '',
+            smtpPort: parseInt(formData.smtpPort) || 587,
+            smtpUser: formData.smtpUser || '',
+            smtpPassword: formData.smtpPassword || '',
+            brevoApiKey: formData.brevoApiKey || '',
+            fromEmail: formData.fromEmail || '',
+            fromName: formData.fromName || 'AHIZAN'
+        });
+    };
 
     const handleSave = () => {
         const payload = {
@@ -337,10 +372,42 @@ export function NotificationsSettingsComponent() {
                         </div>
                     </div>
                 )}
+
+                <div style={{ marginTop: '20px', borderTop: '1px solid #e5e7eb', paddingTop: '16px', display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>✉️ Tester la configuration saisie ci-dessus (Test direct)</label>
+                        <input
+                            type="email"
+                            placeholder="destinataire-test@domaine.com"
+                            value={testEmail}
+                            onChange={e => setTestEmail(e.target.value)}
+                            style={{ ...inputStyle, marginTop: '4px' }}
+                        />
+                    </div>
+                    <button
+                        onClick={handleTest}
+                        disabled={isTesting}
+                        style={{
+                            background: '#059669',
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px 20px',
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            opacity: isTesting ? 0.6 : 1,
+                            whiteSpace: 'nowrap',
+                            height: '42px'
+                        }}
+                    >
+                        {isTesting ? 'Envoi...' : 'Envoyer un e-mail de test'}
+                    </button>
+                </div>
             </div>
 
             <div style={cardStyle}>
-                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Acheteurs : Parcours Commande</h2>
+                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Acheteurs : Parcours Commande et Inscription</h2>
+                <EventConfigBlock title="Inscription Acheteur (Bienvenue & Confirmation)" eventName="BuyerRegistration" variables="{{ firstName }}, {{ lastName }}, {{ email }}, {{ verificationToken }}, {{ verificationLink }}" />
                 <EventConfigBlock title="Confirmation de Commande" eventName="OrderConfirmed" variables="{{ orderCode }}, {{ firstName }}" />
                 <EventConfigBlock title="Mise à jour Livraison (Expédiée / Livrée)" eventName="ShippingUpdate" variables="{{ orderCode }}, {{ status }}" />
                 <EventConfigBlock title="Échec du Paiement" eventName="PaymentFailed" variables="{{ orderCode }}" />
@@ -349,11 +416,11 @@ export function NotificationsSettingsComponent() {
             <div style={cardStyle}>
                 <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Vendeurs : Événements Boutique</h2>
                 <EventConfigBlock title="Nouvelle Commande (Notification de Vente)" eventName="NewOrderVendor" variables="{{ orderCode }}" />
-                <EventConfigBlock title="Inscription Vendeur Reçue" eventName="VendorRegistration" variables="" />
-                <EventConfigBlock title="Boutique Approuvée / Activée" eventName="VendorApproved" variables="{{ businessName }}" />
-                <EventConfigBlock title="Boutique Rejetée" eventName="VendorRejected" variables="{{ businessName }}, {{ rejectionReason }}" />
-                <EventConfigBlock title="Alerte de Stock Faible (&lt;5 pièces)" eventName="StockAlert" variables="{{ productName }}, {{ stockOnHand }}" />
-                <EventConfigBlock title="Réinitialisation de Mot de Passe" eventName="PasswordReset" variables="{{ passwordResetToken }}, {{ identifier }}" />
+                <EventConfigBlock title="Inscription Vendeur Reçue (En Attente)" eventName="VendorRegistration" variables="{{ businessName }}, {{ email }}, {{ name }}, {{ verificationToken }}, {{ verificationLink }}" />
+                <EventConfigBlock title="Boutique Approuvée / Activée" eventName="VendorApproved" variables="{{ businessName }}, {{ email }}, {{ name }}" />
+                <EventConfigBlock title="Boutique Rejetée" eventName="VendorRejected" variables="{{ businessName }}, {{ rejectionReason }}, {{ email }}, {{ name }}" />
+                <EventConfigBlock title="Alerte de Stock Faible (<5 pièces)" eventName="StockAlert" variables="{{ productName }}, {{ stockOnHand }}" />
+                <EventConfigBlock title="Réinitialisation de Mot de Passe" eventName="PasswordReset" variables="{{ passwordResetToken }}, {{ identifier }}, {{ resetLink }}" />
             </div>
 
         </div>

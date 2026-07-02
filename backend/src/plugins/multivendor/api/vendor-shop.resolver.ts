@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User } from '@vendure/core';
 import { In } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
@@ -654,6 +654,110 @@ export class VendorShopResolver {
         }
         
         return Array.from(facetValueIds);
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // UNIFIED ACCOUNT SYSTEM
+    // ──────────────────────────────────────────────────────────
+
+    /**
+     * Public query — checks if an email is already registered and which roles it has.
+     * Used BEFORE registration to determine the correct flow (4 cases).
+     */
+    @Query()
+    async checkEmailRoles(
+        @Ctx() ctx: RequestContext,
+        @Args('email') email: string,
+    ): Promise<{ exists: boolean; hasClientRole: boolean; hasVendorRole: boolean; isVerified: boolean }> {
+        const normalizedEmail = email.toLowerCase().trim();
+
+        const user = await this.connection.getRepository(ctx, User).findOne({
+            where: { identifier: normalizedEmail },
+            relations: ['roles'],
+        });
+
+        if (!user) {
+            return { exists: false, hasClientRole: false, hasVendorRole: false, isVerified: false };
+        }
+
+        // Check if user has a Customer profile (= has client role)
+        const customer = await this.connection.rawConnection
+            .getRepository('customer')
+            .findOne({ where: { emailAddress: normalizedEmail } })
+            .catch(() => null);
+
+        const hasClientRole = !!customer;
+
+        // Check if user has a Vendor profile
+        const vendor = await this.vendorService.findByUserId(ctx, user.id.toString());
+        const hasVendorRole = !!vendor;
+
+        return { exists: true, hasClientRole, hasVendorRole, isVerified: user.verified };
+    }
+
+    /**
+     * Authenticated mutation — adds the Vendor role to an existing Client account.
+     * Called when a client logs in and wants to become a vendor.
+     * Returns the newly created Vendor profile (pointing to the same user).
+     */
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async addVendorRoleToExistingClient(@Ctx() ctx: RequestContext): Promise<Vendor> {
+        if (!ctx.activeUserId) {
+            throw new Error('Not authenticated');
+        }
+
+        // Check if vendor profile already exists for this user
+        const existingVendor = await this.vendorService.findByUserId(ctx, ctx.activeUserId.toString());
+        if (existingVendor) {
+            // Already a vendor — just return the existing profile
+            return existingVendor;
+        }
+
+        // Create an empty vendor shell linked to the existing user
+        const vendor = await this.vendorService.createVendorShellForExistingUser(ctx, ctx.activeUserId.toString());
+        return vendor;
+    }
+
+    /**
+     * Authenticated mutation — adds the Client role to an existing Vendor account.
+     * Creates a Customer entity linked to the same user.
+     */
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async addClientRoleToExistingVendor(@Ctx() ctx: RequestContext): Promise<boolean> {
+        if (!ctx.activeUserId) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await this.connection.getRepository(ctx, User).findOne({
+            where: { id: ctx.activeUserId },
+        });
+
+        if (!user) throw new Error('User not found');
+
+        // Check if customer already exists
+        const existingCustomer = await this.connection.rawConnection
+            .getRepository('customer')
+            .findOne({ where: { emailAddress: user.identifier } })
+            .catch(() => null);
+
+        if (existingCustomer) {
+            // Already a client
+            return true;
+        }
+
+        // Create a customer linked to the existing user
+        await this.connection.rawConnection
+            .getRepository('customer')
+            .save({
+                emailAddress: user.identifier,
+                firstName: '',
+                lastName: '',
+                user: { id: user.id },
+            });
+
+        return true;
     }
 }
 

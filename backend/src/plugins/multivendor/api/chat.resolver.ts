@@ -67,4 +67,15 @@ export class ChatResolver {
         }
         return this.chatService.getConversationHistoryWithCustomer(ctx, ctx.activeUserId, customerId);
     }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myCustomerConversations(
+        @Ctx() ctx: RequestContext
+    ): Promise<any[]> {
+        if (!ctx.activeUserId) {
+            return [];
+        }
+        return this.chatService.getConversationsForCustomer(ctx, ctx.activeUserId);
+    }
 }

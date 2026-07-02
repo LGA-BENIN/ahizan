@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 interface GridItemRendererProps {
     props: any;
-    contentLayout: 'image-above-text' | 'image-below-text' | 'image-left-text-right' | 'text-left-image-right';
+    contentLayout: 'image-above-text' | 'image-below-text' | 'image-left-text-right' | 'text-left-image-right' | 'image-overlay' | 'image-on-shape';
 }
 
 export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps) => {
@@ -17,6 +17,10 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
         imageShape = 'square',
         imageWidth = '100%',
         imageHeight = 'auto',
+        globalImageWidth = '120px',
+        globalImageHeight = '120px',
+        shapeBgColor = '#e0e7ff',
+        shapeBgImage = '',
         overlayEnabled = false,
         overlayColor = '#000000',
         overlayOpacity = 0.5,
@@ -35,7 +39,16 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
         linkNewTab = false,
         animEntrance = 'none',
         animHover = 'none',
+        imagePosX,
+        imagePosY,
+        globalImagePosX = 0,
+        globalImagePosY = 0,
+        imageSize = 120,
     } = props;
+
+    const isShapeLayout = contentLayout === 'image-on-shape';
+    const effectivePosX = imagePosX !== undefined ? imagePosX : (globalImagePosX !== undefined ? globalImagePosX : (isShapeLayout ? -10 : 0));
+    const effectivePosY = imagePosY !== undefined ? imagePosY : (globalImagePosY !== undefined ? globalImagePosY : (isShapeLayout ? -10 : 0));
 
     const getBorderRadius = () => {
         switch (imageShape) {
@@ -70,43 +83,91 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
 
     const isRowLayout = contentLayout === 'image-left-text-right' || contentLayout === 'text-left-image-right';
 
+    const isOverlayLayout = contentLayout === 'image-overlay';
+
     const imageElement = (
         <div 
-            className={`relative flex items-center justify-center overflow-hidden shrink-0 ${isRowLayout ? 'max-w-[50%]' : 'max-w-full'}`}
+            className={isOverlayLayout ? "absolute inset-0 w-full h-full transition-transform duration-500 overflow-hidden" : `relative flex items-center justify-center shrink-0 ${isRowLayout ? 'max-w-[50%]' : 'max-w-full'}`}
             style={{
-                width: imageWidth,
-                height: imageHeight,
-                aspectRatio: isRect ? '16/9' : '1/1',
-                borderRadius: getBorderRadius(),
-                backgroundColor: imageUrl ? 'transparent' : '#f1f5f9',
+                zIndex: isOverlayLayout ? 0 : undefined,
+                width: isOverlayLayout ? '100%' : (isShapeLayout ? globalImageWidth : (imageWidth || globalImageWidth)),
+                height: isOverlayLayout ? '100%' : (isShapeLayout ? globalImageHeight : (imageHeight || globalImageHeight)),
+                aspectRatio: (isOverlayLayout || isShapeLayout) ? undefined : (isRect ? '16/9' : '1/1'),
+                borderRadius: (isOverlayLayout || isShapeLayout) ? undefined : getBorderRadius(),
+                backgroundColor: (imageUrl || isShapeLayout) ? 'transparent' : '#f1f5f9',
+                overflow: isShapeLayout ? 'visible' : 'hidden',
             }}
         >
-            {imageUrl ? (
-                <img 
-                    src={imageUrl} 
-                    alt={titleText} 
-                    className={`w-full h-full object-cover transition-transform duration-500 ${animHover === 'scale' ? 'group-hover:scale-110' : ''}`}
-                    loading="lazy"
-                />
-            ) : null}
+            {isShapeLayout ? (
+                <>
+                    <div 
+                        className="w-full h-full transition-transform duration-500"
+                        style={{
+                            borderRadius: getBorderRadius(),
+                            backgroundColor: shapeBgColor,
+                            backgroundImage: shapeBgImage ? `url(${shapeBgImage})` : undefined,
+                            backgroundPosition: 'center',
+                            backgroundSize: 'cover',
+                            backgroundRepeat: 'no-repeat',
+                            width: '100%',
+                            height: '100%',
+                            aspectRatio: isRect ? '16/9' : '1/1',
+                        }}
+                    />
+                    {imageUrl && (
+                        <img 
+                            src={imageUrl} 
+                            alt={titleText} 
+                            className={`absolute transition-transform duration-500 ${animHover === 'scale' ? 'group-hover:scale-110' : ''}`}
+                            style={{
+                                width: imageWidth || `${imageSize}%`,
+                                height: imageHeight || `${imageSize}%`,
+                                top: `${effectivePosY}%`,
+                                left: `${effectivePosX}%`,
+                                objectFit: 'contain',
+                                zIndex: 2,
+                            }}
+                            loading="lazy"
+                        />
+                    )}
+                </>
+            ) : (
+                <>
+                    {imageUrl ? (
+                        <img 
+                            src={imageUrl} 
+                            alt={titleText} 
+                            className={`w-full h-full object-cover transition-transform duration-500 ${animHover === 'scale' ? 'group-hover:scale-110' : ''}`}
+                            style={{
+                                objectPosition: `${50 + effectivePosX}% ${50 + effectivePosY}%`
+                            }}
+                            loading="lazy"
+                        />
+                    ) : null}
 
-            {overlayEnabled && (
-                <div 
-                    className="absolute inset-0 pointer-events-none transition-opacity duration-300"
-                    style={{
-                        backgroundColor: overlayColor,
-                        opacity: overlayOpacity,
-                    }} 
-                />
+                    {(overlayEnabled || isOverlayLayout) && (
+                        <div 
+                            className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+                            style={{
+                                backgroundColor: overlayEnabled ? overlayColor : '#000000',
+                                opacity: overlayEnabled ? overlayOpacity : 0.4,
+                                zIndex: isOverlayLayout ? 1 : undefined,
+                            }} 
+                        />
+                    )}
+                </>
             )}
         </div>
     );
 
     const textElement = (titleText || descText) && (
-        <div className={isRowLayout ? "flex-1 min-w-0" : "w-full"} style={{ textAlign: itemAlignment as any }}>
+        <div 
+            className={isOverlayLayout ? "w-full relative z-10" : (isRowLayout ? "flex-1 min-w-0" : "w-full")} 
+            style={{ textAlign: itemAlignment as any }}
+        >
             {titleText && (
                 <div style={{
-                    color: titleColor,
+                    color: isOverlayLayout && (props.titleColor === 'var(--builder-text-main)' || props.titleColor === '#0f172a') ? '#ffffff' : titleColor,
                     fontSize: titleFontSize,
                     fontWeight: titleFontWeight,
                     textAlign: titleAlign as any,
@@ -117,7 +178,7 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
             )}
             {descText && (
                 <div style={{
-                    color: descColor,
+                    color: isOverlayLayout && (props.descColor === 'var(--builder-text-muted)' || props.descColor === '#64748b') ? '#cbd5e1' : descColor,
                     fontSize: descFontSize,
                     fontWeight: descFontWeight,
                     textAlign: descAlign as any
@@ -133,14 +194,17 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
     return (
         <Wrapper 
             {...wrapperProps}
-            className={`flex ${isRowLayout ? 'flex-row' : 'flex-col'} ${isReverse ? (isRowLayout ? 'flex-row-reverse' : 'flex-col-reverse') : ''} relative w-full h-full box-border ${hoverClass} ${entranceClass} ${uniqueId}`}
+            className={`flex ${isOverlayLayout ? 'flex-col' : (isRowLayout ? 'flex-row' : 'flex-col')} ${isReverse ? (isRowLayout ? 'flex-row-reverse' : 'flex-col-reverse') : ''} relative w-full h-full box-border ${hoverClass} ${entranceClass} ${uniqueId}`}
             style={{
                 alignItems: itemAlignment === 'left' ? 'flex-start' : itemAlignment === 'right' ? 'flex-end' : 'center',
-                gap: '12px',
-                padding: '16px',
+                justifyContent: isOverlayLayout ? 'center' : undefined,
+                gap: isOverlayLayout ? '0px' : '12px',
+                padding: isOverlayLayout ? '24px' : '16px',
                 border: `${borderWidth}px solid ${borderColor}`,
                 backgroundColor: bgColor,
-                // Fallback for styling
+                borderRadius: isOverlayLayout ? getBorderRadius() : undefined,
+                overflow: isShapeLayout ? 'visible' : 'hidden',
+                minHeight: isOverlayLayout ? '180px' : undefined,
             }}
         >
             {/* Inject a tiny style block to handle the dynamic hover background color properly */}

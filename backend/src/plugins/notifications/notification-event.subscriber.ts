@@ -12,10 +12,14 @@ import {
     AccountRegistrationEvent,
     Order,
     User,
+    Customer,
 } from '@vendure/core';
 import { BrevoSmsService } from './brevo-sms.service';
 import { BrevoSettings } from './entities/brevo-settings.entity';
 import { VendorEvent } from '../multivendor/events/vendor-event';
+import { Vendor } from '../multivendor/entities/vendor.entity';
+import { ChatMessageEvent } from '../multivendor/events/chat-message-event';
+import { NotificationsService } from './notifications.service';
 
 @Injectable()
 export class NotificationEventSubscriber implements OnApplicationBootstrap {
@@ -26,7 +30,31 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         private readonly smsService: BrevoSmsService,
         private readonly productVariantService: ProductVariantService,
         private readonly connection: TransactionalConnection,
+        private readonly notificationsService: NotificationsService,
     ) { }
+
+    private async sendInAppAndPushNotification(
+        ctx: RequestContext,
+        userId: string,
+        title: string,
+        body: string,
+        actionUrl?: string,
+        iconUrl?: string,
+    ) {
+        try {
+            await this.notificationsService.notify(ctx, {
+                userId,
+                eventType: 'SYSTEM_EVENT',
+                title,
+                body,
+                channels: ['IN_APP', 'PUSH'],
+                actionUrl,
+                iconUrl,
+            });
+        } catch (e: any) {
+            this.logger.error(`Failed to send In-App/Push notification to user ${userId}: ${e.message}`);
+        }
+    }
 
     async onApplicationBootstrap() {
         await this.ensurePasswordResetConfig();
@@ -37,6 +65,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         this.subscribeToVendorEvents();
         this.subscribeToAuthEvents();
         this.subscribeToBuyerRegistration();
+        this.subscribeToChatEvents();
     }
 
     private async ensurePasswordResetConfig() {
@@ -44,6 +73,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         if (!settings) return;
 
         const channelsConfig = settings.channelsConfig || {};
+        let modified = false;
         if (!channelsConfig.PasswordReset) {
             this.logger.log('Initializing default PasswordReset configuration...');
             channelsConfig.PasswordReset = {
@@ -53,8 +83,73 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 emailTemplate: 'Bonjour, voici votre code de confirmation Ahizan : {{ passwordResetToken }}. Ce code expire dans 15 minutes.',
                 smsTemplate: 'Ahizan: Votre code de réinitialisation est {{ passwordResetToken }}'
             };
+            modified = true;
+        }
+        if (!channelsConfig.BuyerRegistration) {
+            this.logger.log('Initializing default BuyerRegistration configuration...');
+            channelsConfig.BuyerRegistration = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Bienvenue sur Ahizan - Vérifiez votre adresse e-mail',
+                emailTemplate: 'Bonjour {{ firstName }},\n\nMerci de vous être inscrit sur Ahizan. Pour finaliser votre inscription, veuillez vérifier votre adresse e-mail en cliquant sur le lien ci-dessous :\n\n{{ verificationLink }}\n\nOu utilisez votre code de confirmation : {{ verificationToken }}\n\nÀ bientôt !',
+                smsTemplate: 'Ahizan: Vérifiez votre compte sur {{ verificationLink }}'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.VendorRegistration) {
+            this.logger.log('Initializing default VendorRegistration configuration...');
+            channelsConfig.VendorRegistration = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Inscription Vendeur reçue - Ahizan',
+                emailTemplate: 'Bonjour {{ name }},\n\nNous avons bien reçu votre demande d\'inscription pour la boutique "{{ businessName }}".\n\nPour vérifier votre adresse e-mail et activer votre compte vendeur, veuillez cliquer sur le lien ci-dessous :\n\n{{ verificationLink }}\n\nÀ bientôt sur Ahizan Seller !',
+                smsTemplate: 'Ahizan: Inscription de votre boutique reçue.'
+            };
+            modified = true;
+        }
+        if (modified) {
             await this.smsService.saveSettings({ channelsConfig });
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // CHAT MESSAGES
+    // ─────────────────────────────────────────────────────────────
+    private subscribeToChatEvents() {
+        this.eventBus.ofType(ChatMessageEvent).subscribe(async (event) => {
+            const { ctx, message } = event;
+            const actionUrl = 'https://ahizan.com/account/messages';
+            
+            if (message.sender === 'CUSTOMER') {
+                const vendor = await this.connection.getRepository(ctx, Vendor).findOne({
+                    where: { id: message.vendor.id },
+                    relations: ['user']
+                });
+                if (vendor?.user) {
+                    await this.sendInAppAndPushNotification(
+                        ctx,
+                        String(vendor.user.id),
+                        'Nouveau message',
+                        `Vous avez reçu un nouveau message de ${message.customer?.firstName || 'un client'}.`,
+                        actionUrl
+                    );
+                }
+            } else if (message.sender === 'VENDOR') {
+                const customer = await this.connection.getRepository(ctx, Customer).findOne({
+                    where: { id: message.customer.id },
+                    relations: ['user']
+                });
+                if (customer?.user) {
+                    await this.sendInAppAndPushNotification(
+                        ctx,
+                        String(customer.user.id),
+                        'Nouveau message',
+                        `${message.vendor?.name || 'Une boutique'} vous a envoyé un message.`,
+                        actionUrl
+                    );
+                }
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -85,6 +180,25 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         await this.smsService.sendTransactionalEmail(email, subject, content, settings);
                     }
                 }
+
+                // In-App/Push notification to Buyer
+                let buyerUserId = order.customer?.user?.id;
+                if (!buyerUserId && order.customer?.id) {
+                    const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
+                        where: { id: order.customer.id },
+                        relations: ['user']
+                    });
+                    buyerUserId = customer?.user?.id;
+                }
+                if (buyerUserId) {
+                    await this.sendInAppAndPushNotification(
+                        event.ctx,
+                        buyerUserId.toString(),
+                        `Commande Confirmée`,
+                        `Votre commande ${order.code} a été confirmée avec succès.`,
+                        `/account/orders/${order.code}`,
+                    );
+                }
             }
 
             // ── Acheteur : Commande Annulée ──
@@ -108,6 +222,25 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     const content = `Votre commande ${order.code} a été annulée. Contactez-nous pour plus d'informations.`;
                     await this.smsService.sendSms(phone, content, settings);
                 }
+
+                // In-App/Push notification to Buyer
+                let buyerUserId = order.customer?.user?.id;
+                if (!buyerUserId && order.customer?.id) {
+                    const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
+                        where: { id: order.customer.id },
+                        relations: ['user']
+                    });
+                    buyerUserId = customer?.user?.id;
+                }
+                if (buyerUserId) {
+                    await this.sendInAppAndPushNotification(
+                        event.ctx,
+                        buyerUserId.toString(),
+                        `Commande Annulée`,
+                        `Votre commande ${order.code} a été annulée.`,
+                        `/account/orders/${order.code}`,
+                    );
+                }
             }
 
             // ── Vendeur : Notification de Nouvelle Vente ──
@@ -116,7 +249,13 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 if (config?.enabled) {
                     try {
                         const fullOrder = await this.connection.getEntityOrThrow(event.ctx, Order, order.id, {
-                            relations: ['lines', 'lines.productVariant', 'lines.productVariant.product', 'lines.productVariant.product.customFields.vendor']
+                            relations: [
+                                'lines', 
+                                'lines.productVariant', 
+                                'lines.productVariant.product', 
+                                'lines.productVariant.product.customFields.vendor',
+                                'lines.productVariant.product.customFields.vendor.user'
+                            ]
                         });
 
                         const vendorsToNotify = new Map<string, any>();
@@ -140,6 +279,18 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                                 const subject = this.smsService.interpolate(config.emailSubject || 'Nouvelle Vente', vars);
                                 const content = this.smsService.interpolate(config.emailTemplate, vars);
                                 await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                            }
+
+                            // Real-time In-App & PWA Push to Seller
+                            const vendorUserId = vendor.user?.id;
+                            if (vendorUserId) {
+                                await this.sendInAppAndPushNotification(
+                                    event.ctx,
+                                    vendorUserId.toString(),
+                                    `Nouvelle Vente !`,
+                                    `Félicitations ! Vous avez reçu une nouvelle commande ${order.code}.`,
+                                    `/dashboard/orders`,
+                                );
                             }
                         }
                     } catch (e: any) {
@@ -210,6 +361,26 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         const content = this.smsService.interpolate(config.emailTemplate, vars);
                         await this.smsService.sendTransactionalEmail(email, subject, content, settings);
                     }
+
+                    // Real-time In-App & PWA Push
+                    let buyerUserId = order?.customer?.user?.id;
+                    if (!buyerUserId && order?.customer?.id) {
+                        const cust = await this.connection.rawConnection.getRepository(Customer).findOne({
+                            where: { id: order.customer.id },
+                            relations: ['user']
+                        });
+                        buyerUserId = cust?.user?.id;
+                    }
+                    if (buyerUserId) {
+                        const stateText = toState === 'Shipped' ? 'expédiée (en cours de livraison)' : 'livrée';
+                        await this.sendInAppAndPushNotification(
+                            event.ctx,
+                            buyerUserId.toString(),
+                            `Mise à jour de livraison`,
+                            `Votre commande ${order?.code} est ${stateText}.`,
+                            `/account/orders/${order?.code}`,
+                        );
+                    }
                 }
             }
         });
@@ -266,7 +437,29 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 if (config?.enabled) {
                     const phone = vendor.phoneNumber || event.input?.phoneNumber;
                     const email = vendor.email || event.input?.email;
-                    const vars = {};
+                    
+                    let verificationToken = '';
+                    const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
+                        where: { id: vendor.id },
+                        relations: ['user']
+                    });
+                    const vendorUser = vWithUser?.user;
+                    if (vendorUser) {
+                        const userWithAuth = await this.connection.getRepository(event.ctx, User).findOne({
+                            where: { id: vendorUser.id },
+                            relations: ['authenticationMethods']
+                        });
+                        const nativeMethod = userWithAuth?.getNativeAuthenticationMethod(false);
+                        verificationToken = nativeMethod?.verificationToken || '';
+                    }
+
+                    const vars = {
+                        businessName: vendor.businessName || '',
+                        name: vendor.name || '',
+                        email: email || '',
+                        verificationToken,
+                        verificationLink: `https://seller.ahizan.com/verify?token=${verificationToken}`,
+                    };
 
                     if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
                         const content = this.smsService.interpolate(config.smsTemplate, vars);
@@ -288,6 +481,8 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     const email = vendor.email;
                     const vars = {
                         businessName: vendor.businessName || '',
+                        name: vendor.name || '',
+                        email: email || '',
                     };
 
                     if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
@@ -298,6 +493,25 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         const subject = this.smsService.interpolate(config.emailSubject || 'Boutique Approuvée', vars);
                         const content = this.smsService.interpolate(config.emailTemplate, vars);
                         await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    }
+
+                    // Real-time In-App & PWA Push to Vendor
+                    let vendorUserId = vendor.user?.id;
+                    if (!vendorUserId && vendor.id) {
+                        const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
+                            where: { id: vendor.id },
+                            relations: ['user']
+                        });
+                        vendorUserId = vWithUser?.user?.id;
+                    }
+                    if (vendorUserId) {
+                        await this.sendInAppAndPushNotification(
+                            event.ctx,
+                            vendorUserId.toString(),
+                            `Boutique Approuvée`,
+                            `Félicitations ! Votre boutique "${vendor.name || vendor.businessName || ''}" a été approuvée par l'administrateur.`,
+                            `/dashboard`,
+                        );
                     }
                 }
             }
@@ -311,6 +525,8 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     const vars = {
                         businessName: vendor.businessName || '',
                         rejectionReason: vendor.rejectionReason || event.input?.rejectionReason || 'Non spécifiée',
+                        name: vendor.name || '',
+                        email: email || '',
                     };
 
                     if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
@@ -321,6 +537,26 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         const subject = this.smsService.interpolate(config.emailSubject || 'Candidature Rejetée', vars);
                         const content = this.smsService.interpolate(config.emailTemplate, vars);
                         await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    }
+
+                    // Real-time In-App & PWA Push to Vendor
+                    let vendorUserId = vendor.user?.id;
+                    if (!vendorUserId && vendor.id) {
+                        const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
+                            where: { id: vendor.id },
+                            relations: ['user']
+                        });
+                        vendorUserId = vWithUser?.user?.id;
+                    }
+                    if (vendorUserId) {
+                        const reason = vendor.rejectionReason || event.input?.rejectionReason || 'Non spécifiée';
+                        await this.sendInAppAndPushNotification(
+                            event.ctx,
+                            vendorUserId.toString(),
+                            `Candidature Rejetée`,
+                            `Votre candidature de boutique a été rejetée. Motif : ${reason}`,
+                            `/pending`,
+                        );
                     }
                 }
             }
@@ -347,10 +583,6 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             // 2. Send Notification
             if (settings?.channelsConfig?.PasswordReset?.enabled) {
                 const config = settings.channelsConfig.PasswordReset;
-                const customer = await this.connection.getRepository(ctx, User).findOne({
-                    where: { id: user.id },
-                    relations: ['roles'] // We might need customer details if available
-                });
 
                 // Ensure native auth method is available to get the code
                 const userWithAuth = await this.connection.getRepository(ctx, User).findOne({
@@ -368,18 +600,29 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     return;
                 }
 
+                // Determine if it is a seller or buyer
+                const userWithRoles = await this.connection.getRepository(ctx, User).findOne({
+                    where: { id: user.id },
+                    relations: ['roles']
+                });
+                const isSeller = userWithRoles?.roles?.some(role => role.code === 'vendor' || role.code.toLowerCase().includes('seller')) || false;
+                
+                let resetLink = '';
+                if (isSeller) {
+                    resetLink = `https://seller.ahizan.com/reset-password?token=${code}&email=${encodeURIComponent(user.identifier)}`;
+                } else {
+                    resetLink = `https://ahizan.com/reset-password?token=${code}`;
+                }
+
                 const vars = {
                     passwordResetToken: code,
                     identifier: user.identifier,
+                    resetLink,
                 };
 
                 const email = user.identifier; // Assuming identifier is email for now
-                // In Ahizan, we might want to check if it's a customer or vendor to get phone/proper email.
 
                 if ((config.channel === 'SMS' || config.channel === 'BOTH') && config.smsTemplate) {
-                    // Try to find a phone number. For Ahizan, Vendors have phone numbers in their profiles.
-                    // Customers might not. Let's try to find a vendor profile if possible.
-                    // For now, let's keep it simple.
                     const content = this.smsService.interpolate(config.smsTemplate, vars);
                     this.logger.log(`Sending reset code SMS to ${email}`);
                     // await this.smsService.sendSms(..., content, settings); 
@@ -410,13 +653,40 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             const config = settings.channelsConfig?.BuyerRegistration;
             if (!config?.enabled) return;
 
-            const { ctx, customer } = event as any;
-            const email = customer?.emailAddress;
-            const phone = customer?.phoneNumber;
+            const { ctx, user } = event;
+            if (!user) return;
+
+            const email = user.identifier;
+            let firstName = '';
+            let lastName = '';
+            let phone = '';
+
+            const CustomerEntity = this.connection.rawConnection.entityMetadatas.find(m => m.name === 'Customer')?.target;
+            if (CustomerEntity) {
+                const customer = await this.connection.rawConnection.getRepository(CustomerEntity).findOne({
+                    where: { emailAddress: email }
+                }) as any;
+                if (customer) {
+                    firstName = customer.firstName || '';
+                    lastName = customer.lastName || '';
+                    phone = customer.phoneNumber || '';
+                }
+            }
+
+            let token = '';
+            const userWithAuth = await this.connection.getRepository(ctx, User).findOne({
+                where: { id: user.id },
+                relations: ['authenticationMethods']
+            });
+            const nativeMethod = userWithAuth?.getNativeAuthenticationMethod(false);
+            token = nativeMethod?.verificationToken || '';
+
             const vars = {
-                firstName: customer?.firstName || '',
-                lastName: customer?.lastName || '',
-                email: email || '',
+                firstName,
+                lastName,
+                email,
+                verificationToken: token,
+                verificationLink: `https://ahizan.com/verify?token=${token}`,
             };
 
             this.logger.log(`Buyer registration event for ${email}`);

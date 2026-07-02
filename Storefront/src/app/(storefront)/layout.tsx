@@ -15,6 +15,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/metadata";
 import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
 import { CookieConsent } from "@/components/ahizan/cookie-consent";
 import { ScrollToTop } from "@/components/ahizan/ScrollToTop";
+import { PushPermissionManager } from "@/components/ahizan/PushPermissionManager";
 import { getPageContent, ThemeSettingsData, FooterConfData, HeaderConfData } from "@/lib/vendure/cms-queries";
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
@@ -222,6 +223,15 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     </Suspense>
                     <CookieConsent config={theme?.cookieConsent} />
                     <ScrollToTop config={theme?.scrollToTop} />
+                    <PushPermissionManager
+                        authToken={(customer as any)?.authToken}
+                        userId={String((customer as any)?.userId || '')}
+                        shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
+                        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
+                        delaySeconds={theme?.pushNotificationDelay}
+                        maxPerDay={theme?.pushNotificationMaxPerDay}
+                        intervalMinutes={theme?.pushNotificationInterval}
+                    />
                 </MobileMenuProvider>
                 </ThemeProvider>
             </NextThemesProvider>

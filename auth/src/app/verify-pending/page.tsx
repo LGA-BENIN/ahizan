@@ -1,13 +1,15 @@
 import { getUrlContext } from '@/lib/url-utils';
+import { VerifyPendingButton } from './verify-pending-button';
 
 export default async function VerifyPendingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; redirectTo?: string }>;
+  searchParams: Promise<{ role?: string; redirectTo?: string; email?: string }>;
 }) {
   const resolvedParams = await searchParams;
   const { storefrontUrl, sellerUrl } = await getUrlContext();
   const isVendor = resolvedParams.role === 'vendor';
+  const email = resolvedParams.email || '';
 
   const continueUrl = isVendor ? `${sellerUrl}/onboarding` : (resolvedParams.redirectTo || storefrontUrl);
 
@@ -52,7 +54,7 @@ export default async function VerifyPendingPage({
               Nous avons envoyé un lien de confirmation à votre adresse e-mail. Veuillez vérifier votre boîte de réception (et votre dossier spams) puis cliquer sur le lien pour activer votre compte.
             </p>
 
-            <div className="p-4 bg-surface-light rounded-xl border border-border/40 text-sm text-on-surface-variant mb-8">
+            <div className="p-4 bg-surface-light rounded-xl border border-border/40 text-sm text-on-surface-variant mb-8 animate-pulse">
               {isVendor ? (
                 <span>Une fois vérifié, vous pourrez soumettre les informations de votre boutique.</span>
               ) : (
@@ -60,12 +62,7 @@ export default async function VerifyPendingPage({
               )}
             </div>
 
-            <a
-              href={continueUrl}
-              className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-label-lg text-label-lg rounded-xl flex items-center justify-center shadow-md transition-all cursor-pointer"
-            >
-              J'ai vérifié mon e-mail, continuer
-            </a>
+            <VerifyPendingButton email={email} continueUrl={continueUrl} />
 
             <div className="mt-6">
               <a href="/sign-in" className="text-sm text-on-surface-variant hover:text-primary underline">

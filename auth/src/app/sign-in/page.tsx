@@ -24,18 +24,11 @@ export default async function Page({
       const vendor = profileResult.data?.myVendorProfile;
 
       if (vendor) {
-        if (vendor.status === 'PENDING') {
-          redirect(`${sellerUrl}/pending`);
-        } else if (vendor.status === 'REJECTED') {
-          redirect(`${sellerUrl}/rejected`);
-        } else {
-          redirect('/select-role');
-        }
+        // Redirige vers la page de choix du portail si l'utilisateur a un profil vendeur
+        redirect('/select-role');
       } else {
-        if (redirectTo && !redirectTo.includes('seller')) {
-          redirect(redirectTo);
-        }
-        redirect(storefrontUrl);
+        // Si l'utilisateur est uniquement acheteur, on ne le redirige pas automatiquement.
+        // On le laisse voir le formulaire de connexion (par exemple pour se connecter avec un autre compte).
       }
     } catch (e) {
       // CRITICAL: Next.js redirect() works by throwing a special NEXT_REDIRECT error.

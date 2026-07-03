@@ -153,7 +153,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     })
                     .catch(err => {
                         console.error('Fetch error:', err);
-                        setErrorMsg(err.message);
+                        setErrorMsg('Connexion instable. Veuillez vérifier votre connexion internet et actualiser la page.');
                         return [];
                     });
                 } else {
@@ -253,7 +253,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             })
             .catch(err => { 
                 console.error(`Fetch error for flash sale ${activeFlashObj.id}:`, err); 
-                setErrorMsg(err.message);
+                setErrorMsg('Connexion instable. Veuillez vérifier votre connexion internet et actualiser la page.');
                 setLoading(false); 
             });
 
@@ -451,7 +451,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             >
                 {errorMsg && (
                     <div className="w-full flex-shrink-0 text-center py-8 text-red-500 font-bold text-sm">
-                        Erreur de chargement: {errorMsg}
+                        {errorMsg}
                     </div>
                 )}
                 {flashProducts.length === 0 && !loading && !errorMsg && (

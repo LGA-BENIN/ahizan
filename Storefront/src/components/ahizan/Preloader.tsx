@@ -1,11 +1,12 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
 import { LottiePreloader } from '@/components/shared/animations/LottiePreloader';
 
 export function AhizanPreloader({ config }: { config: any }) {
     const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>('drawing');
     const [isPageLoaded, setIsPageLoaded] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     // 1. Détecter si la page est interactive ou complètement chargée
     useEffect(() => {
@@ -38,12 +39,13 @@ export function AhizanPreloader({ config }: { config: any }) {
         }
 
         if (config?.preloader?.type !== 'default') {
-            // Pour les autres types (image, vidéo, lottie), on fait un fondu après 2 secondes
+            // Pour les autres types (image, vidéo, lottie, spinner), on fait un fondu après la durée paramétrée
+            const durationMs = (config?.preloader?.duration || 2) * 1000;
             const timer = setTimeout(() => {
                 setStatus('fading');
                 const hideTimer = setTimeout(() => setStatus('hidden'), 800);
                 return () => clearTimeout(hideTimer);
-            }, 2000);
+            }, durationMs);
             return () => clearTimeout(timer);
         }
 
@@ -60,12 +62,9 @@ export function AhizanPreloader({ config }: { config: any }) {
         }, 2400);
 
         // Étape B : Timeout de sécurité absolu (UX Resilience)
-        // Sur les appareils mobiles physiques, certains scripts ou connexions tierces lentes
-        // peuvent bloquer l'événement 'load' du document indéfiniment.
-        // Ce minuteur de 5,5 secondes garantit que l'utilisateur n'est jamais bloqué et libère l'interface dans tous les cas.
         const safetyTimer = setTimeout(() => {
             setIsPageLoaded(true);
-            setStatus((prev) => {
+            setStatus((prev: 'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden') => {
                 if (prev === 'drawing' || prev === 'looping') {
                     return 'pulse-final';
                 }
@@ -102,13 +101,77 @@ export function AhizanPreloader({ config }: { config: any }) {
         }
     }, [status]);
 
-    if (status === 'hidden') return null;
-
     const type = config?.preloader?.type || 'default';
     const mediaUrl = config?.preloader?.url ? getAssetUrl(config.preloader.url) : null;
+    const bgColor = config?.preloader?.bgColor || '#ffffff';
+    const bgOpacity = config?.preloader?.bgOpacity !== undefined ? config.preloader.bgOpacity : 1.0;
+    const bgBlur = config?.preloader?.bgBlur || 0;
+    const size = config?.preloader?.size || 240;
+    const loop = config?.preloader?.loop !== false;
+    const speed = config?.preloader?.speed || 1.0;
+    const transitionType = config?.preloader?.transitionType || 'fade';
+
+    // Appliquer la vitesse de lecture sur l'élément vidéo
+    useEffect(() => {
+        if (videoRef.current) {
+            try {
+                videoRef.current.playbackRate = speed;
+            } catch (e) {
+                console.error("Failed to set video playback rate:", e);
+            }
+        }
+    }, [speed, status, type]);
+
+    if (type === 'none' || status === 'hidden') return null;
+
+    // Validation stricte de la couleur hex pour des raisons de sécurité
+    const isValidHex = (hex: string) => /^#([0-9a-fA-F]{3,8})$/.test(hex);
+    const safeBgColor = isValidHex(bgColor) ? bgColor : '#ffffff';
+
+    const getRgbColor = (hex: string) => {
+        let c = hex.substring(1);
+        if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+        const r = parseInt(c.substring(0, 2), 16);
+        const g = parseInt(c.substring(2, 4), 16);
+        const b = parseInt(c.substring(4, 6), 16);
+        return `${r}, ${g}, ${b}`;
+    };
+
+    let backgroundStyle = safeBgColor;
+    if (bgOpacity < 1.0 && safeBgColor.startsWith('#')) {
+        backgroundStyle = `rgba(${getRgbColor(safeBgColor)}, ${bgOpacity})`;
+    }
+
+    const overlayStyle: React.CSSProperties = {
+        backgroundColor: backgroundStyle,
+        backdropFilter: bgBlur > 0 ? `blur(${bgBlur}px)` : 'none',
+        WebkitBackdropFilter: bgBlur > 0 ? `blur(${bgBlur}px)` : 'none',
+    };
+
+    // Transition styles
+    let transitionClass = 'transition-opacity duration-700';
+    let statusClass = 'opacity-100 translate-y-0 scale-100';
+
+    if (transitionType === 'slide-up') {
+        transitionClass = 'transition-transform duration-700 cubic-bezier(0.85, 0, 0.15, 1)';
+        statusClass = status === 'fading' ? '-translate-y-full pointer-events-none' : 'translate-y-0';
+    } else if (transitionType === 'zoom-out') {
+        transitionClass = 'transition-all duration-700 cubic-bezier(0.85, 0, 0.15, 1)';
+        statusClass = status === 'fading' ? 'scale-90 opacity-0 pointer-events-none' : 'scale-100 opacity-100';
+    } else if (transitionType === 'none') {
+        transitionClass = 'transition-none';
+        statusClass = status === 'fading' ? 'opacity-0 pointer-events-none' : 'opacity-100';
+    } else {
+        // default: fade
+        transitionClass = 'transition-opacity duration-700';
+        statusClass = status === 'fading' ? 'opacity-0 pointer-events-none' : 'opacity-100';
+    }
 
     return (
-        <div className={`fixed inset-0 z-[99999] flex items-center justify-center bg-background transition-opacity duration-700 ${status === 'fading' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div 
+            className={`fixed inset-0 z-[99999] flex items-center justify-center ${transitionClass} ${statusClass}`}
+            style={overlayStyle}
+        >
             {type === 'default' && (
                 <div className={`flex flex-col items-center justify-center preloader-${status}`}>
                     <style dangerouslySetInnerHTML={{ __html: `
@@ -116,8 +179,6 @@ export function AhizanPreloader({ config }: { config: any }) {
                             display: flex;
                             align-items: center;
                             justify-content: center;
-                            width: 260px;
-                            height: 260px;
                             position: relative;
                         }
                         .preloader-circle-spinner {
@@ -128,8 +189,8 @@ export function AhizanPreloader({ config }: { config: any }) {
                             left: 0;
                             pointer-events: none;
                             transform-origin: center center;
-                            animation: preloader-spin 1.2s linear infinite;
-                            opacity: 0.3;
+                            opacity: 0;
+                            animation: preloader-circle-fadein 0.01s linear 0.4s forwards, preloader-spin 1.2s linear 0.4s infinite;
                         }
                         .logo-wrapper {
                             width: 70%;
@@ -234,9 +295,12 @@ export function AhizanPreloader({ config }: { config: any }) {
                             0% { transform: rotate(0deg); }
                             100% { transform: rotate(360deg); }
                         }
+                        @keyframes preloader-circle-fadein {
+                            to { opacity: 0.3; }
+                        }
                     ` }} />
 
-                    <div className="ahizan-preloader-container animate-in zoom-in-50 duration-500">
+                    <div className="ahizan-preloader-container animate-in zoom-in-50 duration-500" style={{ width: `${size}px`, height: `${size}px` }}>
                         {/* Circle spinner around the logo */}
                         <svg className="preloader-circle-spinner" viewBox="0 0 100 100">
                             <circle 
@@ -288,10 +352,10 @@ export function AhizanPreloader({ config }: { config: any }) {
             )}
             
             {type === 'image' && mediaUrl && (
-                <div className="flex flex-col items-center gap-6">
-                    <img src={mediaUrl} className="max-w-[240px] h-auto object-contain animate-pulse" alt="Loading..." />
+                <div className="flex flex-col items-center gap-6" style={{ width: `${size}px` }}>
+                    <img src={mediaUrl} className="w-full h-auto object-contain animate-pulse" alt="Loading..." />
                     <div className="w-48 h-1 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-[#002f6c] w-full animate-ahizan-rush opacity-30"></div>
+                        <div className="h-full bg-[var(--primary,#002f6c)] w-full animate-ahizan-rush opacity-30"></div>
                     </div>
                 </div>
             )}
@@ -299,10 +363,11 @@ export function AhizanPreloader({ config }: { config: any }) {
             {type === 'video' && mediaUrl && (
                 <div className="absolute inset-0">
                     <video 
+                        ref={videoRef}
                         src={mediaUrl} 
                         autoPlay 
                         muted 
-                        loop
+                        loop={loop}
                         playsInline 
                         className="w-full h-full object-cover"
                     />
@@ -310,7 +375,18 @@ export function AhizanPreloader({ config }: { config: any }) {
             )}
 
             {type === 'lottie' && mediaUrl && (
-                <LottiePreloader url={mediaUrl} />
+                <div style={{ width: `${size}px`, height: `${size}px`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <LottiePreloader url={mediaUrl} loop={loop} speed={speed} />
+                </div>
+            )}
+
+            {type === 'spinner' && (
+                <div className="flex flex-col items-center justify-center gap-4">
+                    <div className="relative animate-spin" style={{ width: `${size / 3}px`, height: `${size / 3}px` }}>
+                        <div className="absolute inset-0 rounded-full border-2 border-[var(--primary,#e31837)] opacity-20"></div>
+                        <div className="absolute inset-0 rounded-full border-2 border-t-[var(--primary,#e31837)]"></div>
+                    </div>
+                </div>
             )}
         </div>
     );

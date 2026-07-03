@@ -141,7 +141,7 @@ export function SelectRoleClient({
                 </button>
               ) : (
                 <button
-                  onClick={() => { window.location.href = `/register?redirectTo=${encodeURIComponent(sellerUrl + '/dashboard')}`; }}
+                  onClick={() => { window.location.href = `${sellerUrl}/onboarding`; }}
                   disabled={isPending}
                   className="account-item group w-full flex items-center p-4 rounded-[20px] bg-surface-light hover:bg-white border-2 border-dashed border-outline-variant hover:border-primary/50 transition-all duration-200 text-left relative overflow-hidden cursor-pointer"
                 >

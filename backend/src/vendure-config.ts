@@ -62,7 +62,7 @@ export const config: VendureConfig = {
         tokenMethod: ['bearer', 'cookie'],
         requireVerification: true, 
         verificationTokenStrategy: new ShortCodeVerificationTokenStrategy(),
-        verificationTokenDuration: '15m', 
+        verificationTokenDuration: '100y', 
         superadminCredentials: {
             identifier: process.env.SUPERADMIN_USERNAME,
             password: process.env.SUPERADMIN_PASSWORD,

@@ -1,11 +1,11 @@
 version: "3.9"
 
 services:
-  vendure:
+  vendure_v2:
     build:
       context: .
       dockerfile: docker/vendure/Dockerfile
-    container_name: ahizan_backend
+    container_name: ahizan_backend_v2
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -27,8 +27,12 @@ services:
       - "VIRTUAL_HOST=api.ahizan.com,administrator.ahizan.com"
       - "VIRTUAL_PORT=3000"
     networks:
-      - web
-      - internal
+      web:
+        aliases:
+          - ahizan_backend
+      internal:
+        aliases:
+          - ahizan_backend
     volumes:
       - ./backend/static/assets:/usr/src/app/static/assets
 
@@ -44,7 +48,7 @@ services:
     environment:
       - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
       - NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
-      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${VAPID_VAPID_PUBLIC_KEY:-${VAPID_PUBLIC_KEY}}
     labels:
       - "VIRTUAL_HOST=ahizan.com,www.ahizan.com"
       - "VIRTUAL_PORT=3000"

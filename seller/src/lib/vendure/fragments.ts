@@ -29,5 +29,6 @@ export const ActiveCustomerFragment = graphql(`
         firstName
         lastName
         emailAddress
+        phoneNumber
     }
 `);

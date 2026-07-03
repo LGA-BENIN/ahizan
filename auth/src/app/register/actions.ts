@@ -109,6 +109,12 @@ export async function registerVendorAction(formData: FormData) {
                 phoneNumber: formatPhoneE164(cleanPhoneVendor),
                 password,
             }
+        }, {
+            fetch: {
+                headers: {
+                    'x-ahizan-registration-role': 'vendor'
+                }
+            }
         });
 
         const regData = registerResult.data.registerCustomerAccount;

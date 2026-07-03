@@ -107,6 +107,39 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             };
             modified = true;
         }
+        if (!channelsConfig.SellerAccountVerification) {
+            this.logger.log('Initializing default SellerAccountVerification configuration...');
+            channelsConfig.SellerAccountVerification = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Bienvenue sur Ahizan Seller - Vérifiez votre adresse e-mail',
+                emailTemplate: 'Bonjour {{ firstName }},\n\nMerci de vous être inscrit en tant que vendeur sur Ahizan. Pour finaliser votre inscription et configurer votre boutique, veuillez vérifier votre adresse e-mail en cliquant sur le lien ci-dessous :\n\n{{ verificationLink }}\n\nOu utilisez votre code de confirmation : {{ verificationToken }}\n\nÀ bientôt !',
+                smsTemplate: 'Ahizan Seller: Vérifiez votre compte sur {{ verificationLink }}'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.VendorApproved) {
+            this.logger.log('Initializing default VendorApproved configuration...');
+            channelsConfig.VendorApproved = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Votre boutique a été approuvée - Ahizan',
+                emailTemplate: 'Bonjour {{ name }},\n\nFélicitations ! Votre demande d\'inscription pour la boutique "{{ businessName }}" a été approuvée par nos administrateurs.\n\nVous pouvez maintenant vous connecter à votre espace vendeur pour commencer à vendre vos produits :\n\nhttps://seller.ahizan.com/dashboard\n\nÀ bientôt,\nL\'équipe Ahizan',
+                smsTemplate: 'Ahizan: Félicitations ! Votre boutique {{ businessName }} a été approuvée.'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.VendorRejected) {
+            this.logger.log('Initializing default VendorRejected configuration...');
+            channelsConfig.VendorRejected = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Mise à jour concernant votre inscription Vendeur - Ahizan',
+                emailTemplate: 'Bonjour {{ name }},\n\nNous avons examiné votre demande d\'inscription pour la boutique "{{ businessName }}". Malheureusement, celle-ci n\'a pas pu être acceptée pour le motif suivant :\n\n{{ rejectionReason }}\n\nSi vous souhaitez corriger ces informations, vous pouvez vous reconnecter sur votre portail vendeur pour soumettre à nouveau votre dossier.\n\nÀ bientôt,\nL\'équipe Ahizan',
+                smsTemplate: 'Ahizan: Votre demande de boutique {{ businessName }} a été rejetée. Motif: {{ rejectionReason }}'
+            };
+            modified = true;
+        }
         if (modified) {
             await this.smsService.saveSettings({ channelsConfig });
         }
@@ -650,11 +683,19 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             const settings = await this.smsService.getSettings();
             if (!settings?.channelsConfig) return;
 
-            const config = settings.channelsConfig?.BuyerRegistration;
-            if (!config?.enabled) return;
-
             const { ctx, user } = event;
             if (!user) return;
+
+            // Check if the user is registering as a vendor/seller to load the appropriate config and verification link
+            const req = ctx.req;
+            const registrationRole = req?.get?.('x-ahizan-registration-role') || req?.headers?.['x-ahizan-registration-role'];
+            const isSeller = registrationRole === 'vendor';
+
+            const config = isSeller
+                ? settings.channelsConfig?.SellerAccountVerification
+                : settings.channelsConfig?.BuyerRegistration;
+
+            if (!config?.enabled) return;
 
             const email = user.identifier;
             let firstName = '';
@@ -686,10 +727,12 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 lastName,
                 email,
                 verificationToken: token,
-                verificationLink: `https://ahizan.com/verify?token=${token}`,
+                verificationLink: isSeller 
+                    ? `https://seller.ahizan.com/verify?token=${token}` 
+                    : `https://ahizan.com/verify?token=${token}`,
             };
 
-            this.logger.log(`Buyer registration event for ${email}`);
+            this.logger.log(`${isSeller ? 'Seller' : 'Buyer'} registration event for ${email}`);
 
             if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
                 const content = this.smsService.interpolate(config.smsTemplate, vars);

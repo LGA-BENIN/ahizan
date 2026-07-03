@@ -22,24 +22,31 @@ export class ShortCodeVerificationTokenStrategy implements VerificationTokenStra
      */
     async verifyVerificationToken(ctx: RequestContext, token: string): Promise<boolean> {
         // Find the user associated with this token
-        // Use TypeORM directly to find the auth method by token
-        const authMethod = await this.connection.getRepository(ctx, NativeAuthenticationMethod).findOne({
-            where: { passwordResetToken: token },
+        // Look up by verificationToken first, and fallback to passwordResetToken
+        let authMethod = await this.connection.getRepository(ctx, NativeAuthenticationMethod).findOne({
+            where: { verificationToken: token },
             relations: ['user'],
         });
+
+        if (!authMethod) {
+            authMethod = await this.connection.getRepository(ctx, NativeAuthenticationMethod).findOne({
+                where: { passwordResetToken: token },
+                relations: ['user'],
+            });
+        }
 
         if (!authMethod || !authMethod.user) {
             return false;
         }
 
+        // Check if there is an expiration custom field, otherwise fall back to true (Vendure core checks duration)
         const expiresAt = (authMethod.user.customFields as any).passwordResetCodeExpiresAt;
-        if (!expiresAt) {
-            return false;
+        if (expiresAt) {
+            const now = new Date();
+            const isExpired = now > new Date(expiresAt);
+            return !isExpired;
         }
 
-        const now = new Date();
-        const isExpired = now > new Date(expiresAt);
-
-        return !isExpired;
+        return true;
     }
 }

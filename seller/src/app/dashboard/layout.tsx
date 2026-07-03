@@ -1,8 +1,9 @@
+import React, { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
-import { Suspense } from "react";
 import { getMyVendorProfile } from "@/lib/vendure/actions";
 import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from 'next/cache';
+import { AhizanPreloader } from "@/components/shared/Preloader";
 
 const VENDURE_API_URL = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://localhost:3000/shop-api';
 
@@ -26,62 +27,11 @@ async function getSellerDashboardConfig(): Promise<{ walletPageEnabled: boolean 
 function DashboardLoading() {
     return (
         <div className="flex items-center justify-center h-screen bg-background">
-            <div className="flex items-center justify-center" style={{ width: '260px', height: '260px', position: 'relative' }}>
-                {/* Circle spinner around the logo */}
-                <svg className="preloader-circle-spinner" viewBox="0 0 100 100" style={{
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    top: 0,
-                    left: 0,
-                    pointerEvents: 'none',
-                    transformOrigin: 'center center',
-                    animation: 'preloader-spin 1.2s linear infinite',
-                    opacity: 0.3
-                }}>
-                    <circle 
-                        cx="50" 
-                        cy="50" 
-                        r="46" 
-                        fill="none" 
-                        stroke="#E31E24" 
-                        strokeWidth="0.6" 
-                        strokeDasharray="132 12"
-                        strokeLinecap="round"
-                    />
-                </svg>
-                {/* Wrapper for robust animations */}
-                <div style={{
-                    width: '70%',
-                    height: '70%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transformOrigin: 'center center',
-                    position: 'relative',
-                    zIndex: 10,
-                    animation: 'fallback-pulse 1.6s ease-in-out infinite'
-                }}>
-                    <img 
-                        src="/logo-ahizan-official.svg" 
-                        alt="Ahizan Logo" 
-                        style={{ 
-                            width: '100%', 
-                            height: '100%'
-                        }} 
-                    />
+            <div className="flex flex-col items-center justify-center gap-4">
+                <div className="relative animate-spin" style={{ width: '50px', height: '50px' }}>
+                    <div className="absolute inset-0 rounded-full border-2 border-primary/20"></div>
+                    <div className="absolute inset-0 rounded-full border-2 border-t-primary"></div>
                 </div>
-                <style dangerouslySetInnerHTML={{ __html: `
-                    @keyframes fallback-pulse {
-                        0% { transform: scale(1); opacity: 0.9; }
-                        50% { transform: scale(1.03); opacity: 1; filter: drop-shadow(0 0 12px rgba(227, 30, 36, 0.2)); }
-                        100% { transform: scale(1); opacity: 0.9; }
-                    }
-                    @keyframes preloader-spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                ` }} />
             </div>
         </div>
     );
@@ -111,6 +61,15 @@ async function DashboardContentWrapper({ children }: { children: React.ReactNode
 
     return (
         <DashboardLayout vendor={vendor} dashboardConfig={dashboardConfig}>
+            {/* Preload the static Lottie JSON preloader file */}
+            <link 
+                rel="preload" 
+                href="/preloader.json" 
+                as="fetch" 
+                type="application/json"
+                crossOrigin="anonymous"
+            />
+            <AhizanPreloader />
             <DashboardProtection profile={vendor} />
             {children}
         </DashboardLayout>

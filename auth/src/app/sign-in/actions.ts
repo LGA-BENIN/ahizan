@@ -30,36 +30,8 @@ export async function loginAction(formData: FormData) {
             await setAuthToken(result.token);
         }
 
-        // 3. Détermination de la redirection
-        let redirectUrl = '';
-        const { storefrontUrl, sellerUrl, useProdUrls } = await getUrlContext();
-
-        let vendor = null;
-        try {
-            const profileResult = await query(GetMyVendorProfileQuery, {}, { token: result.token });
-            vendor = profileResult.data?.myVendorProfile;
-        } catch (err) {
-            console.warn('Could not verify vendor profile during loginAction:', err);
-        }
-
-        if (vendor) {
-            if (vendor.status === 'PENDING') {
-                redirectUrl = `${sellerUrl}/pending`;
-            } else if (vendor.status === 'REJECTED') {
-                redirectUrl = `${sellerUrl}/rejected`;
-            } else {
-                // Compte vendeur existant -> Page de choix de compte
-                redirectUrl = '/select-role';
-            }
-        } else {
-            // Uniquement un compte acheteur -> Storefront
-            if (redirectTo && redirectTo.startsWith('http') && !redirectTo.includes('seller')) {
-                redirectUrl = sanitizeRedirectUrl(redirectTo, useProdUrls) || redirectTo;
-            } else {
-                redirectUrl = storefrontUrl;
-            }
-        }
-
+        // 3. Redirection systématique de tous les utilisateurs connectés vers /select-role
+        const redirectUrl = '/select-role';
         return { success: true, redirectUrl };
     } catch (e: any) {
         console.error('Login action error:', e);

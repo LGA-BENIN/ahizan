@@ -274,6 +274,14 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                                 }
 
                                 // Inputs classiques (texte, nombre)
+                                const getDefaultValue = (fieldName: string) => {
+                                    if (fieldName === 'email') return customer?.emailAddress || '';
+                                    if (fieldName === 'firstName') return customer?.firstName || '';
+                                    if (fieldName === 'lastName') return customer?.lastName || '';
+                                    if (fieldName === 'phoneNumber') return customer?.phoneNumber || '';
+                                    return '';
+                                };
+
                                 return (
                                     <div key={field.name} className="space-y-2">
                                         <label className="text-sm font-semibold text-foreground">
@@ -284,6 +292,7 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                                             name={inputName}
                                             required={field.required}
                                             disabled={isPending}
+                                            defaultValue={getDefaultValue(field.name)}
                                             placeholder={field.placeholder || `Entrez le/la ${field.label.toLowerCase()}`}
                                         />
                                         {field.description && <p className="text-xs text-muted-foreground mt-1">{field.description}</p>}

@@ -83,11 +83,18 @@ ${shopApiExtensions}
             // FIX: évite push sur undefined
         }
 
+        // Helper to push only if not already present by name
+        const pushUnique = (array: any[], field: any) => {
+            if (!array.some((f: any) => f.name === field.name)) {
+                array.push(field);
+            }
+        };
+
         // ---------------------------
         // PRODUCT CUSTOM FIELDS
         // ---------------------------
 
-        config.customFields.Product.push({
+        pushUnique(config.customFields.Product, {
             name: 'vendor',
             type: 'relation',
             entity: Vendor,
@@ -97,7 +104,7 @@ ${shopApiExtensions}
             ui: { component: 'vendor-selector' },
         });
 
-        config.customFields.Product.push({
+        pushUnique(config.customFields.Product, {
             name: 'approvalStatus',
             type: 'string',
             public: true,
@@ -111,7 +118,7 @@ ${shopApiExtensions}
             label: [{ languageCode: 'fr' as any, value: 'Statut de validation' }],
         });
 
-        config.customFields.Product.push({
+        pushUnique(config.customFields.Product, {
             name: 'rejectionReason',
             type: 'string',
             public: true,
@@ -123,7 +130,7 @@ ${shopApiExtensions}
         // ORDER CUSTOM FIELDS
         // ---------------------------
 
-        config.customFields.Order.push({
+        pushUnique(config.customFields.Order, {
             name: 'vendor',
             type: 'relation',
             entity: Vendor,
@@ -131,14 +138,14 @@ ${shopApiExtensions}
             nullable: true,
         });
 
-        config.customFields.Order.push({
+        pushUnique(config.customFields.Order, {
             name: 'commissionAmount',
             type: 'int',
             public: false,
             nullable: true,
         });
 
-        config.customFields.Order.push({
+        pushUnique(config.customFields.Order, {
             name: 'sellerStatus',
             type: 'string',
             public: true,
@@ -152,7 +159,7 @@ ${shopApiExtensions}
             readonly: true,
         });
 
-        config.customFields.Order.push({
+        pushUnique(config.customFields.Order, {
             name: 'adminStatus',
             type: 'string',
             public: true,
@@ -185,12 +192,14 @@ ${shopApiExtensions}
             // Empêche crash silencieux si customPermissions non initialisé
         }
 
-        config.authOptions.customPermissions.push(
-            new PermissionDefinition({
-                name: 'Vendor',
-                description: 'manage vendors',
-            })
-        );
+        if (!config.authOptions.customPermissions.some((p: any) => p.name === 'Vendor')) {
+            config.authOptions.customPermissions.push(
+                new PermissionDefinition({
+                    name: 'Vendor',
+                    description: 'manage vendors',
+                })
+            );
+        }
 
         return config;
     },

@@ -18,15 +18,7 @@ runMigrations(config)
         emailSenderNode.setDataSource(dataSource);
         console.log('Dynamic Email Sender successfully hooked into DB.');
 
-        // Start job queue processing inside the main server process so verification emails are sent immediately
-        try {
-            const worker = await bootstrapWorker(config);
-            workerInstance = worker;
-            await worker.startJobQueue();
-            console.log('Vendure Job Queue Worker started successfully.');
-        } catch (workerErr) {
-            console.error('Error starting Vendure Job Queue Worker:', workerErr);
-        }
+
     })
     .catch(err => {
         console.log(err);

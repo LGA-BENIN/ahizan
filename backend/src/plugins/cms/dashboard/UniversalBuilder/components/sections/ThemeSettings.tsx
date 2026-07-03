@@ -51,7 +51,7 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
             enableAnimations: true,
             enableHoverEffects: true,
             enableSmoothScroll: true,
-            preloader: { type: 'default', url: '', bgColor: '#ffffff', duration: 2 },
+            preloader: { type: 'default', url: '', bgColor: '#ffffff', duration: 2, bgOpacity: 1.0, bgBlur: 0, size: 240, loop: true, speed: 1.0, transitionType: 'fade' },
             scrollToTop: { enabled: true, style: 'circle', color: '#0f172a' },
             favicon: '',
             defaultProductImage: '',
@@ -372,6 +372,8 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                             <option value="default">✨ Défaut Ahizan</option>
                             <option value="image">📷 Image personnalisée / GIF</option>
                             <option value="video">🎥 Intro Vidéo</option>
+                            <option value="lottie">🎨 Animation Lottie (JSON)</option>
+                            <option value="spinner">🔄 Spinner CSS minimaliste</option>
                             <option value="none">🚫 Aucun</option>
                         </select>
                     </div>
@@ -383,16 +385,76 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
                         </div>
                     </div>
                 </div>
-                {config.preloader?.type !== 'none' && config.preloader?.type !== 'default' && (
+
+                <div className="grid-2" style={{ marginTop: '1rem' }}>
+                    <div>
+                        <label className="label-pro">Opacité du fond ({Math.round((config.preloader?.bgOpacity ?? 1) * 100)}%)</label>
+                        <input type="range" className="range-pro" min="0.1" max="1" step="0.05" value={config.preloader?.bgOpacity ?? 1} onChange={(e) => handleNestedChange('preloader', 'bgOpacity', parseFloat(e.target.value))} />
+                    </div>
+                    <div>
+                        <label className="label-pro">Flou de l'arrière-plan ({config.preloader?.bgBlur || 0}px)</label>
+                        <input type="range" className="range-pro" min="0" max="24" step="1" value={config.preloader?.bgBlur || 0} onChange={(e) => handleNestedChange('preloader', 'bgBlur', parseInt(e.target.value))} />
+                    </div>
+                </div>
+
+                {config.preloader?.type !== 'none' && config.preloader?.type !== 'default' && config.preloader?.type !== 'spinner' && (
                     <div style={{ marginTop: '1rem' }}>
-                        <label className="label-pro">URL du média</label>
-                        <input className="input-pro" value={config.preloader?.url} onChange={(e) => handleNestedChange('preloader', 'url', e.target.value)} placeholder="https://..." />
+                        <FileUploadField 
+                            label="Média du préchargeur" 
+                            value={config.preloader?.url || ''} 
+                            onChange={(url) => handleNestedChange('preloader', 'url', url)} 
+                            accept={
+                                config.preloader?.type === 'image' ? 'image/*,image/gif' : 
+                                config.preloader?.type === 'video' ? 'video/mp4,video/webm' : 
+                                'application/json,.json,.lottie'
+                            }
+                            placeholder="Sélectionner ou saisir l'URL du fichier"
+                        />
                     </div>
                 )}
-                <div style={{ marginTop: '1rem' }}>
-                    <label className="label-pro">Durée (secondes) : {config.preloader?.duration || 2}s</label>
-                    <input type="range" className="range-pro" min="1" max="8" step="0.5" value={config.preloader?.duration || 2} onChange={(e) => handleNestedChange('preloader', 'duration', parseFloat(e.target.value))} />
+
+                {config.preloader?.type !== 'none' && (
+                    <div style={{ marginTop: '1rem' }}>
+                        <label className="label-pro">Taille du préchargeur : {config.preloader?.size || 240}px</label>
+                        <input type="range" className="range-pro" min="80" max="500" step="10" value={config.preloader?.size || 240} onChange={(e) => handleNestedChange('preloader', 'size', parseInt(e.target.value))} />
+                    </div>
+                )}
+
+                <div className="grid-2" style={{ marginTop: '1rem' }}>
+                    <div>
+                        <label className="label-pro">Effet de transition</label>
+                        <select className="input-pro" value={config.preloader?.transitionType || 'fade'} onChange={(e) => handleNestedChange('preloader', 'transitionType', e.target.value)}>
+                            <option value="fade">Fondu (Default)</option>
+                            <option value="slide-up">Glissement vers le haut</option>
+                            <option value="zoom-out">Zoom arrière</option>
+                            <option value="none">Aucun</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Durée (secondes) : {config.preloader?.duration || 2}s</label>
+                        <input type="range" className="range-pro" min="1" max="8" step="0.5" value={config.preloader?.duration || 2} onChange={(e) => handleNestedChange('preloader', 'duration', parseFloat(e.target.value))} />
+                    </div>
                 </div>
+
+                {(config.preloader?.type === 'video' || config.preloader?.type === 'lottie') && (
+                    <div className="grid-2" style={{ marginTop: '1rem' }}>
+                        <div>
+                            <label className="label-pro">Vitesse de lecture</label>
+                            <select className="input-pro" value={config.preloader?.speed || 1} onChange={(e) => handleNestedChange('preloader', 'speed', parseFloat(e.target.value))}>
+                                <option value="0.5">0.5x (Lent)</option>
+                                <option value="1">1.0x (Normal)</option>
+                                <option value="1.5">1.5x (Rapide)</option>
+                                <option value="2">2.0x (Très rapide)</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '1.5rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={config.preloader?.loop !== false} onChange={(e) => handleNestedChange('preloader', 'loop', e.target.checked)} />
+                                Répéter en boucle (Loop)
+                            </label>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ===== PROMOTION SETTINGS ===== */}

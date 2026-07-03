@@ -50,13 +50,20 @@ export async function generateMetadata(): Promise<Metadata> {
     return {};
 }
 
-async function DynamicBranding({ children }: { children: React.ReactNode }) {
-
-    const homePage = await getPageContent('home');
-    const sections = homePage?.sections || [];
+// 1. Separate component for user-dependent/slow session queries
+async function StorefrontMainContent({ 
+    theme, 
+    sections, 
+    children 
+}: { 
+    theme: ThemeSettingsData | undefined, 
+    sections: any[], 
+    children: React.ReactNode 
+}) {
     const footer = sections.find(s => s.type === 'FOOTER_CONF')?.data as FooterConfData;
 
-    // Because of 'use cache: private', this will now safely wait for a real user request!
+    // These queries are dynamic and session-dependent, meaning they will block rendering of this component.
+    // However, because this component is placed inside a Suspense boundary, it won't block the preloader or initial HTML stream!
     const [customer, order, collectionsTree] = await Promise.all([
         getActiveCustomer(),
         getActiveOrder(),
@@ -77,7 +84,6 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
         }))
     }));
 
-    const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
     const flashSection = sections.find(s => s.type === 'FLASH_SALE')?.data;
     let activeFlash = null;
     if (flashSection) {
@@ -88,15 +94,64 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
         }
     }
 
-    let bgType = 'color';
-    let bgValue = '#ffffff';
+    const headerConfig = sections.find(s => s.type === 'HEADER_CONF')?.data as HeaderConfData;
 
-    if (theme?.backgroundType) {
-        bgType = theme.backgroundType;
-        if (bgType === 'color') bgValue = theme.backgroundColor || '#ffffff';
-        else if (bgType === 'image') bgValue = theme.backgroundImageUrl || '';
-        else if (bgType === 'video') bgValue = theme.backgroundVideoUrl || '';
-    }
+    return (
+        <ThemeProvider themeSettings={{
+            defaultProductImage: theme?.defaultProductImage,
+            applyFlashPromoToProducts: (theme as any)?.applyFlashPromoToProducts === true,
+            applyFlashPromoToCollections: (theme as any)?.applyFlashPromoToCollections === true,
+            activeFlashSale: activeFlash
+        }}>
+            <MobileMenuProvider>
+                <MobileMenuHeader>
+                    <HeaderWrapper config={headerConfig}>
+                        <TopFlashBanner config={headerConfig?.topBar} />
+                        <AhizanNavbar
+                            config={headerConfig}
+                            customer={customer}
+                            order={order}
+                        />
+                    </HeaderWrapper>
+                </MobileMenuHeader>
+
+                {/* Global mobile category sidebar - available on all pages */}
+                <MobileCategorySidebar categories={collections} />
+
+                <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
+                    {children}
+                </main>
+
+                {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
+                    <MobileBottomNav config={headerConfig} customer={customer} order={order} />
+                )}
+
+                <Footer config={footer} />
+                <Toaster />
+                <Suspense fallback={null}>
+                    <GlobalPopupProvider />
+                </Suspense>
+                <CookieConsent config={theme?.cookieConsent} />
+                <ScrollToTop config={theme?.scrollToTop} />
+                <PushPermissionManager
+                    authToken={(customer as any)?.authToken}
+                    userId={String((customer as any)?.userId || '')}
+                    shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
+                    vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
+                    delaySeconds={theme?.pushNotificationDelay}
+                    maxPerDay={theme?.pushNotificationMaxPerDay}
+                    intervalMinutes={theme?.pushNotificationInterval}
+                />
+            </MobileMenuProvider>
+        </ThemeProvider>
+    );
+}
+
+// 2. The main layout wrapper that renders the preloader and fonts immediately
+export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
+    const homePage = await getPageContent('home');
+    const sections = homePage?.sections || [];
+    const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
 
     const maxW = theme?.layoutMode === 'full' ? '100%' : theme?.layoutMode === 'wide' ? '1440px' : (theme?.maxWidth || '1280px');
 
@@ -112,6 +167,18 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
     const googleFontsUrl = fontsToLoad ? `https://fonts.googleapis.com/css2?${fontsToLoad}&display=swap` : '';
 
     const headerConfig = sections.find(s => s.type === 'HEADER_CONF')?.data as HeaderConfData;
+    const preloaderUrl = theme?.preloader?.url ? getAssetUrl(theme.preloader.url) : null;
+    const preloaderType = theme?.preloader?.type || 'default';
+
+    let bgType = 'color';
+    let bgValue = '#ffffff';
+
+    if (theme?.backgroundType) {
+        bgType = theme.backgroundType;
+        if (bgType === 'color') bgValue = theme.backgroundColor || '#ffffff';
+        else if (bgType === 'image') bgValue = theme.backgroundImageUrl || '';
+        else if (bgType === 'video') bgValue = theme.backgroundVideoUrl || '';
+    }
 
     const themeStyles = {
         '--primary': theme?.primaryColor || "#0f172a",
@@ -146,6 +213,18 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
             className="flex flex-col min-h-screen relative font-sans overflow-x-clip"
             style={themeStyles}
         >
+            {preloaderType === 'default' && (
+                <link rel="preload" href="/logo-ahizan-official.svg" as="image" type="image/svg+xml" />
+            )}
+            {preloaderType !== 'default' && preloaderType !== 'none' && preloaderType !== 'spinner' && preloaderUrl && (
+                <link 
+                    rel="preload" 
+                    href={preloaderUrl} 
+                    as={preloaderType === 'video' ? 'video' : preloaderType === 'lottie' ? 'fetch' : 'image'} 
+                    type={preloaderType === 'video' ? 'video/mp4' : preloaderType === 'lottie' ? 'application/json' : undefined}
+                    crossOrigin={preloaderType === 'lottie' ? 'anonymous' : undefined}
+                />
+            )}
             {googleFontsUrl && (
                 <link rel="stylesheet" href={googleFontsUrl} />
             )}
@@ -161,152 +240,43 @@ async function DynamicBranding({ children }: { children: React.ReactNode }) {
                     font-family: var(--heading-font) !important;
                 }
             ` }} />
+            
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
-                <ThemeProvider themeSettings={{
-                    defaultProductImage: theme?.defaultProductImage,
-                    applyFlashPromoToProducts: (theme as any)?.applyFlashPromoToProducts === true,
-                    applyFlashPromoToCollections: (theme as any)?.applyFlashPromoToCollections === true,
-                    activeFlashSale: activeFlash
-                }}>
-                    <MobileMenuProvider>
-                    <AhizanPreloader config={{ preloader: theme?.preloader }} />
-                    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                        {bgType === 'color' && (
-                            <div className="absolute inset-0" style={{ background: bgValue }} />
-                        )}
-                        {bgType === 'image' && bgValue && (
-                            <div
-                                className="absolute inset-0 bg-cover bg-center bg-fixed"
-                                style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
-                            />
-                        )}
-                        {bgType === 'video' && bgValue && (
-                            <video
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                key={bgValue}
-                                className="absolute min-w-full min-h-full object-cover opacity-60"
-                            >
-                                <source src={getAssetUrl(bgValue)} type="video/mp4" />
-                            </video>
-                        )}
-                    </div>
-
-                    <MobileMenuHeader>
-                        <HeaderWrapper config={headerConfig}>
-                            <TopFlashBanner config={headerConfig?.topBar} />
-                            <AhizanNavbar
-                                config={headerConfig}
-                                customer={customer}
-                                order={order}
-                            />
-                        </HeaderWrapper>
-                    </MobileMenuHeader>
-
-                    {/* Global mobile category sidebar - available on all pages */}
-                    <MobileCategorySidebar categories={collections} />
-
-                    <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
-                        {children}
-                    </main>
-
-                    {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
-                        <MobileBottomNav config={headerConfig} customer={customer} order={order} />
+                {/* Render the Preloader IMMEDIATELY. Since the config is already fetched, it starts animating instantly! */}
+                <AhizanPreloader config={{ preloader: theme?.preloader }} />
+                
+                {/* Background rendering */}
+                <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                    {bgType === 'color' && (
+                        <div className="absolute inset-0" style={{ background: bgValue }} />
                     )}
+                    {bgType === 'image' && bgValue && (
+                        <div
+                            className="absolute inset-0 bg-cover bg-center bg-fixed"
+                            style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
+                        />
+                    )}
+                    {bgType === 'video' && bgValue && (
+                        <video
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            key={bgValue}
+                            className="absolute min-w-full min-h-full object-cover opacity-60"
+                        >
+                            <source src={getAssetUrl(bgValue)} type="video/mp4" />
+                        </video>
+                    )}
+                </div>
 
-                    <Footer config={footer} />
-                    <Toaster />
-                    <Suspense fallback={null}>
-                        <GlobalPopupProvider />
-                    </Suspense>
-                    <CookieConsent config={theme?.cookieConsent} />
-                    <ScrollToTop config={theme?.scrollToTop} />
-                    <PushPermissionManager
-                        authToken={(customer as any)?.authToken}
-                        userId={String((customer as any)?.userId || '')}
-                        shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
-                        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
-                        delaySeconds={theme?.pushNotificationDelay}
-                        maxPerDay={theme?.pushNotificationMaxPerDay}
-                        intervalMinutes={theme?.pushNotificationInterval}
-                    />
-                </MobileMenuProvider>
-                </ThemeProvider>
+                {/* Wrap the slow, dynamic session queries in a Suspense boundary with fallback null */}
+                <Suspense fallback={null}>
+                    <StorefrontMainContent theme={theme} sections={sections}>
+                        {children}
+                    </StorefrontMainContent>
+                </Suspense>
             </NextThemesProvider>
         </div>
-    );
-}
-
-export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
-    return (
-        <Suspense fallback={
-            <div className="flex flex-col min-h-screen relative bg-background">
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-background">
-                    <div className="flex items-center justify-center" style={{ width: '260px', height: '260px', position: 'relative' }}>
-                        {/* Circle spinner around the logo in fallback */}
-                        <svg className="preloader-circle-spinner" viewBox="0 0 100 100" style={{
-                            position: 'absolute',
-                            width: '100%',
-                            height: '100%',
-                            top: 0,
-                            left: 0,
-                            pointerEvents: 'none',
-                            transformOrigin: 'center center',
-                            animation: 'preloader-spin 1.2s linear infinite',
-                            opacity: 0.3
-                        }}>
-                            <circle 
-                                cx="50" 
-                                cy="50" 
-                                r="46" 
-                                fill="none" 
-                                stroke="#E31E24" 
-                                strokeWidth="0.6" 
-                                strokeDasharray="132 12"
-                                strokeLinecap="round"
-                            />
-                        </svg>
-                        {/* Wrapper for robust animations */}
-                        <div style={{
-                            width: '70%',
-                            height: '70%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transformOrigin: 'center center',
-                            position: 'relative',
-                            zIndex: 10,
-                            animation: 'fallback-pulse 1.6s ease-in-out infinite'
-                        }}>
-                            <img 
-                                src="/logo-ahizan-official.svg" 
-                                alt="Ahizan Logo" 
-                                style={{ 
-                                    width: '100%', 
-                                    height: '100%'
-                                }} 
-                            />
-                        </div>
-                        <style dangerouslySetInnerHTML={{ __html: `
-                            @keyframes fallback-pulse {
-                                0% { transform: scale(1); opacity: 0.9; }
-                                50% { transform: scale(1.03); opacity: 1; filter: drop-shadow(0 0 12px rgba(227, 30, 36, 0.2)); }
-                                100% { transform: scale(1); opacity: 0.9; }
-                            }
-                            @keyframes preloader-spin {
-                                0% { transform: rotate(0deg); }
-                                100% { transform: rotate(360deg); }
-                            }
-                        ` }} />
-                    </div>
-                </div>
-            </div>
-        }>
-            <DynamicBranding>
-                {children}
-            </DynamicBranding>
-        </Suspense>
     );
 }

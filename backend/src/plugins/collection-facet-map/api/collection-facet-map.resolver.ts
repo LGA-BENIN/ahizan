@@ -96,26 +96,36 @@ export class CollectionFacetMapAdminResolver {
             collMap.set(String(c.id), c);
         }
 
-        // Resolve inherited facet IDs by walking up the parent chain
-        const resolveInheritedFacetIds = (coll: any): string[] => {
-            try {
-                const ownIds: string[] = (coll as any).customFields?.allowedFacetIds || [];
-                const parentColl = coll.parent;
-                if (parentColl && parentColl.id) {
-                    const parentFull = collMap.get(String(parentColl.id));
-                    if (parentFull) {
-                        const parentIds = resolveInheritedFacetIds(parentFull);
-                        // Merge: own IDs + inherited IDs (deduplicated)
-                        const combined = [...new Set([...parentIds, ...ownIds])];
-                        return combined;
-                    }
-                }
-                return ownIds;
-            } catch (error: any) {
-                // If there's any error parsing customFields, return empty array
-                console.warn(`Error resolving facet IDs for collection ${coll.id}:`, error.message);
-                return [];
+        const childrenMap = new Map<string, string[]>();
+        for (const c of collections) {
+            if (c.parent && c.parent.id) {
+                const pId = String(c.parent.id);
+                const list = childrenMap.get(pId) || [];
+                list.push(String(c.id));
+                childrenMap.set(pId, list);
             }
+        }
+
+        // Resolve inherited facet IDs by computing recursive child intersection
+        const resolveInheritedFacetIds = (cId: string): string[] => {
+            const c = collMap.get(cId);
+            if (!c) return [];
+            let ownIds: string[] = [];
+            try {
+                ownIds = c.customFields?.allowedFacetIds || [];
+            } catch (e) {
+                ownIds = [];
+            }
+            const childrenIds = childrenMap.get(cId) || [];
+            if (childrenIds.length === 0) {
+                return ownIds;
+            }
+            const childFacetSets = childrenIds.map(childId => new Set(resolveInheritedFacetIds(childId)));
+            const intersectionIds = childFacetSets.reduce((acc, currentSet) => {
+                return new Set(Array.from(acc).filter(id => currentSet.has(id)));
+            }, childFacetSets[0] || new Set<string>());
+
+            return [...new Set([...ownIds, ...Array.from(intersectionIds)])];
         };
 
         // Filter out root collections - but keep all others
@@ -148,7 +158,7 @@ export class CollectionFacetMapAdminResolver {
                         ownFacetIds = [];
                     }
                     
-                    const inheritedFacetIds = resolveInheritedFacetIds(coll);
+                    const inheritedFacetIds = resolveInheritedFacetIds(String(coll.id));
                     const allowedFacets = allFacets.filter((f: any) => inheritedFacetIds.includes(String(f.id)));
                     
                     return {
@@ -253,21 +263,39 @@ export class CollectionFacetMapAdminResolver {
             collMap.set(String(c.id), c);
         }
 
-        const resolveInheritedFacetIds = (c: any): string[] => {
-            const ownIds: string[] = (c as any).customFields?.allowedFacetIds || [];
-            const parentColl = c.parent;
-            if (parentColl && parentColl.id) {
-                const parentFull = collMap.get(String(parentColl.id));
-                if (parentFull) {
-                    const parentIds = resolveInheritedFacetIds(parentFull);
-                    return [...new Set([...parentIds, ...ownIds])];
-                }
+        const childrenMap = new Map<string, string[]>();
+        for (const c of allCollections) {
+            if (c.parent && c.parent.id) {
+                const pId = String(c.parent.id);
+                const list = childrenMap.get(pId) || [];
+                list.push(String(c.id));
+                childrenMap.set(pId, list);
             }
-            return ownIds;
+        }
+
+        const resolveInheritedFacetIds = (cId: string): string[] => {
+            const c = collMap.get(cId);
+            if (!c) return [];
+            let ownIds: string[] = [];
+            try {
+                ownIds = c.customFields?.allowedFacetIds || [];
+            } catch (e) {
+                ownIds = [];
+            }
+            const childrenIds = childrenMap.get(cId) || [];
+            if (childrenIds.length === 0) {
+                return ownIds;
+            }
+            const childFacetSets = childrenIds.map(childId => new Set(resolveInheritedFacetIds(childId)));
+            const intersectionIds = childFacetSets.reduce((acc, currentSet) => {
+                return new Set(Array.from(acc).filter(id => currentSet.has(id)));
+            }, childFacetSets[0] || new Set<string>());
+
+            return [...new Set([...ownIds, ...Array.from(intersectionIds)])];
         };
 
         const ownFacetIds: string[] = (coll as any).customFields?.allowedFacetIds || [];
-        const inheritedFacetIds = resolveInheritedFacetIds(coll);
+        const inheritedFacetIds = resolveInheritedFacetIds(String(coll.id));
 
         const allFacets = await this.getTranslatedFacets(ctx);
 
@@ -286,7 +314,7 @@ export class CollectionFacetMapAdminResolver {
             return collParentId === String(coll.id);
         }).map((child: any) => {
             const childOwnIds: string[] = (child as any).customFields?.allowedFacetIds || [];
-            const childInheritedIds = resolveInheritedFacetIds(child);
+            const childInheritedIds = resolveInheritedFacetIds(String(child.id));
             return {
                 collectionId: String(child.id),
                 collectionName: getName(child),

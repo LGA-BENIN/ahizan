@@ -37,6 +37,7 @@ export const notificationsShopApiExtensionsV2 = gql`
     extend type Mutation {
         markNotificationsRead: Boolean!
         markNotificationRead(id: ID!): Boolean!
+        deleteNotification(id: ID!): Boolean!
         subscribeToPush(endpoint: String!, p256dh: String!, auth: String!, userAgent: String): PushSubscriptionResult!
         unsubscribeFromPush(endpoint: String!): PushSubscriptionResult!
     }
@@ -95,6 +96,16 @@ export class NotificationsShopResolverV2 {
         @Args('id') id: string,
     ): Promise<boolean> {
         await this.notificationsService.markAsRead(ctx, id);
+        return true;
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async deleteNotification(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string,
+    ): Promise<boolean> {
+        await this.notificationsService.deleteNotification(ctx, id);
         return true;
     }
 

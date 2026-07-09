@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
 import { getPageContent, getPreviewHabillageContent } from '@/lib/vendure/cms-queries';
 import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
+import { FiltersToggleWrapper } from '@/components/commerce/FiltersToggleWrapper';
 import React from 'react';
 
 async function getCollectionMetadata(slug: string) {
@@ -162,55 +163,49 @@ function DynamicProductGrid({ config, productData, currentPage, allowedFacets, a
 
     const totalItems = productData?.data?.search?.totalItems || 0;
 
+    const sidebarContent = allowedFacets.length > 0 ? (
+        <div className="bg-card p-6 rounded-2xl border shadow-sm">
+            <FacetFilters 
+                productData={productData as any} 
+                allowedFacetIds={allowedFacetIds}
+                allowedFacets={allowedFacets}
+            />
+        </div>
+    ) : null;
+
+    const gridContent = (
+        totalItems > 0 ? (
+            <ProductGrid 
+                aria-label="Grille de produits"
+                productData={productData as any} 
+                currentPage={currentPage} 
+                take={productsPerPage} 
+                columns={columns} 
+                config={config}
+            />
+        ) : (
+            <div className="bg-muted/30 text-muted-foreground p-16 rounded-3xl border border-dashed border-border text-center">
+                <h2 className="text-3xl font-black mb-3 text-foreground tracking-tight">Aucun produit trouvé</h2>
+                <p className="font-medium opacity-80">Cette catégorie ne contient encore aucun produit correspondant à vos critères.</p>
+                <Button asChild variant="outline" className="mt-8 rounded-xl font-bold">
+                    <Link href="/search">Découvrir d'autres produits</Link>
+                </Button>
+            </div>
+        )
+    );
+
+    if (showFilters && sidebarContent) {
+        return (
+            <FiltersToggleWrapper sidebar={sidebarContent}>
+                {gridContent}
+            </FiltersToggleWrapper>
+        );
+    }
+
     return (
         <div className="flex flex-col lg:flex-row gap-12">
-            {showFilters && (
-                <aside className="w-full lg:w-1/4 shrink-0">
-                    <div className="sticky top-28">
-                        {allowedFacets.length > 0 ? (
-                            <div className="bg-card p-6 rounded-2xl border shadow-sm">
-                                <FacetFilters 
-                                    productData={productData as any} 
-                                    allowedFacetIds={allowedFacetIds}
-                                    allowedFacets={allowedFacets}
-                                />
-                            </div>
-                        ) : (
-                            <div className="bg-muted/50 p-8 rounded-2xl border border-dashed border-border flex flex-col items-center text-center">
-                                <div className="w-12 h-12 bg-background rounded-full flex items-center justify-center shadow-sm mb-4">
-                                    <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                    </svg>
-                                </div>
-                                <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Navigation</h2>
-                                <ul className="space-y-2 text-sm font-bold">
-                                   <li><Link href="/" className="text-primary hover:underline">← Accueil</Link></li>
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                </aside>
-            )}
-
             <div className="flex-grow">
-                {totalItems > 0 ? (
-                    <ProductGrid 
-                        aria-label="Grille de produits"
-                        productData={productData as any} 
-                        currentPage={currentPage} 
-                        take={productsPerPage} 
-                        columns={columns} 
-                        config={config}
-                    />
-                ) : (
-                    <div className="bg-muted/30 text-muted-foreground p-16 rounded-3xl border border-dashed border-border text-center">
-                        <h2 className="text-3xl font-black mb-3 text-foreground tracking-tight">Aucun produit trouvé</h2>
-                        <p className="font-medium opacity-80">Cette catégorie ne contient encore aucun produit correspondant à vos critères.</p>
-                        <Button asChild variant="outline" className="mt-8 rounded-xl font-bold">
-                            <Link href="/search">Découvrir d'autres produits</Link>
-                        </Button>
-                    </div>
-                )}
+                {gridContent}
             </div>
         </div>
     );
@@ -355,6 +350,32 @@ export default async function CollectionPage({ params, searchParams }: any) {
             } catch (e) {
                 console.error('[CollectionPage] Fallback query failed:', e);
             }
+        }
+        // Filter products by price range on storefront side
+        const minPriceNum = searchParamsResolved?.minPrice ? Number(searchParamsResolved.minPrice) : undefined;
+        const maxPriceNum = searchParamsResolved?.maxPrice ? Number(searchParamsResolved.maxPrice) : undefined;
+
+        if (minPriceNum !== undefined || maxPriceNum !== undefined) {
+            products = products.filter((p: any) => {
+                let price = 0;
+                if (p.priceWithTax) {
+                    if (p.priceWithTax.__typename === 'SinglePrice') {
+                        price = p.priceWithTax.value;
+                    } else if (p.priceWithTax.__typename === 'PriceRange') {
+                        price = p.priceWithTax.min || 0;
+                    } else if (typeof p.priceWithTax === 'number') {
+                        price = p.priceWithTax;
+                    }
+                } else if (p.variants?.[0]?.priceWithTax) {
+                    price = p.variants[0].priceWithTax;
+                }
+                const userPrice = price / 100;
+
+                if (minPriceNum !== undefined && userPrice < minPriceNum) return false;
+                if (maxPriceNum !== undefined && userPrice > maxPriceNum) return false;
+                return true;
+            });
+            totalItems = products.length;
         }
 
         const productData = {

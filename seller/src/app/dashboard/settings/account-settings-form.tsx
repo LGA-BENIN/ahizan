@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save } from 'lucide-react';
+import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save, CreditCard, Landmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AccountSettingsFormProps {
@@ -36,6 +36,333 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
     const bannerInputRef = useRef<HTMLInputElement>(null);
     const logoInputRef = useRef<HTMLInputElement>(null);
 
+    // Geolocation & Markets States
+    const [leafletReady, setLeafletReady] = useState(false);
+    const [lat, setLat] = useState<number | null>(vendor?.latitude || null);
+    const [lng, setLng] = useState<number | null>(vendor?.longitude || null);
+    const [markets, setMarkets] = useState<any[]>([]);
+    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
+    const [locationsLoading, setLocationsLoading] = useState(false);
+
+    // Payment Method selection state
+    const [paymentMethod, setPaymentMethod] = useState<string>(vendor?.paymentMethod || 'CASH');
+
+    const mapRef = useRef<any>(null);
+    const markerRef = useRef<any>(null);
+
+    // Load locations (markets & neighborhoods) from GraphQL Shop API
+    useEffect(() => {
+        const loadLocations = async () => {
+            setLocationsLoading(true);
+            const queryStr = `
+                query GetLocationsForVendorSettings {
+                    markets {
+                        id
+                        name
+                        slug
+                        centerLatitude
+                        centerLongitude
+                        radiusMeters
+                    }
+                    geographicLocations(type: "NEIGHBORHOOD") {
+                        id
+                        name
+                        centerLatitude
+                        centerLongitude
+                    }
+                }
+            `;
+            try {
+                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://localhost:3000/shop-api';
+                const res = await fetch(shopApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: queryStr })
+                });
+                const result = await res.json();
+                setMarkets(result.data?.markets || []);
+                setNeighborhoods(result.data?.geographicLocations || []);
+            } catch (err) {
+                console.error('Failed to load locations in settings:', err);
+            } finally {
+                setLocationsLoading(false);
+            }
+        };
+        loadLocations();
+    }, []);
+
+    // Load Leaflet dynamically client-side
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        if ((window as any).L) {
+            setLeafletReady(true);
+            return;
+        }
+
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = () => {
+            setLeafletReady(true);
+        };
+        document.body.appendChild(script);
+    }, []);
+
+    // Initialize Leaflet Map
+    useEffect(() => {
+        if (!leafletReady || typeof window === 'undefined' || activeTab !== 'localisation') return;
+        const L = (window as any).L;
+        if (!L) return;
+
+        // Cotonou coordinates default
+        const defaultLat = lat || 6.37;
+        const defaultLng = lng || 2.42;
+
+        const mapContainer = document.getElementById('vendor-settings-map');
+        if (!mapContainer || mapRef.current) return;
+
+        const map = L.map('vendor-settings-map').setView([defaultLat, defaultLng], 13);
+        mapRef.current = map;
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const pinIcon = L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        // Add marker if coordinates exist
+        if (lat && lng) {
+            const marker = L.marker([lat, lng], { icon: pinIcon, draggable: true }).addTo(map);
+            markerRef.current = marker;
+
+            marker.on('dragend', () => {
+                const position = marker.getLatLng();
+                setLat(position.lat);
+                setLng(position.lng);
+                setIsDirty(true);
+            });
+        }
+
+        // Render other markets around
+        const marketIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        markets.forEach((m: any) => {
+            if (m.centerLatitude && m.centerLongitude) {
+                L.marker([m.centerLatitude, m.centerLongitude], { icon: marketIcon }).addTo(map)
+                    .bindPopup(`<b>Marché ${m.name}</b><br/>Zone de chalandise officielle`);
+                
+                if (m.radiusMeters) {
+                    L.circle([m.centerLatitude, m.centerLongitude], {
+                        color: '#10b981',
+                        fillColor: '#10b981',
+                        fillOpacity: 0.05,
+                        radius: m.radiusMeters
+                    }).addTo(map);
+                }
+            }
+        });
+
+        // On map click, place/move marker
+        map.on('click', (e: any) => {
+            const position = e.latlng;
+            setLat(position.lat);
+            setLng(position.lng);
+            setIsDirty(true);
+
+            if (markerRef.current) {
+                markerRef.current.setLatLng(position);
+            } else {
+                const marker = L.marker([position.lat, position.lng], { icon: pinIcon, draggable: true }).addTo(map);
+                markerRef.current = marker;
+
+                marker.on('dragend', () => {
+                    const pos = marker.getLatLng();
+                    setLat(pos.lat);
+                    setLng(pos.lng);
+                    setIsDirty(true);
+                });
+            }
+        });
+
+        return () => {
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+                markerRef.current = null;
+            }
+        };
+    }, [leafletReady, activeTab, markets]);
+
+    // Force Leaflet map resize when the details tab is shown
+    useEffect(() => {
+        if (activeTab === 'localisation' && mapRef.current) {
+            setTimeout(() => {
+                if (mapRef.current) {
+                    mapRef.current.invalidateSize();
+                }
+            }, 200);
+        }
+    }, [activeTab]);
+
+    const [gpsDetecting, setGpsDetecting] = useState(false);
+
+    const updatePositionStateAndMap = (newLat: number, newLng: number) => {
+        setLat(newLat);
+        setLng(newLng);
+        setIsDirty(true);
+
+        if (mapRef.current) {
+            const newPos = [newLat, newLng];
+            const L = (window as any).L;
+            if (L) {
+                if (markerRef.current) {
+                    markerRef.current.setLatLng(newPos);
+                } else {
+                    const pinIcon = L.icon({
+                        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    });
+                    markerRef.current = L.marker(newPos, { icon: pinIcon, draggable: true }).addTo(mapRef.current);
+                    markerRef.current.on('dragend', () => {
+                        const pos = markerRef.current.getLatLng();
+                        setLat(pos.lat);
+                        setLng(pos.lng);
+                        setIsDirty(true);
+                    });
+                }
+                mapRef.current.setView(newPos, 15);
+            }
+        }
+    };
+
+    const detectCurrentPosition = () => {
+        if (!navigator.geolocation) {
+            toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
+            return;
+        }
+        setGpsDetecting(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                updatePositionStateAndMap(latitude, longitude);
+                setGpsDetecting(false);
+                toast.success("Position détectée avec succès !");
+            },
+            (error) => {
+                setGpsDetecting(false);
+                toast.error("Impossible de détecter la position : " + error.message);
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    };
+
+    const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (!val) return;
+        const matched = neighborhoods.find(n => n.id === val);
+        if (matched && matched.centerLatitude && matched.centerLongitude) {
+            updatePositionStateAndMap(matched.centerLatitude, matched.centerLongitude);
+        }
+    };
+
+    const handlePhysicalMarketSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (!val) return;
+        const matched = markets.find(m => m.id === val);
+        if (matched && matched.centerLatitude && matched.centerLongitude) {
+            updatePositionStateAndMap(matched.centerLatitude, matched.centerLongitude);
+        }
+    };    };
+
+    const handleLatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseFloat(e.target.value);
+        const nextLat = isNaN(val) ? null : val;
+        setLat(nextLat);
+        setIsDirty(true);
+        if (mapRef.current && nextLat !== null && lng !== null) {
+            const newPos = [nextLat, lng];
+            if (markerRef.current) {
+                markerRef.current.setLatLng(newPos);
+            } else {
+                const L = (window as any).L;
+                if (L) {
+                    const pinIcon = L.icon({
+                        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    });
+                    markerRef.current = L.marker(newPos, { icon: pinIcon, draggable: true }).addTo(mapRef.current);
+                    markerRef.current.on('dragend', () => {
+                        const position = markerRef.current.getLatLng();
+                        setLat(position.lat);
+                        setLng(position.lng);
+                        setIsDirty(true);
+                    });
+                }
+            }
+            mapRef.current.setView(newPos, mapRef.current.getZoom());
+        }
+    };
+
+    const handleLngChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseFloat(e.target.value);
+        const nextLng = isNaN(val) ? null : val;
+        setLng(nextLng);
+        setIsDirty(true);
+        if (mapRef.current && lat !== null && nextLng !== null) {
+            const newPos = [lat, nextLng];
+            if (markerRef.current) {
+                markerRef.current.setLatLng(newPos);
+            } else {
+                const L = (window as any).L;
+                if (L) {
+                    const pinIcon = L.icon({
+                        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    });
+                    markerRef.current = L.marker(newPos, { icon: pinIcon, draggable: true }).addTo(mapRef.current);
+                    markerRef.current.on('dragend', () => {
+                        const position = markerRef.current.getLatLng();
+                        setLat(position.lat);
+                        setLng(position.lng);
+                        setIsDirty(true);
+                    });
+                }
+            }
+            mapRef.current.setView(newPos, mapRef.current.getZoom());
+        }
+    };
+
     // Capture initial values for dirty state comparison
     useEffect(() => {
         if (vendor) {
@@ -50,21 +377,32 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                 website: vendor.website || '',
                 facebook: vendor.facebook || '',
                 instagram: vendor.instagram || '',
+                latitude: vendor.latitude ? String(vendor.latitude) : '',
+                longitude: vendor.longitude ? String(vendor.longitude) : '',
+                locationId: vendor.location?.id || '',
+                physicalMarketId: vendor.physicalMarket?.id || '',
+                marketIds: vendor.markets ? vendor.markets.map((m: any) => m.id).sort().join(',') : '',
+                paymentMethod: vendor.paymentMethod || 'CASH',
+                mobileMoneyProvider: vendor.mobileMoneyProvider || '',
+                mobileMoneyNumber: vendor.mobileMoneyNumber || '',
+                bankName: vendor.bankName || '',
+                bankAccountNumber: vendor.bankAccountNumber || '',
             };
             initialValuesRef.current = vals;
+            setPaymentMethod(vendor.paymentMethod || 'CASH');
         }
     }, [vendor]);
 
     // Handle hash change for tabs navigation
     useEffect(() => {
         const hash = window.location.hash.replace('#', '');
-        if (hash && ['general', 'details', 'social', 'security'].includes(hash)) {
+        if (hash && ['general', 'details', 'social', 'payment', 'security'].includes(hash)) {
             setActiveTab(hash);
         }
         
         const handleHashChange = () => {
             const newHash = window.location.hash.replace('#', '');
-            if (newHash && ['general', 'details', 'social', 'security'].includes(newHash)) {
+            if (newHash && ['general', 'details', 'social', 'payment', 'security'].includes(newHash)) {
                 setActiveTab(newHash);
             }
         };
@@ -80,6 +418,14 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         
         let dirty = false;
         for (const [key, value] of Object.entries(initialValuesRef.current)) {
+            if (key === 'marketIds') {
+                const selected = formData.getAll('marketIds').sort().join(',');
+                if (selected !== value) {
+                    dirty = true;
+                    break;
+                }
+                continue;
+            }
             const currentValue = formData.get(key) as string;
             if (currentValue !== null && currentValue !== value) {
                 dirty = true;
@@ -103,7 +449,6 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
     useEffect(() => {
         if (passwordState?.success) {
             toast.success('Mot de passe mis à jour avec succès');
-            // Reset fields
             if (formRef.current) {
                 const currentPass = formRef.current.querySelector('#currentPassword') as HTMLInputElement;
                 const newPass = formRef.current.querySelector('#newPassword') as HTMLInputElement;
@@ -153,16 +498,114 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         if (formRef.current) {
             // Reset inputs to initial values
             for (const [key, value] of Object.entries(initialValuesRef.current)) {
-                const input = formRef.current.querySelector(`[name="${key}"]`) as HTMLInputElement | HTMLTextAreaElement;
-                if (input) input.value = value;
+                if (key === 'marketIds') {
+                    const marketIdsArray = (value as string).split(',');
+                    const checkboxes = formRef.current.querySelectorAll('input[name="marketIds"]') as NodeListOf<HTMLInputElement>;
+                    checkboxes.forEach(cb => {
+                        cb.checked = marketIdsArray.includes(cb.value);
+                    });
+                    continue;
+                }
+                const input = formRef.current.querySelector(`[name="${key}"]`) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+                if (input) input.value = value as string;
             }
+            setLat(vendor?.latitude || null);
+            setLng(vendor?.longitude || null);
+            setPaymentMethod(vendor?.paymentMethod || 'CASH');
+            
+            // Move marker back to initial
+            if (markerRef.current) {
+                if (vendor?.latitude && vendor?.longitude) {
+                    markerRef.current.setLatLng([vendor.latitude, vendor.longitude]);
+                    mapRef.current?.setView([vendor.latitude, vendor.longitude], 13);
+                } else {
+                    mapRef.current?.removeLayer(markerRef.current);
+                    markerRef.current = null;
+                }
+            }
+
             setIsDirty(false);
             toast.info('Modifications annulées');
         }
     };
 
+    const calculateProgress = () => {
+        let score = 0;
+        if (vendor?.name) score += 10;
+        if (vendor?.phoneNumber) score += 15;
+        if (vendor?.address) score += 15;
+        if (vendor?.description) score += 10;
+        if (vendor?.logo?.preview || logoUrl) score += 15;
+        if (bannerUrl && bannerUrl !== 'https://lh3.googleusercontent.com/aida-public/AB6AXuB1uy1r93iwW9yNwkvjtjWpQtp-WgvPOWIixujkgolgJIoBIU2X528DvC-jLmqSQ5Uh5fcB-dh7kYg0MAcp3w3UeamQXVijk2sT1l9z8FC8ntzmQV_z4iuaFKQW-a5ReSPqA17DF6kl3OW6TdKjbGLECaSd_NJTOAr6BLAVSy16icuB2d23RDvBCBm6-jcImg5t0KR1KrW9cyJh2ld6C4Rj8nwpqYmYDyxSVEDcAAYYDmzWK7hldASxynb4Ms4djh7tHG_RHDWReJfV') score += 15;
+        if (lat && lng) score += 10;
+        if (vendor?.location?.id || vendor?.physicalMarket?.id || (vendor?.markets && vendor.markets.length > 0)) score += 10;
+        return score;
+    };
+
+    const progress = calculateProgress();
+
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+            {/* Onboarding Progress Header Card */}
+            <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem] overflow-hidden">
+                <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+                    <div className="relative w-20 h-20 shrink-0 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                            <circle
+                                cx="40"
+                                cy="40"
+                                r="34"
+                                stroke="#e2e8f0"
+                                strokeWidth="6"
+                                fill="transparent"
+                            />
+                            <circle
+                                cx="40"
+                                cy="40"
+                                r="34"
+                                stroke="#e31837"
+                                strokeWidth="6"
+                                fill="transparent"
+                                strokeDasharray={2 * Math.PI * 34}
+                                strokeDashoffset={2 * Math.PI * 34 * (1 - progress / 100)}
+                                className="transition-all duration-1000 ease-out"
+                            />
+                        </svg>
+                        <span className="absolute text-sm font-black text-foreground font-mono">{progress}%</span>
+                    </div>
+                    <div className="flex-1 text-center md:text-left space-y-2 w-full">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h2 className="text-lg font-serif font-black text-foreground">Complétude de votre Profil Vendeur</h2>
+                                {progress === 100 ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-wider">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        Profil Finalisé
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-wider">
+                                        En cours d'onboarding ({progress}%)
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-xs font-black text-[#e31837] font-mono">{progress}% complet</span>
+                        </div>
+                        {/* Horizontal progress bar */}
+                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-[#e31837] transition-all duration-1000 ease-out" 
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            {progress === 100 
+                                ? "Félicitations ! Votre profil est complet et optimisé pour la livraison et la visibilité locale." 
+                                : "Complétez votre adresse, position GPS, marchés de diffusion et modes de paiement pour maximiser vos ventes."}
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="flex flex-col lg:flex-row gap-8">
                     
@@ -171,28 +614,35 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                         <TabsList className="flex flex-row lg:flex-col h-auto bg-transparent border-none p-0 space-x-1 lg:space-x-0 lg:space-y-1">
                             <TabsTrigger 
                                 value="general" 
-                                className="w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider"
+                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
                             >
                                 <Store className="w-4 h-4 shrink-0" />
                                 <span className="whitespace-nowrap">Boutique</span>
                             </TabsTrigger>
                             <TabsTrigger 
-                                value="details" 
-                                className="w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider"
+                                value="localisation" 
+                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
                             >
                                 <MapPin className="w-4 h-4 shrink-0" />
                                 <span className="whitespace-nowrap">Localisation</span>
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="social" 
-                                className="w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider"
+                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
                             >
                                 <Globe className="w-4 h-4 shrink-0" />
                                 <span className="whitespace-nowrap">Sociaux</span>
                             </TabsTrigger>
                             <TabsTrigger 
+                                value="payment" 
+                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
+                            >
+                                <CreditCard className="w-4 h-4 shrink-0" />
+                                <span className="whitespace-nowrap">Paiements</span>
+                            </TabsTrigger>
+                            <TabsTrigger 
                                 value="security" 
-                                className="w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider"
+                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
                             >
                                 <Shield className="w-4 h-4 shrink-0" />
                                 <span className="whitespace-nowrap">Sécurité</span>
@@ -401,6 +851,127 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                     rows={3} 
                                                     className="rounded-xl bg-card border-border resize-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
                                                 />
+                                                          <div className="border-t border-border/60 pt-6 space-y-4">
+                                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                                    <div>
+                                                        <h3 className="text-base font-serif font-black text-foreground">Position Géographique</h3>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Cliquez sur la carte, déplacez le marqueur ou entrez vos coordonnées ci-dessous.
+                                                        </p>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={detectCurrentPosition}
+                                                        disabled={gpsDetecting}
+                                                        className="h-10 px-4 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shrink-0"
+                                                    >
+                                                        {gpsDetecting ? (
+                                                            <>
+                                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                                Détection...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <MapPin className="w-3.5 h-3.5" />
+                                                                Ma Position Actuelle
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                                
+                                                <div id="vendor-settings-map" className="h-64 w-full rounded-2xl border border-border overflow-hidden bg-muted relative" style={{ minHeight: '260px', zIndex: 10 }}>
+                                                    {!leafletReady && (
+                                                        <div className="absolute inset-0 flex items-center justify-center bg-card/60 backdrop-blur-sm z-[20]">
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+                                                                <span className="text-xs text-muted-foreground font-bold">Chargement de la carte...</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+ 
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="latitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Latitude GPS</Label>
+                                                        <Input
+                                                            id="latitude-input"
+                                                            type="number"
+                                                            step="any"
+                                                            name="latitude"
+                                                            value={lat !== null ? lat : ''}
+                                                            onChange={handleLatChange}
+                                                            className="h-12 rounded-xl bg-card border-border font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]"
+                                                            placeholder="Ex: 6.370000"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="longitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Longitude GPS</Label>
+                                                        <Input
+                                                            id="longitude-input"
+                                                            type="number"
+                                                            step="any"
+                                                            name="longitude"
+                                                            value={lng !== null ? lng : ''}
+                                                            onChange={handleLngChange}
+                                                            className="h-12 rounded-xl bg-card border-border font-mono text-xs focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]"
+                                                            placeholder="Ex: 2.420000"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+ 
+                                            <div className="border-t border-border/60 pt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="locationId" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Quartier / Arrondissement de résidence</Label>
+                                                    <select
+                                                        id="locationId"
+                                                        name="locationId"
+                                                        defaultValue={vendor?.location?.id || ''}
+                                                        onChange={handleLocationSelect}
+                                                        className="w-full h-12 px-4 rounded-xl bg-card border border-border text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10 transition-all duration-300"
+                                                    >
+                                                        <option value="">Sélectionnez votre quartier...</option>
+                                                        {neighborhoods.map((n: any) => (
+                                                            <option key={n.id} value={n.id}>{n.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="physicalMarketId" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Marché principal (Boutique physique)</Label>
+                                                    <select
+                                                        id="physicalMarketId"
+                                                        name="physicalMarketId"
+                                                        defaultValue={vendor?.physicalMarket?.id || ''}
+                                                        onChange={handlePhysicalMarketSelect}
+                                                        className="w-full h-12 px-4 rounded-xl bg-card border border-border text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10 transition-all duration-300"
+                                                    >
+                                                        <option value="">Hors marché (Vendeur en ligne / Domicile)</option>
+                                                        {markets.map((m: any) => (
+                                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>                                        </div>
+
+                                            <div className="border-t border-border/60 pt-6 space-y-3">
+                                                <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Marchés de diffusion secondaire (diffusion de vos produits)</Label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-4 rounded-2xl bg-muted/10 border border-border max-h-60 overflow-y-auto">
+                                                    {markets.map(m => {
+                                                        const isChecked = vendor?.markets?.some((market: any) => market.id === m.id);
+                                                        return (
+                                                            <label key={m.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/60 hover:bg-card cursor-pointer transition-colors text-xs font-bold text-foreground">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    name="marketIds" 
+                                                                    value={m.id} 
+                                                                    defaultChecked={isChecked}
+                                                                    className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
+                                                                />
+                                                                <span>{m.name}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                     </CardContent>
@@ -451,6 +1022,106 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                     className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
                                                 />
                                             </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            {/* Tab 4: Payments Configuration */}
+                            <TabsContent value="payment" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem]">
+                                    <CardHeader className="p-6 sm:p-8 pb-4">
+                                        <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
+                                            <CreditCard className="w-5 h-5 text-primary" />
+                                            Modes de Règlement Acceptés
+                                        </CardTitle>
+                                        <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                                            Configurez comment vous souhaitez encaisser vos ventes.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
+                                        <div className="space-y-6">
+                                            {/* Mandatory Cash on Delivery */}
+                                            <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
+                                                <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wide">Paiement en espèces à la livraison (CoD)</h4>
+                                                    <p className="text-[10.5px] text-muted-foreground mt-0.5">
+                                                        Ce mode de règlement est activé par défaut et obligatoire pour garantir la meilleure expérience de livraison de proximité sur Ahizan.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Select Primary Method */}
+                                            <div className="space-y-2">
+                                                <Label htmlFor="paymentMethod" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Méthode de paiement alternative principale</Label>
+                                                <select
+                                                    id="paymentMethod"
+                                                    name="paymentMethod"
+                                                    value={paymentMethod}
+                                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                                    className="w-full h-12 px-4 rounded-xl bg-card border border-border text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10 transition-all duration-300"
+                                                >
+                                                    <option value="CASH">Espèces uniquement (Livraison)</option>
+                                                    <option value="MOBILE_MONEY">Mobile Money (MTN, Moov, Celtiis)</option>
+                                                    <option value="BANK_TRANSFER">Virement bancaire</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Mobile Money Details */}
+                                            {paymentMethod === 'MOBILE_MONEY' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 rounded-2xl bg-muted/20 border border-border animate-in fade-in slide-in-from-top-4 duration-300">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="mobileMoneyProvider" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Opérateur Mobile Money</Label>
+                                                        <select
+                                                            id="mobileMoneyProvider"
+                                                            name="mobileMoneyProvider"
+                                                            defaultValue={vendor?.mobileMoneyProvider || 'MTN'}
+                                                            className="w-full h-12 px-4 rounded-xl bg-card border border-border text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10 transition-all duration-300"
+                                                        >
+                                                            <option value="MTN">MTN Mobile Money (Momo)</option>
+                                                            <option value="MOOV">Moov Money (Flooz)</option>
+                                                            <option value="CELTIIS">Celtiis Cash</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="mobileMoneyNumber" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Numéro de téléphone Momo</Label>
+                                                        <Input
+                                                            id="mobileMoneyNumber"
+                                                            name="mobileMoneyNumber"
+                                                            placeholder="Ex: 61002233"
+                                                            defaultValue={vendor?.mobileMoneyNumber}
+                                                            className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Bank Transfer Details */}
+                                            {paymentMethod === 'BANK_TRANSFER' && (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 rounded-2xl bg-muted/20 border border-border animate-in fade-in slide-in-from-top-4 duration-300">
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="bankName" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Nom de la Banque</Label>
+                                                        <Input
+                                                            id="bankName"
+                                                            name="bankName"
+                                                            placeholder="Ex: BOA, Ecobank, UBA..."
+                                                            defaultValue={vendor?.bankName}
+                                                            className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="bankAccountNumber" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Numéro de Compte Bancaire / RIB</Label>
+                                                        <Input
+                                                            id="bankAccountNumber"
+                                                            name="bankAccountNumber"
+                                                            placeholder="Ex: BJ062 01001 0023456701 45"
+                                                            defaultValue={vendor?.bankAccountNumber}
+                                                            className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -609,47 +1280,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                 </div>
             </Tabs>
 
-            {/* Floating Action Footer (Stitch) */}
-            <footer 
-                className={cn(
-                    "fixed bottom-8 left-[calc(260px+50%)] -translate-x-1/2 z-50 flex justify-center w-full max-w-2xl px-6 transition-all duration-500 ease-in-out transform pointer-events-none",
-                    isDirty 
-                        ? "translate-y-0 opacity-100" 
-                        : "translate-y-20 opacity-0"
-                )}
-            >
-                <div className="bg-slate-900/95 dark:bg-card/95 backdrop-blur-xl border border-slate-800/80 dark:border-border shadow-2xl px-6 py-4 rounded-2xl flex items-center justify-between gap-8 pointer-events-auto w-full">
-                    <p className="text-xs font-bold text-slate-350 dark:text-muted-foreground hidden md:block">
-                        Vous avez des modifications non enregistrées.
-                    </p>
-                    <div className="flex gap-3 w-full md:w-auto justify-end">
-                        <button 
-                            type="button"
-                            onClick={handleCancelClick}
-                            className="px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-slate-300 hover:text-white hover:bg-white/5 transition-all"
-                        >
-                            Annuler
-                        </button>
-                        <Button 
-                            onClick={handleSaveClick}
-                            disabled={isProfilePending}
-                            className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
-                        >
-                            {isProfilePending ? (
-                                <>
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                    Enregistrement...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-3.5 h-3.5" />
-                                    Enregistrer
-                                </>
-                            )}
-                        </Button>
-                    </div>
-                </div>
-            </footer>
+
 
         </div>
     );

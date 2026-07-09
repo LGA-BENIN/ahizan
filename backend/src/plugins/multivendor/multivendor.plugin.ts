@@ -7,6 +7,8 @@ import { DeliveryZone } from './entities/delivery-zone.entity';
 import { VendorLike } from './entities/vendor-like.entity';
 import { ProductLike } from './entities/product-like.entity';
 import { ChatMessage } from './entities/chat-message.entity';
+import { GeographicLocation } from './entities/geographic-location.entity';
+import { Market } from './entities/market.entity';
 import { VendorService } from './service/vendor.service';
 import { VendorOrderSubscriber } from './service/vendor-event.subscriber';
 import { PlatformSettingsService } from './service/platform-settings.service';
@@ -28,7 +30,7 @@ import path from 'path';
 @VendurePlugin({
     imports: [PluginCommonModule],
 
-    entities: [Vendor, PlatformSettings, OrderStatus, DeliveryZone, VendorLike, ProductLike, ChatMessage],
+    entities: [Vendor, PlatformSettings, OrderStatus, DeliveryZone, VendorLike, ProductLike, ChatMessage, GeographicLocation, Market],
 
     providers: [
         VendorService,

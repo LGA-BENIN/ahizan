@@ -23,6 +23,8 @@ import {
 } from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { VendorEvent } from '../events/vendor-event';
+import { GeographicLocation } from '../entities/geographic-location.entity';
+import { Market } from '../entities/market.entity';
 import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
 import { IsNull } from 'typeorm';
 
@@ -37,17 +39,95 @@ export class VendorService implements OnApplicationBootstrap {
         private assetService: AssetService,
     ) { }
 
-    findAll(ctx: RequestContext, options?: ListQueryOptions<Vendor>): Promise<PaginatedList<Vendor>> {
-        return this.listQueryBuilder
-            .build(Vendor, options, { 
-                ctx,
-                relations: ['logo', 'coverImage']
-            })
-            .getManyAndCount()
-            .then(([items, totalItems]) => ({
-                items,
-                totalItems,
-            }));
+    async findAll(
+        ctx: RequestContext,
+        options?: ListQueryOptions<Vendor>,
+        latitude?: number,
+        longitude?: number,
+        marketId?: string,
+        locationId?: string
+    ): Promise<PaginatedList<Vendor>> {
+        const useSpatialSorting = latitude !== undefined || longitude !== undefined || marketId !== undefined || locationId !== undefined;
+
+        const qbOptions = { ...options };
+        if (useSpatialSorting) {
+            delete qbOptions.skip;
+            delete qbOptions.take;
+        }
+
+        const qb = this.listQueryBuilder.build(Vendor, qbOptions, {
+            ctx,
+            relations: ['logo', 'coverImage', 'location', 'physicalMarket', 'markets'],
+        });
+
+        const [items, totalItems] = await qb.getManyAndCount();
+
+        if (!useSpatialSorting) {
+            return { items, totalItems };
+        }
+
+        const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+            const R = 6371e3; // meters
+            const phi1 = (lat1 * Math.PI) / 180;
+            const phi2 = (lat2 * Math.PI) / 180;
+            const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+            const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+            const a =
+                Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c;
+        };
+
+        let filteredItems = [...items];
+        if (locationId) {
+            filteredItems = filteredItems.filter(v => v.location?.id?.toString() === locationId.toString());
+        }
+
+        const sortedItems = filteredItems.sort((a, b) => {
+            if (marketId) {
+                const aIsResident = a.physicalMarket?.id?.toString() === marketId.toString();
+                const bIsResident = b.physicalMarket?.id?.toString() === marketId.toString();
+                if (aIsResident && !bIsResident) return -1;
+                if (!aIsResident && bIsResident) return 1;
+            }
+
+            if (latitude !== undefined && longitude !== undefined) {
+                const aHasCoords = a.latitude !== null && a.longitude !== null && a.latitude !== undefined && a.longitude !== undefined;
+                const bHasCoords = b.latitude !== null && b.longitude !== null && b.latitude !== undefined && b.longitude !== undefined;
+
+                if (aHasCoords && !bHasCoords) return -1;
+                if (!aHasCoords && bHasCoords) return 1;
+
+                if (aHasCoords && bHasCoords) {
+                    const distA = getDistance(latitude, longitude, a.latitude!, a.longitude!);
+                    const distB = getDistance(latitude, longitude, b.latitude!, b.longitude!);
+                    if (distA !== distB) {
+                        return distA - distB;
+                    }
+                }
+            }
+
+            if (marketId) {
+                const aHasSecondary = a.markets?.some((m: Market) => m.id?.toString() === marketId.toString());
+                const bHasSecondary = b.markets?.some((m: Market) => m.id?.toString() === marketId.toString());
+                if (aHasSecondary && !bHasSecondary) return -1;
+                if (!aHasSecondary && bHasSecondary) return 1;
+            }
+
+            return 0;
+        });
+
+        const skip = options?.skip || 0;
+        const take = options?.take || 10;
+        const paginatedItems = sortedItems.slice(skip, skip + take);
+
+        return {
+            items: paginatedItems,
+            totalItems: sortedItems.length,
+        };
     }
 
     findOne(ctx: RequestContext, id: string): Promise<Vendor | null> {
@@ -159,6 +239,13 @@ export class VendorService implements OnApplicationBootstrap {
 
         userId?: string;
         password?: string;
+
+        // Geolocation Inputs
+        latitude?: number;
+        longitude?: number;
+        locationId?: string;
+        physicalMarketId?: string;
+        marketIds?: string[];
     }): Promise<Vendor> {
         // Generate defaults if missing
         const timestamp = new Date().getTime();
@@ -420,13 +507,35 @@ export class VendorService implements OnApplicationBootstrap {
             vendor.user = newUser;
         }
 
+        // Save Geolocation & Markets
+        if (input.latitude !== undefined) {
+            vendor.latitude = input.latitude;
+        }
+        if (input.longitude !== undefined) {
+            vendor.longitude = input.longitude;
+        }
+        if (input.locationId) {
+            vendor.location = await this.connection.getEntityOrThrow(adminCtx, GeographicLocation, input.locationId);
+        }
+        if (input.physicalMarketId) {
+            vendor.physicalMarket = await this.connection.getEntityOrThrow(adminCtx, Market, input.physicalMarketId);
+        }
+        if (input.marketIds && input.marketIds.length > 0) {
+            const marketsList: Market[] = [];
+            for (const id of input.marketIds) {
+                const m = await this.connection.getEntityOrThrow(adminCtx, Market, id);
+                marketsList.push(m);
+            }
+            vendor.markets = marketsList;
+        }
+
         const newVendor = await this.connection.getRepository(adminCtx, Vendor).save(vendor);
         this.eventBus.publish(new VendorEvent(adminCtx, newVendor, 'created', input));
         console.log('VendorService.create: Registration completed successfully');
         return newVendor;
     }
 
-    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; logo?: any; coverImageId?: string; coverImage?: any; rejectionReason?: string; dynamicDetails?: any }): Promise<Vendor> {
+    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; logo?: any; coverImageId?: string; coverImage?: any; rejectionReason?: string; dynamicDetails?: any; latitude?: number; longitude?: number; locationId?: string; physicalMarketId?: string; marketIds?: string[] }): Promise<Vendor> {
         const vendor = await this.findOne(ctx, id);
         if (!vendor) {
             throw new Error(`Vendor with id ${id} not found`);
@@ -542,6 +651,36 @@ export class VendorService implements OnApplicationBootstrap {
                 if (!(asset as any).errorCode) {
                     updated.coverImage = asset as Asset;
                 }
+            }
+        }
+
+        // Save Geolocation & Markets
+        if (input.latitude !== undefined) {
+            updated.latitude = input.latitude;
+        }
+        if (input.longitude !== undefined) {
+            updated.longitude = input.longitude;
+        }
+        if (input.locationId !== undefined) {
+            updated.location = input.locationId 
+                ? await this.connection.getEntityOrThrow(ctx, GeographicLocation, input.locationId)
+                : null as any;
+        }
+        if (input.physicalMarketId !== undefined) {
+            updated.physicalMarket = input.physicalMarketId 
+                ? await this.connection.getEntityOrThrow(ctx, Market, input.physicalMarketId)
+                : null as any;
+        }
+        if (input.marketIds !== undefined) {
+            if (input.marketIds && input.marketIds.length > 0) {
+                const marketsList: Market[] = [];
+                for (const id of input.marketIds) {
+                    const m = await this.connection.getEntityOrThrow(ctx, Market, id);
+                    marketsList.push(m);
+                }
+                updated.markets = marketsList;
+            } else {
+                updated.markets = [];
             }
         }
 

@@ -7,6 +7,7 @@ import { BodySectionRenderer } from "./BodySectionRenderer";
 import { SectionCodeWrapper } from "./SectionCodeWrapper";
 import { CmsSection } from "@/lib/vendure/cms-queries";
 import { getShopApiUrl } from "@/lib/vendure/api-utils";
+import { LocalPersonalizedProducts } from "../cms/LocalPersonalizedProducts";
 
 export function AhizanHome({ sections }: { sections: CmsSection[] }) {
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
@@ -105,6 +106,7 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
 
                 // HERO has special props (promoConfig + siteCategories)
                 if (section.type === 'HERO') {
+                    const hasLocalProductsSection = sections.some(s => s.type === 'LOCAL_PRODUCTS' && s.isActive);
                     return (
                         <SectionCodeWrapper key={section.id || index} config={config} sectionId={section.id}>
                             <div className="max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 pt-2 md:pt-4">
@@ -114,6 +116,7 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
                                     siteCategories={siteCategories}
                                 />
                             </div>
+                            {!hasLocalProductsSection && <LocalPersonalizedProducts />}
                         </SectionCodeWrapper>
                     );
                 }
@@ -125,6 +128,7 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
                             section={section}
                             siteCategories={siteCategories}
                             globalPromoConfig={globalPromoConfig}
+                            allSections={orderedSections}
                         />
                     </SectionCodeWrapper>
                 );

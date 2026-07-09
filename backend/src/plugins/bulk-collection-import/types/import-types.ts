@@ -7,7 +7,7 @@ export interface CollectionRow {
   descriptionEn?: string;
   featuredAssetUrl?: string;
   position?: number;
-  allowedFacetIds?: string;
+  allowedFacetCodes?: string;
   /** Comma-separated facet value codes used to auto-populate the collection via a facet-value-filter */
   facetValueCodes?: string;
   /** Comma-separated product variant IDs used to populate the collection via the variant-id-filter */

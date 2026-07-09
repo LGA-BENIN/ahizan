@@ -179,6 +179,9 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
         case 'SMART_VISUAL_GRID':
             return withCodePanel(<SmartVisualGridSettings data={data} onSave={handleSave} />);
 
+        case 'LOCAL_PRODUCTS':
+            return withCodePanel(<LocalProductsSettings data={data} onSave={handleSave} />);
+
         case 'FREEFORM_BUILDER':
             return <FreeformBuilderSettings data={data} onSave={handleSave} />;
 
@@ -191,3 +194,66 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
             );
     }
 };
+
+interface LocalProductsSettingsProps {
+    data: any;
+    onSave: (newData: any) => void;
+}
+
+export function LocalProductsSettings({ data, onSave }: LocalProductsSettingsProps) {
+    const [title, setTitle] = React.useState(data.title || "Produits à Proximité");
+    const [subtitle, setSubtitle] = React.useState(data.subtitle || "Découvrez les articles disponibles à l'achat immédiat auprès des marchands de votre secteur.");
+    const [limit, setLimit] = React.useState(data.limit || 8);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({ title, subtitle, limit: Number(limit) });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', padding: '1.5rem', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>⚙️ Paramètres de la section Produits à proximité</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Titre de la section</label>
+                <input 
+                    type="text" 
+                    value={title} 
+                    onChange={e => setTitle(e.target.value)} 
+                    style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc' }} 
+                />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Sous-titre</label>
+                <textarea 
+                    value={subtitle} 
+                    onChange={e => setSubtitle(e.target.value)} 
+                    rows={3}
+                    style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', resize: 'vertical' }} 
+                />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Nombre maximum de produits à afficher</label>
+                <input 
+                    type="number" 
+                    value={limit} 
+                    onChange={e => setLimit(Number(e.target.value))} 
+                    min={1}
+                    max={50}
+                    style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc' }} 
+                />
+            </div>
+
+            <button 
+                type="submit" 
+                style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: 'none', background: '#e31837', color: '#ffffff', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s', marginTop: '0.5rem' }}
+                onMouseOver={e => (e.currentTarget.style.background = '#b9132c')}
+                onMouseOut={e => (e.currentTarget.style.background = '#e31837')}
+            >
+                Enregistrer la section
+            </button>
+        </form>
+    );
+}

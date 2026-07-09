@@ -17,8 +17,8 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         background_color: backgroundColor,
         theme_color: primaryColor,
         icons: [
-            { src: '/logo-ahizan-official.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-            { src: '/logo-ahizan-official.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' }
+            { src: '/icons/seller-icon-192x192-white.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icons/seller-icon-512x512-white.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ],
         shortcuts: [
             {

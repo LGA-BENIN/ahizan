@@ -10,7 +10,19 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const description = formData.get('description') as string;
     const price = priceToSubunit(parseInt(formData.get('price') as string) || 0);
     const stock = parseInt(formData.get('stock') as string);
-    const collectionId = formData.get('category') as string;
+    const categoryRaw = formData.get('category') as string;
+    let collectionIds: string[] = [];
+    if (categoryRaw) {
+        if (categoryRaw.startsWith('[')) {
+            try {
+                collectionIds = JSON.parse(categoryRaw);
+            } catch (e) {
+                collectionIds = [categoryRaw];
+            }
+        } else {
+            collectionIds = [categoryRaw];
+        }
+    }
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
     const featuredAssetId = formData.get('featuredAssetId') as string || null;
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
@@ -25,7 +37,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
                 description,
                 price,
                 stock,
-                collectionIds: collectionId ? [collectionId] : [],
+                collectionIds,
                 facetValueIds,
                 assetIds,
                 featuredAssetId: featuredAssetId || assetIds[0],
@@ -49,7 +61,19 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const description = formData.get('description') as string;
     const price = formData.get('price') ? priceToSubunit(parseInt(formData.get('price') as string)) : undefined;
     const stock = formData.get('stock') ? parseInt(formData.get('stock') as string) : undefined;
-    const collectionId = formData.get('category') as string;
+    const categoryRaw = formData.get('category') as string;
+    let collectionIds: string[] = [];
+    if (categoryRaw) {
+        if (categoryRaw.startsWith('[')) {
+            try {
+                collectionIds = JSON.parse(categoryRaw);
+            } catch (e) {
+                collectionIds = [categoryRaw];
+            }
+        } else {
+            collectionIds = [categoryRaw];
+        }
+    }
     const enabled = formData.get('enabled') === 'true';
     const assetIds = JSON.parse(formData.get('assetIds') as string || '[]');
     const featuredAssetId = formData.get('featuredAssetId') as string || null;
@@ -63,7 +87,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
             input: {
                 name,
                 description,
-                collectionIds: collectionId ? [collectionId] : [],
+                collectionIds,
                 facetValueIds,
                 assetIds,
                 featuredAssetId: featuredAssetId || assetIds[0],

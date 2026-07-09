@@ -5,7 +5,7 @@ import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
-import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy} from 'lucide-react';
+import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy, Minus, Plus} from 'lucide-react';
 import {addToCart} from '@/app/(storefront)/product/[slug]/actions';
 import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
@@ -65,6 +65,7 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
     const currentSearchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
+    const [quantity, setQuantity] = useState(1);
 
     // Initialize selected options from URL
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
@@ -126,7 +127,7 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
         if (!selectedVariant) return;
 
         startTransition(async () => {
-            const result = await addToCart(selectedVariant.id, 1);
+            const result = await addToCart(selectedVariant.id, quantity);
 
             if (result.success) {
                 setIsAdded(true);
@@ -256,6 +257,35 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
                             </RadioGroup>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Quantity Selector */}
+            {canAddToCart && (
+                <div className="flex items-center gap-3 pt-2">
+                    <span className="text-sm font-semibold text-muted-foreground">Quantité:</span>
+                    <div className="flex items-center border border-border rounded-full bg-muted/40 p-1">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full hover:bg-background/80 transition-colors"
+                            onClick={() => setQuantity((prev: number) => Math.max(1, prev - 1))}
+                            disabled={quantity <= 1}
+                        >
+                            <Minus className="h-4 w-4" />
+                        </Button>
+                        <span className="w-10 text-center font-bold text-sm select-none">{quantity}</span>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full hover:bg-background/80 transition-colors"
+                            onClick={() => setQuantity((prev: number) => prev + 1)}
+                        >
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
             )}
 

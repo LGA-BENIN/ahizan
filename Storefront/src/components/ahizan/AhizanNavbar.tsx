@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from './NotificationBell';
+import { LocationWidget } from './LocationWidget';
 
 const SHOP_API_URL = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
 const SSE_BASE_URL = SHOP_API_URL.replace('/shop-api', '');
@@ -147,6 +148,7 @@ export function AhizanNavbar({
     const cartCount = order?.totalQuantity || 0;
     const isLoggedIn = !!customer;
     const displayName = customer?.firstName || "Compte";
+    const fullName = customer ? [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() : "";
 
     const {
         siteName = "AHIZAN",
@@ -218,39 +220,37 @@ export function AhizanNavbar({
     return (
         <>
             {/* Top Navigation Menu Items */}
-            {menuItems.length > 0 && (
-                <div className="w-full font-sans animate-in fade-in duration-700 bg-[#f8f9fa] h-10 border-b border-gray-100 hidden md:block">
-                    <div className="max-w-[1440px] mx-auto w-full px-4 md:px-8 lg:px-12 h-full flex items-center justify-between text-[12px] text-gray-600">
-                        <div className="flex items-center gap-6">
-                            {menuItems.map((item: any, idx: number) => {
-                                const isPill = item.style === 'pill';
-                                const isRect = item.style === 'rectangle';
-                                const hasStyle = isPill || isRect;
+            <div className="w-full font-sans animate-in fade-in duration-700 bg-[#f8f9fa] h-10 border-b border-gray-100 hidden md:block">
+                <div className="max-w-[1440px] mx-auto w-full px-4 md:px-8 lg:px-12 h-full flex items-center justify-between text-[12px] text-gray-600">
+                    <div className="flex items-center gap-6">
+                        {menuItems.map((item: any, idx: number) => {
+                            const isPill = item.style === 'pill';
+                            const isRect = item.style === 'rectangle';
+                            const hasStyle = isPill || isRect;
 
-                                return (
-                                    <Link
-                                        key={idx}
-                                        href={item.link || '#'}
-                                        className={`font-medium transition-all flex items-center justify-center ${hasStyle
-                                                ? `px-4 py-1.5 ${isPill ? 'rounded-full' : 'rounded-md'} hover:opacity-90 shadow-sm text-[12px] font-bold`
-                                                : `hover:text-[${cartBadgeColor}] ${item.isHighlighted ? 'text-red-600 font-bold' : ''}`
-                                            }`}
-                                        style={hasStyle ? { backgroundColor: item.bgColor || '#e31837', color: item.textColor || '#ffffff' } : undefined}
-                                    >
-                                        {item.label}
-                                    </Link>
-                                );
-                            })}
-                        </div>
-                        <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#002f6c] transition-colors">
-                                <span className="w-4 h-3 bg-red-600 inline-block border border-gray-200"></span>
-                                <span className="font-medium">Français</span>
-                            </div>
+                            return (
+                                <Link
+                                    key={idx}
+                                    href={item.link || '#'}
+                                    className={`font-medium transition-all flex items-center justify-center ${hasStyle
+                                        ? `px-4 py-1.5 ${isPill ? 'rounded-full' : 'rounded-md'} hover:opacity-90 shadow-sm text-[12px] font-bold`
+                                        : `hover:text-[${cartBadgeColor}] ${item.isHighlighted ? 'text-red-600 font-bold' : ''}`
+                                        }`}
+                                    style={hasStyle ? { backgroundColor: item.bgColor || '#e31837', color: item.textColor || '#ffffff' } : undefined}
+                                >
+                                    {item.label}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                    <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#002f6c] transition-colors">
+                            <span className="w-4 h-3 bg-red-600 inline-block border border-gray-200"></span>
+                            <span className="font-medium">Français</span>
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Main Header */}
             <div
@@ -327,9 +327,11 @@ export function AhizanNavbar({
                                                     </button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
-                                                    <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-                                                        Mon Compte
-                                                    </DropdownMenuLabel>
+                                                    {fullName && (
+                                                        <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                                                            {fullName}
+                                                        </DropdownMenuLabel>
+                                                    )}
                                                     <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
                                                         <Link href="/account/profile" className="flex items-center gap-3 w-full font-bold">
                                                             Profil
@@ -386,6 +388,12 @@ export function AhizanNavbar({
                                     )}
                                 </div>
                             )}
+                        </div>
+
+                        {/* Geolocation selector on Mobile */}
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secteur</span>
+                            <LocationWidget />
                         </div>
 
                         {/* Row 2: Search Bar */}
@@ -519,6 +527,10 @@ export function AhizanNavbar({
                                 </Link>
                             )}
 
+                            <div className="hidden lg:block">
+                                <LocationWidget />
+                            </div>
+
                             {showAccountIcon && (
                                 isLoggedIn ? (
                                     <DropdownMenu modal={false}>
@@ -535,9 +547,11 @@ export function AhizanNavbar({
                                             </button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
-                                            <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-                                                Mon Compte
-                                            </DropdownMenuLabel>
+                                            {fullName && (
+                                                <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                                                    {fullName}
+                                                </DropdownMenuLabel>
+                                            )}
                                             <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
                                                 <Link href="/account/profile" className="flex items-center gap-3 w-full font-bold">
                                                     Profil

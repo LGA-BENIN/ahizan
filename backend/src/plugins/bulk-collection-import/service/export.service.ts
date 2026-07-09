@@ -46,8 +46,16 @@ export class ExportService {
     const facetValueRepo = this.connection.getRepository(ctx, FacetValue);
     const allFacetValues = await facetValueRepo.find({ relations: ['facet'] });
     const facetValueIdToCode = new Map<string, string>();
-    allFacetValues.forEach(fv => {
+    allFacetValues.forEach((fv: any) => {
       facetValueIdToCode.set(String(fv.id), fv.code);
+    });
+
+    // Fetch all facets upfront to build a facet ID -> facet code map
+    const facetRepo = this.connection.getRepository(ctx, Facet);
+    const allFacets = await facetRepo.find();
+    const facetIdToCode = new Map<string, string>();
+    allFacets.forEach((f: any) => {
+      facetIdToCode.set(String(f.id), f.code);
     });
 
     return collections.map((collection: any) => {
@@ -75,7 +83,10 @@ export class ExportService {
         description_en: enTrans?.description || '',
         featured_asset_url: collection.featuredAsset?.preview || '',
         position: collection.position || 0,
-        allowed_facet_ids: (collection.customFields?.allowedFacetIds || []).join(','),
+        allowed_facet_codes: (collection.customFields?.allowedFacetIds || [])
+          .map((id: string) => facetIdToCode.get(String(id)))
+          .filter((code: string | undefined): code is string => code !== undefined)
+          .join(','),
         facet_value_codes: facetValueCodes.join(','),
         variant_ids: variantIds.join(','),
         inherit_filters: collection.inheritFilters === false ? 'false' : 'true',

@@ -69,6 +69,7 @@ export class CollectionFacetMapShopResolver {
         });
 
         if (!coll) return null;
+        console.log('[ShopResolver] coll.id:', coll.id, 'customFields:', (coll as any).customFields);
 
         // Walk up parent chain to collect inherited facets
         const allCollections = await collectionRepo.find({
@@ -79,13 +80,17 @@ export class CollectionFacetMapShopResolver {
             collMap.set(String(c.id), c);
         }
 
-        const resolveInheritedFacetIds = (c: any): string[] => {
+        const resolveInheritedFacetIds = (c: any, visited = new Set<string>()): string[] => {
+            if (!c || visited.has(String(c.id))) {
+                return [];
+            }
+            visited.add(String(c.id));
             const ownIds: string[] = (c as any).customFields?.allowedFacetIds || [];
             const parentColl = c.parent;
             if (parentColl && parentColl.id) {
                 const parentFull = collMap.get(String(parentColl.id));
                 if (parentFull) {
-                    const parentIds = resolveInheritedFacetIds(parentFull);
+                    const parentIds = resolveInheritedFacetIds(parentFull, visited);
                     return [...new Set([...parentIds, ...ownIds])];
                 }
             }

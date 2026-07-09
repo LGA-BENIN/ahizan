@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, BellDot, Check, CheckCheck, ExternalLink, Loader2 } from 'lucide-react';
+import { Bell, BellDot, Check, CheckCheck, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface Notification {
@@ -91,6 +91,18 @@ export function NotificationBell({
         await gqlFetch(`mutation($id: ID!) { markNotificationRead(id: $id) }`, { id });
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
+    }, [authToken, gqlFetch]);
+
+    const deleteNotification = useCallback(async (id: string) => {
+        if (!authToken) return;
+        await gqlFetch(`mutation($id: ID!) { deleteNotification(id: $id) }`, { id });
+        setNotifications(prev => {
+            const exists = prev.find(n => n.id === id);
+            if (exists && !exists.isRead) {
+                setUnreadCount(c => Math.max(0, c - 1));
+            }
+            return prev.filter(n => n.id !== id);
+        });
     }, [authToken, gqlFetch]);
 
     // ────────────────────────────────────────────
@@ -300,10 +312,24 @@ export function NotificationBell({
                                         <p className="text-[10px] text-gray-400 mt-1">{formatDate(notif.createdAt)}</p>
                                     </div>
 
-                                    {/* Unread dot */}
-                                    {!notif.isRead && (
-                                        <div className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-2" />
-                                    )}
+                                    {/* Right controls (unread dot & delete icon) */}
+                                    <div className="flex flex-col items-center justify-between gap-2 self-stretch flex-shrink-0">
+                                        {!notif.isRead ? (
+                                            <div className="w-2 h-2 rounded-full bg-blue-500 mt-2" />
+                                        ) : (
+                                            <div className="w-2 h-2" />
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteNotification(notif.id);
+                                            }}
+                                            className="text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 rounded-md transition-colors"
+                                            title="Supprimer cette notification"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}

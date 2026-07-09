@@ -31,6 +31,7 @@ export function CollectionFacetMapPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [expandedCollections, setExpandedCollections] = useState<Set<string>>(new Set());
     const [bulkSaving, setBulkSaving] = useState(false);
+    const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
 
     const { data: configData } = useQuery({
         queryKey: ['sellerDashboardConfig'],
@@ -328,9 +329,187 @@ export function CollectionFacetMapPage() {
                         onToggleFacet={toggleFacet}
                         onToggleExpand={toggleExpand}
                         onApplyToSubcollections={applyToSubcollections}
+                        onOpenFacetsModal={setActiveCollectionId}
                     />
                 ))}
             </div>
+
+            {/* Facets Modal */}
+            {(() => {
+                const activeMapping = activeCollectionId ? findMappingById(mappings, activeCollectionId) : null;
+                if (!activeMapping) return null;
+
+                return (
+                    <div
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 1000,
+                            backdropFilter: 'blur(4px)',
+                        }}
+                        onClick={() => setActiveCollectionId(null)}
+                    >
+                        <div
+                            style={{
+                                backgroundColor: '#fff',
+                                borderRadius: 16,
+                                width: '90%',
+                                maxWidth: 700,
+                                maxHeight: '85vh',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Modal Header */}
+                            <div
+                                style={{
+                                    padding: '20px 24px',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                }}
+                            >
+                                <div>
+                                    <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                                        Facettes pour : {activeMapping.collectionName}
+                                    </h3>
+                                    <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0 0' }}>
+                                        Cochez les facettes propres à cette collection. Les facettes héritées s'affichent avec une bordure bleue.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setActiveCollectionId(null)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        fontSize: 20,
+                                        fontWeight: 600,
+                                        color: '#64748b',
+                                        cursor: 'pointer',
+                                        padding: 4,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                        gap: 12,
+                                    }}
+                                >
+                                    {allFacets.map((facet: any) => {
+                                        const ownSet = new Set((activeMapping.ownFacetIds || []).map((id: any) => String(id)));
+                                        const inheritedSet = new Set((activeMapping.inheritedFacetIds || []).map((id: any) => String(id)));
+                                        const isOwn = ownSet.has(String(facet.id));
+                                        const isInherited = inheritedSet.has(String(facet.id));
+                                        const isChecked = isOwn || isInherited;
+                                        const isSavingThis = saving === activeMapping.collectionId;
+
+                                        return (
+                                            <label
+                                                key={facet.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    padding: '10px 12px',
+                                                    borderRadius: 8,
+                                                    border: isOwn
+                                                        ? '2px solid #3b82f6'
+                                                        : isInherited
+                                                        ? '2px solid #93c5fd'
+                                                        : '1px solid #e2e8f0',
+                                                    background: isOwn
+                                                        ? '#eff6ff'
+                                                        : isInherited
+                                                        ? '#f0f7ff'
+                                                        : '#fff',
+                                                    cursor: isInherited ? 'default' : isSavingThis ? 'wait' : 'pointer',
+                                                    opacity: isSavingThis && !isInherited ? 0.7 : 1,
+                                                    transition: 'all 0.15s',
+                                                    userSelect: 'none',
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    disabled={isInherited || !!isSavingThis}
+                                                    onChange={() =>
+                                                        toggleFacet(activeMapping.collectionId, facet.id)
+                                                    }
+                                                    style={{ accentColor: isInherited ? '#93c5fd' : '#3b82f6', width: 14, height: 14 }}
+                                                />
+                                                <div style={{ flex: 1 }}>
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: isInherited ? '#64748b' : '#0f172a' }}>
+                                                        {facet.name}
+                                                    </span>
+                                                    {isInherited && (
+                                                        <span style={{ fontSize: 9, color: '#3b82f6', marginLeft: 5, fontWeight: 500 }}>
+                                                            héritée
+                                                        </span>
+                                                    )}
+                                                    {isChecked && facet.values?.length > 0 && (
+                                                        <span style={{ fontSize: 10, color: '#64748b', marginLeft: 5 }}>
+                                                            ({facet.values.length})
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div
+                                style={{
+                                    padding: '16px 24px',
+                                    borderTop: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    justifyContent: 'flex-end',
+                                    backgroundColor: '#f8fafc',
+                                    borderBottomLeftRadius: 16,
+                                    borderBottomRightRadius: 16,
+                                }}
+                            >
+                                <button
+                                    onClick={() => setActiveCollectionId(null)}
+                                    style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: '#3b82f6',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: 8,
+                                        fontWeight: 600,
+                                        fontSize: 13,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    Fermer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }
@@ -345,6 +524,7 @@ function CollectionCard({
     onToggleFacet,
     onToggleExpand,
     onApplyToSubcollections,
+    onOpenFacetsModal,
 }: any) {
     const expanded = expandedCollections.has(mapping.collectionId);
     const isSavingThis = saving === mapping.collectionId;
@@ -443,104 +623,54 @@ function CollectionCard({
                     </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {isSavingThis && (
+                        <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 500 }}>
+                            Sauvegarde...
+                        </span>
+                    )}
+                    
+                    {/* Voir les facettes liées */}
+                    <button
+                        onClick={() => onOpenFacetsModal(mapping.collectionId)}
+                        style={{
+                            fontSize: 11,
+                            color: '#1e293b',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                        }}
+                    >
+                        Voir les facettes liées
+                    </button>
+
+                    {/* Appliquer à toutes (sous-collections) */}
                     {hasChildren && (
                         <button
-                            onClick={() => onApplyToSubcollections(mapping.collectionId, Array.from(ownSet))}
+                            onClick={() => {
+                                const confirmed = window.confirm("Êtes-vous sûr de vouloir appliquer ces modifications ?");
+                                if (confirmed) {
+                                    onApplyToSubcollections(mapping.collectionId, Array.from(ownSet));
+                                }
+                            }}
                             disabled={bulkSaving}
                             style={{
                                 fontSize: 11,
                                 color: '#3b82f6',
                                 background: '#eff6ff',
                                 border: '1px solid #bfdbfe',
-                                padding: '4px 10px',
+                                padding: '6px 12px',
                                 borderRadius: 6,
                                 cursor: bulkSaving ? 'wait' : 'pointer',
-                                fontWeight: 500,
+                                fontWeight: 600,
                             }}
                         >
-                            {bulkSaving ? 'Application...' : 'Apiquer aux sous-collections'}
+                            {bulkSaving ? 'Application...' : 'Appliquer à toutes'}
                         </button>
                     )}
-                    {isSavingThis && (
-                        <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 500 }}>
-                            Sauvegarde...
-                        </span>
-                    )}
                 </div>
-            </div>
-
-            {/* Facet checkboxes */}
-            <div style={{ padding: '14px 18px' }}>
-                {allFacets.length === 0 ? (
-                    <p style={{ fontSize: 13, color: '#9ca3af' }}>
-                        Aucune facette trouvée. Créez d'abord des facettes dans le catalogue.
-                    </p>
-                ) : (
-                    <div
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                            gap: 8,
-                        }}
-                    >
-                        {allFacets.map((facet: any) => {
-                            const isOwn = ownSet.has(String(facet.id));
-                            const isInherited = inheritedSet.has(String(facet.id));
-                            const isChecked = isOwn || isInherited;
-                            return (
-                                <label
-                                    key={facet.id}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        padding: '8px 10px',
-                                        borderRadius: 6,
-                                        border: isOwn
-                                            ? '2px solid #3b82f6'
-                                            : isInherited
-                                            ? '2px solid #93c5fd'
-                                            : '1px solid #e5e7eb',
-                                        background: isOwn
-                                            ? '#eff6ff'
-                                            : isInherited
-                                            ? '#f0f7ff'
-                                            : '#fff',
-                                        cursor: isInherited ? 'default' : isSavingThis ? 'wait' : 'pointer',
-                                        opacity: isSavingThis && !isInherited ? 0.7 : 1,
-                                        transition: 'all 0.15s',
-                                        userSelect: 'none',
-                                    }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        disabled={isInherited || !!isSavingThis}
-                                        onChange={() =>
-                                            onToggleFacet(mapping.collectionId, facet.id)
-                                        }
-                                        style={{ accentColor: isInherited ? '#93c5fd' : '#3b82f6', width: 14, height: 14 }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: isInherited ? '#6b7280' : '#1e293b' }}>
-                                            {facet.name}
-                                        </span>
-                                        {isInherited && (
-                                            <span style={{ fontSize: 9, color: '#93c5fd', marginLeft: 5, fontWeight: 500 }}>
-                                                héritée
-                                            </span>
-                                        )}
-                                        {isChecked && facet.values?.length > 0 && (
-                                            <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 5 }}>
-                                                ({facet.values.length} valeur{facet.values.length !== 1 ? 's' : ''})
-                                            </span>
-                                        )}
-                                    </div>
-                                </label>
-                            );
-                        })}
-                    </div>
-                )}
             </div>
 
             {/* Children */}
@@ -558,6 +688,7 @@ function CollectionCard({
                             onToggleFacet={onToggleFacet}
                             onToggleExpand={onToggleExpand}
                             onApplyToSubcollections={onApplyToSubcollections}
+                            onOpenFacetsModal={onOpenFacetsModal}
                         />
                     ))}
                 </div>

@@ -231,6 +231,25 @@ export const GetMyVendorFullProfileQuery = graphql(`
             coverImage {
                 preview
             }
+            latitude
+            longitude
+            location {
+                id
+                name
+            }
+            physicalMarket {
+                id
+                name
+            }
+            markets {
+                id
+                name
+            }
+            paymentMethod
+            mobileMoneyProvider
+            mobileMoneyNumber
+            bankName
+            bankAccountNumber
         }
     }
 `);
@@ -329,6 +348,24 @@ export const GetCollectionsTreeQuery = graphql(`
                 featuredAsset {
                     id
                     preview
+                }
+                children {
+                    id
+                    name
+                    slug
+                    featuredAsset {
+                        id
+                        preview
+                    }
+                    children {
+                        id
+                        name
+                        slug
+                        featuredAsset {
+                            id
+                            preview
+                        }
+                    }
                 }
             }
         }

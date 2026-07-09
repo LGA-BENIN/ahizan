@@ -40,6 +40,7 @@ export class CollectionImportService {
     ctx: RequestContext,
     collections: CollectionRow[],
     facetValueCodeToId: Map<string, string> = new Map(),
+    codeToIdMap: Map<string, string> = new Map(),
   ): Promise<{ created: number; updated: number; errors: string[] }> {
     const errors: string[] = [];
     let created = 0;
@@ -51,8 +52,33 @@ export class CollectionImportService {
     // Resolve the root collection once so we can re-parent top-level collections
     const rootCollectionId = await this.getRootCollectionId(ctx);
 
-    // First pass: create or update all collections (parents resolved later)
-    for (const collection of collections) {
+    // Build a map of slug to parent slug to compute tree depth
+    const parentMap = new Map<string, string>();
+    for (const c of collections) {
+      if (c.parentSlug) {
+        parentMap.set(c.slug, c.parentSlug.trim());
+      }
+    }
+
+    const getDepth = (slug: string): number => {
+      let depth = 0;
+      let current = slug;
+      while (parentMap.has(current)) {
+        const parent = parentMap.get(current);
+        if (!parent || parent === current) break; // guard against cycles
+        current = parent;
+        depth++;
+      }
+      return depth;
+    };
+
+    // Sort collections by depth in ascending order
+    // to ensure parents are always created/updated before their children
+    const sortedCollections = [...collections].sort((a, b) => {
+      return getDepth(a.slug) - getDepth(b.slug);
+    });
+
+    for (const collection of sortedCollections) {
       try {
         const filters = this.buildFilters(ctx, collection, facetValueCodeToId, errors);
         const inheritFilters = collection.inheritFilters
@@ -81,6 +107,24 @@ export class CollectionImportService {
             : []),
         ];
 
+        // Resolve the parent ID from memory first (since parent was processed first)
+        let targetParentId: string | undefined;
+        const parentSlug = collection.parentSlug?.trim();
+
+        if (parentSlug) {
+          targetParentId = slugToIdMap.get(parentSlug);
+          if (!targetParentId) {
+            // Parent not in this batch - try to resolve from the database
+            const parent = await this.collectionService.findOneBySlug(ctx, parentSlug);
+            targetParentId = parent ? String(parent.id) : undefined;
+          }
+        }
+
+        // Default to root collection if parent slug not found or empty
+        if (!targetParentId) {
+          targetParentId = rootCollectionId;
+        }
+
         // Check if collection already exists
         const existing = await this.collectionService.findOneBySlug(ctx, collection.slug);
 
@@ -93,7 +137,7 @@ export class CollectionImportService {
             filters,
             translations,
             customFields: {
-              allowedFacetIds: this.parseAllowedFacetIds(collection.allowedFacetIds),
+              allowedFacetIds: this.parseAllowedFacetCodes(collection.allowedFacetCodes, codeToIdMap),
             },
           };
 
@@ -112,15 +156,36 @@ export class CollectionImportService {
 
           slugToIdMap.set(collection.slug, String(existing.id));
           updated++;
+
+          // Check if parent actually changed before calling move() to avoid TypeORM closure issues
+          const parentRelation = await this.connection.getRepository(ctx, Collection).findOne({
+            where: { id: existing.id },
+            relations: ['parent'],
+          });
+          const currentParentId = parentRelation?.parent ? String(parentRelation.parent.id) : undefined;
+
+          if (targetParentId && currentParentId !== targetParentId && String(existing.id) !== targetParentId) {
+            try {
+              const index = this.parsePosition(collection.position);
+              await this.collectionService.move(ctx, {
+                collectionId: existing.id as any,
+                parentId: targetParentId as any,
+                index,
+              });
+            } catch (error: any) {
+              errors.push(`Failed to move collection "${collection.slug}" under parent: ${error.message}`);
+            }
+          }
         } else {
           // Create new collection
           const createInput: any = {
+            parentId: targetParentId as any,
             isPrivate,
             inheritFilters,
             filters,
             translations,
             customFields: {
-              allowedFacetIds: this.parseAllowedFacetIds(collection.allowedFacetIds),
+              allowedFacetIds: this.parseAllowedFacetCodes(collection.allowedFacetCodes, codeToIdMap),
             },
           };
 
@@ -140,45 +205,6 @@ export class CollectionImportService {
         }
       } catch (error: any) {
         errors.push(`Failed to import collection "${collection.slug}": ${error.message}`);
-      }
-    }
-
-    // Second pass: set parent relationships using move() so the hierarchy is
-    // actually persisted. Vendure's update() ignores parentId, which was the
-    // root cause of orphaned collections.
-    for (const collection of collections) {
-      const collectionId = slugToIdMap.get(collection.slug);
-      if (!collectionId) continue;
-
-      let targetParentId: string | undefined;
-      const parentSlug = collection.parentSlug?.trim();
-
-      if (parentSlug) {
-        targetParentId = slugToIdMap.get(parentSlug);
-        if (!targetParentId) {
-          // Parent not in this batch - try to resolve from the database
-          const parent = await this.collectionService.findOneBySlug(ctx, parentSlug);
-          targetParentId = parent ? String(parent.id) : undefined;
-        }
-      }
-
-      // No (valid) parent -> attach to root so the collection is never orphaned
-      if (!targetParentId) {
-        targetParentId = rootCollectionId;
-      }
-
-      // Guard against self-parenting
-      if (!targetParentId || targetParentId === collectionId) continue;
-
-      try {
-        const index = this.parsePosition(collection.position);
-        await this.collectionService.move(ctx, {
-          collectionId: collectionId as any,
-          parentId: targetParentId as any,
-          index,
-        });
-      } catch (error: any) {
-        errors.push(`Failed to set parent for collection "${collection.slug}": ${error.message}`);
       }
     }
 
@@ -266,10 +292,15 @@ export class CollectionImportService {
   }
 
   /**
-   * Parse comma-separated facet IDs from string
+   * Parse allowed facet codes from string using codeToIdMap
    */
-  private parseAllowedFacetIds(facetIdsStr?: string): string[] {
-    return this.parseCsv(facetIdsStr);
+  private parseAllowedFacetCodes(
+    codesStr?: string,
+    codeToIdMap: Map<string, string> = new Map(),
+  ): string[] {
+    return this.parseCsv(codesStr)
+      .map(code => codeToIdMap.get(code))
+      .filter((id): id is string => id !== undefined);
   }
 
   /**

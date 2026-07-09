@@ -84,6 +84,15 @@ const MASTER_ZONE_MAP = [
         allowedOn: ['home']
     },
     {
+        zone: 'Localisation',
+        items: [
+            { type: 'MARKET_INFO', icon: '🏪', label: 'Infos du Marché (Carte & Commerces)', mode: 'singleton' },
+            { type: 'NEIGHBORHOOD_INFO', icon: '📍', label: 'Infos du Quartier (Carte & Commerces)', mode: 'singleton' },
+            { type: 'LOCAL_PRODUCTS', icon: '🛍️', label: 'Produits à proximité', mode: 'multi' },
+        ],
+        allowedOn: ['all']
+    },
+    {
         zone: 'Avancé',
         items: [
             { type: 'CUSTOM', icon: '🛠️', label: 'Code HTML personnalisé', mode: 'multi' },
@@ -100,13 +109,21 @@ const getZoneMapForSlug = (slug?: string) => {
         home: [
             'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
             'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
-            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'LOCAL_PRODUCTS'
         ],
         category: [
             'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER'
         ],
         product: [
             'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER'
+        ],
+        market: [
+            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO', 'LOCAL_PRODUCTS',
+            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+        ],
+        neighborhood: [
+            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO', 'LOCAL_PRODUCTS',
+            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ]
     };
 

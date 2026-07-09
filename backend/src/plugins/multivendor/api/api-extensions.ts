@@ -48,6 +48,42 @@ export const commonApiExtensions = `
         # Wallet
         walletBalance: Int
         allowNegativeBalance: Boolean
+
+        # Geolocation & Markets
+        latitude: Float
+        longitude: Float
+        location: GeographicLocation
+        physicalMarket: Market
+        markets: [Market!]
+    }
+
+    type GeographicLocation implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        name: String!
+        type: String!
+        centerLatitude: Float
+        centerLongitude: Float
+        radiusMeters: Int
+        isActive: Boolean!
+        parent: GeographicLocation
+        children: [GeographicLocation!]
+    }
+
+    type Market implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        name: String!
+        slug: String!
+        description: String
+        image: String
+        centerLatitude: Float
+        centerLongitude: Float
+        radiusMeters: Int
+        allowedFacetIds: [String!]
+        location: GeographicLocation
     }
 
     type EmailRolesResult {
@@ -89,6 +125,13 @@ export const commonApiExtensions = `
         instagram: String
         
         dynamicDetails: JSON
+
+        # Geolocation & Markets Input
+        latitude: Float
+        longitude: Float
+        locationId: ID
+        physicalMarketId: ID
+        marketIds: [ID!]
     }
 
     input UpdateVendorInput {
@@ -132,6 +175,13 @@ export const commonApiExtensions = `
         mobileMoneyNumber: String
         bankName: String
         bankAccountNumber: String
+
+        # Geolocation & Markets Input
+        latitude: Float
+        longitude: Float
+        locationId: ID
+        physicalMarketId: ID
+        marketIds: [ID!]
     }
 
     input VendorListOptions {
@@ -319,7 +369,7 @@ export const shopApiExtensions = `
 
     extend type Query {
         vendor(id: ID!): Vendor
-        vendors(options: VendorListOptions): VendorList!
+        vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
         myVendorProfile: Vendor
         myVendorOrders(options: OrderListOptions): OrderList!
         myVendorProducts(options: ProductListOptions): ProductList!
@@ -348,6 +398,12 @@ export const shopApiExtensions = `
         myConversations: [Conversation!]!
         myCustomerConversations: [CustomerConversation!]!
         conversationHistoryWithCustomer(customerId: ID!): [ChatMessage!]!
+
+        # Geolocation & Markets
+        markets: [Market!]!
+        market(id: ID, slug: String): Market
+        geographicLocations(parentName: String, type: String): [GeographicLocation!]!
+        geographicLocation(id: ID!): GeographicLocation
     }
 
     extend type Mutation {
@@ -380,7 +436,7 @@ export const shopApiExtensions = `
 
 export const adminApiExtensions = `
     extend type Query {
-        vendors(options: VendorListOptions): VendorList!
+        vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
         vendor(id: ID!): Vendor
         adminVendorProducts(options: ProductListOptions): ProductList!
         myVendorProfile: Vendor
@@ -393,6 +449,12 @@ export const adminApiExtensions = `
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
+
+        # Geolocation & Markets
+        markets: [Market!]!
+        market(id: ID, slug: String): Market
+        geographicLocations(parentName: String, type: String): [GeographicLocation!]!
+        geographicLocation(id: ID!): GeographicLocation
     }
 
     extend type Mutation {

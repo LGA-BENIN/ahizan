@@ -67,6 +67,20 @@ export async function updateVendorProfileAction(
     const deliveryInfo = formData.get('deliveryInfo') as string;
     const returnPolicy = formData.get('returnPolicy') as string;
 
+    // Geolocation & Markets
+    const latitudeStr = formData.get('latitude') as string;
+    const longitudeStr = formData.get('longitude') as string;
+    const locationId = formData.get('locationId') as string;
+    const physicalMarketId = formData.get('physicalMarketId') as string;
+    const marketIds = formData.getAll('marketIds') as string[];
+
+    // Payments settings
+    const paymentMethod = formData.get('paymentMethod') as string;
+    const mobileMoneyProvider = formData.get('mobileMoneyProvider') as string;
+    const mobileMoneyNumber = formData.get('mobileMoneyNumber') as string;
+    const bankName = formData.get('bankName') as string;
+    const bankAccountNumber = formData.get('bankAccountNumber') as string;
+
     // File fields
     const logo = formData.get('logo') as File | null;
     const coverImage = formData.get('coverImage') as File | null;
@@ -80,6 +94,9 @@ export async function updateVendorProfileAction(
     if (!name) {
         return { error: 'Le nom est requis.' };
     }
+
+    const latitude = latitudeStr && !isNaN(parseFloat(latitudeStr)) ? parseFloat(latitudeStr) : null;
+    const longitude = longitudeStr && !isNaN(parseFloat(longitudeStr)) ? parseFloat(longitudeStr) : null;
 
     try {
         const result = await (mutate as any)(UpdateMyVendorProfileMutation, {
@@ -96,6 +113,16 @@ export async function updateVendorProfileAction(
                 returnPolicy: returnPolicy || undefined,
                 logo: (logo && logo.size > 0 ? logo : undefined) as any,
                 coverImage: (coverImage && coverImage.size > 0 ? coverImage : undefined) as any,
+                latitude,
+                longitude,
+                locationId: locationId || null,
+                physicalMarketId: physicalMarketId || null,
+                marketIds: marketIds || [],
+                paymentMethod: paymentMethod || undefined,
+                mobileMoneyProvider: mobileMoneyProvider || null,
+                mobileMoneyNumber: mobileMoneyNumber || null,
+                bankName: bankName || null,
+                bankAccountNumber: bankAccountNumber || null,
             }
         }, { useAuthToken: true });
 

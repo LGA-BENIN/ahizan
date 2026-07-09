@@ -289,11 +289,11 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
     );
 
     return (
-        <div className="flex h-screen bg-dashboard-bg text-foreground transition-colors duration-300 overflow-hidden stitch-theme">
+        <div className="flex min-h-screen bg-dashboard-bg text-foreground transition-colors duration-300 stitch-theme">
             {/* Desktop Sidebar */}
             <aside
                 className={cn(
-                    "hidden md:flex flex-col bg-white dark:bg-[#0d1c32] border-r border-slate-200 dark:border-white/10 transition-all duration-500 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-2xl z-50",
+                    "hidden md:flex flex-col h-screen sticky top-0 bg-white dark:bg-[#0d1c32] border-r border-slate-200 dark:border-white/10 transition-all duration-500 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-2xl z-50",
                     isSidebarOpen ? "w-64" : "w-24"
                 )}
             >
@@ -319,7 +319,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            <div className="flex-1 flex flex-col min-w-0">
                 {/* Top Navbar */}
                 <header className="h-16 flex items-center justify-between px-4 md:px-6 bg-dashboard-bg shrink-0">
                     <div className="flex items-center gap-2 md:gap-4">
@@ -430,9 +430,9 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                 </header>
 
                 {/* Main Content Container with Rounded Inset */}
-                <main className="flex-1 overflow-hidden p-3 md:p-6 pt-0">
-                    <div className="h-full bg-card rounded-2xl md:rounded-[2rem] shadow-sm border overflow-hidden flex flex-col">
-                        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <main className="flex-1 p-3 md:p-6 pt-0">
+                    <div className="bg-card rounded-2xl md:rounded-[2rem] shadow-sm border overflow-hidden flex flex-col">
+                        <div className="p-4 md:p-8">
                             {children}
                         </div>
                     </div>

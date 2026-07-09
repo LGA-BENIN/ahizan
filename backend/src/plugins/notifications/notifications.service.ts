@@ -172,6 +172,10 @@ export class NotificationsService {
         );
     }
 
+    async deleteNotification(ctx: RequestContext, notificationId: string): Promise<void> {
+        await this.connection.getRepository(ctx, NotificationLog).delete({ id: notificationId });
+    }
+
     // ─────────────────────────────────────────────
     // Web Push
     // ─────────────────────────────────────────────

@@ -117,23 +117,27 @@ export class BulkImportResolver {
       console.log('[BulkImportResolver] Validation warnings:', validationErrors.length);
 
       // Import facets first (independent)
-      const { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors: facetErrors, facetValueCodeToId } = 
+      const { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors: facetErrors, facetValueCodeToId, codeToIdMap } = 
         await this.facetImport.importFacets(ctx, data.facets, data.facetValues);
 
       // Import collections. The facet value code -> ID map lets collections
       // build facet-value-filters (to auto-populate variants) from value codes.
       const { created: collectionsCreated, updated: collectionsUpdated, errors: collectionErrors } = 
-        await this.collectionImport.importCollections(ctx, data.collections, facetValueCodeToId);
+        await this.collectionImport.importCollections(ctx, data.collections, facetValueCodeToId, codeToIdMap);
 
-      // Update collection-facet mappings based on allowedFacetIds from Excel
+      // Update collection-facet mappings based on allowedFacetCodes from Excel
       for (const collection of data.collections) {
-        if (collection.allowedFacetIds) {
-          const facetIds = collection.allowedFacetIds
+        if (collection.allowedFacetCodes) {
+          const facetCodes = collection.allowedFacetCodes
             .split(',')
-            .map((id: string) => id.trim())
-            .filter((id: string) => id !== '');
+            .map((code: string) => code.trim())
+            .filter((code: string) => code !== '');
 
-          if (facetIds.length > 0) {
+          if (facetCodes.length > 0) {
+            const facetIds = facetCodes
+              .map(code => codeToIdMap.get(code))
+              .filter((id): id is string => id !== undefined);
+
             try {
               await this.collectionImport.updateCollectionFacets(ctx, collection.slug, facetIds);
             } catch (error: any) {

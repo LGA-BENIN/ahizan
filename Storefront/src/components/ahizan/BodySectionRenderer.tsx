@@ -13,6 +13,8 @@ import { TabbedProductGrid } from "@/components/cms/tabbed-product-grid";
 import { CategoryGrid } from "@/components/cms/category-grid";
 import { SmartVisualGridSection } from "./SmartGrid/SmartVisualGridSection";
 import { FreeformBuilderSection } from './FreeformBuilderSection';
+import MarketInfoRenderer from "@/components/cms/MarketInfoRenderer";
+import { LocalPersonalizedProducts } from "@/components/cms/LocalPersonalizedProducts";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Script from "next/script";
 
@@ -20,6 +22,7 @@ interface Props {
     section: CmsSection;
     siteCategories: any[];
     globalPromoConfig: any;
+    allSections?: CmsSection[];
 }
 
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
@@ -191,7 +194,7 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
  * Each case renders ONLY if the section has meaningful data.
  * Returns null when there's nothing to show, preventing empty cards.
  */
-export function BodySectionRenderer({ section, siteCategories, globalPromoConfig }: Props) {
+export function BodySectionRenderer({ section, siteCategories, globalPromoConfig, allSections = [] }: Props) {
     const config = section.data || {};
     const type = section.type;
 
@@ -508,6 +511,22 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         
         case 'FREEFORM_BUILDER': {
             return <FreeformBuilderSection config={config} />;
+        }
+
+        case 'LOCAL_PRODUCTS': {
+            return (
+                <section className={`${wrapper} mt-8 md:mt-10`}>
+                    <LocalPersonalizedProducts config={config} />
+                </section>
+            );
+        }
+
+        case 'MARKET_INFO':
+        case 'NEIGHBORHOOD_INFO': {
+            const hasOtherProductsSection = allSections.some(
+                (s: any) => s.isActive && s.id !== section.id && ['LOCAL_PRODUCTS', 'PRODUCT_GRID'].includes(s.type)
+            );
+            return <MarketInfoRenderer config={config} showProducts={!hasOtherProductsSection} />;
         }
 
         default:

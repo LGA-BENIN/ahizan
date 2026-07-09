@@ -16,6 +16,7 @@ import path from 'path';
 import dns from 'dns';
 import { MultivendorPlugin } from './plugins/multivendor/multivendor.plugin';
 import { globalFixedShippingCalculator } from './plugins/multivendor/shipping/fixed-global-shipping.calculator';
+import { json } from 'body-parser';
 import { zoneBasedShippingCalculator } from './plugins/multivendor/shipping/zone-based-shipping.calculator';
 import { variantIdCollectionFilter } from './plugins/multivendor/collection-filters';
 import { cashOnDeliveryHandler } from './plugins/multivendor/payment/cash-on-delivery.handler';
@@ -57,6 +58,13 @@ export const config: VendureConfig = {
                 ],
             credentials: true,
         },
+        middleware: [
+            {
+                handler: json({ limit: '50mb' }),
+                route: '/',
+                beforeListen: true,
+            }
+        ],
     },
     authOptions: {
         tokenMethod: ['bearer', 'cookie'],

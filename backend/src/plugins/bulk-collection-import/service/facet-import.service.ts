@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Ctx, RequestContext, FacetService, LanguageCode, TransactionalConnection, FacetValue, Facet, ChannelService } from '@vendure/core';
+import { Ctx, RequestContext, FacetService, FacetValueService, LanguageCode, TransactionalConnection, FacetValue, Facet, ChannelService } from '@vendure/core';
 import { FacetRow, FacetValueRow } from '../types/import-types';
 
 @Injectable()
 export class FacetImportService {
   constructor(
     private facetService: FacetService,
+    private facetValueService: FacetValueService,
     private connection: TransactionalConnection,
     private channelService: ChannelService,
   ) {}
@@ -19,7 +20,7 @@ export class FacetImportService {
     ctx: RequestContext,
     facets: FacetRow[],
     facetValues: FacetValueRow[],
-  ): Promise<{ facetsCreated: number; facetsUpdated: number; facetValuesCreated: number; facetValuesUpdated: number; errors: string[]; facetValueCodeToId: Map<string, string> }> {
+  ): Promise<{ facetsCreated: number; facetsUpdated: number; facetValuesCreated: number; facetValuesUpdated: number; errors: string[]; facetValueCodeToId: Map<string, string>; codeToIdMap: Map<string, string> }> {
     const errors: string[] = [];
     let facetsCreated = 0;
     let facetsUpdated = 0;
@@ -36,6 +37,16 @@ export class FacetImportService {
     // Use repository for direct access
     const facetRepo = this.connection.getRepository(ctx, Facet);
     const facetValueRepo = this.connection.getRepository(ctx, FacetValue);
+
+    // Pre-populate codeToIdMap with all existing facets to support references to facets not listed in this import sheet
+    try {
+      const existingFacets = await facetRepo.find();
+      for (const f of existingFacets) {
+        codeToIdMap.set(f.code, String(f.id));
+      }
+    } catch (error: any) {
+      errors.push(`Failed to pre-populate facet codes: ${error.message}`);
+    }
 
     // First pass: create or update facets
     for (const facet of facets) {
@@ -70,8 +81,8 @@ export class FacetImportService {
             errors.push(`Failed to update facet "${facet.code}": ${error.message}`);
           }
         } else {
-          // Create new facet
-          const newFacet = new Facet({
+          // Create new facet using service
+          const createdFacet = await this.facetService.create(ctx, {
             code: facet.code,
             isPrivate: facet.isPrivate === 'true',
             translations: [
@@ -90,8 +101,6 @@ export class FacetImportService {
             ],
           });
 
-          const createdFacet = await facetRepo.save(newFacet);
-          await this.channelService.assignToChannels(ctx, Facet, createdFacet.id as any, [ctx.channelId]);
           codeToIdMap.set(facet.code, String(createdFacet.id));
           facetsCreated++;
         }
@@ -124,37 +133,36 @@ export class FacetImportService {
           }
         }
 
-        // Create new facet value
-        const newFacetValue = new FacetValue({
-          code: facetValue.code,
-          facetId: facetId as any,
-          translations: [
-            {
-              languageCode: LanguageCode.fr,
-              name: facetValue.name,
-            },
-            ...(facetValue.nameEn
-              ? [
-                  {
-                    languageCode: LanguageCode.en,
-                    name: facetValue.nameEn,
-                  },
-                ]
-              : []),
-          ],
-        });
+        // Create new facet value using service
+        if (facet) {
+          const savedFacetValue = await this.facetValueService.create(ctx, facet, {
+            code: facetValue.code,
+            translations: [
+              {
+                languageCode: LanguageCode.fr,
+                name: facetValue.name,
+              },
+              ...(facetValue.nameEn
+                ? [
+                    {
+                      languageCode: LanguageCode.en,
+                      name: facetValue.nameEn,
+                    },
+                  ]
+                : []),
+            ],
+          });
 
-        const savedFacetValue = await facetValueRepo.save(newFacetValue);
-        await this.channelService.assignToChannels(ctx, FacetValue, savedFacetValue.id as any, [ctx.channelId]);
-        facetValueCodeToId.set(facetValue.code, String(savedFacetValue.id));
-        facetValueCodeToId.set(`${facetValue.facetCode}:${facetValue.code}`, String(savedFacetValue.id));
-        facetValuesCreated++;
+          facetValueCodeToId.set(facetValue.code, String(savedFacetValue.id));
+          facetValueCodeToId.set(`${facetValue.facetCode}:${facetValue.code}`, String(savedFacetValue.id));
+          facetValuesCreated++;
+        }
       } catch (error: any) {
         errors.push(`Failed to import facet value "${facetValue.code}": ${error.message}`);
       }
     }
 
-    return { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors, facetValueCodeToId };
+    return { facetsCreated, facetsUpdated, facetValuesCreated, facetValuesUpdated, errors, facetValueCodeToId, codeToIdMap };
   }
 
   /**

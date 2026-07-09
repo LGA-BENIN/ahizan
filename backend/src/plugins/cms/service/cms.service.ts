@@ -3,6 +3,8 @@ import { EntityHydrator, ListQueryBuilder, TransactionalConnection, ID, RequestC
 import { DeletionResponse, DeletionResult } from '@vendure/common/lib/generated-types';
 import { Page } from '../entities/page.entity';
 import { PageSection } from '../entities/section.entity';
+import { Market } from '../../multivendor/entities/market.entity';
+import { GeographicLocation } from '../../multivendor/entities/geographic-location.entity';
 import { PagePreset } from '../entities/page-preset.entity';
 import { SiteSeason } from '../entities/site-season.entity';
 import * as fs from 'fs/promises';
@@ -39,11 +41,334 @@ export class CMSService {
         // Simplified: habillage is now applied directly on the home page via applyPreset.
         // No need to resolve season-specific slugs like "noel-home".
         // Disable query cache to ensure fresh reads after publishHabillage updates
-        return this.connection.getRepository(ctx, Page).findOne({
+        const page = await this.connection.getRepository(ctx, Page).findOne({
             where: { slug, isActive: true },
             relations: ['sections'],
             cache: false,
         });
+
+        if (page) {
+            return page;
+        }
+
+        // If not found in Page, check if it matches a Market slug
+        const market = await this.connection.getRepository(ctx, Market).findOne({
+            where: { slug },
+            relations: ['location'],
+        });
+
+        if (market) {
+            // Find home page to copy theme/layout settings if needed
+            const homePage = await this.connection.getRepository(ctx, Page).findOne({
+                where: { slug: 'home' },
+                relations: ['sections'],
+                cache: false,
+            });
+
+            const layoutSections = homePage
+                ? homePage.sections.filter(s => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'].includes(s.type))
+                : [];
+
+            // Check if there is a customized page template for "market" slug
+            const templatePage = await this.connection.getRepository(ctx, Page).findOne({
+                where: { slug: 'market' },
+                relations: ['sections'],
+                cache: false,
+            });
+
+            let finalSections: PageSection[] = [];
+
+            if (templatePage && templatePage.sections?.length > 0) {
+                // Use template page layout, clone and customize sections
+                finalSections = templatePage.sections.map(section => {
+                    const s = new PageSection({
+                        id: `market-section-${section.id}` as any,
+                        type: section.type,
+                        title: section.title,
+                        description: section.description,
+                        layout: section.layout,
+                        order: section.order,
+                        isActive: section.isActive,
+                        dataJson: section.dataJson
+                    });
+
+                    // Inject dynamic market info based on component type
+                    if (s.type === 'HERO') {
+                        const data = JSON.parse(s.dataJson || '{}');
+                        data.title = market.name;
+                        data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`;
+                        data.backgroundImage = market.image || data.backgroundImage || '';
+                        s.dataJson = JSON.stringify(data);
+                    } else if (s.type === 'MARKET_INFO') {
+                        s.dataJson = JSON.stringify({
+                            id: market.id,
+                            name: market.name,
+                            slug: market.slug,
+                            description: market.description,
+                            latitude: market.centerLatitude,
+                            longitude: market.centerLongitude,
+                            radius: market.radiusMeters,
+                            image: market.image,
+                            location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
+                        });
+                    } else if (s.type === 'LOCAL_PRODUCTS') {
+                        const data = JSON.parse(s.dataJson || '{}');
+                        data.marketId = market.id;
+                        data.marketName = market.name;
+                        s.dataJson = JSON.stringify(data);
+                    } else if (s.type === 'PRODUCT_GRID') {
+                        const data = JSON.parse(s.dataJson || '{}');
+                        data.marketId = market.id;
+                        data.title = data.title || `Sélection du Marché`;
+                        data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du marché ${market.name}`;
+                        s.dataJson = JSON.stringify(data);
+                    }
+                    return s;
+                });
+            } else {
+                // Fallback to hardcoded generation
+                const marketHeroSection = new PageSection({
+                    id: 'market-hero' as any,
+                    type: 'HERO',
+                    title: market.name,
+                    description: `Bienvenue au marché ${market.name}. Retrouvez l'ensemble des boutiques de ce marché et achetez en direct.`,
+                    layout: 'split',
+                    order: 10,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: market.name,
+                        subtitle: `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`,
+                        backgroundImage: market.image || '',
+                        ctaText: 'Explorer les boutiques',
+                        ctaLink: '#boutiques',
+                    }),
+                });
+
+                const marketInfoSection = new PageSection({
+                    id: 'market-info' as any,
+                    type: 'MARKET_INFO',
+                    title: market.name,
+                    description: market.description || '',
+                    layout: 'default',
+                    order: 15,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        id: market.id,
+                        name: market.name,
+                        slug: market.slug,
+                        description: market.description,
+                        latitude: market.centerLatitude,
+                        longitude: market.centerLongitude,
+                        radius: market.radiusMeters,
+                        image: market.image,
+                        location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
+                    }),
+                });
+
+                const marketProductsGridSection = new PageSection({
+                    id: 'market-products' as any,
+                    type: 'PRODUCT_GRID',
+                    title: `Produits du marché ${market.name}`,
+                    description: `Sélection de produits vendus par les commerçants du marché ${market.name}.`,
+                    layout: 'grid',
+                    order: 20,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `Sélection du Marché`,
+                        subtitle: `Les derniers articles ajoutés par les vendeurs du marché ${market.name}`,
+                        filterType: 'LATEST',
+                        take: 12,
+                        columns: 4,
+                    }),
+                });
+
+                finalSections = [
+                    ...layoutSections.filter(s => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR'].includes(s.type)),
+                    marketHeroSection,
+                    marketInfoSection,
+                    marketProductsGridSection,
+                    ...layoutSections.filter(s => s.type === 'FOOTER_CONF'),
+                ];
+            }
+
+            finalSections.forEach((s, idx) => {
+                s.order = idx + 1;
+            });
+
+            const dynamicPage = new Page({
+                id: `market-page-${market.id}` as any,
+                slug: market.slug,
+                title: market.name,
+                type: 'MARKET',
+                isActive: true,
+                metaTitle: `${market.name} | Marché Ahizan`,
+                metaDescription: market.description,
+                sections: finalSections,
+            });
+
+            return dynamicPage;
+        }
+
+        // If not found in Market, check if it matches a Neighborhood slug
+        const geoRepo = this.connection.getRepository(ctx, GeographicLocation);
+        const neighborhoods = await geoRepo.find({
+            where: { type: 'NEIGHBORHOOD' as any },
+            relations: ['parent'],
+        });
+
+        const slugify = (text: string) => text.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+
+        const geo = neighborhoods.find((n: GeographicLocation) => slugify(n.name) === slug);
+
+        if (geo) {
+            // Find home page to copy theme/layout settings if needed
+            const homePage = await this.connection.getRepository(ctx, Page).findOne({
+                where: { slug: 'home' },
+                relations: ['sections'],
+                cache: false,
+            });
+
+            const layoutSections = homePage
+                ? homePage.sections.filter(s => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'].includes(s.type))
+                : [];
+
+            const geoSlug = slugify(geo.name);
+
+            // Check if there is a customized page template for "neighborhood" slug
+            const templatePage = await this.connection.getRepository(ctx, Page).findOne({
+                where: { slug: 'neighborhood' },
+                relations: ['sections'],
+                cache: false,
+            });
+
+            let finalSections: PageSection[] = [];
+
+            if (templatePage && templatePage.sections?.length > 0) {
+                // Use template page layout, clone and customize sections
+                finalSections = templatePage.sections.map(section => {
+                    const s = new PageSection({
+                        id: `neighborhood-section-${section.id}` as any,
+                        type: section.type,
+                        title: section.title,
+                        description: section.description,
+                        layout: section.layout,
+                        order: section.order,
+                        isActive: section.isActive,
+                        dataJson: section.dataJson
+                    });
+
+                    // Inject dynamic neighborhood info based on component type
+                    if (s.type === 'HERO') {
+                        const data = JSON.parse(s.dataJson || '{}');
+                        data.title = `Quartier ${geo.name}`;
+                        data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du quartier ${geo.name}.`;
+                        s.dataJson = JSON.stringify(data);
+                    } else if (s.type === 'NEIGHBORHOOD_INFO') {
+                        s.dataJson = JSON.stringify({
+                            id: geo.id,
+                            name: geo.name,
+                            slug: geoSlug,
+                            type: geo.type,
+                            parent: geo.parent ? { id: geo.parent.id, name: geo.parent.name, type: geo.parent.type } : null,
+                        });
+                    } else if (s.type === 'LOCAL_PRODUCTS') {
+                        const data = JSON.parse(s.dataJson || '{}');
+                        data.locationId = geo.id;
+                        data.locationName = geo.name;
+                        s.dataJson = JSON.stringify(data);
+                    } else if (s.type === 'PRODUCT_GRID') {
+                        const data = JSON.parse(s.dataJson || '{}');
+                        data.locationId = geo.id;
+                        data.title = data.title || `Sélection du Quartier`;
+                        data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du quartier ${geo.name}`;
+                        s.dataJson = JSON.stringify(data);
+                    }
+                    return s;
+                });
+            } else {
+                // Fallback to hardcoded generation
+                const neighborhoodHeroSection = new PageSection({
+                    id: 'neighborhood-hero' as any,
+                    type: 'HERO',
+                    title: geo.name,
+                    description: `Bienvenue dans le quartier ${geo.name}. Retrouvez l'ensemble des boutiques de ce quartier et achetez en direct.`,
+                    layout: 'split',
+                    order: 10,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `Quartier ${geo.name}`,
+                        subtitle: `Découvrez les commerces, artisans et produits certifiés au sein du quartier ${geo.name}.`,
+                        backgroundImage: '',
+                        ctaText: 'Explorer les boutiques',
+                        ctaLink: '#boutiques',
+                    }),
+                });
+
+                const neighborhoodInfoSection = new PageSection({
+                    id: 'neighborhood-info' as any,
+                    type: 'NEIGHBORHOOD_INFO',
+                    title: geo.name,
+                    description: '',
+                    layout: 'default',
+                    order: 15,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        id: geo.id,
+                        name: geo.name,
+                        slug: geoSlug,
+                        type: geo.type,
+                        parent: geo.parent ? { id: geo.parent.id, name: geo.parent.name, type: geo.parent.type } : null,
+                    }),
+                });
+
+                const neighborhoodProductsGridSection = new PageSection({
+                    id: 'neighborhood-products' as any,
+                    type: 'PRODUCT_GRID',
+                    title: `Produits de ${geo.name}`,
+                    description: `Sélection de produits vendus par les commerçants du quartier ${geo.name}.`,
+                    layout: 'grid',
+                    order: 20,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `Sélection du Quartier`,
+                        subtitle: `Les derniers articles ajoutés par les vendeurs du quartier ${geo.name}`,
+                        filterType: 'LATEST',
+                        take: 12,
+                        columns: 4,
+                    }),
+                });
+
+                finalSections = [
+                    ...layoutSections.filter(s => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR'].includes(s.type)),
+                    neighborhoodHeroSection,
+                    neighborhoodInfoSection,
+                    neighborhoodProductsGridSection,
+                    ...layoutSections.filter(s => s.type === 'FOOTER_CONF'),
+                ];
+            }
+
+            finalSections.forEach((s, idx) => {
+                s.order = idx + 1;
+            });
+
+            const dynamicPage = new Page({
+                id: `neighborhood-page-${geo.id}` as any,
+                slug: geoSlug,
+                title: geo.name,
+                type: 'NEIGHBORHOOD',
+                isActive: true,
+                metaTitle: `${geo.name} | Quartier Ahizan`,
+                metaDescription: `Retrouvez l'ensemble des boutiques du quartier ${geo.name} sur Ahizan.`,
+                sections: finalSections,
+            });
+
+            return dynamicPage;
+        }
+
+        return null;
     }
 
     // --- Seasons ---
@@ -107,6 +432,9 @@ export class CMSService {
 
     async deletePage(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
         const page = await this.connection.getEntityOrThrow(ctx, Page, id);
+        if (['home', 'category', 'product', 'market', 'neighborhood'].includes(page.slug)) {
+            throw new Error(`Impossible de supprimer la page système par défaut "${page.slug}"`);
+        }
         await this.connection.getRepository(ctx, Page).remove(page);
         return {
             result: DeletionResult.DELETED,
@@ -533,7 +861,7 @@ export class CMSService {
                 'CATEGORIES','CATEGORY_GRID','PRODUCT_GRID','TABBED_PRODUCT_GRID','FOOTER_CONF','FEATURES','MODALS',
                 'CUSTOM','BLOG_POSTS','TESTIMONIALS','NEWSLETTER','CTA_VENDOR','COLLECTION_HEADER',
                 'PROMO_BANNER','PROMO_GRID','FLEX_GRID','SEARCH_BAR','RECENTLY_VIEWED','HERO_SLIDER',
-                'VENDOR_SHOWCASE','CTA','SOCIAL_PROOF','BRAND_BAR','SEASONAL_BANNER'];
+                'VENDOR_SHOWCASE','CTA','SOCIAL_PROOF','BRAND_BAR','SEASONAL_BANNER', 'LOCAL_PRODUCTS'];
             for (const s of parsed) {
                 if (!s.type) throw new Error('Section sans type détectée');
                 if (!knownTypes.includes(s.type)) {

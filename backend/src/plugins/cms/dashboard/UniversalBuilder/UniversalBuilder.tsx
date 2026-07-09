@@ -1017,6 +1017,8 @@ const PagesDropdown = ({ activeTab, setActiveTab }: any) => {
     { title: 'Accueil', slug: 'home' },
     { title: 'Catégorie (Collection)', slug: 'category' },
     { title: 'Produit', slug: 'product' },
+    { title: 'Marché', slug: 'market' },
+    { title: 'Quartier', slug: 'neighborhood' },
   ];
 
   const customPages = pages.filter((p: any) => !baseTemplates.some(bt => bt.slug === p.slug));

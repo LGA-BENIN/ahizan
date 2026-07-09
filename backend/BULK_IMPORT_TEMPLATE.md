@@ -16,7 +16,7 @@ Your Excel file must have 3 sheets with the following structure:
 | description_en | Collection description (English) | No | All clothing |
 | featured_asset_url | URL for featured image | No | https://example.com/image.jpg |
 | position | Display order among siblings | No | 1 |
-| allowed_facet_ids | Comma-separated facet IDs (seller facet picker) | No | 1,2,3 |
+| allowed_facet_codes | Comma-separated facet codes (seller facet picker) | No | brand,color |
 | facet_value_codes | Comma-separated facet **value** codes used to auto-populate the collection with matching product variants (builds a facet-value-filter) | No | red,blue |
 | variant_ids | Comma-separated product variant IDs to include explicitly (builds a variant-id-filter) | No | 2,6,12 |
 | inherit_filters | `true`/`false` - inherit parent collection filters (default `true`) | No | true |
@@ -24,10 +24,10 @@ Your Excel file must have 3 sheets with the following structure:
 
 **Example Data:**
 ```
-name,name_en,slug,parent_slug,description,description_en,featured_asset_url,position,allowed_facet_ids,facet_value_codes,variant_ids,inherit_filters,is_private
-Vêtements,Clothing,vetements,,Tous les vêtements,All clothing,,1,"1,2",,,true,false
-Hommes,Men,hommes,vetements,Vêtements pour hommes,Men's clothing,,2,1,homme,,true,false
-Femmes,Women,femmes,vetements,Vêtements pour femmes,Women's clothing,,3,"1,2",,"7,9,14",true,false
+name,name_en,slug,parent_slug,description,description_en,featured_asset_url,position,allowed_facet_codes,facet_value_codes,variant_ids,inherit_filters,is_private
+Vêtements,Clothing,vetements,,Tous les vêtements,All clothing,,1,"color,brand",,,true,false
+Hommes,Men,hommes,vetements,Vêtements pour hommes,Men's clothing,,2,brand,homme,,true,false
+Femmes,Women,femmes,vetements,Vêtements pour femmes,Women's clothing,,3,"color,brand",,"7,9,14",true,false
 ```
 
 > **Populating collections with products:** A collection only shows products when it has a filter.
@@ -75,7 +75,7 @@ size,large,Grand,Large
 
 1. **No Database Migrations**: This plugin uses Vendure's existing APIs and only updates the `customFields` column. No schema changes are made.
 
-2. **Collection-Facet Mapping**: After import, the plugin automatically updates the `allowedFacetIds` in each collection's `customFields` based on the `allowed_facet_ids` column in the Collections sheet.
+2. **Collection-Facet Mapping**: After import, the plugin automatically updates the `allowedFacetIds` in each collection's `customFields` based on the `allowed_facet_codes` column in the Collections sheet.
 
 3. **Parent-Child Relationships**: Collections are created first, then parent relationships are applied in a second pass using Vendure's `move()` API (a plain `update({parentId})` is silently ignored by Vendure). Any collection without a valid `parent_slug` is explicitly attached under the store root, so no collection is ever left orphaned.
 
@@ -83,7 +83,7 @@ size,large,Grand,Large
 
 5. **Existing Data**: The plugin updates collections, facets and facet values that already exist (matched by slug/code) and creates the rest.
 
-6. **Facet IDs**: The `allowed_facet_ids` column expects numeric facet IDs. After importing facets, you'll need to check their IDs in the admin panel and update your Excel file accordingly.
+6. **Facet Codes**: The `allowed_facet_codes` column expects human-readable facet codes (like `brand` or `color`), which are completely environment-independent. There is no need to query or update database IDs.
 
 7. **French/English Support**: All entities support both French (required) and English (optional) translations.
 
@@ -97,7 +97,7 @@ size,large,Grand,Large
    - Create facets and facet values
    - Create collections with translations
    - Set parent-child relationships
-   - Update `allowedFacetIds` in collection customFields
+   - Update `allowedFacetIds` in collection customFields based on `allowed_facet_codes`
    - Return a summary of what was created
 
 ## GraphQL API

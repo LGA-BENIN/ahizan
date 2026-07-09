@@ -22,6 +22,8 @@ export function NavbarUser() {
         getActiveCustomer().then(setCustomer).catch(console.error);
     }, []);
 
+    const fullName = customer ? [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() : "";
+
     return (
         <div className="flex items-center gap-1 md:gap-2">
             <DropdownMenu>
@@ -44,9 +46,11 @@ export function NavbarUser() {
                 <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border-border/40 animate-in fade-in slide-in-from-top-4 duration-300" align="end">
                     {customer ? (
                         <>
-                            <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-                                Mon Compte
-                            </DropdownMenuLabel>
+                            {fullName && (
+                                <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                                    {fullName}
+                                </DropdownMenuLabel>
+                            )}
                             <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer">
                                 <Link href="/account/profile" className="flex items-center gap-3">
                                     <UserCircle className="w-4 h-4 text-primary" />

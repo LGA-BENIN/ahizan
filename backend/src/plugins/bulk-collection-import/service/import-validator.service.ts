@@ -76,16 +76,16 @@ export class ImportValidatorService {
       });
     }
 
-    // Validate allowedFacetIds format if provided
-    if (collection.allowedFacetIds) {
-      const facetIds = collection.allowedFacetIds.split(',').map(id => id.trim());
-      const invalidIds = facetIds.filter(id => id && isNaN(Number(id)));
-      if (invalidIds.length > 0) {
+    // Validate allowedFacetCodes format if provided
+    if (collection.allowedFacetCodes) {
+      const facetCodes = collection.allowedFacetCodes.split(',').map(code => code.trim());
+      const invalidCodes = facetCodes.filter(code => code && !/^[a-z0-9-]+$/.test(code));
+      if (invalidCodes.length > 0) {
         errors.push({
           row,
           sheet: 'Collections',
-          field: 'allowedFacetIds',
-          message: `Invalid facet IDs: ${invalidIds.join(', ')}. Must be comma-separated numbers.`,
+          field: 'allowedFacetCodes',
+          message: `Invalid facet codes: ${invalidCodes.join(', ')}. Must be comma-separated alphanumeric codes (lowercase, numbers, and hyphens).`,
         });
       }
     }
@@ -259,17 +259,15 @@ export class ImportValidatorService {
     collections.forEach((collection, index) => {
       const row = index + 2;
 
-      if (collection.allowedFacetIds) {
-        // This validation checks if facet IDs are numeric
-        // We'll validate actual IDs after facets are created
-        const facetIds = collection.allowedFacetIds.split(',').map(id => id.trim());
-        const invalidIds = facetIds.filter(id => id && isNaN(Number(id)));
-        if (invalidIds.length > 0) {
+      if (collection.allowedFacetCodes) {
+        const facetCodes = collection.allowedFacetCodes.split(',').map(code => code.trim());
+        const invalidCodes = facetCodes.filter(code => code && !/^[a-z0-9-]+$/.test(code));
+        if (invalidCodes.length > 0) {
           errors.push({
             row,
             sheet: 'Collections',
-            field: 'allowedFacetIds',
-            message: `Invalid facet IDs format: ${invalidIds.join(', ')}`,
+            field: 'allowedFacetCodes',
+            message: `Invalid facet codes format: ${invalidCodes.join(', ')}`,
           });
         }
       }

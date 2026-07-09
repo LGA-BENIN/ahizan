@@ -1,12 +1,9 @@
-version: "3.9"
-
 services:
-  vendure_v2:
-    build:
-      context: .
-      dockerfile: docker/vendure/Dockerfile
-    container_name: ahizan_backend_v2
+  vendure:
+    image: ahizan-vendure_v2
+    container_name: ahizan_backend
     restart: unless-stopped
+    privileged: true
     ports:
       - "3000:3000"
     env_file: .env
@@ -37,11 +34,10 @@ services:
       - ./backend/static/assets:/usr/src/app/static/assets
 
   storefront:
-    build:
-      context: .
-      dockerfile: docker/storefront/Dockerfile
+    image: ahizan-storefront
     container_name: ahizan_storefront
     restart: unless-stopped
+    privileged: true
     ports:
       - "3001:3000"
     env_file: .env
@@ -57,11 +53,10 @@ services:
       - internal
 
   seller:
-    build:
-      context: .
-      dockerfile: docker/seller/Dockerfile
+    image: ahizan-seller
     container_name: ahizan_seller
     restart: unless-stopped
+    privileged: true
     ports:
       - "3002:3000"
     env_file: .env
@@ -76,11 +71,10 @@ services:
       - internal
 
   auth:
-    build:
-      context: .
-      dockerfile: docker/auth/Dockerfile
+    image: ahizan-auth
     container_name: ahizan_auth
     restart: unless-stopped
+    privileged: true
     ports:
       - "3003:3000"
     env_file: .env
@@ -95,9 +89,10 @@ services:
       - internal
 
   media:
-    build: ./docker/media
+    image: ahizan-media
     container_name: ahizan_media
     restart: unless-stopped
+    privileged: true
     ports:
       - "80"
     volumes:
@@ -114,6 +109,7 @@ services:
     image: postgres:16-alpine
     container_name: ahizan_db
     restart: unless-stopped
+    privileged: true
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}

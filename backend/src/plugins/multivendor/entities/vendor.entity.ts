@@ -1,5 +1,8 @@
 import { DeepPartial, VendureEntity, Asset, User } from '@vendure/core';
-import { Column, Entity, OneToOne, JoinColumn } from 'typeorm';
+import { Column, Entity, OneToOne, JoinColumn, ManyToOne, ManyToMany, JoinTable } from 'typeorm';
+import { GeographicLocation } from './geographic-location.entity';
+import { Market } from './market.entity';
+
 
 export enum VendorStatus {
     PENDING = 'PENDING',
@@ -20,15 +23,15 @@ export class Vendor extends VendureEntity {
     @Column({ type: 'text', nullable: true })
     description: string;
 
-    @OneToOne(type => Asset, { nullable: true })
+    @OneToOne(() => Asset, { nullable: true })
     @JoinColumn()
     logo: Asset;
 
-    @OneToOne(type => Asset, { nullable: true })
+    @OneToOne(() => Asset, { nullable: true })
     @JoinColumn()
     coverImage: Asset;
 
-    @OneToOne(type => User, { nullable: true })
+    @OneToOne(() => User, { nullable: true })
     @JoinColumn()
     user: User;
 
@@ -83,21 +86,21 @@ export class Vendor extends VendureEntity {
     @Column({ nullable: true })
     rccmNumber: string;
 
-    @OneToOne(type => Asset, { nullable: true })
+    @OneToOne(() => Asset, { nullable: true })
     @JoinColumn()
     rccmFile: Asset;
 
     @Column({ nullable: true })
     ifuNumber: string;
 
-    @OneToOne(type => Asset, { nullable: true })
+    @OneToOne(() => Asset, { nullable: true })
     @JoinColumn()
     ifuFile: Asset;
 
     @Column({ nullable: true })
     idCardNumber: string; // Carte d'identité / CIP
 
-    @OneToOne(type => Asset, { nullable: true })
+    @OneToOne(() => Asset, { nullable: true })
     @JoinColumn()
     idCardFile: Asset;
 
@@ -136,4 +139,24 @@ export class Vendor extends VendureEntity {
 
     @Column({ type: 'boolean', default: false })
     allowNegativeBalance: boolean; // If true, orders are not blocked when balance is 0
+
+    // --- Geolocation & Market Fields ---
+
+    @Column({ type: 'float', nullable: true })
+    latitude: number;
+
+    @Column({ type: 'float', nullable: true })
+    longitude: number;
+
+    @ManyToOne(() => GeographicLocation, { nullable: true })
+    @JoinColumn()
+    location: GeographicLocation;
+
+    @ManyToOne(() => Market, { nullable: true })
+    @JoinColumn()
+    physicalMarket: Market;
+
+    @ManyToMany(() => Market)
+    @JoinTable({ name: 'vendor_markets_market' })
+    markets: Market[];
 }

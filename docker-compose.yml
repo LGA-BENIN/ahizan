@@ -1,6 +1,9 @@
 services:
   vendure:
     image: ahizan-vendure_v2
+    build:
+      context: .
+      dockerfile: docker/vendure/Dockerfile
     container_name: ahizan_backend
     restart: unless-stopped
     privileged: true
@@ -35,6 +38,9 @@ services:
 
   storefront:
     image: ahizan-storefront
+    build:
+      context: .
+      dockerfile: docker/storefront/Dockerfile
     container_name: ahizan_storefront
     restart: unless-stopped
     privileged: true
@@ -54,6 +60,9 @@ services:
 
   seller:
     image: ahizan-seller
+    build:
+      context: .
+      dockerfile: docker/seller/Dockerfile
     container_name: ahizan_seller
     restart: unless-stopped
     privileged: true

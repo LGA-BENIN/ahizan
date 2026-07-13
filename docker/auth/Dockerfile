@@ -26,4 +26,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "start", "--", "--port", "3000"]
+CMD ["npm", "start"]

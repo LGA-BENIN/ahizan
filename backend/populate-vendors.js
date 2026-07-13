@@ -40,6 +40,7 @@ async function main() {
         {
             name: "Ahizan Electronics",
             email: "contact@ahizan-electro.com",
+            phoneNumber: "+229 97 00 00 01",
             description: "Votre destination pour l'électronique de pointe. Smartphones, ordinateurs et accessoires.",
             zone: "Cotonou - Haie Vive",
             deliveryInfo: "Livraison 24h sur Cotonou. Expédition nationale via la Poste.",
@@ -52,6 +53,7 @@ async function main() {
         {
             name: "Mawuli Fashion",
             email: "mawuli@mode.bj",
+            phoneNumber: "+229 95 44 55 66",
             description: "Créations uniques en pagne tissé et accessoires modernes. L'élégance béninoise.",
             zone: "Porto-Novo - Ouando",
             deliveryInfo: "Livraison sous 48h. Remise en main propre possible.",
@@ -64,6 +66,7 @@ async function main() {
         {
             name: "Bio Bénin Nature",
             email: "bio@nature.bj",
+            phoneNumber: "+229 94 11 22 33",
             description: "Produits cosmétiques naturels et bio. Karité, huiles essentielles et savons.",
             zone: "Cotonou - Cadjehoun",
             deliveryInfo: "Livraison gratuite à partir de 10.000 FCFA.",

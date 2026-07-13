@@ -23,7 +23,7 @@ BEGIN
     IF v_vendor_id IS NOT NULL THEN
         
         -- Product 1: Tomates
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")
@@ -42,7 +42,7 @@ BEGIN
 
 
         -- Product 2: Ananas
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")
@@ -68,7 +68,7 @@ BEGIN
     IF v_vendor_id IS NOT NULL THEN
         
         -- Product 1: iPhone
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")
@@ -86,7 +86,7 @@ BEGIN
         VALUES (NOW(), NOW(), 450000, v_channel_id, v_variant_id);
 
         -- Product 2: Samsung
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")
@@ -112,7 +112,7 @@ BEGIN
     IF v_vendor_id IS NOT NULL THEN
         
         -- Product 1: Robe
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")
@@ -137,7 +137,7 @@ BEGIN
     SELECT id INTO v_vendor_id FROM vendor WHERE name = 'Electro Discount';
     IF v_vendor_id IS NOT NULL THEN
         
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")
@@ -162,7 +162,7 @@ BEGIN
     SELECT id INTO v_vendor_id FROM vendor WHERE name = 'Le Petit Boulanger';
     IF v_vendor_id IS NOT NULL THEN
         
-        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorId")
+        INSERT INTO product ("createdAt", "updatedAt", "enabled", "deletedAt", "customFieldsVendorid")
         VALUES (NOW(), NOW(), true, NULL, v_vendor_id) RETURNING id INTO v_product_id;
 
         INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "productId")

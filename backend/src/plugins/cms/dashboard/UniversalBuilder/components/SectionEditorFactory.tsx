@@ -203,17 +203,42 @@ interface LocalProductsSettingsProps {
 export function LocalProductsSettings({ data, onSave }: LocalProductsSettingsProps) {
     const [title, setTitle] = React.useState(data.title || "Produits à Proximité");
     const [subtitle, setSubtitle] = React.useState(data.subtitle || "Découvrez les articles disponibles à l'achat immédiat auprès des marchands de votre secteur.");
-    const [limit, setLimit] = React.useState(data.limit || 8);
+    const [badgeText, setBadgeText] = React.useState(data.badgeText || "Recommandation Locale");
+    const [limit, setLimit] = React.useState(data.limit || data.take || 8);
+    const [layout, setLayout] = React.useState(data.layout || "grid-4");
+    const [requireConfirmedLocation, setRequireConfirmedLocation] = React.useState(
+        data.requireConfirmedLocation !== undefined ? data.requireConfirmedLocation : true
+    );
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ title, subtitle, limit: Number(limit) });
+        onSave({ 
+            ...data,
+            title, 
+            subtitle, 
+            badgeText,
+            limit: Number(limit),
+            take: Number(limit),
+            layout,
+            requireConfirmedLocation 
+        });
     };
 
     return (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', padding: '1.5rem', background: '#1e293b', borderRadius: '12px', border: '1px solid #334155' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#f8fafc', margin: 0 }}>⚙️ Paramètres de la section Produits à proximité</h3>
             
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Texte du badge supérieur</label>
+                <input 
+                    type="text" 
+                    value={badgeText} 
+                    onChange={e => setBadgeText(e.target.value)} 
+                    placeholder="Ex: Recommandation Locale"
+                    style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc' }} 
+                />
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Titre de la section</label>
                 <input 
@@ -235,6 +260,20 @@ export function LocalProductsSettings({ data, onSave }: LocalProductsSettingsPro
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Forme / Disposition des produits</label>
+                <select 
+                    value={layout} 
+                    onChange={e => setLayout(e.target.value)} 
+                    style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc', fontWeight: 600 }}
+                >
+                    <option value="grid-4">Grille 4 colonnes (Classique)</option>
+                    <option value="grid-3">Grille 3 colonnes (Larges cartes)</option>
+                    <option value="carousel">Carousel Horizontal (Défilement)</option>
+                    <option value="compact">Grille Compacte (Mini cartes 6 colonnes)</option>
+                </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Nombre maximum de produits à afficher</label>
                 <input 
                     type="number" 
@@ -244,6 +283,19 @@ export function LocalProductsSettings({ data, onSave }: LocalProductsSettingsPro
                     max={50}
                     style={{ padding: '0.6rem', borderRadius: '6px', border: '1px solid #475569', background: '#0f172a', color: '#f8fafc' }} 
                 />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: '#0f172a', padding: '0.8rem', borderRadius: '8px', border: '1px solid #334155' }}>
+                <input 
+                    type="checkbox" 
+                    id="reqLoc"
+                    checked={requireConfirmedLocation} 
+                    onChange={e => setRequireConfirmedLocation(e.target.checked)} 
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label htmlFor="reqLoc" style={{ fontSize: '0.8rem', color: '#e2e8f0', fontWeight: 600, cursor: 'pointer' }}>
+                    Afficher UNIQUEMENT si l'utilisateur a confirmé sa position géographique (Recommandé)
+                </label>
             </div>
 
             <button 

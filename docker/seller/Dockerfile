@@ -20,4 +20,4 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.ts ./
 
 EXPOSE 3000
-CMD ["npm", "start", "--", "--port", "3000"]
+CMD ["npm", "start"]

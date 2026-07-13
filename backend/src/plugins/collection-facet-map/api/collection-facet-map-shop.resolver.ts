@@ -1,5 +1,5 @@
 import { Args, Query, Resolver } from '@nestjs/graphql';
-import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, Permission, Allow, ID, TranslatorService } from '@vendure/core';
+import { Ctx, RequestContext, TransactionalConnection, Collection, Facet, Permission, Allow, ID, TranslatorService, LanguageCode } from '@vendure/core';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -34,15 +34,17 @@ export class CollectionFacetMapShopResolver {
 
         return allFacets.map((facet: any) => {
             const translatedFacet: any = this.translator.translate(facet, ctx, ['values']);
+            const frTrans = (facet.translations || []).find((t: any) => t.languageCode === 'fr' || t.languageCode === LanguageCode.fr) || facet.translations?.[0];
             const facetName =
+                frTrans?.name ||
                 translatedFacet.name ||
-                facet.translations?.[0]?.name ||
                 facet.code ||
                 `facet-${facet.id}`;
             const values = (translatedFacet.values || []).map((v: any) => {
+                const frValTrans = (v.translations || []).find((t: any) => t.languageCode === 'fr' || t.languageCode === LanguageCode.fr) || v.translations?.[0];
                 const valueName =
+                    frValTrans?.name ||
                     v.name ||
-                    v.translations?.[0]?.name ||
                     v.code ||
                     `value-${v.id}`;
                 return { ...v, id: v.id, name: valueName, code: v.code };
@@ -105,10 +107,9 @@ export class CollectionFacetMapShopResolver {
         const allowedFacets = allFacets.filter((f: any) => inheritedFacetIds.includes(String(f.id)));
 
         const getName = (c: any): string => {
-            if (c.name) return c.name;
             const trans = c.translations || [];
-            const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
-            return frTrans?.name || c.slug || '';
+            const frTrans = trans.find((t: any) => t.languageCode === 'fr' || t.languageCode === LanguageCode.fr) || trans[0];
+            return frTrans?.name || c.name || c.slug || '';
         };
 
         return {

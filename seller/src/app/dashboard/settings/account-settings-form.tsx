@@ -49,6 +49,8 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
 
     const mapRef = useRef<any>(null);
     const markerRef = useRef<any>(null);
+    // Stores coords requested before the map was initialized (e.g. GPS from another tab)
+    const pendingPositionRef = useRef<{ lat: number; lng: number } | null>(null);
 
     // Load locations (markets & neighborhoods) from GraphQL Shop API
     useEffect(() => {
@@ -119,14 +121,17 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         const L = (window as any).L;
         if (!L) return;
 
-        // Cotonou coordinates default
-        const defaultLat = lat || 6.37;
-        const defaultLng = lng || 2.42;
-
         const mapContainer = document.getElementById('vendor-settings-map');
         if (!mapContainer || mapRef.current) return;
 
-        const map = L.map('vendor-settings-map').setView([defaultLat, defaultLng], 13);
+        // If a pending position was set (e.g. from GPS before map was open), use it;
+        // otherwise use existing coords or default to Cotonou
+        const pending = pendingPositionRef.current;
+        const initLat = pending?.lat ?? lat ?? 6.37;
+        const initLng = pending?.lng ?? lng ?? 2.42;
+        const initZoom = pending ? 15 : 13;
+
+        const map = L.map('vendor-settings-map').setView([initLat, initLng], initZoom);
         mapRef.current = map;
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -142,9 +147,11 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
             shadowSize: [41, 41]
         });
 
-        // Add marker if coordinates exist
-        if (lat && lng) {
-            const marker = L.marker([lat, lng], { icon: pinIcon, draggable: true }).addTo(map);
+        // Add marker if we have valid coordinates (including pending)
+        const markerLat = pending?.lat ?? lat;
+        const markerLng = pending?.lng ?? lng;
+        if (markerLat && markerLng) {
+            const marker = L.marker([markerLat, markerLng], { icon: pinIcon, draggable: true }).addTo(map);
             markerRef.current = marker;
 
             marker.on('dragend', () => {
@@ -154,6 +161,9 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                 setIsDirty(true);
             });
         }
+
+        // Clear pending position once applied
+        pendingPositionRef.current = null;
 
         // Render other markets around
         const marketIcon = L.icon({
@@ -231,6 +241,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         setIsDirty(true);
 
         if (mapRef.current) {
+            // Map is already initialized: update it directly
             const newPos = [newLat, newLng];
             const L = (window as any).L;
             if (L) {
@@ -255,6 +266,9 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                 }
                 mapRef.current.setView(newPos, 15);
             }
+        } else {
+            // Map not yet initialized (user is on another tab): store for later
+            pendingPositionRef.current = { lat: newLat, lng: newLng };
         }
     };
 
@@ -295,7 +309,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         if (matched && matched.centerLatitude && matched.centerLongitude) {
             updatePositionStateAndMap(matched.centerLatitude, matched.centerLongitude);
         }
-    };    };
+    };
 
     const handleLatChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseFloat(e.target.value);
@@ -396,14 +410,14 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
     // Handle hash change for tabs navigation
     useEffect(() => {
         const hash = window.location.hash.replace('#', '');
-        if (hash && ['general', 'details', 'social', 'payment', 'security'].includes(hash)) {
-            setActiveTab(hash);
+        if (hash && ['general', 'localisation', 'details', 'social', 'payment', 'security'].includes(hash)) {
+            setActiveTab(hash === 'details' ? 'localisation' : hash);
         }
-        
+
         const handleHashChange = () => {
             const newHash = window.location.hash.replace('#', '');
-            if (newHash && ['general', 'details', 'social', 'payment', 'security'].includes(newHash)) {
-                setActiveTab(newHash);
+            if (newHash && ['general', 'localisation', 'details', 'social', 'payment', 'security'].includes(newHash)) {
+                setActiveTab(newHash === 'details' ? 'localisation' : newHash);
             }
         };
 
@@ -789,7 +803,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                             </TabsContent>
 
                             {/* Tab 2: Location/Details */}
-                            <TabsContent value="details" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <TabsContent value="localisation" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem]">
                                     <CardHeader className="p-6 sm:p-8 pb-4">
                                         <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
@@ -851,7 +865,9 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                     rows={3} 
                                                     className="rounded-xl bg-card border-border resize-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
                                                 />
-                                                          <div className="border-t border-border/60 pt-6 space-y-4">
+                                            </div>
+
+                                            <div className="border-t border-border/60 pt-6 space-y-4">
                                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                                     <div>
                                                         <h3 className="text-base font-serif font-black text-foreground">Position Géographique</h3>
@@ -951,7 +967,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                         ))}
                                                     </select>
                                                 </div>
-                                            </div>                                        </div>
+                                            </div>
 
                                             <div className="border-t border-border/60 pt-6 space-y-3">
                                                 <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Marchés de diffusion secondaire (diffusion de vos produits)</Label>

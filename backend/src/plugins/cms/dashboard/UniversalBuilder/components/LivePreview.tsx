@@ -5,6 +5,8 @@ import { fetchGraphQL } from '../../lib/utils';
 const FETCH_COLLECTIONS = `query { cmsCollectionsTree { id name slug children { id name slug } } }`;
 const FETCH_PRODUCTS = `query { products(options: { take: 20 }) { items { productId: id productName: name slug } } }`;
 const FETCH_PAGES = `query { pages { items { id slug title } } }`;
+const FETCH_MARKETS = `query { markets { id name slug } }`;
+const FETCH_NEIGHBORHOODS = `query { geographicLocations(type: "NEIGHBORHOOD") { id name slug } }`;
 
 export const LivePreview = () => {
     const [viewPort, setViewPort] = useState<'desktop' | 'mobile'>('desktop');
@@ -13,10 +15,12 @@ export const LivePreview = () => {
     // For collection/product preview selection
     const [collections, setCollections] = useState<any[]>([]);
     const [products, setProducts] = useState<any[]>([]);
+    const [markets, setMarkets] = useState<any[]>([]);
+    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
     const [pages, setPages] = useState<any[]>([]);
     const [selectedPreviewSlug, setSelectedPreviewSlug] = useState<string>('');
 
-    // Load collections/products when page type changes
+    // Load collections/products/markets/neighborhoods when page type changes
     useEffect(() => {
         // Fetch CMS pages to match dynamic titles
         fetchGraphQL(FETCH_PAGES).then(data => {
@@ -41,6 +45,22 @@ export const LivePreview = () => {
             fetchGraphQL(FETCH_PRODUCTS).then(data => {
                 const items = data?.products?.items || [];
                 setProducts(items);
+                if (items.length > 0) {
+                    setSelectedPreviewSlug(items[0].slug);
+                }
+            }).catch(() => {});
+        } else if (activePageSlug === 'market') {
+            fetchGraphQL(FETCH_MARKETS).then(data => {
+                const items = data?.markets || [];
+                setMarkets(items);
+                if (items.length > 0) {
+                    setSelectedPreviewSlug(items[0].slug);
+                }
+            }).catch(() => {});
+        } else if (activePageSlug === 'neighborhood') {
+            fetchGraphQL(FETCH_NEIGHBORHOODS).then(data => {
+                const items = data?.geographicLocations || [];
+                setNeighborhoods(items);
                 if (items.length > 0) {
                     setSelectedPreviewSlug(items[0].slug);
                 }
@@ -78,6 +98,14 @@ export const LivePreview = () => {
             if (selectedPreviewSlug) return `${storefrontOrigin}/product/${selectedPreviewSlug}${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
             return ''; // Do not fall back to home page if no product selected
         }
+        if (activePageSlug === 'market') {
+            if (selectedPreviewSlug) return `${storefrontOrigin}/market/${selectedPreviewSlug}${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
+            return ''; // Do not fall back if no market selected
+        }
+        if (activePageSlug === 'neighborhood') {
+            if (selectedPreviewSlug) return `${storefrontOrigin}/neighborhood/${selectedPreviewSlug}${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
+            return ''; // Do not fall back if no neighborhood selected
+        }
         // Custom CMS Pages and Home page: use habillage preview
         if (activeHabillage) {
             const slugParam = (activePageSlug && activePageSlug !== 'home') ? `&pageSlug=${activePageSlug}` : '';
@@ -94,7 +122,41 @@ export const LivePreview = () => {
         if (activePageSlug === 'home') return 'ACCUEIL';
         if (activePageSlug === 'category') return 'CATÉGORIE';
         if (activePageSlug === 'product') return 'PRODUIT';
+        if (activePageSlug === 'market') return 'MARCHÉ';
+        if (activePageSlug === 'neighborhood') return 'QUARTIER';
         return activePageSlug ? activePageSlug.toUpperCase() : 'APERÇU';
+    };
+
+    const getBadgeColor = () => {
+        if (activePageSlug === 'home') return '#3b82f6';
+        if (activePageSlug === 'category') return '#8b5cf6';
+        if (activePageSlug === 'market') return '#10b981';
+        if (activePageSlug === 'neighborhood') return '#f59e0b';
+        return '#f59e0b';
+    };
+
+    const getEmptyIcon = () => {
+        if (activePageSlug === 'category') return '📂';
+        if (activePageSlug === 'product') return '🛍️';
+        if (activePageSlug === 'market') return '🏪';
+        if (activePageSlug === 'neighborhood') return '📍';
+        return '🎨';
+    };
+
+    const getEmptyMessage = () => {
+        if (activePageSlug === 'home') return "Sélectionnez un habillage pour voir l'aperçu";
+        if (activePageSlug === 'market') return 'Aucun marché disponible pour la prévisualisation';
+        if (activePageSlug === 'neighborhood') return 'Aucun quartier disponible pour la prévisualisation';
+        return `Aucun ${activePageSlug === 'category' ? 'collection' : 'produit'} disponible pour la prévisualisation`;
+    };
+
+    const selectStyle: React.CSSProperties = {
+        fontSize: '0.7rem',
+        padding: '4px 8px',
+        borderRadius: '6px',
+        border: '1px solid #d1d5db',
+        fontWeight: 600,
+        color: '#334155'
     };
 
     return (
@@ -115,7 +177,7 @@ export const LivePreview = () => {
                         fontSize: '0.6rem', 
                         fontWeight: 700, 
                         color: '#fff', 
-                        background: activePageSlug === 'home' ? '#3b82f6' : activePageSlug === 'category' ? '#8b5cf6' : '#f59e0b',
+                        background: getBadgeColor(),
                         padding: '2px 8px', 
                         borderRadius: '4px',
                         textTransform: 'uppercase'
@@ -123,30 +185,58 @@ export const LivePreview = () => {
                         {getPageLabel()}
                     </span>
                     <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8' }}>
-                        {(activePageSlug === 'home' || (activePageSlug !== 'category' && activePageSlug !== 'product')) && activeHabillage ? `APERÇU — ${activeHabillage.name}` : 'APERÇU EN DIRECT'}
+                        {(activePageSlug === 'home' || (activePageSlug !== 'category' && activePageSlug !== 'product' && activePageSlug !== 'market' && activePageSlug !== 'neighborhood')) && activeHabillage ? `APERÇU — ${activeHabillage.name}` : 'APERÇU EN DIRECT'}
                     </span>
                 </div>
                 
-                {/* Collection/Product selector */}
+                {/* Collection selector */}
                 {activePageSlug === 'category' && collections.length > 0 && (
                     <select 
                         value={selectedPreviewSlug} 
                         onChange={(e) => setSelectedPreviewSlug(e.target.value)}
-                        style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 600, color: '#334155' }}
+                        style={selectStyle}
                     >
                         {collections.map(c => (
                             <option key={c.id} value={c.slug}>{c.name}</option>
                         ))}
                     </select>
                 )}
+
+                {/* Product selector */}
                 {activePageSlug === 'product' && products.length > 0 && (
                     <select 
                         value={selectedPreviewSlug} 
                         onChange={(e) => setSelectedPreviewSlug(e.target.value)}
-                        style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontWeight: 600, color: '#334155' }}
+                        style={selectStyle}
                     >
                         {products.map((p: any) => (
                             <option key={p.productId} value={p.slug}>{p.productName}</option>
+                        ))}
+                    </select>
+                )}
+
+                {/* Market selector */}
+                {activePageSlug === 'market' && markets.length > 0 && (
+                    <select
+                        value={selectedPreviewSlug}
+                        onChange={(e) => setSelectedPreviewSlug(e.target.value)}
+                        style={selectStyle}
+                    >
+                        {markets.map((m: any) => (
+                            <option key={m.id} value={m.slug}>{m.name}</option>
+                        ))}
+                    </select>
+                )}
+
+                {/* Neighborhood selector */}
+                {activePageSlug === 'neighborhood' && neighborhoods.length > 0 && (
+                    <select
+                        value={selectedPreviewSlug}
+                        onChange={(e) => setSelectedPreviewSlug(e.target.value)}
+                        style={selectStyle}
+                    >
+                        {neighborhoods.map((n: any) => (
+                            <option key={n.id} value={n.slug}>{n.name}</option>
                         ))}
                     </select>
                 )}
@@ -218,13 +308,10 @@ export const LivePreview = () => {
                         gap: '1rem'
                     }}>
                         <div style={{ fontSize: '3rem', opacity: 0.3 }}>
-                            {activePageSlug === 'category' ? '📂' : activePageSlug === 'product' ? '🛍️' : '🎨'}
+                            {getEmptyIcon()}
                         </div>
                         <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                            {activePageSlug === 'home' 
-                                ? "Sélectionnez un habillage pour voir l'aperçu"
-                                : `Aucun ${activePageSlug === 'category' ? 'collection' : 'produit'} disponible pour la prévisualisation`
-                            }
+                            {getEmptyMessage()}
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>
                             {activePageSlug === 'home' 

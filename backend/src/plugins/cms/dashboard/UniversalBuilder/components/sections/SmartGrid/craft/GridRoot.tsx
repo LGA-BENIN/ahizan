@@ -68,14 +68,28 @@ const CatalogSearchField = ({ onSelect }: { onSelect: (data: { title: string, ur
             setLoading(true);
             try {
                 if (type === 'product') {
-                    // Use admin-api for product search (admin API includes the search query)
-                    const data = await fetchGraphQL(SEARCH_PRODUCTS, { term });
-                    const items = data?.products?.items || [];
+                    const origin = window.location.origin.includes(':5173') || window.location.origin.includes(':5174') || window.location.origin.includes(':4200')
+                        ? window.location.origin.replace(/:(5173|5174|4200)/, ':3000')
+                        : window.location.origin;
+                    const resProducts = await fetch(`${origin}/shop-api`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: `query GetProducts($term: String!) {
+                                products(options: { filter: { name: { contains: $term } }, take: 15 }) {
+                                    items { id name slug featuredAsset { preview } }
+                                }
+                            }`,
+                            variables: { term }
+                        })
+                    });
+                    const prodResult = await resProducts.json();
+                    const items = prodResult.data?.products?.items || [];
                     setResults(items.map((i: any) => ({
-                        id: i.productId,
-                        name: i.productName,
+                        id: i.id,
+                        name: i.name,
                         slug: i.slug,
-                        preview: i.productAsset?.preview
+                        preview: i.featuredAsset?.preview
                     })));
                 } else {
                     const filtered = allCollections.filter(c => c.name.toLowerCase().includes(term.toLowerCase())).slice(0, 10);

@@ -8,6 +8,7 @@ import { Sparkles, MapPin, Store } from 'lucide-react';
 interface LocalPersonalizedProductsProps {
     config?: {
         title?: string;
+        icon?: string;
         subtitle?: string;
         badgeText?: string;
         limit?: number;
@@ -33,6 +34,7 @@ interface LocalPersonalizedProductsProps {
         mixCollectionId?: string;
         mixMode?: string;
         interleaveSchema?: string;
+        headerStyle?: string;
     };
 }
 
@@ -50,6 +52,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     }, []);
 
     const displayTitle = config?.title || "Produits à Proximité";
+    const displayIcon = config?.icon || '🛍️';
     const displaySubtitle = config?.subtitle || "Découvrez les articles disponibles à l'achat immédiat auprès des marchands de votre secteur.";
     const displayBadgeText = config?.badgeText || "Recommandation Locale";
     const limit = (config?.limit || config?.take) ? Number(config?.limit || config?.take) : 8;
@@ -102,7 +105,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             const shopApiUrl = getShopApiUrl();
             let localProductsList: any[] = [];
 
-            if (hasLocation) {
+            if (hasLocation || !requireConfirmedLocation) {
                 const localQuery = `
                     query GetLocalProducts($marketId: ID, $locationId: ID) {
                         vendors(
@@ -359,31 +362,59 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     };
 
     const alignClass = textAlign === 'center' ? 'text-center items-center justify-center' : textAlign === 'right' ? 'text-right items-end' : 'text-left items-start';
+    const headerStyle = config?.headerStyle || 'smart_cart';
 
     return (
         <section className="py-10 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
-            <div className={`flex flex-col ${alignClass} mb-8 gap-1`}>
-                <div 
-                    className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm"
-                    style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{displayBadgeText}</span>
+            {headerStyle === 'standard' && (
+                <div className={`flex flex-col ${alignClass} mb-8 gap-1`}>
+                    <h2 className="text-2xl md:text-3xl font-black tracking-tight text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
+                        <span>{displayIcon}</span> {displayTitle}
+                    </h2>
+                    {displaySubtitle && (
+                        <p className="font-medium text-sm text-muted-foreground mt-1 max-w-2xl" style={{ color: subtitleColor || undefined }}>
+                            {displaySubtitle}
+                        </p>
+                    )}
                 </div>
-                <h2 
-                    className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-3 flex items-center gap-2"
-                    style={{ color: titleColor || undefined }}
-                >
-                    🛍️ {displayTitle} {locationName ? `(${locationName})` : ''}
-                </h2>
-                <p 
-                    className="font-medium text-xs sm:text-sm mt-1 max-w-2xl"
-                    style={{ color: subtitleColor || undefined }}
-                >
-                    {displaySubtitle}
-                </p>
-                <div className="h-1 w-16 bg-primary mt-3 rounded-full" style={{ backgroundColor: badgeBgColor }} />
-            </div>
+            )}
+            {headerStyle === 'bordered' && (
+                <div className="mb-8 p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-primary/10 text-primary">{displayBadgeText}</span>
+                        </div>
+                        <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
+                            <span>{displayIcon}</span> {displayTitle}
+                        </h2>
+                        {displaySubtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
+                    </div>
+                </div>
+            )}
+            {(headerStyle === 'smart_cart' || !['standard', 'bordered'].includes(headerStyle)) && (
+                <div className={`flex flex-col ${alignClass} mb-8 gap-1`}>
+                    <div 
+                        className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm"
+                        style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                    >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{displayBadgeText}</span>
+                    </div>
+                    <h2 
+                        className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-3 flex items-center gap-2"
+                        style={{ color: titleColor || undefined }}
+                    >
+                        <span>{displayIcon}</span> {displayTitle}
+                    </h2>
+                    <p 
+                        className="font-medium text-xs sm:text-sm mt-1 max-w-2xl"
+                        style={{ color: subtitleColor || undefined }}
+                    >
+                        {displaySubtitle}
+                    </p>
+                    <div className="h-1 w-16 bg-primary mt-3 rounded-full" style={{ backgroundColor: badgeBgColor }} />
+                </div>
+            )}
 
             {loading ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">

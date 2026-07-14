@@ -35,7 +35,8 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                 displayLayout: 'horizontal_scroll',
                 showPromotionalPrice: false,
                 icon: 'Zap',
-                applyFakePromotion: false
+                applyFakePromotion: false,
+                unconfirmedLocationBehavior: 'show_message_with_fallback'
             }]
         };
         const d = { ...defaults, ...data };
@@ -92,9 +93,19 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                     <div className="grid-3">
                         <div><label className="label-pro">Nom de la campagne</label><input className="input-pro" value={sv.name} onChange={(e) => updateVersion(sv.id, { name: e.target.value })} /></div>
                         <div><label className="label-pro">Apparence</label>
-                            <select className="input-pro" value={sv.isSimpleMode ? 'simple' : 'full'} onChange={(e) => updateVersion(sv.id, { isSimpleMode: e.target.value === 'simple' })}>
-                                <option value="full">Riche (Bannière + Média)</option>
-                                <option value="simple">Minimaliste (Texte uniquement)</option>
+                            <select className="input-pro" value={sv.headerStyle === 'smart_cart' || (!sv.headerStyle && !sv.isSimpleMode) ? 'smart_cart' : (sv.isSimpleMode ? 'simple' : 'full')} onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'smart_cart') {
+                                    updateVersion(sv.id, { isSimpleMode: false, headerStyle: 'smart_cart' });
+                                } else if (val === 'simple') {
+                                    updateVersion(sv.id, { isSimpleMode: true, headerStyle: 'simple' });
+                                } else {
+                                    updateVersion(sv.id, { isSimpleMode: false, headerStyle: 'styled' });
+                                }
+                            }}>
+                                <option value="full">1. Riche (Bannière colorée & Média)</option>
+                                <option value="simple">2. Minimaliste (Texte uniquement)</option>
+                                <option value="smart_cart">3. Panier Smart (Badge au-dessus + Titre avec Panier 🛍️ + Ligne sous-jacente)</option>
                             </select>
                         </div>
                         <div><label className="label-pro">Disposition des produits</label>
@@ -107,8 +118,22 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                     <div className="grid-3" style={{ marginTop: '1rem' }}>
                         <div><label className="label-pro">Titre</label><input className="input-pro" value={sv.title} onChange={(e) => updateVersion(sv.id, { title: e.target.value })} /></div>
                         <div><label className="label-pro">Sous-titre</label><input className="input-pro" value={sv.subtitle} onChange={(e) => updateVersion(sv.id, { subtitle: e.target.value })} /></div>
-                        <div><label className="label-pro">Emoji de bannière (ex: ⚡, 🔥)</label><input className="input-pro" value={sv.icon || '⚡'} onChange={(e) => updateVersion(sv.id, { icon: e.target.value })} /></div>
+                        <div><label className="label-pro">Emoji du Titre / Bannière (ex: 🛍️, ⚡, 🔥)</label><input className="input-pro" placeholder="ex: 🛍️ ou ⚡" value={sv.icon || ''} onChange={(e) => updateVersion(sv.id, { icon: e.target.value })} /></div>
                     </div>
+                    {(sv.headerStyle === 'smart_cart' || (!sv.headerStyle && !sv.isSimpleMode)) && (
+                        <div style={{ marginTop: '1rem', padding: '12px', background: 'rgba(227, 24, 55, 0.05)', borderRadius: '8px', border: '1px solid rgba(227, 24, 55, 0.2)' }}>
+                            <label className="label-pro" style={{ color: '#e31837', fontWeight: 'bold' }}>
+                                ✨ Texte de la petite carte au-dessus (Badge Option 3)
+                            </label>
+                            <input 
+                                className="input-pro" 
+                                style={{ marginTop: '6px' }}
+                                placeholder="ex: ✨ VENTES FLASH SPÉCIALES / 📍 OFFRES DE QUARTIER" 
+                                value={sv.badgeText || ''} 
+                                onChange={(e) => updateVersion(sv.id, { badgeText: e.target.value })} 
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Timing */}
@@ -146,20 +171,46 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                         <select className="input-pro" style={{ width: 'auto', padding: '4px 10px', fontSize: '0.75rem' }} value={sv.selectionType} onChange={(e) => updateVersion(sv.id, { selectionType: e.target.value })}>
                             <option value="MANUAL">📍 Par Sélection de produit (Recherche)</option>
                             <option value="FILTER">⚡ Par Collection / Filtre intelligent</option>
+                            <option value="LOCAL_NEIGHBORHOOD">🏘️ Produits reliés au Quartier de l'utilisateur</option>
+                            <option value="LOCAL_MARKET">🏪 Produits reliés au Marché le plus proche</option>
                         </select>
                     </div>
-                    <div className="stack">
+                    {(sv.selectionType === 'LOCAL_NEIGHBORHOOD' || sv.selectionType === 'LOCAL_MARKET') && (
+                        <div className="stack" style={{ marginTop: '16px', padding: '12px', background: 'rgba(227, 24, 55, 0.05)', borderRadius: '8px', border: '1px dashed rgba(227, 24, 55, 0.3)' }}>
+                            <label className="label-pro" style={{ color: '#e31837', fontWeight: 'bold' }}>
+                                📍 Que voir si l'utilisateur n'a pas sélectionné sa position ?
+                            </label>
+                            <select 
+                                className="input-pro" 
+                                value={sv.unconfirmedLocationBehavior || 'show_message_with_fallback'} 
+                                onChange={(e) => updateVersion(sv.id, { unconfirmedLocationBehavior: e.target.value })}
+                            >
+                                <option value="show_message_with_fallback">Option 1 : Afficher les Ventes Flash avec un message ("Veuillez choisir votre position...")</option>
+                                <option value="hide_completely">Option 2 : Ne pas faire apparaître la section du tout</option>
+                            </select>
+                        </div>
+                    )}
+                    <div className="stack" style={{ marginTop: '1rem' }}>
                         <div className="grid-2">
-                            <div><label className="label-pro">Pourcentage de remise affiché (%)</label><input type="number" className="input-pro" value={sv.discountPercentage || 0} onChange={(e) => updateVersion(sv.id, { discountPercentage: parseInt(e.target.value) })} /></div>
-                            <div className="toggle-row" style={{ marginTop: '24px' }}>
+                            <div>
+                                <label className="label-pro">Largeur des cartes (ex: 240px, auto)</label>
+                                <input className="input-pro" placeholder="auto ou ex: 260px" value={sv.cardWidth || ''} onChange={(e) => updateVersion(sv.id, { cardWidth: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="label-pro">Hauteur des cartes (ex: 380px, auto)</label>
+                                <input className="input-pro" placeholder="auto ou ex: 400px" value={sv.cardHeight || ''} onChange={(e) => updateVersion(sv.id, { cardHeight: e.target.value })} />
+                            </div>
+                        </div>
+                        <div className="grid-2" style={{ marginTop: '0.5rem' }}>
+                            <div className="toggle-row">
+                                <label><input type="checkbox" checked={sv.showCartIcon || false} onChange={(e) => updateVersion(sv.id, { showCartIcon: e.target.checked })} /> Afficher l'icône Panier 🛒 sur chaque produit (Ajout direct au panier)</label>
+                            </div>
+                            <div className="toggle-row">
                                 <label><input type="checkbox" checked={sv.showPromotionalPrice || false} onChange={(e) => updateVersion(sv.id, { showPromotionalPrice: e.target.checked })} /> Afficher le prix barré promotionnel</label>
                             </div>
                         </div>
-                        <div className="toggle-row" style={{ marginTop: '1rem' }}>
-                            <label><input type="checkbox" checked={sv.applyFakePromotion || false} onChange={(e) => updateVersion(sv.id, { applyFakePromotion: e.target.checked })} /> Appliquer une promotion fictive aux produits sans prix promotionnel (utilise le pourcentage ci-dessus)</label>
-                        </div>
                     </div>
-                    {sv.selectionType === 'FILTER' ? (
+                    {sv.selectionType === 'FILTER' || sv.selectionType === 'LOCAL_NEIGHBORHOOD' || sv.selectionType === 'LOCAL_MARKET' ? (
                         <div className="stack">
                             <div className="grid-2">
                                 <div><label className="label-pro">Remise min (%)</label><input type="number" className="input-pro" value={sv.filterCriteria?.minDiscount} onChange={(e) => updateVersion(sv.id, { filterCriteria: { ...sv.filterCriteria, minDiscount: parseInt(e.target.value) } })} /></div>
@@ -170,8 +221,9 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                             <div className="grid-2">
                                 <div className="toggle-row"><label><input type="checkbox" checked={sv.filterCriteria?.onlyInStock} onChange={(e) => updateVersion(sv.id, { filterCriteria: { ...sv.filterCriteria, onlyInStock: e.target.checked } })} /> En stock uniquement</label></div>
                             </div>
-                            {/* Category/Collection Selection */}
-                            <CollectionSelector selectedIds={sv.filterCriteria?.collectionIds || []} onSelectionChange={(ids) => updateVersion(sv.id, { filterCriteria: { ...sv.filterCriteria, collectionIds: ids } })} />
+                            {sv.selectionType === 'FILTER' && (
+                                <CollectionSelector selectedIds={sv.filterCriteria?.collectionIds || []} onSelectionChange={(ids) => updateVersion(sv.id, { filterCriteria: { ...sv.filterCriteria, collectionIds: ids } })} />
+                            )}
                         </div>
                     ) : (
                         <div className="stack">
@@ -188,15 +240,10 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                         <ColorField label="Accent (Minuteur)" value={sv.accentColor} onChange={(v) => updateVersion(sv.id, { accentColor: v })} />
                         <ColorField label="Couleur du texte" value={sv.textColor} onChange={(v) => updateVersion(sv.id, { textColor: v })} />
                     </div>
-                    <div className="grid-3" style={{ marginTop: '1rem' }}>
+                    <div className="grid-2" style={{ marginTop: '1rem' }}>
                         <div><label className="label-pro">Type de fond</label>
                             <select className="input-pro" value={sv.bgType} onChange={(e) => updateVersion(sv.id, { bgType: e.target.value })}>
                                 <option value="color">Uni</option><option value="gradient">Dégradé</option><option value="image">Image</option>
-                            </select>
-                        </div>
-                        <div><label className="label-pro">Style de carte</label>
-                            <select className="input-pro" value={sv.cardStyle} onChange={(e) => updateVersion(sv.id, { cardStyle: e.target.value })}>
-                                <option value="standard">Standard</option><option value="compact">Compact</option><option value="minimal">Minimaliste</option>
                             </select>
                         </div>
                         <div><label className="label-pro">Rayon de section</label>
@@ -224,19 +271,61 @@ function ProductSearchModal({ selectedIds, onSelectionChange }: { selectedIds: s
         if (!term || term.length < 2) { setSearchResults([]); return; }
         setLoading(true);
         try {
-            const data = await fetchGraphQL(
-                `query SearchProducts($input: SearchInput!) {
-                    search(input: $input) {
-                        items {
-                            productId productName slug
-                            productAsset { id preview }
-                            priceWithTax { ... on SinglePrice { value } ... on PriceRange { min } }
+            // Utiliser shop-api pour éviter les erreurs d'autorisation FORBIDDEN sur admin-api
+            const origin = window.location.origin.includes(':5173') || window.location.origin.includes(':5174') || window.location.origin.includes(':4200')
+                ? window.location.origin.replace(/:(5173|5174|4200)/, ':3000')
+                : window.location.origin;
+            const shopApiUrl = `${origin}/shop-api`;
+            
+            const res = await fetch(shopApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: `query SearchProducts($input: SearchInput!) {
+                        search(input: $input) {
+                            items {
+                                productId productName slug
+                                productAsset { id preview }
+                                priceWithTax { ... on SinglePrice { value } ... on PriceRange { min } }
+                            }
                         }
-                    }
-                }`,
-                { input: { term, groupByProduct: true, take: 20 } }
-            );
-            setSearchResults(data?.search?.items || []);
+                    }`,
+                    variables: { input: { term, groupByProduct: true, take: 20 } }
+                })
+            });
+            const result = await res.json();
+            let items = result.data?.search?.items || [];
+            
+            // Si la recherche par index retourne 0 résultat, fallback sur la requête products
+            if (items.length === 0) {
+                const resProducts = await fetch(shopApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: `query GetProducts($term: String!) {
+                            products(options: { filter: { name: { contains: $term } }, take: 20 }) {
+                                items {
+                                    id name slug
+                                    featuredAsset { id preview }
+                                    variants { priceWithTax }
+                                }
+                            }
+                        }`,
+                        variables: { term }
+                    })
+                });
+                const prodResult = await resProducts.json();
+                const prodItems = prodResult.data?.products?.items || [];
+                items = prodItems.map((p: any) => ({
+                    productId: p.id,
+                    productName: p.name,
+                    slug: p.slug,
+                    productAsset: p.featuredAsset,
+                    priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 }
+                }));
+            }
+            
+            setSearchResults(items);
         } catch (err) {
             console.error('Product search failed:', err);
         } finally {

@@ -8,10 +8,11 @@ import {Suspense, useState, useEffect, useTransition} from "react";
 import Link from "next/link";
 import { useThemeSettings } from '@/components/providers/theme-provider';
 import { getAssetUrl, getPromoPriceInfo } from '@/lib/vendure/api-utils';
-import { Heart, Loader2 } from 'lucide-react';
+import { Heart, Loader2, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { toggleProductLikeAction, checkProductLikeStatus } from '@/app/(storefront)/likes-actions';
 import { LoginPromptModal } from '@/components/shared/login-prompt-modal';
+import { addToCart } from '@/app/(storefront)/product/[slug]/actions';
 
 interface ProductCardProps {
     product: FragmentOf<typeof ProductCardFragment>;
@@ -89,13 +90,24 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
         });
     };
 
+    const ratioClass = config?.imageRatio === '4:3' ? 'aspect-[4/3]' : config?.imageRatio === '3:4' ? 'aspect-[3/4]' : config?.imageRatio === '16:9' ? 'aspect-[16/9]' : 'aspect-square';
+    
+    let cardStyleClass = "bg-card rounded-lg border border-border hover:shadow-lg transition-all";
+    if (config?.cardStyle === 'minimal') {
+        cardStyleClass = "bg-transparent border-none hover:bg-card/50 transition-all rounded-lg";
+    } else if (config?.cardStyle === 'elevated') {
+        cardStyleClass = "bg-card rounded-xl border border-primary/20 shadow-md hover:shadow-xl transition-all";
+    } else if (config?.cardStyle === 'compact' || config?.cardStyle === 'dense') {
+        cardStyleClass = "bg-card rounded-md border border-border hover:shadow-md transition-all text-sm";
+    }
+
     return (
         <>
             <Link
                 href={`/product/${product.slug}`}
-                className="group block bg-card rounded-lg overflow-hidden border border-border hover:shadow-lg transition-shadow"
+                className={`group block overflow-hidden ${cardStyleClass}`}
             >
-                <div className="aspect-square relative bg-muted">
+                <div className={`${ratioClass} relative bg-muted`}>
                     {displayImageUrl ? (
                         isDisplayGif ? (
                             <img
@@ -118,10 +130,44 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
                         </div>
                     )}
                 </div>
-                <div className="p-3 space-y-2">
-                    <h3 className="text-base sm:text-lg font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight">
-                        {product.productName}
-                    </h3>
+                <div className={`${config?.cardStyle === 'compact' || config?.cardStyle === 'dense' ? 'p-2 space-y-1' : 'p-3 space-y-2'} relative`}>
+                    <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-base sm:text-lg font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight flex-1">
+                            {product.productName}
+                        </h3>
+                        {(config?.showCartIcon || config?.showAddToCart) && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (isPending) return;
+                                    const targetVariantId = product.productVariantId || (productProp as any).productVariantId || (productProp as any).variants?.[0]?.id || (productProp as any).id || product.productId;
+                                    if (!targetVariantId) {
+                                        toast.error("Variante indisponible pour ce produit");
+                                        return;
+                                    }
+                                    startTransition(async () => {
+                                        const res = await addToCart(targetVariantId, 1);
+                                        if (res.success) {
+                                            toast.success(`${product.productName} ajouté au panier !`);
+                                        } else {
+                                            toast.error(res.error || "Erreur lors de l'ajout au panier");
+                                        }
+                                    });
+                                }}
+                                disabled={isPending}
+                                className="p-2 -mt-5 -mr-1 bg-white/95 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-primary hover:text-white rounded-full shadow-md border border-slate-200/80 dark:border-slate-700 shrink-0 transition-all duration-200 hover:scale-105 flex items-center justify-center relative z-10 group/cartbtn"
+                                title="Ajouter au panier rapidement"
+                            >
+                                {isPending ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-primary group-hover/cartbtn:text-white" />
+                                ) : (
+                                    <ShoppingCart className="w-3.5 h-3.5 stroke-[2.2] transition-colors" />
+                                )}
+                            </button>
+                        )}
+                    </div>
                     <div className="flex items-center justify-between gap-2 pt-1">
                         <Suspense fallback={<div className="h-4 w-20 rounded bg-muted"></div>}>
                             <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
@@ -168,6 +214,11 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
                             )}
                         </button>
                     </div>
+                    {config?.showAddToCart && (
+                        <div className="mt-2 pt-2 border-t border-border/40 flex items-center justify-center bg-primary/10 hover:bg-primary text-primary hover:text-white font-bold text-xs py-2 px-3 rounded-md transition-colors w-full gap-1 shadow-2xs">
+                            🛒 Commander
+                        </div>
+                    )}
                 </div>
             </Link>
 

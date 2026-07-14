@@ -125,10 +125,14 @@ export class BrevoSmsService implements OnApplicationBootstrap {
 
         const fromAddress = `"${fromName}" <${fromEmail}>`;
 
-        if (method === 'api') {
-            await this.sendEmailViaApi(recipientEmail, subject, htmlContent, settings, fromName, fromEmail);
-        } else {
-            await this.sendEmailViaSmtp(recipientEmail, subject, htmlContent, settings, fromAddress);
+        try {
+            if (method === 'api') {
+                await this.sendEmailViaApi(recipientEmail, subject, htmlContent, settings, fromName, fromEmail);
+            } else {
+                await this.sendEmailViaSmtp(recipientEmail, subject, htmlContent, settings, fromAddress);
+            }
+        } catch (err: any) {
+            this.logger.error(`sendTransactionalEmail failed for ${recipientEmail}: ${err.message || err}`);
         }
     }
 

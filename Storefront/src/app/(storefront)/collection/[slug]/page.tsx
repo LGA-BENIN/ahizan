@@ -50,6 +50,7 @@ function CategoryHeader({ config, collection, totalItems, fallbackCollectionImag
 
     const showBreadcrumbs = config.showBreadcrumbs !== false;
     const showSubcategories = config.showSubcategories !== false;
+    const subcategoryStyle = config.subcategoryStyle || 'pills';
     
     const titleOverride = config.title || '';
     const description = config.description || '';
@@ -134,21 +135,63 @@ function CategoryHeader({ config, collection, totalItems, fallbackCollectionImag
                 </p>
 
                 {showSubcategories && collection.children && collection.children.length > 0 && (
-                    <div className="mt-6 flex overflow-x-auto gap-2 pb-2 scrollbar-hide max-w-full">
-                        {collection.children.map((child: any) => (
-                            <Link 
-                                key={child.id} 
-                                href={`/collection/${child.slug}`}
-                                className="shrink-0 px-4 py-2 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold text-xs md:text-sm rounded-full transition-all border border-white/20 shadow-sm"
-                                style={!bannerImage ? {
-                                    backgroundColor: 'var(--surface)',
-                                    color: 'var(--foreground)',
-                                    borderColor: 'var(--border)'
-                                } : {}}
-                            >
-                                {child.name}
-                            </Link>
-                        ))}
+                    <div className="mt-6 w-full">
+                        {subcategoryStyle === 'cards' ? (
+                            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 ${align === 'left' ? 'justify-items-start' : align === 'right' ? 'justify-items-end' : 'justify-items-center'}`}>
+                                {collection.children.map((child: any) => {
+                                    const childImg = child.featuredAsset?.preview ? getAssetUrl(child.featuredAsset.preview) : null;
+                                    return (
+                                        <Link 
+                                            key={child.id} 
+                                            href={`/collection/${child.slug}`}
+                                            className="group relative rounded-xl overflow-hidden bg-card/90 backdrop-blur-sm border border-border/60 hover:border-primary hover:shadow-lg transition-all p-3 flex flex-col items-center text-center no-underline w-full"
+                                            style={!bannerImage ? { backgroundColor: 'var(--card)', color: 'var(--foreground)' } : { backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.25)' }}
+                                        >
+                                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-muted/80 mb-2 overflow-hidden flex items-center justify-center relative">
+                                                {childImg ? (
+                                                    <img src={childImg} alt={child.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                ) : (
+                                                    <span className="text-xl">📁</span>
+                                                )}
+                                            </div>
+                                            <span className="font-bold text-xs sm:text-sm line-clamp-1 group-hover:text-primary transition-colors">
+                                                {child.name}
+                                            </span>
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        ) : subcategoryStyle === 'links' ? (
+                            <div className={`flex flex-wrap gap-4 ${align === 'left' ? 'justify-start' : align === 'right' ? 'justify-end' : 'justify-center'}`}>
+                                {collection.children.map((child: any) => (
+                                    <Link 
+                                        key={child.id} 
+                                        href={`/collection/${child.slug}`}
+                                        className="text-xs md:text-sm font-bold underline underline-offset-4 decoration-primary/50 hover:decoration-primary hover:text-primary transition-colors"
+                                        style={bannerImage ? { color: '#ffffff' } : { color: 'var(--foreground)' }}
+                                    >
+                                        {child.name} →
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className={`flex overflow-x-auto gap-2 pb-2 scrollbar-hide max-w-full ${align === 'left' ? 'justify-start' : align === 'right' ? 'justify-end' : 'justify-center'}`}>
+                                {collection.children.map((child: any) => (
+                                    <Link 
+                                        key={child.id} 
+                                        href={`/collection/${child.slug}`}
+                                        className="shrink-0 px-4 py-2 bg-white/10 backdrop-blur-md hover:bg-white/20 text-white font-bold text-xs md:text-sm rounded-full transition-all border border-white/20 shadow-sm"
+                                        style={!bannerImage ? {
+                                            backgroundColor: 'var(--surface)',
+                                            color: 'var(--foreground)',
+                                            borderColor: 'var(--border)'
+                                        } : {}}
+                                    >
+                                        {child.name}
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -163,7 +206,7 @@ function DynamicProductGrid({ config, productData, currentPage, allowedFacets, a
 
     const totalItems = productData?.data?.search?.totalItems || 0;
 
-    const sidebarContent = allowedFacets.length > 0 ? (
+    const sidebarContent = (
         <div className="bg-card p-6 rounded-2xl border shadow-sm">
             <FacetFilters 
                 productData={productData as any} 
@@ -171,7 +214,7 @@ function DynamicProductGrid({ config, productData, currentPage, allowedFacets, a
                 allowedFacets={allowedFacets}
             />
         </div>
-    ) : null;
+    );
 
     const gridContent = (
         totalItems > 0 ? (
@@ -195,6 +238,21 @@ function DynamicProductGrid({ config, productData, currentPage, allowedFacets, a
     );
 
     if (showFilters && sidebarContent) {
+        if (config.filtersPosition === 'top') {
+            return (
+                <div className="space-y-8">
+                    <div className="bg-card/90 backdrop-blur-sm p-6 rounded-2xl border border-border shadow-sm">
+                        <div className="flex items-center justify-between mb-4 border-b border-border/50 pb-3">
+                            <span className="font-black text-sm uppercase tracking-wider flex items-center gap-2 text-foreground">
+                                🔍 Filtres et Options de Tri
+                            </span>
+                        </div>
+                        {sidebarContent}
+                    </div>
+                    {gridContent}
+                </div>
+            );
+        }
         return (
             <FiltersToggleWrapper sidebar={sidebarContent}>
                 {gridContent}
@@ -502,27 +560,13 @@ export default async function CollectionPage({ params, searchParams }: any) {
                 <div className="flex flex-col lg:flex-row gap-12">
                     <aside className="w-full lg:w-1/4 shrink-0">
                         <div className="sticky top-28">
-                            {allowedFacets.length > 0 ? (
-                                <div className="bg-card p-6 rounded-2xl border shadow-sm">
-                                    <FacetFilters 
-                                        productData={productData as any} 
-                                        allowedFacetIds={allowedFacetIds}
-                                        allowedFacets={allowedFacets}
-                                    />
-                                </div>
-                            ) : (
-                                <div className="bg-muted/50 p-8 rounded-2xl border border-dashed border-border flex flex-col items-center text-center">
-                                    <div className="w-12 h-12 bg-background rounded-full flex items-center justify-center shadow-sm mb-4">
-                                        <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                        </svg>
-                                    </div>
-                                    <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Navigation</h2>
-                                    <ul className="space-y-2 text-sm font-bold">
-                                       <li><Link href="/" className="text-primary hover:underline">← Accueil</Link></li>
-                                    </ul>
-                                </div>
-                            )}
+                            <div className="bg-card p-6 rounded-2xl border shadow-sm">
+                                <FacetFilters 
+                                    productData={productData as any} 
+                                    allowedFacetIds={allowedFacetIds}
+                                    allowedFacets={allowedFacets}
+                                />
+                            </div>
                         </div>
                     </aside>
 

@@ -88,7 +88,6 @@ const MASTER_ZONE_MAP = [
         items: [
             { type: 'MARKET_INFO', icon: '🏪', label: 'Infos du Marché (Carte & Commerces)', mode: 'singleton' },
             { type: 'NEIGHBORHOOD_INFO', icon: '📍', label: 'Infos du Quartier (Carte & Commerces)', mode: 'singleton' },
-            { type: 'LOCAL_PRODUCTS', icon: '🛍️', label: 'Produits à proximité', mode: 'multi' },
         ],
         allowedOn: ['all']
     },
@@ -111,20 +110,20 @@ const getZoneMapForSlug = (slug?: string) => {
         home: [
             'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
             'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
-            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'LOCAL_PRODUCTS'
+            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         category: [
-            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER', 'LOCAL_PRODUCTS'
+            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER'
         ],
         product: [
-            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER', 'LOCAL_PRODUCTS'
+            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER'
         ],
         market: [
-            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO', 'LOCAL_PRODUCTS',
+            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO',
             'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
         ],
         neighborhood: [
-            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO', 'LOCAL_PRODUCTS',
+            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO',
             'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'NEIGHBORHOOD_CODE'
         ]
     };

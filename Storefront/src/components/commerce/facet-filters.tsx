@@ -65,9 +65,12 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
                     body: JSON.stringify({ query })
                 });
                 const result = await res.json();
-                const mList = (result.data?.markets || []).map((m: any) => ({ id: String(m.id), name: m.name, type: 'MARKET' }));
-                const nList = (result.data?.geographicLocations || []).map((n: any) => ({ id: String(n.id), name: n.name, type: 'NEIGHBORHOOD' }));
-                setZones([...mList, ...nList]);
+                const mList = (result.data?.markets || []).map((m: any) => ({ id: String(m.id), name: m.name, type: 'MARKET' as const }));
+                const nList = (result.data?.geographicLocations || []).map((n: any) => ({ id: String(n.id), name: n.name, type: 'NEIGHBORHOOD' as const }));
+                const combined = [...mList, ...nList];
+                const uniqueMap = new Map<string, typeof combined[0]>();
+                combined.forEach(item => uniqueMap.set(`${item.type}-${item.id}`, item));
+                setZones(Array.from(uniqueMap.values()));
             } catch (e) {
                 console.error('Failed to load zones for filters:', e);
             }
@@ -114,8 +117,8 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
         const facetId = String(facet.id);
         const fv = item.facetValue;
 
-        // Check if allowedFacetIds is explicitly provided (e.g. on a collection page)
-        const isAllowed = allowedFacetIds !== undefined
+        // Check if allowedFacetIds is explicitly provided and non-empty (e.g. on a collection page)
+        const isAllowed = allowedFacetIds !== undefined && allowedFacetIds.length > 0
             ? allowedFacetIds.includes(facetId)
             : true;
             
@@ -316,7 +319,7 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
                     >
                         <option value="">-- Choisir une autre zone --</option>
                         {zones.map((z) => (
-                            <option key={z.id} value={z.id}>
+                            <option key={`${z.type}-${z.id}`} value={z.id}>
                                 {z.type === 'MARKET' ? '🏛️' : '📍'} {z.name}
                             </option>
                         ))}
@@ -333,7 +336,7 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
             {activeFacetGroups.map((facet) => {
                 const isCollapsed = !!collapsedGroups[facet.id];
                 return (
-                    <div key={facet.id} className="space-y-4 pb-4 border-b border-muted-foreground/5 last:border-0 last:pb-0">
+                    <div key={`facet-group-${facet.id}`} className="space-y-4 pb-4 border-b border-muted-foreground/5 last:border-0 last:pb-0">
                         <button
                             onClick={() => toggleGroup(facet.id)}
                             className="w-full flex items-center justify-between font-black text-[11px] uppercase tracking-widest text-foreground/70 hover:text-primary transition-colors text-left"
@@ -351,16 +354,17 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
                             <div className="space-y-3 pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
                                 {facet.values.map((value) => {
                                     const isChecked = selectedFacets.includes(value.id);
+                                    const domId = `facet-checkbox-${facet.id}-${value.id}`;
                                     return (
-                                        <div key={value.id} className="flex items-center space-x-3 group">
+                                        <div key={`facet-val-${facet.id}-${value.id}`} className="flex items-center space-x-3 group">
                                             <Checkbox
-                                                id={value.id}
+                                                id={domId}
                                                 checked={isChecked}
                                                 onCheckedChange={() => toggleFacet(value.id)}
                                                 className="w-5 h-5 rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all"
                                             />
                                             <Label
-                                                htmlFor={value.id}
+                                                htmlFor={domId}
                                                 className="text-sm font-bold text-muted-foreground cursor-pointer flex items-center justify-between w-full group-hover:text-foreground transition-colors"
                                             >
                                                 <span className={isChecked ? "text-foreground" : ""}>{value.name}</span>

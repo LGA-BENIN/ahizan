@@ -477,31 +477,41 @@ export class VendorService implements OnApplicationBootstrap {
                 })
             );
 
-            // Assign Vendor Role
+            // Assign Vendor Role (this also creates an Administrator if not present)
             await this.assignVendorRole(adminCtx, newUser.id.toString());
 
-            // Create Administrator for Dashboard Access
-            console.log('VendorService.create: Creating Administrator entity for user...');
-            const administrator = new Administrator({
-                emailAddress: finalEmail,
-                firstName: finalName.split(' ')[0] || 'Vendor',
-                lastName: finalName.split(' ')[1] || 'Admin',
-                user: newUser,
+            // Ensure Administrator for Dashboard Access (if not created by assignVendorRole)
+            const existingAdmin = await this.connection.getRepository(adminCtx, Administrator).findOne({
+                where: { user: { id: newUser.id } }
             });
-            await this.connection.getRepository(adminCtx, Administrator).save(administrator);
-            console.log('VendorService.create: Administrator entity created.');
-
-            // Create Customer for Shop Access (Login via Shop API)
-            console.log('VendorService.create: Creating Customer entity for user...');
-            const customer = await this.connection.getRepository(adminCtx, Customer).save(
-                new Customer({
+            if (!existingAdmin) {
+                console.log('VendorService.create: Creating Administrator entity for user...');
+                const administrator = new Administrator({
                     emailAddress: finalEmail,
                     firstName: finalName.split(' ')[0] || 'Vendor',
-                    lastName: finalName.split(' ')[1] || 'Customer',
+                    lastName: finalName.split(' ')[1] || 'Admin',
                     user: newUser,
-                })
-            );
-            console.log('VendorService.create: Customer entity created.');
+                });
+                await this.connection.getRepository(adminCtx, Administrator).save(administrator);
+                console.log('VendorService.create: Administrator entity created.');
+            }
+
+            // Create Customer for Shop Access (if not already exists)
+            const existingCustomer = await this.connection.getRepository(adminCtx, Customer).findOne({
+                where: { user: { id: newUser.id } }
+            });
+            if (!existingCustomer) {
+                console.log('VendorService.create: Creating Customer entity for user...');
+                await this.connection.getRepository(adminCtx, Customer).save(
+                    new Customer({
+                        emailAddress: finalEmail,
+                        firstName: finalName.split(' ')[0] || 'Vendor',
+                        lastName: finalName.split(' ')[1] || 'Customer',
+                        user: newUser,
+                    })
+                );
+                console.log('VendorService.create: Customer entity created.');
+            }
 
 
             vendor.user = newUser;

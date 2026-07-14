@@ -10,6 +10,7 @@ import { Heart, Loader2, MapPin, Landmark, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { toggleProductLikeAction, checkProductLikeStatus } from '@/app/(storefront)/likes-actions';
 import { LoginPromptModal } from '@/components/shared/login-prompt-modal';
+import { addToCart } from '@/app/(storefront)/product/[slug]/actions';
 
 interface VendorProductCardProps {
     product: any;
@@ -257,11 +258,45 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                         )}
                         {renderCornerBadges()}
                     </div>
-                    <div className="flex-grow min-w-0 p-1 flex flex-col justify-between h-28">
+                    <div className="flex-grow min-w-0 p-1 flex flex-col justify-between h-28 relative">
                         <div className="space-y-1">
-                            <h3 className="text-xs sm:text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight">
-                                {product.name}
-                            </h3>
+                            <div className="flex items-start justify-between gap-1">
+                                <h3 className="text-xs sm:text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight flex-1">
+                                    {product.name}
+                                </h3>
+                                {(config?.showCartIcon || config?.showAddToCart) && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (isPending) return;
+                                            const variantId = product.productVariantId || product.variants?.[0]?.id || product.id;
+                                            if (!variantId) {
+                                                toast.error("Variante indisponible pour ce produit");
+                                                return;
+                                            }
+                                            startTransition(async () => {
+                                                const res = await addToCart(variantId, 1);
+                                                if (res.success) {
+                                                    toast.success(`${product.name} ajouté au panier !`);
+                                                } else {
+                                                    toast.error(res.error || "Erreur lors de l'ajout au panier");
+                                                }
+                                            });
+                                        }}
+                                        disabled={isPending}
+                                        className="p-1.5 bg-white/95 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-primary hover:text-white rounded-full shadow-md border border-slate-200/80 dark:border-slate-700 shrink-0 transition-all duration-200 hover:scale-105 flex items-center justify-center relative z-10 group/cartbtn"
+                                        title="Ajouter au panier rapidement"
+                                    >
+                                        {isPending ? (
+                                            <Loader2 className="w-3 h-3 animate-spin text-primary group-hover/cartbtn:text-white" />
+                                        ) : (
+                                            <ShoppingCart className="w-3.5 h-3.5 stroke-[2.2] transition-colors" />
+                                        )}
+                                    </button>
+                                )}
+                            </div>
                             {product.vendorName && (
                                 <p className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
                                     👤 {product.vendorName}
@@ -360,11 +395,45 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                     )}
                     {renderCornerBadges()}
                 </div>
-                <div className="p-3 space-y-2">
+                <div className="p-3 space-y-2 relative">
                     <div className="space-y-0.5">
-                        <h3 className="text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight">
-                            {product.name}
-                        </h3>
+                        <div className="flex items-start justify-between gap-1">
+                            <h3 className="text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight flex-1">
+                                {product.name}
+                            </h3>
+                            {(config?.showCartIcon || config?.showAddToCart) && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (isPending) return;
+                                        const variantId = product.productVariantId || product.variants?.[0]?.id || product.id;
+                                        if (!variantId) {
+                                            toast.error("Variante indisponible pour ce produit");
+                                            return;
+                                        }
+                                        startTransition(async () => {
+                                            const res = await addToCart(variantId, 1);
+                                            if (res.success) {
+                                                toast.success(`${product.name} ajouté au panier !`);
+                                            } else {
+                                                toast.error(res.error || "Erreur lors de l'ajout au panier");
+                                            }
+                                        });
+                                    }}
+                                    disabled={isPending}
+                                    className="p-2 -mt-5 -mr-1 bg-white/95 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-primary hover:text-white rounded-full shadow-md border border-slate-200/80 dark:border-slate-700 shrink-0 transition-all duration-200 hover:scale-105 flex items-center justify-center relative z-10 group/cartbtn"
+                                    title="Ajouter au panier rapidement"
+                                >
+                                    {isPending ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary group-hover/cartbtn:text-white" />
+                                    ) : (
+                                        <ShoppingCart className="w-3.5 h-3.5 stroke-[2.2] transition-colors" />
+                                    )}
+                                </button>
+                            )}
+                        </div>
                         {product.vendorName && (
                             <p className="text-[10px] text-muted-foreground font-semibold">
                                 👤 {product.vendorName}

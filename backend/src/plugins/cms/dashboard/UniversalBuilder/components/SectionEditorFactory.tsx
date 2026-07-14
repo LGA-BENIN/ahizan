@@ -332,7 +332,7 @@ export function LocalProductsSettings({ data, onSave }: LocalProductsSettingsPro
                         <textarea className="input-pro" value={config.subtitle || ''} onChange={e => handleChange('subtitle', e.target.value)} rows={2} />
                     </div>
 
-                    <div className="grid-3">
+                    <div className="grid-2 mt-3">
                         <div>
                             <label className="label-pro">Alignement</label>
                             <select className="input-pro" value={config.textAlign || 'left'} onChange={e => handleChange('textAlign', e.target.value)}>
@@ -341,6 +341,16 @@ export function LocalProductsSettings({ data, onSave }: LocalProductsSettingsPro
                                 <option value="right">Droite</option>
                             </select>
                         </div>
+                        <div>
+                            <label className="label-pro">Style d'en-tête</label>
+                            <select className="input-pro" value={config.headerStyle || 'smart_cart'} onChange={e => handleChange('headerStyle', e.target.value)}>
+                                <option value="standard">1. Standard (Titre & sous-titre simples)</option>
+                                <option value="bordered">2. Encadré (Carte avec bordure)</option>
+                                <option value="smart_cart">3. Panier Smart (Badge au-dessus + Titre + Ligne ci-dessous)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="grid-2 mt-3">
                         <ColorField label="Couleur Titre" value={config.titleColor} onChange={(v) => handleChange('titleColor', v)} />
                         <ColorField label="Couleur Sous-Titre" value={config.subtitleColor} onChange={(v) => handleChange('subtitleColor', v)} />
                     </div>

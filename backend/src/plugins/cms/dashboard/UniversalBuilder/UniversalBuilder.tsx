@@ -417,8 +417,10 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
       });
 
       await fetchGraphQL(PUBLISH_HABILLAGE, { presetId: activeHabillage.id, pageId: selectedPageId });
-      setSaveStatus('✅ Habillage publié ! Le storefront est mis à jour.');
+      setSaveStatus('✅ Habillage publié ! Le storefront est mis à jour instantanément.');
       queryClient.invalidateQueries({ queryKey: ['page', selectedPageId] });
+      // Update preview immediately
+      setPreviewVersion(Date.now());
     } catch (err: any) {
       setSaveStatus('❌ Erreur de publication : ' + err.message);
     }

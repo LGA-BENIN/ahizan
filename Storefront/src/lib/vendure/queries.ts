@@ -90,6 +90,25 @@ export const GetProductsQuery = graphql(`
                     name
                     slug
                 }
+                customFields {
+                    vendor {
+                        id
+                        name
+                        zone
+                        location {
+                            id
+                            name
+                        }
+                        physicalMarket {
+                            id
+                            name
+                        }
+                        markets {
+                            id
+                            name
+                        }
+                    }
+                }
             }
             totalItems
         }
@@ -181,6 +200,24 @@ export const GetActiveOrderQuery = graphql(`
                             id
                             preview
                         }
+                        customFields {
+                            vendor {
+                                id
+                                name
+                                location {
+                                    id
+                                    name
+                                }
+                                physicalMarket {
+                                    id
+                                    name
+                                }
+                                markets {
+                                    id
+                                    name
+                                }
+                            }
+                        }
                     }
                 }
                 unitPriceWithTax
@@ -260,6 +297,24 @@ export const GetActiveOrderForCheckoutQuery = graphql(`
                         featuredAsset {
                             id
                             preview
+                        }
+                        customFields {
+                            vendor {
+                                id
+                                name
+                                location {
+                                    id
+                                    name
+                                }
+                                physicalMarket {
+                                    id
+                                    name
+                                }
+                                markets {
+                                    id
+                                    name
+                                }
+                            }
                         }
                     }
                 }

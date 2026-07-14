@@ -34,6 +34,12 @@ export class GeographicLocation extends VendureEntity {
     @Column({ type: 'boolean', default: true })
     isActive: boolean;
 
+    @Column({ type: 'varchar', nullable: true })
+    image: string;
+
+    @Column({ type: 'varchar', nullable: true })
+    icon: string;
+
     @ManyToOne(() => GeographicLocation, (parent: GeographicLocation) => parent.children, { nullable: true })
     parent: GeographicLocation;
 

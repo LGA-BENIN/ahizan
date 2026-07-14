@@ -5,6 +5,7 @@ import { getPageContent } from "@/lib/vendure/cms-queries";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { unstable_noStore as noStore } from "next/cache";
+import { AhizanContextExposer } from "@/components/ahizan/AhizanContextExposer";
 
 export async function generateMetadata({ params }: any): Promise<Metadata> {
     const { slug } = await params;
@@ -34,7 +35,22 @@ async function CmsPageContent({ slug }: { slug: string }) {
         notFound();
     }
 
-    return <AhizanHome sections={page.sections || []} />;
+    const marketSection = page.sections?.find((s: any) => s.type === 'MARKET_INFO');
+    const marketData = marketSection ? marketSection.data : null;
+
+    const neighborhoodSection = page.sections?.find((s: any) => s.type === 'NEIGHBORHOOD_INFO');
+    const neighborhoodData = neighborhoodSection ? neighborhoodSection.data : null;
+
+    return (
+        <>
+            <AhizanContextExposer 
+                page={page} 
+                market={marketData} 
+                neighborhood={neighborhoodData} 
+            />
+            <AhizanHome sections={page.sections || []} />
+        </>
+    );
 }
 
 export default async function CustomCmsPage({ params }: any) {

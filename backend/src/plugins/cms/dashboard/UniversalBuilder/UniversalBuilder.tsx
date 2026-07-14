@@ -6,14 +6,43 @@ import { LivePreview } from './components/LivePreview';
 import { SectionEditorFactory } from './components/SectionEditorFactory';
 import { CodeEditor } from './components/CodeEditor';
 import { SeasonManager } from '../views/SeasonManager';
+import { MarketManager } from '../views/MarketManager';
+import { NeighborhoodManager } from '../views/NeighborhoodManager';
 import { HabillageManager } from './components/HabillageManager';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as queries from '../queries';
+import { FileUploadField } from './components/sections/FileUploadField';
 const { GET_PAGE, GET_PAGES, CREATE_SECTION, UPDATE_SECTION, DELETE_SECTION } = queries;
 
 import './styles/builder-styles.css';
 import { fetchGraphQL } from '../lib/utils';
 
+const UPDATE_PAGE_SETTINGS = `
+  mutation UpdatePageSettings($input: UpdatePageInput!) {
+    updatePage(input: $input) {
+      id title slug metaTitle metaDescription metaKeywords image icon
+    }
+  }
+`;
+
+const UPDATE_MARKET_CMS_DATA = `
+  mutation UpdateMarketCmsData($id: ID!, $image: String, $icon: String) {
+    updateMarketCmsData(id: $id, image: $image, icon: $icon) {
+      id image icon
+    }
+  }
+`;
+
+const UPDATE_NEIGHBORHOOD_CMS_DATA = `
+  mutation UpdateNeighborhoodCmsData($id: ID!, $image: String, $icon: String) {
+    updateNeighborhoodCmsData(id: $id, image: $image, icon: $icon) {
+      id image icon
+    }
+  }
+`;
+
+const FETCH_MARKETS_FOR_SETTINGS = `query { markets { id name slug image icon } }`;
+const FETCH_NEIGHBORHOODS_FOR_SETTINGS = `query { geographicLocations(type: "NEIGHBORHOOD") { id name slug image icon } }`;
 
 const GET_PAGES_QUERY = GET_PAGES;
 
@@ -137,6 +166,113 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
       setActivePageSlug(slug);
     }
   }, [pageDetail]);
+
+  // Page Settings states
+  const [showPageSettingsModal, setShowPageSettingsModal] = useState(false);
+  const [pageSettingsTitle, setPageSettingsTitle] = useState('');
+  const [pageSettingsSlug, setPageSettingsSlug] = useState('');
+  const [pageSettingsMetaTitle, setPageSettingsMetaTitle] = useState('');
+  const [pageSettingsMetaDescription, setPageSettingsMetaDescription] = useState('');
+  const [pageSettingsMetaKeywords, setPageSettingsMetaKeywords] = useState('');
+  const [pageSettingsImage, setPageSettingsImage] = useState('');
+  const [pageSettingsIcon, setPageSettingsIcon] = useState('');
+
+  // Market/Neighborhood cms data edit states
+  const [selectedEntityId, setSelectedEntityId] = useState('');
+  const [entityImage, setEntityImage] = useState('');
+  const [entityIcon, setEntityIcon] = useState('');
+  const [entitiesList, setEntitiesList] = useState<any[]>([]);
+
+  // Sync page settings states
+  useEffect(() => {
+    if (pageDetail?.page) {
+      setPageSettingsTitle(pageDetail.page.title || '');
+      setPageSettingsSlug(pageDetail.page.slug || '');
+      setPageSettingsMetaTitle(pageDetail.page.metaTitle || '');
+      setPageSettingsMetaDescription(pageDetail.page.metaDescription || '');
+      setPageSettingsMetaKeywords(pageDetail.page.metaKeywords || '');
+      setPageSettingsImage(pageDetail.page.image || '');
+      setPageSettingsIcon(pageDetail.page.icon || '');
+    }
+  }, [pageDetail]);
+
+  // Fetch entities list for selector
+  useEffect(() => {
+    if (showPageSettingsModal) {
+      if (activePageSlug === 'market') {
+        fetchGraphQL(FETCH_MARKETS_FOR_SETTINGS).then(data => {
+          const list = data?.markets || [];
+          setEntitiesList(list);
+          if (list.length > 0) {
+            setSelectedEntityId(list[0].id);
+            setEntityImage(list[0].image || '');
+            setEntityIcon(list[0].icon || '');
+          }
+        });
+      } else if (activePageSlug === 'neighborhood') {
+        fetchGraphQL(FETCH_NEIGHBORHOODS_FOR_SETTINGS).then(data => {
+          const list = data?.geographicLocations || [];
+          setEntitiesList(list);
+          if (list.length > 0) {
+            setSelectedEntityId(list[0].id);
+            setEntityImage(list[0].image || '');
+            setEntityIcon(list[0].icon || '');
+          }
+        });
+      }
+    }
+  }, [showPageSettingsModal, activePageSlug]);
+
+  const handleEntityChange = (id: string) => {
+    setSelectedEntityId(id);
+    const ent = entitiesList.find(e => e.id === id);
+    if (ent) {
+      setEntityImage(ent.image || '');
+      setEntityIcon(ent.icon || '');
+    }
+  };
+
+  const handleSavePageSettings = async () => {
+    try {
+      setSaveStatus('Enregistrement des paramètres...');
+      
+      // Save Page Settings
+      await fetchGraphQL(UPDATE_PAGE_SETTINGS, {
+        input: {
+          id: selectedPageId,
+          title: pageSettingsTitle,
+          slug: pageSettingsSlug,
+          metaTitle: pageSettingsMetaTitle,
+          metaDescription: pageSettingsMetaDescription,
+          metaKeywords: pageSettingsMetaKeywords,
+          image: pageSettingsImage,
+          icon: pageSettingsIcon
+        }
+      });
+
+      // Save Market/Neighborhood Settings if relevant
+      if (activePageSlug === 'market' && selectedEntityId) {
+        await fetchGraphQL(UPDATE_MARKET_CMS_DATA, {
+          id: selectedEntityId,
+          image: entityImage,
+          icon: entityIcon
+        });
+      } else if (activePageSlug === 'neighborhood' && selectedEntityId) {
+        await fetchGraphQL(UPDATE_NEIGHBORHOOD_CMS_DATA, {
+          id: selectedEntityId,
+          image: entityImage,
+          icon: entityIcon
+        });
+      }
+
+      setSaveStatus('✅ Paramètres enregistrés !');
+      setShowPageSettingsModal(false);
+      refetchPageDetail();
+      queryClient.invalidateQueries({ queryKey: ['pages'] });
+    } catch (e: any) {
+      setSaveStatus('❌ Erreur : ' + e.message);
+    }
+  };
 
   // Habillage selector modal state
   const [showHabillageModal, setShowHabillageModal] = useState(false);
@@ -585,6 +721,25 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Page Settings button */}
+          {selectedPageId && (
+            <button
+              onClick={() => setShowPageSettingsModal(true)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: '1px solid #94a3b8',
+                background: '#fff',
+                color: '#334155',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              ⚙️ Paramètres
+            </button>
+          )}
+
           {/* Habillage selector button */}
           <button
             onClick={handleOpenHabillageModal}
@@ -771,6 +926,154 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
                 style={{ padding: '8px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', color: '#475569', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
               >
                 Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Page Settings Modal */}
+      {showPageSettingsModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+          onClick={() => setShowPageSettingsModal(false)}
+        >
+          <div style={{
+            background: '#fff', borderRadius: '16px', padding: '24px',
+            width: '550px', maxHeight: '85vh', overflow: 'auto',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+            display: 'flex', flexDirection: 'column', gap: '16px'
+          }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0, borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+              ⚙️ Paramètres de la page ({activePageSlug})
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Title & Slug */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label className="label-pro">Titre de la page</label>
+                  <input
+                    type="text"
+                    value={pageSettingsTitle}
+                    onChange={e => setPageSettingsTitle(e.target.value)}
+                    className="input-pro"
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label className="label-pro">Lien (Slug)</label>
+                  <input
+                    type="text"
+                    value={pageSettingsSlug}
+                    onChange={e => setPageSettingsSlug(e.target.value)}
+                    disabled={['home', 'category', 'product', 'market', 'neighborhood'].includes(pageSettingsSlug)}
+                    className="input-pro"
+                  />
+                </div>
+              </div>
+
+              {/* SEO Meta Fields */}
+              <div>
+                <label className="label-pro">Méta-Titre (SEO)</label>
+                <input
+                  type="text"
+                  value={pageSettingsMetaTitle}
+                  onChange={e => setPageSettingsMetaTitle(e.target.value)}
+                  className="input-pro"
+                />
+              </div>
+
+              <div>
+                <label className="label-pro">Méta-Description (SEO)</label>
+                <textarea
+                  value={pageSettingsMetaDescription}
+                  onChange={e => setPageSettingsMetaDescription(e.target.value)}
+                  className="input-pro"
+                  rows={2}
+                />
+              </div>
+
+              <div>
+                <label className="label-pro">Méta-Mots clés (Séparés par des virgules)</label>
+                <input
+                  type="text"
+                  value={pageSettingsMetaKeywords}
+                  onChange={e => setPageSettingsMetaKeywords(e.target.value)}
+                  className="input-pro"
+                />
+              </div>
+
+              {/* Page-level Image and Icon uploads */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <FileUploadField
+                  label="Image par défaut de la page"
+                  value={pageSettingsImage}
+                  onChange={setPageSettingsImage}
+                />
+                <FileUploadField
+                  label="Icône par défaut de la page"
+                  value={pageSettingsIcon}
+                  onChange={setPageSettingsIcon}
+                />
+              </div>
+            </div>
+
+            {/* Entity-specific config (Market or Neighborhood) */}
+            {(activePageSlug === 'market' || activePageSlug === 'neighborhood') && entitiesList.length > 0 && (
+              <div style={{ marginTop: '12px', paddingTop: '16px', borderTop: '2px dashed #e2e8f0' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', marginBottom: '12px' }}>
+                  {activePageSlug === 'market' ? '🏪 Configurer les Marchés' : '📍 Configurer les Quartiers'}
+                </h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <label className="label-pro">Sélectionner l'élément à modifier</label>
+                    <select
+                      value={selectedEntityId}
+                      onChange={e => handleEntityChange(e.target.value)}
+                      className="input-pro"
+                      style={{ padding: '8px', fontSize: '0.8rem', fontWeight: 600 }}
+                    >
+                      {entitiesList.map(item => (
+                        <option key={item.id} value={item.id}>{item.name} ({item.slug})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <FileUploadField
+                    label="Image spécifique"
+                    value={entityImage}
+                    onChange={setEntityImage}
+                  />
+
+                  <FileUploadField
+                    label="Icône spécifique"
+                    value={entityIcon}
+                    onChange={setEntityIcon}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: '16px', display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+              <button
+                onClick={() => setShowPageSettingsModal(false)}
+                className="btn-pro"
+                style={{ padding: '8px 20px', cursor: 'pointer' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleSavePageSettings}
+                className="btn-pro btn-pro-primary"
+                style={{ padding: '8px 20px', cursor: 'pointer', background: 'var(--builder-primary)', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}
+              >
+                Enregistrer
               </button>
             </div>
           </div>
@@ -1165,7 +1468,7 @@ const PagesDropdown = ({ activeTab, setActiveTab }: any) => {
 };
 
 const UniversalBuilderInner = () => {
-  const [activeTab, setActiveTab] = useState<'PAGES' | 'HABILLAGES' | 'SEASONS'>('PAGES');
+  const [activeTab, setActiveTab] = useState<'PAGES' | 'HABILLAGES' | 'SEASONS' | 'MARKETS' | 'NEIGHBORHOODS'>('PAGES');
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
 
   const handleOpenInEditor = (presetId: string) => {
@@ -1228,6 +1531,40 @@ const UniversalBuilderInner = () => {
           >
             Saisons
           </button>
+          <button
+            onClick={() => setActiveTab('MARKETS')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              background: activeTab === 'MARKETS' ? '#fff' : 'transparent',
+              color: activeTab === 'MARKETS' ? '#1e40af' : '#64748b',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              boxShadow: activeTab === 'MARKETS' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s'
+            }}
+          >
+            🏪 Marchés
+          </button>
+          <button
+            onClick={() => setActiveTab('NEIGHBORHOODS')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              background: activeTab === 'NEIGHBORHOODS' ? '#fff' : 'transparent',
+              color: activeTab === 'NEIGHBORHOODS' ? '#1e40af' : '#64748b',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              boxShadow: activeTab === 'NEIGHBORHOODS' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s'
+            }}
+          >
+            📍 Quartiers
+          </button>
         </nav>
       </div>
 
@@ -1237,8 +1574,16 @@ const UniversalBuilderInner = () => {
             <BuilderContent pendingPresetId={pendingPresetId} onPresetOpened={() => setPendingPresetId(null)} />
           ) : activeTab === 'HABILLAGES' ? (
             <HabillageManager onOpenInEditor={handleOpenInEditor} />
-          ) : (
+          ) : activeTab === 'SEASONS' ? (
             <SeasonManager />
+          ) : activeTab === 'MARKETS' ? (
+            <div style={{ height: '100%', overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
+              <MarketManager />
+            </div>
+          ) : (
+            <div style={{ height: '100%', overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
+              <NeighborhoodManager />
+            </div>
           )}
       </div>
     </div>

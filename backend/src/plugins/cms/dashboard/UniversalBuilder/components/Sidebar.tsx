@@ -96,6 +96,8 @@ const MASTER_ZONE_MAP = [
         zone: 'Avancé',
         items: [
             { type: 'CUSTOM', icon: '🛠️', label: 'Code HTML personnalisé', mode: 'multi' },
+            { type: 'MARKET_CODE', icon: '💻', label: 'Code Personnalisé Marché', mode: 'multi' },
+            { type: 'NEIGHBORHOOD_CODE', icon: '💻', label: 'Code Personnalisé Quartier', mode: 'multi' },
         ],
         allowedOn: ['all']
     },
@@ -119,11 +121,11 @@ const getZoneMapForSlug = (slug?: string) => {
         ],
         market: [
             'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO', 'LOCAL_PRODUCTS',
-            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
         ],
         neighborhood: [
             'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO', 'LOCAL_PRODUCTS',
-            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'NEIGHBORHOOD_CODE'
         ]
     };
 

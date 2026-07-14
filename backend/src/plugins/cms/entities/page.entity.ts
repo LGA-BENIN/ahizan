@@ -33,6 +33,12 @@ export class Page extends VendureEntity {
     @Column({ default: true })
     isActive: boolean;
 
+    @Column({ type: 'varchar', nullable: true })
+    image: string;
+
+    @Column({ type: 'varchar', nullable: true })
+    icon: string;
+
     @OneToMany(type => PageSection, section => section.page)
     sections: PageSection[];
 

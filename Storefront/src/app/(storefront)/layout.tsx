@@ -16,11 +16,13 @@ import { GlobalPopupProvider } from "@/components/cms/global-popup-provider";
 import { CookieConsent } from "@/components/ahizan/cookie-consent";
 import { ScrollToTop } from "@/components/ahizan/ScrollToTop";
 import { PushPermissionManager } from "@/components/ahizan/PushPermissionManager";
+import { LocationOnboardingModal } from "@/components/ahizan/LocationOnboardingModal";
 import { getPageContent, ThemeSettingsData, FooterConfData, HeaderConfData } from "@/lib/vendure/cms-queries";
 import { getBannerApiUrl, getAssetUrl } from "@/lib/vendure/api-utils";
 import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
 import { MobileMenuProvider, MobileMenuHeader } from "@/contexts/mobile-menu-context";
 import { getTopCollections } from "@/lib/vendure/cached";
+import { AhizanContextExposer } from "@/components/ahizan/AhizanContextExposer";
 
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
@@ -103,6 +105,7 @@ async function StorefrontMainContent({
             applyFlashPromoToCollections: (theme as any)?.applyFlashPromoToCollections === true,
             activeFlashSale: activeFlash
         }}>
+            <AhizanContextExposer order={order} customer={customer} />
             <MobileMenuProvider>
                 <MobileMenuHeader>
                     <HeaderWrapper config={headerConfig}>
@@ -141,6 +144,9 @@ async function StorefrontMainContent({
                     delaySeconds={theme?.pushNotificationDelay}
                     maxPerDay={theme?.pushNotificationMaxPerDay}
                     intervalMinutes={theme?.pushNotificationInterval}
+                />
+                <LocationOnboardingModal 
+                    shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
                 />
             </MobileMenuProvider>
         </ThemeProvider>

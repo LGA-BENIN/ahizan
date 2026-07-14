@@ -264,19 +264,24 @@ export default async function CollectionPage({ params, searchParams }: any) {
             searchInput.skip = (page - 1) * searchInput.take;
         }
 
-        const searchResult = await query(GetCollectionProductsQuery, {
-            slug,
-            input: searchInput,
-        });
+        const zoneId = searchParamsResolved?.zoneId;
+        
+        let searchResult = null;
+        if (!zoneId) {
+            searchResult = await query(GetCollectionProductsQuery, {
+                slug,
+                input: searchInput,
+            });
+        }
 
         const searchData = searchResult?.data?.search;
         let totalItems = searchData?.totalItems || 0;
         let products: any[] = searchData?.items || [];
         let facetValues = searchData?.facetValues || [];
 
-        console.log(`[CollectionPage] slug=${slug} collectionId=${collection.id} searchTotalItems=${totalItems}`);
+        console.log(`[CollectionPage] slug=${slug} collectionId=${collection.id} searchTotalItems=${totalItems} zoneId=${zoneId}`);
 
-        if (totalItems === 0) {
+        if (totalItems === 0 || zoneId) {
             try {
                 const directResult = await query(GetProductsQuery, {
                     options: { take: 100 }
@@ -305,6 +310,17 @@ export default async function CollectionPage({ params, searchParams }: any) {
                     });
                 }
 
+                if (zoneId) {
+                    collectionProducts = collectionProducts.filter((p: any) => {
+                        const vendor = p.customFields?.vendor;
+                        if (!vendor) return false;
+                        const belongsToMarket = String(vendor.physicalMarket?.id) === String(zoneId) ||
+                            (vendor.markets || []).some((m: any) => String(m.id) === String(zoneId));
+                        const belongsToNeighborhood = String(vendor.location?.id) === String(zoneId);
+                        return belongsToMarket || belongsToNeighborhood;
+                    });
+                }
+
                 if (collectionProducts.length > 0) {
                     totalItems = collectionProducts.length;
                     products = collectionProducts.map((p: any) => ({
@@ -320,7 +336,8 @@ export default async function CollectionPage({ params, searchParams }: any) {
                         description: p.description,
                         collectionIds: (p.collections || []).map((c: any) => c.id),
                         facetValueIds: (p.facetValues || []).map((fv: any) => fv.id),
-                        inStock: p.variants?.some((v: any) => v.stockLevel && v.stockLevel !== 'OUT_OF_STOCK')
+                        inStock: p.variants?.some((v: any) => v.stockLevel && v.stockLevel !== 'OUT_OF_STOCK'),
+                        customFields: p.customFields
                     }));
 
                     const facetValueCounts = new Map<string, number>();
@@ -378,11 +395,20 @@ export default async function CollectionPage({ params, searchParams }: any) {
             totalItems = products.length;
         }
 
+        // Apply pagination slice if we did local filtering (fallback or price/zone active)
+        const isLocallyFiltered = (searchResult === null) || minPriceNum !== undefined || maxPriceNum !== undefined;
+        let paginatedItems = products;
+        if (isLocallyFiltered) {
+            const take = searchInput.take || 12;
+            const skip = (page - 1) * take;
+            paginatedItems = products.slice(skip, skip + take);
+        }
+
         const productData = {
             data: {
                 search: {
                     totalItems,
-                    items: products,
+                    items: paginatedItems,
                     facetValues,
                 }
             }

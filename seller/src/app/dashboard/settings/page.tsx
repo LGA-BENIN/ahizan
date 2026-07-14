@@ -1,8 +1,12 @@
-import { getMyVendorProfile } from "@/lib/vendure/actions";
+import { getMyVendorProfile, getAvailableLocationsAction } from "@/lib/vendure/actions";
 import { AccountSettingsForm } from './account-settings-form';
 
+/* Force hot-reload of settings form v5 */
 export default async function SettingsPage() {
-    const vendor = await getMyVendorProfile();
+    const [vendor, locations] = await Promise.all([
+        getMyVendorProfile(),
+        getAvailableLocationsAction()
+    ]);
 
     return (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -12,7 +16,11 @@ export default async function SettingsPage() {
                     <p className="text-muted-foreground">Gérez les informations de votre boutique et la sécurité de votre accès.</p>
                 </div>
                 
-                <AccountSettingsForm vendor={vendor} />
+                <AccountSettingsForm 
+                    vendor={vendor} 
+                    initialMarkets={locations.markets} 
+                    initialNeighborhoods={locations.neighborhoods} 
+                />
             </section>
         </div>
     );

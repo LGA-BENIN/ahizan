@@ -21,11 +21,19 @@ export function getBannerApiUrl(endpoint: string): string {
 
 export function getAssetUrl(path: string | null | undefined): string | undefined {
     if (!path) return undefined;
-    if (path.startsWith('http')) return encodeURI(path);
-    if (path.startsWith('data:')) return path;
+    
+    const normalizedPath = path.replace(/\\/g, '/');
+    if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+        return encodeURI(normalizedPath);
+    }
+    if (normalizedPath.startsWith('data:')) {
+        return normalizedPath;
+    }
     
     const baseUrl = getBaseUrl();
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    // Encode the path to handle spaces in filenames
-    return `${baseUrl}${encodeURI(cleanPath)}`;
+    let cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+    if (!cleanPath.startsWith('assets/')) {
+        cleanPath = `assets/${cleanPath}`;
+    }
+    return `${baseUrl}/${encodeURI(cleanPath)}`;
 }

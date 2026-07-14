@@ -9,6 +9,23 @@ export const getBackendBaseUrl = () => {
     return origin;
 };
 
+export const getAssetUrl = (path: string | null | undefined): string => {
+    if (!path) return '';
+    const normalizedPath = path.replace(/\\/g, '/');
+    if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+        return normalizedPath;
+    }
+    if (normalizedPath.startsWith('data:')) {
+        return normalizedPath;
+    }
+    const baseUrl = getBackendBaseUrl();
+    let cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+    if (!cleanPath.startsWith('assets/')) {
+        cleanPath = `assets/${cleanPath}`;
+    }
+    return `${baseUrl}/${cleanPath}`;
+};
+
 // --- GraphQL Fetcher ---
 export async function fetchGraphQL(query: any, variables?: any, file?: File) {
     const apiUrl = getBackendBaseUrl() + '/admin-api';

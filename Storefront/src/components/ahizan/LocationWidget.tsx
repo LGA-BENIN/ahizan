@@ -44,17 +44,148 @@ export function LocationWidget() {
     const [loading, setLoading] = useState(false);
     const [gpsLoading, setGpsLoading] = useState(false);
 
-    // Load initial location on mount
+    // Load initial location and listen for changes
     useEffect(() => {
-        const saved = localStorage.getItem('ahizan_client_location');
-        if (saved) {
-            try {
-                setSelectedLocation(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse saved location', e);
+        const loadLocation = () => {
+            const saved = localStorage.getItem('ahizan_client_location');
+            if (saved) {
+                try {
+                    setSelectedLocation(JSON.parse(saved));
+                } catch (e) {
+                    console.error('Failed to parse saved location', e);
+                }
+            } else {
+                setSelectedLocation(null);
             }
+        };
+
+        loadLocation();
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('ahizan_location_changed', loadLocation);
+            return () => {
+                window.removeEventListener('ahizan_location_changed', loadLocation);
+            };
         }
     }, []);
+
+    // Background GPS check for dynamic zone updates
+    useEffect(() => {
+        const runBackgroundGpsCheck = async () => {
+            const saved = localStorage.getItem('ahizan_client_location');
+            if (!saved) return;
+
+            try {
+                const parsedLoc = JSON.parse(saved);
+                if (!navigator.geolocation || !navigator.permissions) return;
+
+                // Query permission status first to avoid browser prompt
+                const perm = await navigator.permissions.query({ name: 'geolocation' as any });
+                if (perm.state !== 'granted') return;
+
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    
+                    // Fetch locations list if not already loaded to calculate the closest one
+                    let currentMarkets = markets;
+                    let currentNeighborhoods = neighborhoods;
+
+                    if (currentMarkets.length === 0) {
+                        const query = `
+                            query BackgroundGpsCheck {
+                                markets {
+                                    id
+                                    name
+                                    centerLatitude
+                                    centerLongitude
+                                }
+                                geographicLocations(type: "NEIGHBORHOOD") {
+                                    id
+                                    name
+                                    centerLatitude
+                                    centerLongitude
+                                }
+                            }
+                        `;
+                        try {
+                            const shopApiUrl = getShopApiUrl();
+                            const res = await fetch(shopApiUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ query })
+                            });
+                            const result = await res.json();
+                            currentMarkets = result.data?.markets || [];
+                            currentNeighborhoods = result.data?.geographicLocations || [];
+                        } catch (e) {
+                            console.error('Failed to load locations for background GPS check', e);
+                            return;
+                        }
+                    }
+
+                    // Find closest market or neighborhood
+                    let closestItem: any = null;
+                    let minDistance = Infinity;
+                    let itemType: 'MARKET' | 'NEIGHBORHOOD' = 'NEIGHBORHOOD';
+
+                    currentMarkets.forEach(m => {
+                        if (m.centerLatitude && m.centerLongitude) {
+                            const dist = getDistance(latitude, longitude, m.centerLatitude, m.centerLongitude);
+                            if (dist < minDistance) {
+                                minDistance = dist;
+                                closestItem = m;
+                                itemType = 'MARKET';
+                            }
+                        }
+                    });
+
+                    currentNeighborhoods.forEach(n => {
+                        if (n.centerLatitude && n.centerLongitude) {
+                            const dist = getDistance(latitude, longitude, n.centerLatitude, n.centerLongitude);
+                            if (dist < minDistance) {
+                                minDistance = dist;
+                                closestItem = n;
+                                itemType = 'NEIGHBORHOOD';
+                            }
+                        }
+                    });
+
+                    if (closestItem && closestItem.name !== parsedLoc.name) {
+                        // Different zone detected! Show toast/notification to suggest updating
+                        toast(`📍 Nouvelle zone détectée : ${closestItem.name}`, {
+                            description: "Voulez-vous mettre à jour vos recommandations pour cette zone ?",
+                            action: {
+                                label: "Mettre à jour",
+                                onClick: () => {
+                                    const newLoc: LocationData = {
+                                        id: closestItem.id,
+                                        name: closestItem.name,
+                                        latitude: closestItem.centerLatitude || closestItem.latitude,
+                                        longitude: closestItem.centerLongitude || closestItem.longitude,
+                                        type: itemType
+                                    };
+                                    setSelectedLocation(newLoc);
+                                    localStorage.setItem('ahizan_client_location', JSON.stringify(newLoc));
+                                    window.dispatchEvent(new Event('ahizan_location_changed'));
+                                    toast.success(`Position mise à jour sur : ${closestItem.name}`);
+                                }
+                            },
+                            duration: 10000,
+                        });
+                    }
+                }, (error) => {
+                    console.warn('[LocationWidget] Background GPS check warning:', error);
+                }, { enableHighAccuracy: false, timeout: 10000 });
+            } catch (e) {
+                console.error('[LocationWidget] Background GPS check error:', e);
+            }
+        };
+
+        // Delay background check to let main resources load first
+        const timer = setTimeout(runBackgroundGpsCheck, 4000);
+        return () => clearTimeout(timer);
+    }, [markets.length]);
+
 
     // Fetch markets and neighborhoods for selection list
     const loadAllLocations = async () => {

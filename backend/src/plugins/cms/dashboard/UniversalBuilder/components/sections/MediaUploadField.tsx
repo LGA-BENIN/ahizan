@@ -8,7 +8,7 @@ interface MediaUploadFieldProps {
     accept?: string;
 }
 
-import { getBackendBaseUrl } from '../../../lib/utils';
+import { getBackendBaseUrl, getAssetUrl } from '../../../lib/utils';
 
 export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({ label, value, onChange, placeholder = "/assets/...", accept = "image/*,video/*,image/gif" }) => {
     const [uploading, setUploading] = useState(false);
@@ -131,9 +131,9 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({ label, value
             {value && (
                 <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--builder-border)', background: '#000', maxHeight: '120px', display: 'flex', justifyContent: 'center' }}>
                     {isVideo ? (
-                        <video src={value} style={{ maxHeight: '120px', maxWidth: '100%' }} autoPlay loop muted playsInline />
+                        <video src={getAssetUrl(value)} style={{ maxHeight: '120px', maxWidth: '100%' }} autoPlay loop muted playsInline />
                     ) : (
-                        <img src={value} style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} alt="Preview" />
+                        <img src={getAssetUrl(value)} style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} alt="Preview" />
                     )}
                 </div>
             )}

@@ -8,7 +8,7 @@ interface FileUploadFieldProps {
     placeholder?: string;
 }
 
-import { getBackendBaseUrl } from '../../../lib/utils';
+import { getBackendBaseUrl, getAssetUrl } from '../../../lib/utils';
 
 export const FileUploadField = ({ label, value, onChange, accept = 'image/*,video/mp4,image/gif', placeholder = 'Upload or enter URL' }: FileUploadFieldProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -126,9 +126,9 @@ export const FileUploadField = ({ label, value, onChange, accept = 'image/*,vide
             {value && (
                 <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--builder-border)', background: '#000', maxHeight: '120px', display: 'flex', justifyContent: 'center' }}>
                     {isVideo ? (
-                        <video src={value} style={{ maxHeight: '120px', maxWidth: '100%' }} muted />
+                        <video src={getAssetUrl(value)} style={{ maxHeight: '120px', maxWidth: '100%' }} muted />
                     ) : (
-                        <img src={value} alt="Preview" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} />
+                        <img src={getAssetUrl(value)} alt="Preview" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} />
                     )}
                 </div>
             )}

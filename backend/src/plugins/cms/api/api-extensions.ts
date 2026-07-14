@@ -93,6 +93,8 @@ export const commonApiExtensions = gql`
         metaTitle: String
         metaKeywords: String
         ogImage: String
+        image: String
+        icon: String
         type: String!
         isActive: Boolean!
         sections: [PageSection!]!
@@ -136,6 +138,28 @@ export const commonApiExtensions = gql`
 export const adminApiExtensions = gql`
     ${commonApiExtensions}
 
+    input UpdateMarketInput {
+        id: ID!
+        name: String
+        slug: String
+        description: String
+        image: String
+        icon: String
+        centerLatitude: Float
+        centerLongitude: Float
+        radiusMeters: Int
+    }
+
+    input UpdateGeographicLocationInput {
+        id: ID!
+        name: String
+        image: String
+        icon: String
+        centerLatitude: Float
+        centerLongitude: Float
+        radiusMeters: Int
+    }
+
     input CreatePageInput {
         slug: String!
         title: String!
@@ -143,6 +167,8 @@ export const adminApiExtensions = gql`
         metaTitle: String
         metaKeywords: String
         ogImage: String
+        image: String
+        icon: String
         type: String
         isActive: Boolean
     }
@@ -155,6 +181,8 @@ export const adminApiExtensions = gql`
         metaTitle: String
         metaKeywords: String
         ogImage: String
+        image: String
+        icon: String
         type: String
         isActive: Boolean
     }
@@ -266,6 +294,8 @@ export const adminApiExtensions = gql`
     }
 
     extend type Mutation {
+        updateMarket(input: UpdateMarketInput!): Market!
+        updateGeographicLocation(input: UpdateGeographicLocationInput!): GeographicLocation!
         createPage(input: CreatePageInput!): Page!
         updatePage(input: UpdatePageInput!): Page!
         deletePage(id: ID!): DeletionResponse!

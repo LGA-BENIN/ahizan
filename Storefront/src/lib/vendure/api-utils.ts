@@ -31,17 +31,23 @@ export function getAssetUrl(path: string | null | undefined): string | undefined
     // Normalize path to use forward slashes (fixes Windows paths in DB)
     const normalizedPath = path.replace(/\\/g, '/');
 
-    if (normalizedPath.startsWith('http')) return encodeURI(normalizedPath);
-    if (normalizedPath.startsWith('data:')) return normalizedPath;
+    if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+        return encodeURI(normalizedPath);
+    }
+    if (normalizedPath.startsWith('data:')) {
+        return normalizedPath;
+    }
     
     const baseUrl = getBaseUrl();
-    let cleanPath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-    // Vendure preview thumbnails use /preview/ subdir and __preview suffix
-    // Convert to original asset path: /assets/preview/32/xxx__preview.jpg → /assets/32/xxx.jpg
-    cleanPath = cleanPath.replace(/\/preview\//, '/');
-    cleanPath = cleanPath.replace(/__preview\./, '.');
+    let cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+    
+    // Ensure the path begins with 'assets/' if it's a relative asset path (like preview/... or source/...)
+    if (!cleanPath.startsWith('assets/')) {
+        cleanPath = `assets/${cleanPath}`;
+    }
+    
     // Encode the path to handle spaces in filenames
-    return `${baseUrl}${encodeURI(cleanPath)}`;
+    return `${baseUrl}/${encodeURI(cleanPath)}`;
 }
 
 export interface PromoPriceInfo {

@@ -391,8 +391,7 @@ export function AhizanNavbar({
                         </div>
 
                         {/* Geolocation selector on Mobile */}
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secteur</span>
+                        <div className="flex items-center justify-start mb-2.5">
                             <LocationWidget />
                         </div>
 

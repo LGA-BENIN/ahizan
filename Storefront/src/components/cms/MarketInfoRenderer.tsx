@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Star, MapPin, Navigation, Info, Store } from 'lucide-react';
-import { getShopApiUrl } from '@/lib/vendure/api-utils';
+import { getShopApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
 import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 
 interface MarketInfoProps {
@@ -134,6 +134,13 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
         }
 
         const map = L.map('local-page-map').setView([latitude, longitude], 15);
+
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 150);
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 450);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
@@ -292,7 +299,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
                         ) : (
                             <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1 font-sans">
                                 {vendors.map(v => {
-                                    const logoPreview = v.logo?.preview || null;
+                                    const logoPreview = getAssetUrl(v.logo?.preview) || null;
                                     const isLogoGif = isGif(logoPreview);
                                     return (
                                         <Link key={v.id} href={`/vendor/${v.id}`} className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800/50 transition-all no-underline text-inherit group">

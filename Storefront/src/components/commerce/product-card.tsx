@@ -27,7 +27,7 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     
-    const imageUrl = product.productAsset?.preview;
+    const imageUrl = getAssetUrl(product.productAsset?.preview);
     const isImageGif = isGif(imageUrl);
     const defaultImage = themeSettings?.defaultProductImage;
     const displayImageUrl = imageUrl || defaultImage;

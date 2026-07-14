@@ -228,3 +228,44 @@ export async function getVendorProductsLikesAction() {
         return [];
     }
 }
+
+/**
+ * Fetch markets and neighborhoods from Shop API server-side
+ */
+export async function getAvailableLocationsAction() {
+    const shopApiUrl = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+    const queryStr = `
+        query {
+            markets {
+                id
+                name
+                slug
+                centerLatitude
+                centerLongitude
+                radiusMeters
+            }
+            geographicLocations(type: "NEIGHBORHOOD") {
+                id
+                name
+                centerLatitude
+                centerLongitude
+            }
+        }
+    `;
+    try {
+        const res = await fetch(shopApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: queryStr }),
+            cache: 'no-store'
+        });
+        const result = await res.json();
+        return {
+            markets: result.data?.markets || [],
+            neighborhoods: result.data?.geographicLocations || []
+        };
+    } catch (err) {
+        console.error('[getAvailableLocationsAction] Error:', err);
+        return { markets: [], neighborhoods: [] };
+    }
+}

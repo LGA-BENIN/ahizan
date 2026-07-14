@@ -80,7 +80,7 @@ export function MobileCategorySidebar({ categories = [] }: { categories?: any[] 
                                             ) : cat.id && promoConfig?.collectionMedia?.[cat.slug] ? (
                                                 <img src={getAssetUrl(promoConfig.collectionMedia[cat.slug])} className="w-full h-full object-cover rounded-sm" alt="" />
                                             ) : cat.featuredAsset?.preview ? (
-                                                <img src={cat.featuredAsset.preview} className="w-full h-full object-cover rounded-sm" alt="" />
+                                                <img src={getAssetUrl(cat.featuredAsset.preview)} className="w-full h-full object-cover rounded-sm" alt="" />
                                             ) : (
                                                 cat.id ? <Smartphone className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 bg-muted animate-pulse rounded-full" />
                                             )}
@@ -115,7 +115,7 @@ export function MobileCategorySidebar({ categories = [] }: { categories?: any[] 
                                             >
                                                 <div className="w-4 h-4 flex items-center justify-center flex-shrink-0 mt-0.5">
                                                     {sub.featuredAsset?.preview ? (
-                                                        <img src={sub.featuredAsset.preview} className="w-full h-full object-cover rounded-sm" alt="" />
+                                                        <img src={getAssetUrl(sub.featuredAsset.preview)} className="w-full h-full object-cover rounded-sm" alt="" />
                                                     ) : (
                                                         <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
                                                     )}

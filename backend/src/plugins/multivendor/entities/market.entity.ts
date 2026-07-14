@@ -23,6 +23,9 @@ export class Market extends VendureEntity {
     @Column({ type: 'varchar', nullable: true })
     image: string;
 
+    @Column({ type: 'varchar', nullable: true })
+    icon: string;
+
     @Column({ type: 'float', nullable: true })
     centerLatitude: number;
 

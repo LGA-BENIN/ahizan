@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { getAssetUrl } from "@/lib/vendure/api-utils";
+import { getAssetUrl, getShopApiUrl } from "@/lib/vendure/api-utils";
 import { QuickLinks } from "./QuickLinks";
 import { FlashSaleSection } from "./FlashSaleSection";
 
@@ -185,6 +185,179 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
                     );
                 })}
             </div>
+        </section>
+    );
+}
+
+export function CustomCodeRenderer({ config, wrapperClass }: { config: any; wrapperClass?: string }) {
+    const html = config.htmlContent || '';
+    const css = config.cssContent || '';
+    const js = config.jsContent || '';
+    const { id, name, latitude, longitude, radius, type } = config;
+
+    const [leafletReady, setLeafletReady] = useState(false);
+    const [vendors, setVendors] = useState<any[]>([]);
+
+    // 1. Fetch vendors if we have center coordinates to display shops on map
+    useEffect(() => {
+        if (!id || !latitude || !longitude) return;
+        const variables = type === 'MARKET' ? { marketId: id } : { locationId: id };
+        const query = `
+            query GetLocalVendors($marketId: ID, $locationId: ID) {
+                vendors(
+                    marketId: $marketId, 
+                    locationId: $locationId, 
+                    options: { filter: { status: { eq: "APPROVED" } } }
+                ) {
+                    items {
+                        id name latitude longitude address logo { preview } address
+                    }
+                }
+            }
+        `;
+        fetch(getShopApiUrl(), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, variables })
+        })
+        .then(res => res.json())
+        .then(result => {
+            setVendors(result.data?.vendors?.items || []);
+        })
+        .catch(err => console.error("Error fetching map vendors:", err));
+    }, [id, latitude, longitude, type]);
+
+    // 2. Load Leaflet if #ahizan-custom-map is present in html
+    useEffect(() => {
+        const hasMapPlaceholder = html.includes('id="ahizan-custom-map"') || html.includes("id='ahizan-custom-map'");
+        if (!hasMapPlaceholder || !latitude || !longitude) return;
+
+        if ((window as any).L) {
+            setLeafletReady(true);
+            return;
+        }
+
+        // CSS
+        if (!document.querySelector('link[href*="leaflet.css"]')) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(link);
+        }
+
+        // JS
+        if (!document.querySelector('script[src*="leaflet.js"]')) {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = () => setLeafletReady(true);
+            document.body.appendChild(script);
+        } else {
+            const interval = setInterval(() => {
+                if ((window as any).L) {
+                    setLeafletReady(true);
+                    clearInterval(interval);
+                }
+            }, 100);
+            return () => clearInterval(interval);
+        }
+    }, [html, latitude, longitude]);
+
+    // 3. Initialize Map on mount/ready
+    useEffect(() => {
+        if (!leafletReady || !latitude || !longitude) return;
+        const L = (window as any).L;
+        if (!L) return;
+
+        const mapContainer = document.getElementById('ahizan-custom-map');
+        if (!mapContainer || (mapContainer as any)._leaflet_id) return;
+
+        const map = L.map('ahizan-custom-map').setView([latitude, longitude], 15);
+        
+        setTimeout(() => { map.invalidateSize(); }, 150);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        L.circle([latitude, longitude], {
+            color: '#e31837',
+            fillColor: '#e31837',
+            fillOpacity: 0.1,
+            radius: radius || 400
+        }).addTo(map);
+
+        const centerIcon = L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        L.marker([latitude, longitude], { icon: centerIcon }).addTo(map)
+            .bindPopup(`<b>${name}</b><br/>${type === 'MARKET' ? 'Centre du Marché' : 'Quartier'}`)
+            .openPopup();
+
+        const shopIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        vendors.forEach(v => {
+            if (v.latitude && v.longitude) {
+                L.marker([v.latitude, v.longitude], { icon: shopIcon }).addTo(map)
+                    .bindPopup(`
+                        <div class="p-1 font-sans">
+                            <b class="text-sm font-bold text-slate-900">${v.name}</b>
+                            <p class="text-xs text-slate-600 my-1">${v.address || ''}</p>
+                            <a href="/vendor/${v.id}" class="inline-block text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline mt-1">Visiter la boutique →</a>
+                        </div>
+                    `);
+            }
+        });
+
+        const savedLocation = localStorage.getItem('ahizan_client_location');
+        if (savedLocation) {
+            try {
+                const loc = JSON.parse(savedLocation);
+                if (loc.latitude && loc.longitude) {
+                    const clientIcon = L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
+                        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    });
+                    L.marker([loc.latitude, loc.longitude], { icon: clientIcon }).addTo(map)
+                        .bindPopup(`<b>Votre position</b><br/>${loc.name}`);
+                }
+            } catch (e) {
+                console.error("Error setting user location:", e);
+            }
+        }
+    }, [leafletReady, latitude, longitude, radius, name, type, vendors]);
+
+    return (
+        <section className={wrapperClass}>
+            {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+            {js && (
+                <script dangerouslySetInnerHTML={{
+                    __html: `(function() {
+                        try {
+                            ${js}
+                        } catch(e) {
+                            console.error("Custom code execution error:", e);
+                        }
+                    })()`
+                }} />
+            )}
         </section>
     );
 }
@@ -527,6 +700,11 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                 (s: any) => s.isActive && s.id !== section.id && ['LOCAL_PRODUCTS', 'PRODUCT_GRID'].includes(s.type)
             );
             return <MarketInfoRenderer config={config} showProducts={!hasOtherProductsSection} />;
+        }
+
+        case 'MARKET_CODE':
+        case 'NEIGHBORHOOD_CODE': {
+            return <CustomCodeRenderer config={config} wrapperClass={`${wrapper} mt-8 md:mt-10`} />;
         }
 
         default:

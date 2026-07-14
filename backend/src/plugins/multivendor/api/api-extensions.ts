@@ -67,6 +67,8 @@ export const commonApiExtensions = `
         centerLongitude: Float
         radiusMeters: Int
         isActive: Boolean!
+        image: String
+        icon: String
         parent: GeographicLocation
         children: [GeographicLocation!]
     }
@@ -79,6 +81,7 @@ export const commonApiExtensions = `
         slug: String!
         description: String
         image: String
+        icon: String
         centerLatitude: Float
         centerLongitude: Float
         radiusMeters: Int

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Star, MapPin, Loader2 } from 'lucide-react';
-import { getShopApiUrl } from '@/lib/vendure/api-utils';
+import { getShopApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface VendorItem {
     id: string;
@@ -89,7 +89,7 @@ export function VendorShowcaseSection({
                 zone: v.zone,
                 rating: v.rating,
                 ratingCount: v.ratingCount,
-                logoUrl: v.logo?.preview || null,
+                logoUrl: getAssetUrl(v.logo?.preview) || null,
             }));
             setVendors(items);
         } catch (e) {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getShopApiUrl } from '@/lib/vendure/api-utils';
+import { getShopApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface CategoryItem {
     name: string;
@@ -48,7 +48,7 @@ async function fetchCollectionsClient(): Promise<CategoryItem[]> {
         return (data?.data?.collections?.items || []).map((c: any) => ({
             name: c.name,
             slug: c.slug,
-            imageUrl: c.featuredAsset?.preview || null,
+            imageUrl: getAssetUrl(c.featuredAsset?.preview) || null,
             productCount: c.productVariants?.totalItems ?? 0,
         }));
     } catch (e) {

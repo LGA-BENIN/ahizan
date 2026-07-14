@@ -21,6 +21,43 @@ export class CMSService {
         private entityHydrator: EntityHydrator,
     ) { }
 
+    private replacePlaceholdersInObject(obj: any, replacer: (txt: string) => string): any {
+        if (typeof obj === 'string') {
+            return replacer(obj);
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.replacePlaceholdersInObject(item, replacer));
+        }
+        if (obj !== null && typeof obj === 'object') {
+            const result: any = {};
+            for (const key of Object.keys(obj)) {
+                result[key] = this.replacePlaceholdersInObject(obj[key], replacer);
+            }
+            return result;
+        }
+        return obj;
+    }
+
+    private getAssetUrl(pathStr: string | null | undefined): string {
+        if (!pathStr) return '';
+        const normalizedPath = pathStr.replace(/\\/g, '/');
+        if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+            return normalizedPath;
+        }
+        
+        let cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+        if (!cleanPath.startsWith('assets/')) {
+            cleanPath = `assets/${cleanPath}`;
+        }
+        
+        const isDev = process.env.APP_ENV === 'dev';
+        const baseUrl = isDev 
+            ? `http://localhost:${process.env.PORT || 3000}`
+            : (process.env.ASSET_URL_PREFIX ? process.env.ASSET_URL_PREFIX.replace(/\/assets\/?$/, '') : 'https://api.ahizan.com');
+            
+        return `${baseUrl}/${cleanPath}`;
+    }
+
     findAll(ctx: RequestContext, options?: any): Promise<PaginatedList<Page>> {
         return this.listQueryBuilder
             .build(Page, options, { ctx })
@@ -92,36 +129,63 @@ export class CMSService {
                         dataJson: section.dataJson
                     });
 
-                    // Inject dynamic market info based on component type
-                    if (s.type === 'HERO') {
-                        const data = JSON.parse(s.dataJson || '{}');
-                        data.title = market.name;
-                        data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`;
-                        data.backgroundImage = market.image || data.backgroundImage || '';
-                        s.dataJson = JSON.stringify(data);
-                    } else if (s.type === 'MARKET_INFO') {
-                        s.dataJson = JSON.stringify({
-                            id: market.id,
-                            name: market.name,
-                            slug: market.slug,
-                            description: market.description,
-                            latitude: market.centerLatitude,
-                            longitude: market.centerLongitude,
-                            radius: market.radiusMeters,
-                            image: market.image,
-                            location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
-                        });
-                    } else if (s.type === 'LOCAL_PRODUCTS') {
-                        const data = JSON.parse(s.dataJson || '{}');
-                        data.marketId = market.id;
-                        data.marketName = market.name;
-                        s.dataJson = JSON.stringify(data);
-                    } else if (s.type === 'PRODUCT_GRID') {
-                        const data = JSON.parse(s.dataJson || '{}');
-                        data.marketId = market.id;
-                        data.title = data.title || `Sélection du Marché`;
-                        data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du marché ${market.name}`;
-                        s.dataJson = JSON.stringify(data);
+                    if (s.dataJson) {
+                        try {
+                            let data = JSON.parse(s.dataJson);
+
+                            const replacePlaceholders = (txt: string) => {
+                                return txt
+                                    .replace(/\{\{market\.name\}\}/g, market.name || '')
+                                    .replace(/\{\{market\.slug\}\}/g, market.slug || '')
+                                    .replace(/\{\{market\.description\}\}/g, market.description || '')
+                                    .replace(/\{\{market\.image\}\}/g, this.getAssetUrl(market.image))
+                                    .replace(/\{\{market\.icon\}\}/g, this.getAssetUrl(market.icon))
+                                    .replace(/\{\{market\.latitude\}\}/g, market.centerLatitude ? String(market.centerLatitude) : '')
+                                    .replace(/\{\{market\.longitude\}\}/g, market.centerLongitude ? String(market.centerLongitude) : '')
+                                    .replace(/\{\{market\.radius\}\}/g, market.radiusMeters ? String(market.radiusMeters) : '')
+                                    .replace(/\{\{market\.map\}\}/g, '<div id="ahizan-custom-map" class="ahizan-interactive-map" style="width:100%; height:450px; min-height:300px; border-radius:16px; border:1px solid #cbd5e1; z-index:10;"></div>');
+                            };
+
+                            data = this.replacePlaceholdersInObject(data, replacePlaceholders);
+
+                            // Inject dynamic market info based on component type
+                            if (s.type === 'HERO') {
+                                data.title = market.name;
+                                data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`;
+                                data.backgroundImage = this.getAssetUrl(market.image) || data.backgroundImage || '';
+                            } else if (s.type === 'MARKET_INFO') {
+                                data = {
+                                    id: market.id,
+                                    name: market.name,
+                                    slug: market.slug,
+                                    description: market.description,
+                                    latitude: market.centerLatitude,
+                                    longitude: market.centerLongitude,
+                                    radius: market.radiusMeters,
+                                    image: this.getAssetUrl(market.image),
+                                    icon: this.getAssetUrl(market.icon),
+                                    location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
+                                };
+                            } else if (s.type === 'MARKET_CODE') {
+                                data.id = market.id;
+                                data.name = market.name;
+                                data.latitude = market.centerLatitude;
+                                data.longitude = market.centerLongitude;
+                                data.radius = market.radiusMeters;
+                                data.type = 'MARKET';
+                            } else if (s.type === 'LOCAL_PRODUCTS') {
+                                data.marketId = market.id;
+                                data.marketName = market.name;
+                            } else if (s.type === 'PRODUCT_GRID') {
+                                data.marketId = market.id;
+                                data.title = data.title || `Sélection du Marché`;
+                                data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du marché ${market.name}`;
+                            }
+
+                            s.dataJson = JSON.stringify(data);
+                        } catch (e) {
+                            console.error(`Failed to parse/process template section dataJson for market ${market.name}, section ${section.id}:`, e);
+                        }
                     }
                     return s;
                 });
@@ -138,7 +202,7 @@ export class CMSService {
                     dataJson: JSON.stringify({
                         title: market.name,
                         subtitle: `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`,
-                        backgroundImage: market.image || '',
+                        backgroundImage: this.getAssetUrl(market.image) || '',
                         ctaText: 'Explorer les boutiques',
                         ctaLink: '#boutiques',
                     }),
@@ -160,7 +224,8 @@ export class CMSService {
                         latitude: market.centerLatitude,
                         longitude: market.centerLongitude,
                         radius: market.radiusMeters,
-                        image: market.image,
+                        image: this.getAssetUrl(market.image),
+                        icon: this.getAssetUrl(market.icon),
                         location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
                     }),
                 });
@@ -260,31 +325,63 @@ export class CMSService {
                         dataJson: section.dataJson
                     });
 
-                    // Inject dynamic neighborhood info based on component type
-                    if (s.type === 'HERO') {
-                        const data = JSON.parse(s.dataJson || '{}');
-                        data.title = `Quartier ${geo.name}`;
-                        data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du quartier ${geo.name}.`;
-                        s.dataJson = JSON.stringify(data);
-                    } else if (s.type === 'NEIGHBORHOOD_INFO') {
-                        s.dataJson = JSON.stringify({
-                            id: geo.id,
-                            name: geo.name,
-                            slug: geoSlug,
-                            type: geo.type,
-                            parent: geo.parent ? { id: geo.parent.id, name: geo.parent.name, type: geo.parent.type } : null,
-                        });
-                    } else if (s.type === 'LOCAL_PRODUCTS') {
-                        const data = JSON.parse(s.dataJson || '{}');
-                        data.locationId = geo.id;
-                        data.locationName = geo.name;
-                        s.dataJson = JSON.stringify(data);
-                    } else if (s.type === 'PRODUCT_GRID') {
-                        const data = JSON.parse(s.dataJson || '{}');
-                        data.locationId = geo.id;
-                        data.title = data.title || `Sélection du Quartier`;
-                        data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du quartier ${geo.name}`;
-                        s.dataJson = JSON.stringify(data);
+                    if (s.dataJson) {
+                        try {
+                            let data = JSON.parse(s.dataJson);
+
+                            const replacePlaceholders = (txt: string) => {
+                                return txt
+                                    .replace(/\{\{neighborhood\.name\}\}/g, geo.name || '')
+                                    .replace(/\{\{neighborhood\.slug\}\}/g, geoSlug || '')
+                                    .replace(/\{\{neighborhood\.image\}\}/g, this.getAssetUrl(geo.image))
+                                    .replace(/\{\{neighborhood\.icon\}\}/g, this.getAssetUrl(geo.icon))
+                                    .replace(/\{\{neighborhood\.latitude\}\}/g, geo.centerLatitude ? String(geo.centerLatitude) : '')
+                                    .replace(/\{\{neighborhood\.longitude\}\}/g, geo.centerLongitude ? String(geo.centerLongitude) : '')
+                                    .replace(/\{\{neighborhood\.radius\}\}/g, geo.radiusMeters ? String(geo.radiusMeters) : '')
+                                    .replace(/\{\{neighborhood\.parent\.name\}\}/g, geo.parent ? geo.parent.name : '')
+                                    .replace(/\{\{neighborhood\.map\}\}/g, '<div id="ahizan-custom-map" class="ahizan-interactive-map" style="width:100%; height:450px; min-height:300px; border-radius:16px; border:1px solid #cbd5e1; z-index:10;"></div>');
+                            };
+
+                            data = this.replacePlaceholdersInObject(data, replacePlaceholders);
+
+                            // Inject dynamic neighborhood info based on component type
+                            if (s.type === 'HERO') {
+                                data.title = `Quartier ${geo.name}`;
+                                data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du quartier ${geo.name}.`;
+                                data.backgroundImage = this.getAssetUrl(geo.image) || data.backgroundImage || '';
+                            } else if (s.type === 'NEIGHBORHOOD_INFO') {
+                                data = {
+                                    id: geo.id,
+                                    name: geo.name,
+                                    slug: geoSlug,
+                                    type: geo.type,
+                                    image: this.getAssetUrl(geo.image),
+                                    icon: this.getAssetUrl(geo.icon),
+                                    latitude: geo.centerLatitude,
+                                    longitude: geo.centerLongitude,
+                                    radius: geo.radiusMeters,
+                                    parent: geo.parent ? { id: geo.parent.id, name: geo.parent.name, type: geo.parent.type } : null,
+                                };
+                            } else if (s.type === 'NEIGHBORHOOD_CODE') {
+                                data.id = geo.id;
+                                data.name = geo.name;
+                                data.latitude = geo.centerLatitude;
+                                data.longitude = geo.centerLongitude;
+                                data.radius = geo.radiusMeters;
+                                data.type = 'NEIGHBORHOOD';
+                            } else if (s.type === 'LOCAL_PRODUCTS') {
+                                data.locationId = geo.id;
+                                data.locationName = geo.name;
+                            } else if (s.type === 'PRODUCT_GRID') {
+                                data.locationId = geo.id;
+                                data.title = data.title || `Sélection du Quartier`;
+                                data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du quartier ${geo.name}`;
+                            }
+
+                            s.dataJson = JSON.stringify(data);
+                        } catch (e) {
+                            console.error(`Failed to parse/process template section dataJson for neighborhood ${geo.name}, section ${section.id}:`, e);
+                        }
                     }
                     return s;
                 });
@@ -301,7 +398,7 @@ export class CMSService {
                     dataJson: JSON.stringify({
                         title: `Quartier ${geo.name}`,
                         subtitle: `Découvrez les commerces, artisans et produits certifiés au sein du quartier ${geo.name}.`,
-                        backgroundImage: '',
+                        backgroundImage: this.getAssetUrl(geo.image) || '',
                         ctaText: 'Explorer les boutiques',
                         ctaLink: '#boutiques',
                     }),
@@ -320,6 +417,8 @@ export class CMSService {
                         name: geo.name,
                         slug: geoSlug,
                         type: geo.type,
+                        image: this.getAssetUrl(geo.image),
+                        icon: this.getAssetUrl(geo.icon),
                         parent: geo.parent ? { id: geo.parent.id, name: geo.parent.name, type: geo.parent.type } : null,
                     }),
                 });
@@ -861,7 +960,8 @@ export class CMSService {
                 'CATEGORIES','CATEGORY_GRID','PRODUCT_GRID','TABBED_PRODUCT_GRID','FOOTER_CONF','FEATURES','MODALS',
                 'CUSTOM','BLOG_POSTS','TESTIMONIALS','NEWSLETTER','CTA_VENDOR','COLLECTION_HEADER',
                 'PROMO_BANNER','PROMO_GRID','FLEX_GRID','SEARCH_BAR','RECENTLY_VIEWED','HERO_SLIDER',
-                'VENDOR_SHOWCASE','CTA','SOCIAL_PROOF','BRAND_BAR','SEASONAL_BANNER', 'LOCAL_PRODUCTS'];
+                'VENDOR_SHOWCASE','CTA','SOCIAL_PROOF','BRAND_BAR','SEASONAL_BANNER', 'LOCAL_PRODUCTS',
+                'MARKET_CODE', 'NEIGHBORHOOD_CODE'];
             for (const s of parsed) {
                 if (!s.type) throw new Error('Section sans type détectée');
                 if (!knownTypes.includes(s.type)) {
@@ -1540,6 +1640,30 @@ export class CMSService {
         const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, id);
         await this.connection.getRepository(ctx, PagePreset).remove(preset);
         return { result: 'DELETED' as any };
+    }
+
+    async updateMarket(ctx: RequestContext, input: any): Promise<Market> {
+        const market = await this.connection.getEntityOrThrow(ctx, Market, input.id);
+        if (input.name !== undefined) market.name = input.name;
+        if (input.slug !== undefined) market.slug = input.slug;
+        if (input.description !== undefined) market.description = input.description;
+        if (input.image !== undefined) market.image = input.image;
+        if (input.icon !== undefined) market.icon = input.icon;
+        if (input.centerLatitude !== undefined) market.centerLatitude = input.centerLatitude;
+        if (input.centerLongitude !== undefined) market.centerLongitude = input.centerLongitude;
+        if (input.radiusMeters !== undefined) market.radiusMeters = input.radiusMeters;
+        return this.connection.getRepository(ctx, Market).save(market);
+    }
+
+    async updateGeographicLocation(ctx: RequestContext, input: any): Promise<GeographicLocation> {
+        const neighborhood = await this.connection.getEntityOrThrow(ctx, GeographicLocation, input.id);
+        if (input.name !== undefined) neighborhood.name = input.name;
+        if (input.image !== undefined) neighborhood.image = input.image;
+        if (input.icon !== undefined) neighborhood.icon = input.icon;
+        if (input.centerLatitude !== undefined) neighborhood.centerLatitude = input.centerLatitude;
+        if (input.centerLongitude !== undefined) neighborhood.centerLongitude = input.centerLongitude;
+        if (input.radiusMeters !== undefined) neighborhood.radiusMeters = input.radiusMeters;
+        return this.connection.getRepository(ctx, GeographicLocation).save(neighborhood);
     }
 
     async getThemeSettingsDirect(): Promise<any | null> {

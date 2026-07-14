@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, useRef, useTransition } from 'react';
+import { useActionState, useEffect, useState, useRef, useTransition, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateVendorProfileAction, changePasswordAction } from './actions';
 import { Button } from '@/components/ui/button';
@@ -12,12 +12,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save, CreditCard, Landmark } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAssetUrl } from '@/lib/vendure/api-utils';
 
 interface AccountSettingsFormProps {
     vendor: any;
+    initialMarkets?: any[];
+    initialNeighborhoods?: any[];
 }
 
-export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
+export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighborhoods = [] }: AccountSettingsFormProps) {
     const router = useRouter();
     const [profileState, profileAction, isProfilePending] = useActionState<any, FormData>(updateVendorProfileAction, undefined);
     const [passwordState, passwordAction, isPasswordPending] = useActionState<any, FormData>(changePasswordAction, undefined);
@@ -29,8 +32,8 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
     const initialValuesRef = useRef<Record<string, string>>({});
 
     // Visual Identity States (Banner & Logo previews)
-    const [bannerUrl, setBannerUrl] = useState<string>(vendor?.coverImage?.preview || 'https://lh3.googleusercontent.com/aida-public/AB6AXuB1uy1r93iwW9yNwkvjtjWpQtp-WgvPOWIixujkgolgJIoBIU2X528DvC-jLmqSQ5Uh5fcB-dh7kYg0MAcp3w3UeamQXVijk2sT1l9z8FC8ntzmQV_z4iuaFKQW-a5ReSPqA17DF6kl3OW6TdKjbGLECaSd_NJTOAr6BLAVSy16icuB2d23RDvBCBm6-jcImg5t0KR1KrW9cyJh2ld6C4Rj8nwpqYmYDyxSVEDcAAYYDmzWK7hldASxynb4Ms4djh7tHG_RHDWReJfV');
-    const [logoUrl, setLogoUrl] = useState<string>(vendor?.logo?.preview || '');
+    const [bannerUrl, setBannerUrl] = useState<string>(getAssetUrl(vendor?.coverImage?.preview) || 'https://lh3.googleusercontent.com/aida-public/AB6AXuB1uy1r93iwW9yNwkvjtjWpQtp-WgvPOWIixujkgolgJIoBIU2X528DvC-jLmqSQ5Uh5fcB-dh7kYg0MAcp3w3UeamQXVijk2sT1l9z8FC8ntzmQV_z4iuaFKQW-a5ReSPqA17DF6kl3OW6TdKjbGLECaSd_NJTOAr6BLAVSy16icuB2d23RDvBCBm6-jcImg5t0KR1KrW9cyJh2ld6C4Rj8nwpqYmYDyxSVEDcAAYYDmzWK7hldASxynb4Ms4djh7tHG_RHDWReJfV');
+    const [logoUrl, setLogoUrl] = useState<string>(getAssetUrl(vendor?.logo?.preview) || '');
     const [isPublic, setIsPublic] = useState(true);
 
     const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -40,17 +43,30 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
     const [leafletReady, setLeafletReady] = useState(false);
     const [lat, setLat] = useState<number | null>(vendor?.latitude || null);
     const [lng, setLng] = useState<number | null>(vendor?.longitude || null);
-    const [markets, setMarkets] = useState<any[]>([]);
-    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
+    const [markets, setMarkets] = useState<any[]>(initialMarkets || []);
+    const [neighborhoods, setNeighborhoods] = useState<any[]>(initialNeighborhoods || []);
     const [locationsLoading, setLocationsLoading] = useState(false);
+    const [debugLogs, setDebugLogs] = useState<string[]>(['Système de débogage initialisé']);
+
+    const addDebugLog = (msg: string) => {
+        const ts = new Date().toLocaleTimeString();
+        setDebugLogs(prev => [`[${ts}] ${msg}`, ...prev.slice(0, 25)]);
+    };
 
     // Payment Method selection state
     const [paymentMethod, setPaymentMethod] = useState<string>(vendor?.paymentMethod || 'CASH');
 
     const mapRef = useRef<any>(null);
     const markerRef = useRef<any>(null);
+    const marketLayersRef = useRef<any[]>([]);
     // Stores coords requested before the map was initialized (e.g. GPS from another tab)
     const pendingPositionRef = useRef<{ lat: number; lng: number } | null>(null);
+
+    // Selected markets for dynamic map rendering
+    const [selectedPhysicalMarketId, setSelectedPhysicalMarketId] = useState<string>(vendor?.physicalMarket?.id || '');
+    const [selectedSecondaryMarketIds, setSelectedSecondaryMarketIds] = useState<string[]>(
+        vendor?.markets ? vendor.markets.map((m: any) => m.id) : []
+    );
 
     // Load locations (markets & neighborhoods) from GraphQL Shop API
     useEffect(() => {
@@ -82,16 +98,26 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                     body: JSON.stringify({ query: queryStr })
                 });
                 const result = await res.json();
-                setMarkets(result.data?.markets || []);
-                setNeighborhoods(result.data?.geographicLocations || []);
+                if (result.data?.markets && result.data.markets.length > 0) {
+                    setMarkets(result.data.markets);
+                } else if (initialMarkets && initialMarkets.length > 0) {
+                    setMarkets(initialMarkets);
+                }
+                if (result.data?.geographicLocations && result.data.geographicLocations.length > 0) {
+                    setNeighborhoods(result.data.geographicLocations);
+                } else if (initialNeighborhoods && initialNeighborhoods.length > 0) {
+                    setNeighborhoods(initialNeighborhoods);
+                }
             } catch (err) {
                 console.error('Failed to load locations in settings:', err);
+                if (initialMarkets && initialMarkets.length > 0) setMarkets(initialMarkets);
+                if (initialNeighborhoods && initialNeighborhoods.length > 0) setNeighborhoods(initialNeighborhoods);
             } finally {
                 setLocationsLoading(false);
             }
         };
         loadLocations();
-    }, []);
+    }, [initialMarkets, initialNeighborhoods]);
 
     // Load Leaflet dynamically client-side
     useEffect(() => {
@@ -99,9 +125,11 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
 
         if ((window as any).L) {
             setLeafletReady(true);
+            addDebugLog('Leaflet (window.L) déjà présent en mémoire');
             return;
         }
 
+        addDebugLog('Chargement de Leaflet depuis le CDN...');
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
@@ -111,21 +139,36 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
         script.onload = () => {
             setLeafletReady(true);
+            addDebugLog('Script Leaflet chargé avec succès');
+        };
+        script.onerror = () => {
+            addDebugLog('Erreur lors du chargement du CDN Leaflet');
         };
         document.body.appendChild(script);
     }, []);
 
-    // Initialize Leaflet Map
-    useEffect(() => {
-        if (!leafletReady || typeof window === 'undefined' || activeTab !== 'localisation') return;
+    // Initialize Leaflet Map Core Logic
+    const initLeafletMap = useCallback(() => {
+        if (!leafletReady || typeof window === 'undefined') {
+            return false;
+        }
         const L = (window as any).L;
-        if (!L) return;
+        if (!L) {
+            addDebugLog('Erreur Init: window.L introuvable');
+            return false;
+        }
 
         const mapContainer = document.getElementById('vendor-settings-map');
-        if (!mapContainer || mapRef.current) return;
+        if (!mapContainer) {
+            return false;
+        }
+        if (mapRef.current) {
+            mapRef.current.invalidateSize();
+            return true;
+        }
 
-        // If a pending position was set (e.g. from GPS before map was open), use it;
-        // otherwise use existing coords or default to Cotonou
+        addDebugLog(`Conteneur trouvé (${mapContainer.clientWidth}px x ${mapContainer.clientHeight}px). Initialisation...`);
+
         const pending = pendingPositionRef.current;
         const initLat = pending?.lat ?? lat ?? 6.37;
         const initLng = pending?.lng ?? lng ?? 2.42;
@@ -133,6 +176,20 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
 
         const map = L.map('vendor-settings-map').setView([initLat, initLng], initZoom);
         mapRef.current = map;
+        addDebugLog(`L.map() créé avec succès. Centre: [${initLat.toFixed(4)}, ${initLng.toFixed(4)}]`);
+
+        setTimeout(() => {
+            if (mapRef.current) {
+                mapRef.current.invalidateSize();
+                addDebugLog('map.invalidateSize() exécuté (150ms)');
+            }
+        }, 150);
+        setTimeout(() => {
+            if (mapRef.current) {
+                mapRef.current.invalidateSize();
+                addDebugLog('map.invalidateSize() exécuté (450ms)');
+            }
+        }, 450);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
@@ -147,7 +204,6 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
             shadowSize: [41, 41]
         });
 
-        // Add marker if we have valid coordinates (including pending)
         const markerLat = pending?.lat ?? lat;
         const markerLng = pending?.lng ?? lng;
         if (markerLat && markerLng) {
@@ -162,36 +218,8 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
             });
         }
 
-        // Clear pending position once applied
         pendingPositionRef.current = null;
 
-        // Render other markets around
-        const marketIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-        });
-
-        markets.forEach((m: any) => {
-            if (m.centerLatitude && m.centerLongitude) {
-                L.marker([m.centerLatitude, m.centerLongitude], { icon: marketIcon }).addTo(map)
-                    .bindPopup(`<b>Marché ${m.name}</b><br/>Zone de chalandise officielle`);
-                
-                if (m.radiusMeters) {
-                    L.circle([m.centerLatitude, m.centerLongitude], {
-                        color: '#10b981',
-                        fillColor: '#10b981',
-                        fillOpacity: 0.05,
-                        radius: m.radiusMeters
-                    }).addTo(map);
-                }
-            }
-        });
-
-        // On map click, place/move marker
         map.on('click', (e: any) => {
             const position = e.latlng;
             setLat(position.lat);
@@ -213,25 +241,42 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
             }
         });
 
+        return true;
+    }, [leafletReady, lat, lng, markets]);
+
+    // Initialize Leaflet Map with polling retry loop when activeTab is localisation
+    useEffect(() => {
+        if (activeTab !== 'localisation' || !leafletReady) {
+            return;
+        }
+
+        let timer: any;
+        let attempts = 0;
+
+        const tryCreateMap = () => {
+            attempts++;
+            const success = initLeafletMap();
+            if (!success && attempts < 20) {
+                if (attempts === 1 || attempts % 5 === 0) {
+                    addDebugLog(`Attente conteneur DOM #vendor-settings-map (essai ${attempts}/20)...`);
+                }
+                timer = setTimeout(tryCreateMap, 100);
+            } else if (!success) {
+                addDebugLog('Erreur: #vendor-settings-map introuvable après 2 secondes');
+            }
+        };
+
+        tryCreateMap();
+
         return () => {
+            if (timer) clearTimeout(timer);
             if (mapRef.current) {
                 mapRef.current.remove();
                 mapRef.current = null;
                 markerRef.current = null;
             }
         };
-    }, [leafletReady, activeTab, markets]);
-
-    // Force Leaflet map resize when the details tab is shown
-    useEffect(() => {
-        if (activeTab === 'localisation' && mapRef.current) {
-            setTimeout(() => {
-                if (mapRef.current) {
-                    mapRef.current.invalidateSize();
-                }
-            }, 200);
-        }
-    }, [activeTab]);
+    }, [activeTab, leafletReady, initLeafletMap]);
 
     const [gpsDetecting, setGpsDetecting] = useState(false);
 
@@ -293,6 +338,65 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
         );
     };
 
+    // Dynamically display ONLY selected markets on the Leaflet map
+    useEffect(() => {
+        if (!mapRef.current || typeof window === 'undefined' || !(window as any).L) return;
+        const L = (window as any).L;
+
+        // Clean up previous market layers
+        marketLayersRef.current.forEach(layer => {
+            if (mapRef.current) mapRef.current.removeLayer(layer);
+        });
+        marketLayersRef.current = [];
+
+        // Define icons
+        const physicalMarketIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        const secondaryMarketIcon = L.icon({
+            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41]
+        });
+
+        markets.forEach((m: any) => {
+            const isPhysical = m.id === selectedPhysicalMarketId;
+            const isSecondary = selectedSecondaryMarketIds.includes(m.id);
+
+            if (isPhysical || isSecondary) {
+                if (m.centerLatitude && m.centerLongitude) {
+                    const markerIcon = isPhysical ? physicalMarketIcon : secondaryMarketIcon;
+                    const markerTitle = isPhysical ? `<b>Marché Principal : ${m.name}</b>` : `<b>Marché Desservi : ${m.name}</b>`;
+                    
+                    const marker = L.marker([m.centerLatitude, m.centerLongitude], { icon: markerIcon })
+                        .addTo(mapRef.current)
+                        .bindPopup(`${markerTitle}<br/>Zone de chalandise : ${m.radiusMeters || 500}m`);
+                    marketLayersRef.current.push(marker);
+
+                    if (m.radiusMeters) {
+                        const circle = L.circle([m.centerLatitude, m.centerLongitude], {
+                            color: isPhysical ? '#f59e0b' : '#10b981',
+                            fillColor: isPhysical ? '#f59e0b' : '#10b981',
+                            fillOpacity: isPhysical ? 0.15 : 0.08,
+                            weight: isPhysical ? 2 : 1,
+                            radius: m.radiusMeters
+                        }).addTo(mapRef.current);
+                        marketLayersRef.current.push(circle);
+                    }
+                }
+            }
+        });
+    }, [markets, selectedPhysicalMarketId, selectedSecondaryMarketIds, leafletReady, activeTab]);
+
     const handleLocationSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const val = e.target.value;
         if (!val) return;
@@ -304,6 +408,8 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
 
     const handlePhysicalMarketSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const val = e.target.value;
+        setSelectedPhysicalMarketId(val);
+        setIsDirty(true);
         if (!val) return;
         const matched = markets.find(m => m.id === val);
         if (matched && matched.centerLatitude && matched.centerLongitude) {
@@ -905,7 +1011,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                         </div>
                                                     )}
                                                 </div>
- 
+  
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div className="space-y-2">
                                                         <Label htmlFor="latitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Latitude GPS</Label>
@@ -957,7 +1063,7 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                     <select
                                                         id="physicalMarketId"
                                                         name="physicalMarketId"
-                                                        defaultValue={vendor?.physicalMarket?.id || ''}
+                                                        value={selectedPhysicalMarketId}
                                                         onChange={handlePhysicalMarketSelect}
                                                         className="w-full h-12 px-4 rounded-xl bg-card border border-border text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10 transition-all duration-300"
                                                     >
@@ -973,14 +1079,22 @@ export function AccountSettingsForm({ vendor }: AccountSettingsFormProps) {
                                                 <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Marchés de diffusion secondaire (diffusion de vos produits)</Label>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-4 rounded-2xl bg-muted/10 border border-border max-h-60 overflow-y-auto">
                                                     {markets.map(m => {
-                                                        const isChecked = vendor?.markets?.some((market: any) => market.id === m.id);
+                                                        const isChecked = selectedSecondaryMarketIds.includes(m.id);
                                                         return (
                                                             <label key={m.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/60 hover:bg-card cursor-pointer transition-colors text-xs font-bold text-foreground">
                                                                 <input 
                                                                     type="checkbox" 
                                                                     name="marketIds" 
                                                                     value={m.id} 
-                                                                    defaultChecked={isChecked}
+                                                                    checked={isChecked}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            setSelectedSecondaryMarketIds(prev => [...prev, m.id]);
+                                                                        } else {
+                                                                            setSelectedSecondaryMarketIds(prev => prev.filter(id => id !== m.id));
+                                                                        }
+                                                                        setIsDirty(true);
+                                                                    }}
                                                                     className="w-4 h-4 rounded text-primary focus:ring-primary border-border"
                                                                 />
                                                                 <span>{m.name}</span>

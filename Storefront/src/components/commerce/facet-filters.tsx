@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { ResultOf } from '@/graphql';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import {SearchProductsQuery} from "@/lib/vendure/queries";
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { getShopApiUrl } from '@/lib/vendure/api-utils';
 
 interface FacetFiltersProps {
     productData?: {
@@ -38,6 +39,43 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
     const initialMax = searchParams.get('maxPrice') || '';
     const [minPrice, setMinPrice] = useState(initialMin);
     const [maxPrice, setMaxPrice] = useState(initialMax);
+
+    // Dynamic Zone Filters
+    const [zones, setZones] = useState<{ id: string; name: string; type: 'MARKET' | 'NEIGHBORHOOD' }[]>([]);
+    const [myLocation, setMyLocation] = useState<any>(null);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('ahizan_client_location');
+        if (saved) {
+            try { setMyLocation(JSON.parse(saved)); } catch (e) {}
+        }
+
+        const fetchZones = async () => {
+            const query = `
+                query GetZonesForFilter {
+                    markets { id name }
+                    geographicLocations(type: "NEIGHBORHOOD") { id name }
+                }
+            `;
+            try {
+                const shopApiUrl = getShopApiUrl();
+                const res = await fetch(shopApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const result = await res.json();
+                const mList = (result.data?.markets || []).map((m: any) => ({ id: String(m.id), name: m.name, type: 'MARKET' }));
+                const nList = (result.data?.geographicLocations || []).map((n: any) => ({ id: String(n.id), name: n.name, type: 'NEIGHBORHOOD' }));
+                setZones([...mList, ...nList]);
+            } catch (e) {
+                console.error('Failed to load zones for filters:', e);
+            }
+        };
+        fetchZones();
+    }, []);
+
+    const activeZoneId = searchParams.get('zoneId') || '';
 
     if (!searchResult) {
         return <div className="text-sm text-gray-500">No filter data available</div>;
@@ -157,13 +195,14 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
         params.delete('facets');
         params.delete('minPrice');
         params.delete('maxPrice');
+        params.delete('zoneId');
         params.delete('page');
         setMinPrice('');
         setMaxPrice('');
         router.push(`${pathname}?${params.toString()}`);
     };
 
-    const hasActiveFilters = selectedFacets.length > 0 || !!searchParams.get('minPrice') || !!searchParams.get('maxPrice');
+    const hasActiveFilters = selectedFacets.length > 0 || !!searchParams.get('minPrice') || !!searchParams.get('maxPrice') || !!searchParams.get('zoneId');
 
     return (
         <div className="space-y-6 text-foreground">
@@ -221,6 +260,67 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
                     >
                         Filtrer
                     </Button>
+                </div>
+            </div>
+
+            {/* Zone Filter Section */}
+            <div className="space-y-3 pb-4 border-b border-muted-foreground/10">
+                <h3 className="font-black text-[11px] uppercase tracking-widest text-foreground/70 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    Filtrer par Zone
+                </h3>
+                
+                {/* 1. Quick active zone filter toggle */}
+                {myLocation && (
+                    <div className="flex items-center space-x-2 pb-1.5 pl-1">
+                        <Checkbox
+                            id="my-zone-filter"
+                            checked={activeZoneId === String(myLocation.id)}
+                            onCheckedChange={(checked) => {
+                                const params = new URLSearchParams(searchParams);
+                                if (checked) {
+                                    params.set('zoneId', String(myLocation.id));
+                                } else {
+                                    params.delete('zoneId');
+                                }
+                                params.delete('page');
+                                router.push(`${pathname}?${params.toString()}`);
+                            }}
+                            className="w-4.5 h-4.5 rounded-md border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all"
+                        />
+                        <Label
+                            htmlFor="my-zone-filter"
+                            className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-foreground cursor-pointer transition-colors leading-tight"
+                        >
+                            📍 Ma zone ({myLocation.name})
+                        </Label>
+                    </div>
+                )}
+
+                {/* 2. Select any zone dropdown */}
+                <div className="pl-1">
+                    <select
+                        value={activeZoneId}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            const params = new URLSearchParams(searchParams);
+                            if (val) {
+                                params.set('zoneId', val);
+                            } else {
+                                params.delete('zoneId');
+                            }
+                            params.delete('page');
+                            router.push(`${pathname}?${params.toString()}`);
+                        }}
+                        className="w-full bg-background border border-muted-foreground/20 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-bold text-slate-700 dark:text-slate-200"
+                    >
+                        <option value="">-- Choisir une autre zone --</option>
+                        {zones.map((z) => (
+                            <option key={z.id} value={z.id}>
+                                {z.type === 'MARKET' ? '🏛️' : '📍'} {z.name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
             </div>
 

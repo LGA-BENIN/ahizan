@@ -32,83 +32,43 @@ const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => 
     return R * c;
 };
 
+import { useLocation } from '@/contexts/location-context';
+
 export function LocationOnboardingModal({ shopApiUrl: propShopApiUrl }: LocationOnboardingModalProps) {
+    const {
+        selectedLocation,
+        markets,
+        neighborhoods,
+        loading: loadingLocations,
+        gpsLoading,
+        selectLocation,
+        useGps,
+    } = useLocation();
+
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState<'welcome' | 'search'>('welcome');
     const [searchTerm, setSearchTerm] = useState('');
-    const [markets, setMarkets] = useState<any[]>([]);
-    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
-    const [loadingLocations, setLoadingLocations] = useState(false);
     
     // States for permissions
     const [pushStatus, setPushStatus] = useState<'default' | 'granted' | 'denied'>('default');
-    const [gpsStatus, setGpsStatus] = useState<'default' | 'loading' | 'success' | 'failed'>('default');
-
-    const shopApiUrl = propShopApiUrl || getShopApiUrl();
 
     useEffect(() => {
-        // Only show onboarding if user has not set location yet
+        // If user has no saved location, request GPS permission directly (no popup)
         const savedLocation = localStorage.getItem('ahizan_client_location');
         if (!savedLocation) {
-            // Check if notification permission is in default state
+            // Check notification permission state for status tracking
             if ('Notification' in window) {
-                setPushStatus(Notification.permission);
+                setPushStatus(Notification.permission as any);
             }
-            
-            // Show modal after a short delay (e.g. 2.5s) to allow first page render
-            const timer = setTimeout(() => {
-                setIsOpen(true);
-            }, 2500);
-            return () => clearTimeout(timer);
+            // Trigger GPS silently: if permission is already granted → useGps handles it via context
+            // If not yet decided → the browser will prompt natively. Don't show our popup.
+            // The LocationWidget icon is always available for manual selection.
         }
     }, []);
 
-    // Load markets & neighborhoods in the background if they open search step
-    useEffect(() => {
-        if (step === 'search' && markets.length === 0) {
-            loadLocations();
-        }
-    }, [step]);
-
-    const loadLocations = async () => {
-        setLoadingLocations(true);
-        const query = `
-            query GetOnboardingLocations {
-                markets {
-                    id
-                    name
-                    centerLatitude
-                    centerLongitude
-                }
-                geographicLocations(type: "NEIGHBORHOOD") {
-                    id
-                    name
-                    centerLatitude
-                    centerLongitude
-                }
-            }
-        `;
-        try {
-            const res = await fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            });
-            const data = await res.json();
-            setMarkets(data.data?.markets || []);
-            setNeighborhoods(data.data?.geographicLocations || []);
-        } catch (err) {
-            console.error('[Onboarding] Error loading locations:', err);
-        } finally {
-            setLoadingLocations(false);
-        }
-    };
-
     const handleSelectLocation = (loc: LocationData) => {
-        localStorage.setItem('ahizan_client_location', JSON.stringify(loc));
-        window.dispatchEvent(new Event('ahizan_location_changed'));
+        selectLocation(loc);
         setIsOpen(false);
-        toast.success(`Votre zone de livraison est configurée sur : ${loc.name}`);
     };
 
     // Unified permission request: notifications + geolocation
@@ -132,113 +92,17 @@ export function LocationOnboardingModal({ shopApiUrl: propShopApiUrl }: Location
         }
 
         // 2. Request Geolocation (GPS)
-        if (!navigator.geolocation) {
-            toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
-            setStep('search');
-            return;
-        }
-
-        setGpsStatus('loading');
-        navigator.geolocation.getCurrentPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                setGpsStatus('success');
-
-                // Load locations lists to find the closest
-                let currentMarkets = markets;
-                let currentNeighborhoods = neighborhoods;
-
-                if (currentMarkets.length === 0) {
-                    const query = `
-                        query GetLocationsForGps {
-                            markets {
-                                id
-                                name
-                                centerLatitude
-                                centerLongitude
-                            }
-                            geographicLocations(type: "NEIGHBORHOOD") {
-                                id
-                                name
-                                centerLatitude
-                                centerLongitude
-                            }
-                        }
-                    `;
-                    try {
-                        const res = await fetch(shopApiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query })
-                        });
-                        const data = await res.json();
-                        currentMarkets = data.data?.markets || [];
-                        currentNeighborhoods = data.data?.geographicLocations || [];
-                        setMarkets(currentMarkets);
-                        setNeighborhoods(currentNeighborhoods);
-                    } catch (e) {
-                        console.error('Failed to load locations for GPS match', e);
-                    }
-                }
-
-                // Find closest market or neighborhood
-                let closestItem: any = null;
-                let minDistance = Infinity;
-                let itemType: 'MARKET' | 'NEIGHBORHOOD' = 'NEIGHBORHOOD';
-
-                // Check markets
-                currentMarkets.forEach(m => {
-                    if (m.centerLatitude && m.centerLongitude) {
-                        const dist = getDistance(latitude, longitude, m.centerLatitude, m.centerLongitude);
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            closestItem = m;
-                            itemType = 'MARKET';
-                        }
-                    }
-                });
-
-                // Check neighborhoods
-                currentNeighborhoods.forEach(n => {
-                    if (n.centerLatitude && n.centerLongitude) {
-                        const dist = getDistance(latitude, longitude, n.centerLatitude, n.centerLongitude);
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            closestItem = n;
-                            itemType = 'NEIGHBORHOOD';
-                        }
-                    }
-                });
-
-                if (closestItem) {
-                    const gpsLoc: LocationData = {
-                        id: closestItem.id,
-                        name: closestItem.name,
-                        latitude: closestItem.centerLatitude,
-                        longitude: closestItem.centerLongitude,
-                        type: itemType
-                    };
-                    handleSelectLocation(gpsLoc);
-                } else {
-                    // Raw coordinates fallback
-                    const rawLoc: LocationData = {
-                        id: 'gps_raw',
-                        name: 'Ma position GPS',
-                        latitude,
-                        longitude,
-                        type: 'GPS'
-                    };
-                    handleSelectLocation(rawLoc);
-                }
-            },
-            (error) => {
-                setGpsStatus('failed');
-                toast.error("Impossible de récupérer la position GPS. Veuillez sélectionner votre zone.");
+        try {
+            await useGps();
+            const stored = localStorage.getItem('ahizan_client_location');
+            if (stored) {
+                setIsOpen(false);
+            } else {
                 setStep('search');
-                console.error('[Onboarding] GPS error:', error);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
+            }
+        } catch (e) {
+            setStep('search');
+        }
     };
 
     if (!isOpen) return null;
@@ -312,10 +176,10 @@ export function LocationOnboardingModal({ shopApiUrl: propShopApiUrl }: Location
                         <div className="w-full flex flex-col gap-3 mt-8">
                             <button
                                 onClick={handleEnableAllPermissions}
-                                disabled={gpsStatus === 'loading'}
+                                disabled={gpsLoading}
                                 className="w-full py-4 bg-primary text-white font-extrabold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/95 transition-all text-sm flex items-center justify-center gap-2"
                             >
-                                {gpsStatus === 'loading' ? (
+                                {gpsLoading ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                         <span>Détection GPS en cours...</span>

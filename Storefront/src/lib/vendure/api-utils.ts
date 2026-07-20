@@ -7,6 +7,10 @@ export function getShopApiUrl(): string {
         if (hostname.includes('ahizan.com')) {
             return 'https://api.ahizan.com/shop-api';
         }
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return 'http://127.0.0.1:3000/shop-api';
+        }
+        return `${window.location.protocol}//${hostname}:3000/shop-api`;
     }
     return process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 
            process.env.VENDURE_SHOP_API_URL || 

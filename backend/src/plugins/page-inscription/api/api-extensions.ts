@@ -11,6 +11,7 @@ const commonApiExtensions = gql`
     allowedMimeTypes: [String!]
     minLength: Int
     maxLength: Int
+    showDetectPositionButton: Boolean
   }
 
   type RegistrationField implements Node {
@@ -56,6 +57,7 @@ export const shopApiExtensions = gql`
     allowedMimeTypes: [String!]
     minLength: Int
     maxLength: Int
+    showDetectPositionButton: Boolean
   }
 
   input CreateRegistrationFieldInput {
@@ -111,6 +113,7 @@ export const adminApiExtensions = gql`
     allowedMimeTypes: [String!]
     minLength: Int
     maxLength: Int
+    showDetectPositionButton: Boolean
   }
 
   input CreateRegistrationFieldInput {

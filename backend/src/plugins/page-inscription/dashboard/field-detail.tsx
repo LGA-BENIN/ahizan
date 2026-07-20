@@ -44,6 +44,7 @@ export function FieldDetailModal({ isOpen, onClose, field, addToast }: FieldDeta
         placeholder: '',
         description: '',
         enabled: true,
+        config: { showDetectPositionButton: false } as any,
     });
 
     useEffect(() => {
@@ -58,6 +59,7 @@ export function FieldDetailModal({ isOpen, onClose, field, addToast }: FieldDeta
                 placeholder: field.placeholder || '',
                 description: field.description || '',
                 enabled: field.enabled,
+                config: field.config || { showDetectPositionButton: false },
             });
         } else {
             setFormData({
@@ -70,6 +72,7 @@ export function FieldDetailModal({ isOpen, onClose, field, addToast }: FieldDeta
                 placeholder: '',
                 description: '',
                 enabled: true,
+                config: { showDetectPositionButton: false },
             });
         }
     }, [field, isOpen]);
@@ -177,6 +180,22 @@ export function FieldDetailModal({ isOpen, onClose, field, addToast }: FieldDeta
                             Enabled
                         </label>
                     </div>
+
+                    {formData.name === 'locationId' && (
+                        <div style={{ padding: '8px', border: '1px dashed #3b82f6', borderRadius: '4px', background: '#eff6ff' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#1e40af', fontWeight: 500 }}>
+                                <input
+                                    type="checkbox"
+                                    checked={formData.config?.showDetectPositionButton || false}
+                                    onChange={e => setFormData({
+                                        ...formData,
+                                        config: { ...formData.config, showDetectPositionButton: e.target.checked }
+                                    })}
+                                />
+                                Activer le bouton "Utiliser ma position actuelle" (Géolocalisation)
+                            </label>
+                        </div>
+                    )}
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
                         <button type="button" onClick={onClose} style={{ padding: '8px 16px', border: '1px solid #ddd', background: 'white', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>

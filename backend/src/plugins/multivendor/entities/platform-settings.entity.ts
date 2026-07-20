@@ -43,4 +43,10 @@ export class PlatformSettings extends VendureEntity {
 
     @Column({ default: 'ahizan.com' })
     placeholderEmailDomain: string;
+
+    @Column({ type: 'int', default: 500 })
+    deliveryBaseFee: number;
+
+    @Column({ type: 'int', default: 100 })
+    deliveryFeePerKm: number;
 }

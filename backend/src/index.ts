@@ -1,12 +1,14 @@
-import { bootstrap, bootstrapWorker, runMigrations } from '@vendure/core';
+import { bootstrap, runMigrations } from '@vendure/core';
 import { DataSource } from 'typeorm';
+import { fork, ChildProcess } from 'child_process';
+import path from 'path';
 import { config, emailSenderNode } from './vendure-config';
 
 // Apply TypeORM JSON patch to handle corrupted data gracefully
 import './typeorm-patch';
 
 let appInstance: any = null;
-let workerInstance: any = null;
+let workerProcess: ChildProcess | null = null;
 
 console.log('Starting migrations...');
 runMigrations(config)
@@ -18,7 +20,15 @@ runMigrations(config)
         emailSenderNode.setDataSource(dataSource);
         console.log('Dynamic Email Sender successfully hooked into DB.');
 
-
+        // Démarrage du worker (JobQueue) dans un processus enfant distinct pour éviter les conflits Croner/Scheduler
+        const workerPath = path.join(__dirname, 'index-worker.js');
+        workerProcess = fork(workerPath, [], {
+            env: process.env,
+        });
+        workerProcess.on('exit', (code) => {
+            console.log(`Vendure JobQueue Worker exited with code ${code}`);
+        });
+        console.log(`Vendure JobQueue Worker spawned as child process (pid: ${workerProcess.pid}).`);
     })
     .catch(err => {
         console.log(err);
@@ -28,12 +38,12 @@ runMigrations(config)
 // Graceful shutdown helper
 async function gracefulShutdown(signal: string) {
     console.log(`Received signal ${signal}. Shutting down gracefully...`);
-    if (workerInstance) {
+    if (workerProcess) {
         try {
-            await workerInstance.close();
-            console.log('Vendure worker closed successfully.');
+            workerProcess.kill(signal as any);
+            console.log('Vendure worker process terminated.');
         } catch (err) {
-            console.error('Error during Vendure worker close:', err);
+            console.error('Error terminating Vendure worker process:', err);
         }
     }
     if (appInstance) {

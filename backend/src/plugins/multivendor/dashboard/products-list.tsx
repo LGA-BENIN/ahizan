@@ -245,6 +245,40 @@ export function ProductListComponent() {
         });
     };
 
+    const deleteProductMutation = useMutation({
+        mutationFn: ({ id }: { id: string }) => fetchGraphQL(
+            `mutation DeleteProduct($id: ID!) {
+                deleteProduct(id: $id) {
+                    result
+                    message
+                }
+            }`,
+            { id }
+        ),
+        onSuccess: (data: any) => {
+            if (data?.deleteProduct?.result === 'DELETED') {
+                queryClient.invalidateQueries({ queryKey: ['products'] });
+            } else {
+                alert('Impossible de supprimer le produit : ' + (data?.deleteProduct?.message || 'Erreur inconnue'));
+                queryClient.invalidateQueries({ queryKey: ['products'] });
+            }
+        },
+        onError: (err: any) => {
+            alert('Erreur : ' + err.message);
+        },
+        onSettled: () => {
+            setTogglingId(null);
+        }
+    });
+
+    const handleDelete = (product: Product) => {
+        if (!window.confirm("Es-tu sûr de vouloir supprimer ce produit ?")) {
+            return;
+        }
+        setTogglingId(product.id);
+        deleteProductMutation.mutate({ id: product.id });
+    };
+
     const { items = [], totalItems = 0 } = data?.products || {};
     const totalPages = Math.ceil(totalItems / pageSize);
 
@@ -483,6 +517,24 @@ export function ProductListComponent() {
                                                     >
                                                         Modifier
                                                     </a>
+                                                    <button
+                                                        onClick={() => handleDelete(product)}
+                                                        disabled={togglingId === product.id}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '6px',
+                                                            background: '#ef4444',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer',
+                                                            fontWeight: 600,
+                                                            fontSize: '12px',
+                                                            transition: 'opacity 0.1s'
+                                                        }}
+                                                        title="Supprimer définitivement le produit"
+                                                    >
+                                                        {togglingId === product.id ? '...' : 'Supprimer'}
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>

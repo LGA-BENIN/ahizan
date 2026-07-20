@@ -19,7 +19,7 @@ export async function applyToBecomeVendorAction(formData: FormData) {
         const standardFields = [
             'name', 'email', 'phoneNumber', 'address', 'description', 'zone', 
             'type', 'rccmNumber', 'ifuNumber', 'idCardNumber', 'website', 
-            'facebook', 'instagram'
+            'facebook', 'instagram', 'locationId'
         ];
 
         for (const key of standardFields) {

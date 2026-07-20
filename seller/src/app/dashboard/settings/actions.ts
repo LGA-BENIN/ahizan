@@ -98,6 +98,10 @@ export async function updateVendorProfileAction(
     const latitude = latitudeStr && !isNaN(parseFloat(latitudeStr)) ? parseFloat(latitudeStr) : null;
     const longitude = longitudeStr && !isNaN(parseFloat(longitudeStr)) ? parseFloat(longitudeStr) : null;
 
+    if (latitude === null || longitude === null) {
+        return { error: 'Vos coordonnées GPS (latitude et longitude) sont obligatoires pour permettre le calcul des frais de livraison au kilomètre.' };
+    }
+
     try {
         const result = await (mutate as any)(UpdateMyVendorProfileMutation, {
             input: {

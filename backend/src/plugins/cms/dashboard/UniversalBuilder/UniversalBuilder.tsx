@@ -6,8 +6,6 @@ import { LivePreview } from './components/LivePreview';
 import { SectionEditorFactory } from './components/SectionEditorFactory';
 import { CodeEditor } from './components/CodeEditor';
 import { SeasonManager } from '../views/SeasonManager';
-import { MarketManager } from '../views/MarketManager';
-import { NeighborhoodManager } from '../views/NeighborhoodManager';
 import { HabillageManager } from './components/HabillageManager';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as queries from '../queries';
@@ -1470,7 +1468,7 @@ const PagesDropdown = ({ activeTab, setActiveTab }: any) => {
 };
 
 const UniversalBuilderInner = () => {
-  const [activeTab, setActiveTab] = useState<'PAGES' | 'HABILLAGES' | 'SEASONS' | 'MARKETS' | 'NEIGHBORHOODS'>('PAGES');
+  const [activeTab, setActiveTab] = useState<'PAGES' | 'HABILLAGES' | 'SEASONS'>('PAGES');
   const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
 
   const handleOpenInEditor = (presetId: string) => {
@@ -1533,40 +1531,6 @@ const UniversalBuilderInner = () => {
           >
             Saisons
           </button>
-          <button
-            onClick={() => setActiveTab('MARKETS')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '6px',
-              border: 'none',
-              background: activeTab === 'MARKETS' ? '#fff' : 'transparent',
-              color: activeTab === 'MARKETS' ? '#1e40af' : '#64748b',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '0.75rem',
-              boxShadow: activeTab === 'MARKETS' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s'
-            }}
-          >
-            🏪 Marchés
-          </button>
-          <button
-            onClick={() => setActiveTab('NEIGHBORHOODS')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '6px',
-              border: 'none',
-              background: activeTab === 'NEIGHBORHOODS' ? '#fff' : 'transparent',
-              color: activeTab === 'NEIGHBORHOODS' ? '#1e40af' : '#64748b',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '0.75rem',
-              boxShadow: activeTab === 'NEIGHBORHOODS' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s'
-            }}
-          >
-            📍 Quartiers
-          </button>
         </nav>
       </div>
 
@@ -1576,16 +1540,8 @@ const UniversalBuilderInner = () => {
             <BuilderContent pendingPresetId={pendingPresetId} onPresetOpened={() => setPendingPresetId(null)} />
           ) : activeTab === 'HABILLAGES' ? (
             <HabillageManager onOpenInEditor={handleOpenInEditor} />
-          ) : activeTab === 'SEASONS' ? (
-            <SeasonManager />
-          ) : activeTab === 'MARKETS' ? (
-            <div style={{ height: '100%', overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
-              <MarketManager />
-            </div>
           ) : (
-            <div style={{ height: '100%', overflowY: 'auto', padding: '24px', background: '#f8fafc' }}>
-              <NeighborhoodManager />
-            </div>
+            <SeasonManager />
           )}
       </div>
     </div>

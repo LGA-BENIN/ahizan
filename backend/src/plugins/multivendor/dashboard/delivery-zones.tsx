@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 const GET_DELIVERY_ZONES = `query { deliveryZones { id name code price enabled order } }`;
 const CREATE_DELIVERY_ZONE = `mutation CreateDeliveryZone($input: CreateDeliveryZoneInput!) { createDeliveryZone(input: $input) { id name code } }`;
 const UPDATE_DELIVERY_ZONE = `mutation UpdateDeliveryZone($id: ID!, $input: UpdateDeliveryZoneInput!) { updateDeliveryZone(id: $id, input: $input) { id name code } }`;
-const DELETE_DELIVERY_ZONE = `mutation DeleteDeliveryZone($id: ID!) { deleteDeliveryZone(id: $id) }`;
+const DELETE_DELIVERY_ZONE = `mutation DeleteDeliveryZone($id: ID!) { deleteDeliveryZone(id: $id) { result message } }`;
 
 async function fetchGraphQL(query: string, variables?: any) {
     const res = await fetch('/admin-api', {

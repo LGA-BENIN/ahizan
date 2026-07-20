@@ -7,9 +7,6 @@ const VENDURE_CHANNEL_TOKEN = process.env.VENDURE_CHANNEL_TOKEN || process.env.N
 const VENDURE_AUTH_TOKEN_HEADER = process.env.VENDURE_AUTH_TOKEN_HEADER || 'vendure-auth-token';
 const VENDURE_CHANNEL_TOKEN_HEADER = process.env.VENDURE_CHANNEL_TOKEN_HEADER || 'vendure-token';
 
-if (!VENDURE_API_URL) {
-    throw new Error('VENDURE_SHOP_API_URL or NEXT_PUBLIC_VENDURE_SHOP_API_URL environment variable is not set');
-}
 
 interface VendureRequestOptions {
     token?: string;
@@ -61,6 +58,9 @@ export async function query<TResult = any, TVariables = any>(
     variables?: TVariables | any,
     options?: VendureRequestOptions
 ): Promise<{ data: TResult; token?: string }> {
+    if (!VENDURE_API_URL) {
+        throw new Error('VENDURE_SHOP_API_URL or NEXT_PUBLIC_VENDURE_SHOP_API_URL environment variable is not set');
+    }
     const {
         token,
         useAuthToken,
@@ -147,38 +147,51 @@ export async function query<TResult = any, TVariables = any>(
         });
     }
 
-    const response = await fetch(VENDURE_API_URL!, {
-        ...fetchOptions,
-        method: 'POST',
-        headers,
-        body,
-        cache: 'no-store', // Disable caching for all API requests to Vendure
-        ...(tags && { next: { tags } }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Fetch failed for URL: ${VENDURE_API_URL}. Request body:`, body);
-        console.error(`Response: ${errorText}`);
-        throw new Error(`HTTP error! status: ${response.status}. Body: ${errorText}`);
+    try {
+        const response = await fetch(VENDURE_API_URL!, {
+            ...fetchOptions,
+            method: 'POST',
+            headers,
+            body,
+            cache: 'no-store', // Disable caching for all API requests to Vendure
+            signal: controller.signal,
+            ...(tags && { next: { tags } }),
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Fetch failed for URL: ${VENDURE_API_URL}. Request body:`, body);
+            console.error(`Response: ${errorText}`);
+            throw new Error(`HTTP error! status: ${response.status}. Body: ${errorText}`);
+        }
+
+        const result: VendureResponse<TResult> = await response.json();
+
+        if (result.errors) {
+            throw new Error(result.errors.map(e => e.message).join(', '));
+        }
+
+        if (!result.data) {
+            throw new Error('No data returned from Vendure API');
+        }
+
+        const newToken = extractAuthToken(response.headers);
+
+        return {
+            data: result.data,
+            ...(newToken && { token: newToken }),
+        };
+    } catch (e: any) {
+        clearTimeout(timeoutId);
+        if (e.name === 'AbortError') {
+            throw new Error('Request to Vendure API timed out after 5 seconds');
+        }
+        throw e;
     }
-
-    const result: VendureResponse<TResult> = await response.json();
-
-    if (result.errors) {
-        throw new Error(result.errors.map(e => e.message).join(', '));
-    }
-
-    if (!result.data) {
-        throw new Error('No data returned from Vendure API');
-    }
-
-    const newToken = extractAuthToken(response.headers);
-
-    return {
-        data: result.data,
-        ...(newToken && { token: newToken }),
-    };
 }
 
 /**

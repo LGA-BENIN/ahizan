@@ -7,6 +7,7 @@ import {
     DeleteCustomerAddressMutation,
 } from '@/lib/vendure/mutations';
 import {revalidatePath} from 'next/cache';
+import {getAvailableCountriesCached} from '@/lib/vendure/cached';
 
 interface AddressInput {
     fullName: string;
@@ -24,10 +25,27 @@ interface UpdateAddressInput extends AddressInput {
     id: string;
 }
 
+async function normalizeCountryCode<T extends { countryCode: string }>(address: T): Promise<T> {
+    try {
+        const countries = await getAvailableCountriesCached();
+        const matched = countries.find((c: any) => c.code.toLowerCase() === address.countryCode.toLowerCase());
+        if (matched) {
+            return {
+                ...address,
+                countryCode: matched.code,
+            };
+        }
+    } catch (e) {
+        console.error('Error normalizing country code:', e);
+    }
+    return address;
+}
+
 export async function createAddress(address: AddressInput) {
+    const normalized = await normalizeCountryCode(address);
     const result = await mutate(
         CreateCustomerAddressMutation,
-        {input: address},
+        {input: normalized},
         {useAuthToken: true}
     );
 
@@ -40,7 +58,8 @@ export async function createAddress(address: AddressInput) {
 }
 
 export async function updateAddress(address: UpdateAddressInput) {
-    const {id, ...input} = address;
+    const normalized = await normalizeCountryCode(address);
+    const {id, ...input} = normalized;
 
     const result = await mutate(
         UpdateCustomerAddressMutation,

@@ -131,6 +131,10 @@ export const CreateCustomerAddressMutation = graphql(`
             phoneNumber
             defaultShippingAddress
             defaultBillingAddress
+            customFields {
+                latitude
+                longitude
+            }
         }
     }
 `);
@@ -154,6 +158,10 @@ export const UpdateCustomerAddressMutation = graphql(`
             phoneNumber
             defaultShippingAddress
             defaultBillingAddress
+            customFields {
+                latitude
+                longitude
+            }
         }
     }
 `);
@@ -183,6 +191,10 @@ export const SetOrderShippingAddressMutation = graphql(`
                     postalCode
                     country
                     phoneNumber
+                    customFields {
+                        latitude
+                        longitude
+                    }
                 }
             }
             ... on ErrorResult {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Navigation, Search, Check, Loader2, Landmark } from 'lucide-react';
+import { MapPin, Navigation, Search, Check, Loader2, Landmark, ChevronDown } from 'lucide-react';
 import { getShopApiUrl } from '@/lib/vendure/api-utils';
 import { toast } from 'sonner';
 import {
@@ -35,342 +35,73 @@ const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => 
     return R * c;
 };
 
-export function LocationWidget() {
-    const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
+import { useLocation } from '@/contexts/location-context';
+
+export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
+    const {
+        selectedLocation,
+        markets,
+        neighborhoods,
+        loading,
+        gpsLoading,
+        gpsPermission,
+        selectLocation,
+        clearLocation,
+        useGps,
+    } = useLocation();
+
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [markets, setMarkets] = useState<any[]>([]);
-    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [gpsLoading, setGpsLoading] = useState(false);
 
-    // Load initial location and listen for changes
-    useEffect(() => {
-        const loadLocation = () => {
-            const saved = localStorage.getItem('ahizan_client_location');
-            if (saved) {
-                try {
-                    setSelectedLocation(JSON.parse(saved));
-                } catch (e) {
-                    console.error('Failed to parse saved location', e);
-                }
-            } else {
-                setSelectedLocation(null);
-            }
-        };
-
-        loadLocation();
-
-        if (typeof window !== 'undefined') {
-            window.addEventListener('ahizan_location_changed', loadLocation);
-            return () => {
-                window.removeEventListener('ahizan_location_changed', loadLocation);
-            };
-        }
-    }, []);
-
-    // Background GPS check for dynamic zone updates
-    useEffect(() => {
-        const runBackgroundGpsCheck = async () => {
-            const saved = localStorage.getItem('ahizan_client_location');
-            if (!saved) return;
-
-            try {
-                const parsedLoc = JSON.parse(saved);
-                if (!navigator.geolocation || !navigator.permissions) return;
-
-                // Query permission status first to avoid browser prompt
-                const perm = await navigator.permissions.query({ name: 'geolocation' as any });
-                if (perm.state !== 'granted') return;
-
-                navigator.geolocation.getCurrentPosition(async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    
-                    // Fetch locations list if not already loaded to calculate the closest one
-                    let currentMarkets = markets;
-                    let currentNeighborhoods = neighborhoods;
-
-                    if (currentMarkets.length === 0) {
-                        const query = `
-                            query BackgroundGpsCheck {
-                                markets {
-                                    id
-                                    name
-                                    centerLatitude
-                                    centerLongitude
-                                }
-                                geographicLocations(type: "NEIGHBORHOOD") {
-                                    id
-                                    name
-                                    centerLatitude
-                                    centerLongitude
-                                }
-                            }
-                        `;
-                        try {
-                            const shopApiUrl = getShopApiUrl();
-                            const res = await fetch(shopApiUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ query })
-                            });
-                            const result = await res.json();
-                            currentMarkets = result.data?.markets || [];
-                            currentNeighborhoods = result.data?.geographicLocations || [];
-                        } catch (e) {
-                            console.error('Failed to load locations for background GPS check', e);
-                            return;
-                        }
-                    }
-
-                    // Find closest market or neighborhood
-                    let closestItem: any = null;
-                    let minDistance = Infinity;
-                    let itemType: 'MARKET' | 'NEIGHBORHOOD' = 'NEIGHBORHOOD';
-
-                    currentMarkets.forEach(m => {
-                        if (m.centerLatitude && m.centerLongitude) {
-                            const dist = getDistance(latitude, longitude, m.centerLatitude, m.centerLongitude);
-                            if (dist < minDistance) {
-                                minDistance = dist;
-                                closestItem = m;
-                                itemType = 'MARKET';
-                            }
-                        }
-                    });
-
-                    currentNeighborhoods.forEach(n => {
-                        if (n.centerLatitude && n.centerLongitude) {
-                            const dist = getDistance(latitude, longitude, n.centerLatitude, n.centerLongitude);
-                            if (dist < minDistance) {
-                                minDistance = dist;
-                                closestItem = n;
-                                itemType = 'NEIGHBORHOOD';
-                            }
-                        }
-                    });
-
-                    if (closestItem && closestItem.name !== parsedLoc.name) {
-                        // Different zone detected! Show toast/notification to suggest updating
-                        toast(`📍 Nouvelle zone détectée : ${closestItem.name}`, {
-                            description: "Voulez-vous mettre à jour vos recommandations pour cette zone ?",
-                            action: {
-                                label: "Mettre à jour",
-                                onClick: () => {
-                                    const newLoc: LocationData = {
-                                        id: closestItem.id,
-                                        name: closestItem.name,
-                                        latitude: closestItem.centerLatitude || closestItem.latitude,
-                                        longitude: closestItem.centerLongitude || closestItem.longitude,
-                                        type: itemType
-                                    };
-                                    setSelectedLocation(newLoc);
-                                    localStorage.setItem('ahizan_client_location', JSON.stringify(newLoc));
-                                    window.dispatchEvent(new Event('ahizan_location_changed'));
-                                    toast.success(`Position mise à jour sur : ${closestItem.name}`);
-                                }
-                            },
-                            duration: 10000,
-                        });
-                    }
-                }, (error) => {
-                    console.warn('[LocationWidget] Background GPS check warning:', error);
-                }, { enableHighAccuracy: false, timeout: 10000 });
-            } catch (e) {
-                console.error('[LocationWidget] Background GPS check error:', e);
-            }
-        };
-
-        // Delay background check to let main resources load first
-        const timer = setTimeout(runBackgroundGpsCheck, 4000);
-        return () => clearTimeout(timer);
-    }, [markets.length]);
-
-
-    // Fetch markets and neighborhoods for selection list
-    const loadAllLocations = async () => {
-        setLoading(true);
-        const query = `
-            query GetAllLocationsForSelection {
-                markets {
-                    id
-                    name
-                    slug
-                    centerLatitude
-                    centerLongitude
-                    radiusMeters
-                }
-                geographicLocations(type: "NEIGHBORHOOD") {
-                    id
-                    name
-                    centerLatitude
-                    centerLongitude
-                }
-            }
-        `;
-        try {
-            const shopApiUrl = getShopApiUrl();
-            const res = await fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
-            });
-            const data = await res.json();
-            setMarkets(data.data?.markets || []);
-            setNeighborhoods(data.data?.geographicLocations || []);
-        } catch (err) {
-            console.error('Error fetching locations:', err);
-        } finally {
-            setLoading(false);
-        }
+    const handleTriggerClick = () => {
+        setIsOpen(true);
     };
 
-    // Trigger loading locations when dialog is opened
-    useEffect(() => {
-        if (isOpen && markets.length === 0) {
-            loadAllLocations();
-        }
-    }, [isOpen]);
-
-    const handleSelectLocation = (loc: LocationData) => {
-        setSelectedLocation(loc);
-        localStorage.setItem('ahizan_client_location', JSON.stringify(loc));
-        window.dispatchEvent(new Event('ahizan_location_changed'));
-        setIsOpen(false);
-        toast.success(`Position définie sur : ${loc.name}`);
-    };
-
-    const handleUseGps = () => {
-        if (!navigator.geolocation) {
-            toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
-            return;
-        }
-
-        setGpsLoading(true);
-        navigator.geolocation.getCurrentPosition(
-            async (position) => {
-                const { latitude, longitude } = position.coords;
-                
-                // Fetch locations list if not already loaded to calculate the closest one
-                let currentMarkets = markets;
-                let currentNeighborhoods = neighborhoods;
-                
-                if (currentMarkets.length === 0) {
-                    const query = `
-                        query GetLocationsForGps {
-                            markets {
-                                id
-                                name
-                                centerLatitude
-                                centerLongitude
-                            }
-                            geographicLocations(type: "NEIGHBORHOOD") {
-                                id
-                                name
-                                centerLatitude
-                                centerLongitude
-                            }
-                        }
-                    `;
-                    try {
-                        const shopApiUrl = getShopApiUrl();
-                        const res = await fetch(shopApiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query })
-                        });
-                        const data = await res.json();
-                        currentMarkets = data.data?.markets || [];
-                        currentNeighborhoods = data.data?.geographicLocations || [];
-                        setMarkets(currentMarkets);
-                        setNeighborhoods(currentNeighborhoods);
-                    } catch (e) {
-                        console.error('Failed to load locations for GPS', e);
-                    }
-                }
-
-                // Find closest market or neighborhood
-                let closestItem: any = null;
-                let minDistance = Infinity;
-                let itemType: 'MARKET' | 'NEIGHBORHOOD' = 'NEIGHBORHOOD';
-
-                // Check markets
-                currentMarkets.forEach(m => {
-                    if (m.centerLatitude && m.centerLongitude) {
-                        const dist = getDistance(latitude, longitude, m.centerLatitude, m.centerLongitude);
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            closestItem = m;
-                            itemType = 'MARKET';
-                        }
-                    }
-                });
-
-                // Check neighborhoods
-                currentNeighborhoods.forEach(n => {
-                    if (n.centerLatitude && n.centerLongitude) {
-                        const dist = getDistance(latitude, longitude, n.centerLatitude, n.centerLongitude);
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            closestItem = n;
-                            itemType = 'NEIGHBORHOOD';
-                        }
-                    }
-                });
-
-                setGpsLoading(false);
-
-                if (closestItem) {
-                    const gpsLoc: LocationData = {
-                        id: closestItem.id,
-                        name: closestItem.name,
-                        latitude: closestItem.latitude || closestItem.centerLatitude,
-                        longitude: closestItem.longitude || closestItem.centerLongitude,
-                        type: itemType
-                    };
-                    handleSelectLocation(gpsLoc);
-                } else {
-                    // Fallback to raw coordinates if no seed coordinates match
-                    const rawLoc: LocationData = {
-                        id: 'gps_raw',
-                        name: 'Ma position GPS',
-                        latitude,
-                        longitude,
-                        type: 'GPS'
-                    };
-                    handleSelectLocation(rawLoc);
-                }
-            },
-            (error) => {
-                setGpsLoading(false);
-                toast.error("Impossible de récupérer votre position GPS. Veuillez en choisir une manuellement.");
-                console.error('GPS error:', error);
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
-    };
-
-    const handleClearLocation = () => {
-        setSelectedLocation(null);
-        localStorage.removeItem('ahizan_client_location');
-        window.dispatchEvent(new Event('ahizan_location_changed'));
-        setIsOpen(false);
-        toast.info("Position réinitialisée.");
-    };
-
-    const filteredMarkets = markets.filter(m => 
+    const filteredMarkets = markets.filter(m =>
         m.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    const filteredNeighborhoods = neighborhoods.filter(n => 
+    const filteredNeighborhoods = neighborhoods.filter(n =>
         n.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const isMobile = variant === 'mobile';
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200 text-xs font-bold shadow-sm focus:outline-none">
-                    <MapPin className="w-3.5 h-3.5 text-primary" />
-                    <span>{selectedLocation ? selectedLocation.name : 'Choisir ma zone'}</span>
+                <button
+                    onClick={handleTriggerClick}
+                    disabled={gpsLoading}
+                    className={isMobile
+                        ? "flex items-center gap-1 px-2 py-0.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-primary/60 transition-all text-slate-700 dark:text-slate-200 focus:outline-none disabled:opacity-70 cursor-pointer overflow-hidden flex-shrink-0 max-w-[130px]"
+                        : "flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-primary/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all text-slate-700 dark:text-slate-200 focus:outline-none disabled:opacity-70 max-w-[160px] min-h-[34px] leading-tight overflow-hidden cursor-pointer"
+                    }
+                >
+                    {gpsLoading ? (
+                        <div className="flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                            <span className="text-[10px] font-semibold truncate">Loc...</span>
+                        </div>
+                    ) : (
+                        isMobile ? (
+                            <>
+                                <MapPin className="w-3 h-3 text-slate-600 dark:text-slate-300 flex-shrink-0" />
+                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[72px] leading-none">
+                                    {selectedLocation
+                                        ? selectedLocation.name.split(' ')[0]
+                                        : 'Ma zone'}
+                                </span>
+                                <ChevronDown className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                            </>
+                        ) : (
+                            <div className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 line-clamp-2 break-words text-left leading-tight max-w-[110px]">
+                                    {selectedLocation ? selectedLocation.name : 'Choisir ma zone'}
+                                </span>
+                            </div>
+                        )
+                    )}
                 </button>
             </DialogTrigger>
             
@@ -384,7 +115,7 @@ export function LocationWidget() {
                 <div className="flex flex-col gap-4">
                     {/* GPS Button */}
                     <button
-                        onClick={handleUseGps}
+                        onClick={async () => { await useGps(); setIsOpen(false); }}
                         disabled={gpsLoading}
                         className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary text-white font-extrabold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/95 hover:shadow-primary/30 transition-all text-sm disabled:opacity-85"
                     >
@@ -431,7 +162,7 @@ export function LocationWidget() {
                                             return (
                                                 <button
                                                     key={m.id}
-                                                    onClick={() => handleSelectLocation({ id: m.id, name: m.name, latitude: m.centerLatitude, longitude: m.centerLongitude, type: 'MARKET' })}
+                                                    onClick={() => { selectLocation({ id: m.id, name: m.name, latitude: m.centerLatitude, longitude: m.centerLongitude, type: 'MARKET' }); setIsOpen(false); }}
                                                     className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
                                                 >
                                                     <span className="flex items-center gap-2">
@@ -454,7 +185,7 @@ export function LocationWidget() {
                                             return (
                                                 <button
                                                     key={n.id}
-                                                    onClick={() => handleSelectLocation({ id: n.id, name: n.name, latitude: n.centerLatitude, longitude: n.centerLongitude, type: 'NEIGHBORHOOD' })}
+                                                    onClick={() => { selectLocation({ id: n.id, name: n.name, latitude: n.centerLatitude, longitude: n.centerLongitude, type: 'NEIGHBORHOOD' }); setIsOpen(false); }}
                                                     className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
                                                 >
                                                     <span className="flex items-center gap-2">
@@ -480,7 +211,7 @@ export function LocationWidget() {
                     {/* Clear / Reset Position */}
                     {selectedLocation && (
                         <button
-                            onClick={handleClearLocation}
+                            onClick={() => { clearLocation(); setIsOpen(false); }}
                             className="text-xs font-bold text-slate-400 hover:text-primary transition-colors text-center py-2 mt-2"
                         >
                             Réinitialiser la position

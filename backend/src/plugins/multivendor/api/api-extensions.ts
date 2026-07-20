@@ -52,41 +52,9 @@ export const commonApiExtensions = `
         # Geolocation & Markets
         latitude: Float
         longitude: Float
-        location: GeographicLocation
+        location: GeoZone
         physicalMarket: Market
         markets: [Market!]
-    }
-
-    type GeographicLocation implements Node {
-        id: ID!
-        createdAt: DateTime!
-        updatedAt: DateTime!
-        name: String!
-        type: String!
-        centerLatitude: Float
-        centerLongitude: Float
-        radiusMeters: Int
-        isActive: Boolean!
-        image: String
-        icon: String
-        parent: GeographicLocation
-        children: [GeographicLocation!]
-    }
-
-    type Market implements Node {
-        id: ID!
-        createdAt: DateTime!
-        updatedAt: DateTime!
-        name: String!
-        slug: String!
-        description: String
-        image: String
-        icon: String
-        centerLatitude: Float
-        centerLongitude: Float
-        radiusMeters: Int
-        allowedFacetIds: [String!]
-        location: GeographicLocation
     }
 
     type EmailRolesResult {
@@ -264,6 +232,8 @@ export const commonApiExtensions = `
         emailVerificationRequired: Boolean!
         vendorAutoApproval: Boolean!
         placeholderEmailDomain: String!
+        deliveryBaseFee: Int!
+        deliveryFeePerKm: Int!
     }
 
     input UpdatePlatformSettingsInput {
@@ -276,6 +246,8 @@ export const commonApiExtensions = `
         emailVerificationRequired: Boolean
         vendorAutoApproval: Boolean
         placeholderEmailDomain: String
+        deliveryBaseFee: Int
+        deliveryFeePerKm: Int
     }
 
     # ── OrderStatus (custom marketplace statuses) ──
@@ -310,31 +282,7 @@ export const commonApiExtensions = `
         enabled: Boolean
     }
 
-    # ── DeliveryZone ──
-    type DeliveryZone {
-        id: ID!
-        name: String!
-        code: String!
-        price: Int!
-        enabled: Boolean!
-        order: Int!
-    }
 
-    input CreateDeliveryZoneInput {
-        name: String!
-        code: String!
-        price: Int!
-        enabled: Boolean
-        order: Int
-    }
-
-    input UpdateDeliveryZoneInput {
-        name: String
-        code: String
-        price: Int
-        enabled: Boolean
-        order: Int
-    }
 
     # ── Chat & Message ──
     type ChatMessage {
@@ -380,7 +328,7 @@ export const shopApiExtensions = `
         platformSettings: PlatformSettings
         orderStatuses: [OrderStatus!]!
         vendorOrderStatuses: [OrderStatus!]!
-        deliveryZones: [DeliveryZone!]!
+
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
@@ -402,11 +350,7 @@ export const shopApiExtensions = `
         myCustomerConversations: [CustomerConversation!]!
         conversationHistoryWithCustomer(customerId: ID!): [ChatMessage!]!
 
-        # Geolocation & Markets
-        markets: [Market!]!
-        market(id: ID, slug: String): Market
-        geographicLocations(parentName: String, type: String): [GeographicLocation!]!
-        geographicLocation(id: ID!): GeographicLocation
+
     }
 
     extend type Mutation {
@@ -448,16 +392,12 @@ export const adminApiExtensions = `
         myVendorProduct(id: ID!): Product
         platformSettings: PlatformSettings
         orderStatuses: [OrderStatus!]!
-        deliveryZones: [DeliveryZone!]!
+
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
 
-        # Geolocation & Markets
-        markets: [Market!]!
-        market(id: ID, slug: String): Market
-        geographicLocations(parentName: String, type: String): [GeographicLocation!]!
-        geographicLocation(id: ID!): GeographicLocation
+
     }
 
     extend type Mutation {
@@ -485,10 +425,7 @@ export const adminApiExtensions = `
         updateOrderStatus(id: ID!, input: UpdateOrderStatusInput!): OrderStatus!
         deleteOrderStatus(id: ID!): Boolean!
 
-        # Delivery Zones (Super-Admin only)
-        createDeliveryZone(input: CreateDeliveryZoneInput!): DeliveryZone!
-        updateDeliveryZone(id: ID!, input: UpdateDeliveryZoneInput!): DeliveryZone!
-        deleteDeliveryZone(id: ID!): Boolean!
+
 
         # Product Management (Required by VendorShopResolver)
         createMyProduct(input: CreateVendorProductInput!): Product!

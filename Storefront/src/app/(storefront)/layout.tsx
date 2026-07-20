@@ -23,6 +23,7 @@ import { getActiveCustomer, getActiveOrder } from "@/lib/vendure/actions";
 import { MobileMenuProvider, MobileMenuHeader } from "@/contexts/mobile-menu-context";
 import { getTopCollections } from "@/lib/vendure/cached";
 import { AhizanContextExposer } from "@/components/ahizan/AhizanContextExposer";
+import { LocationProvider } from "@/contexts/location-context";
 
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
@@ -105,50 +106,52 @@ async function StorefrontMainContent({
             applyFlashPromoToCollections: (theme as any)?.applyFlashPromoToCollections === true,
             activeFlashSale: activeFlash
         }}>
-            <AhizanContextExposer order={order} customer={customer} />
-            <MobileMenuProvider>
-                <MobileMenuHeader>
-                    <HeaderWrapper config={headerConfig}>
-                        <TopFlashBanner config={headerConfig?.topBar} />
-                        <AhizanNavbar
-                            config={headerConfig}
-                            customer={customer}
-                            order={order}
-                        />
-                    </HeaderWrapper>
-                </MobileMenuHeader>
+            <LocationProvider>
+                <AhizanContextExposer order={order} customer={customer} />
+                <MobileMenuProvider>
+                    <MobileMenuHeader>
+                        <HeaderWrapper config={headerConfig}>
+                            <TopFlashBanner config={headerConfig?.topBar} />
+                            <AhizanNavbar
+                                config={headerConfig}
+                                customer={customer}
+                                order={order}
+                            />
+                        </HeaderWrapper>
+                    </MobileMenuHeader>
 
-                {/* Global mobile category sidebar - available on all pages */}
-                <MobileCategorySidebar categories={collections} />
+                    {/* Global mobile category sidebar - available on all pages */}
+                    <MobileCategorySidebar categories={collections} />
 
-                <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
-                    {children}
-                </main>
+                    <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
+                        {children}
+                    </main>
 
-                {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
-                    <MobileBottomNav config={headerConfig} customer={customer} order={order} />
-                )}
+                    {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
+                        <MobileBottomNav config={headerConfig} customer={customer} order={order} />
+                    )}
 
-                <Footer config={footer} />
-                <Toaster />
-                <Suspense fallback={null}>
-                    <GlobalPopupProvider />
-                </Suspense>
-                <CookieConsent config={theme?.cookieConsent} />
-                <ScrollToTop config={theme?.scrollToTop} />
-                <PushPermissionManager
-                    authToken={(customer as any)?.authToken}
-                    userId={String((customer as any)?.userId || '')}
-                    shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
-                    vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
-                    delaySeconds={theme?.pushNotificationDelay}
-                    maxPerDay={theme?.pushNotificationMaxPerDay}
-                    intervalMinutes={theme?.pushNotificationInterval}
-                />
-                <LocationOnboardingModal 
-                    shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
-                />
-            </MobileMenuProvider>
+                    <Footer config={footer} />
+                    <Toaster />
+                    <Suspense fallback={null}>
+                        <GlobalPopupProvider />
+                    </Suspense>
+                    <CookieConsent config={theme?.cookieConsent} />
+                    <ScrollToTop config={theme?.scrollToTop} />
+                    <PushPermissionManager
+                        authToken={(customer as any)?.authToken}
+                        userId={String((customer as any)?.userId || '')}
+                        shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
+                        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
+                        delaySeconds={theme?.pushNotificationDelay}
+                        maxPerDay={theme?.pushNotificationMaxPerDay}
+                        intervalMinutes={theme?.pushNotificationInterval}
+                    />
+                    <LocationOnboardingModal 
+                        shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
+                    />
+                </MobileMenuProvider>
+            </LocationProvider>
         </ThemeProvider>
     );
 }

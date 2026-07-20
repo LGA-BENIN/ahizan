@@ -33,6 +33,8 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
                 emailVerificationRequired: false,
                 vendorAutoApproval: false,
                 placeholderEmailDomain: 'ahizan.com',
+                deliveryBaseFee: 500,
+                deliveryFeePerKm: 100,
             });
             return repo.save(newSettings) as Promise<PlatformSettings>;
         }

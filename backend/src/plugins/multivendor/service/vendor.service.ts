@@ -23,8 +23,6 @@ import {
 } from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { VendorEvent } from '../events/vendor-event';
-import { GeographicLocation } from '../entities/geographic-location.entity';
-import { Market } from '../entities/market.entity';
 import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
 import { IsNull } from 'typeorm';
 
@@ -57,7 +55,7 @@ export class VendorService implements OnApplicationBootstrap {
 
         const qb = this.listQueryBuilder.build(Vendor, qbOptions, {
             ctx,
-            relations: ['logo', 'coverImage', 'location', 'physicalMarket', 'markets'],
+            relations: ['logo', 'coverImage'],
         });
 
         const [items, totalItems] = await qb.getManyAndCount();
@@ -83,13 +81,13 @@ export class VendorService implements OnApplicationBootstrap {
 
         let filteredItems = [...items];
         if (locationId) {
-            filteredItems = filteredItems.filter(v => v.location?.id?.toString() === locationId.toString());
+            filteredItems = filteredItems.filter(v => v.locationId?.toString() === locationId.toString());
         }
 
         const sortedItems = filteredItems.sort((a, b) => {
             if (marketId) {
-                const aIsResident = a.physicalMarket?.id?.toString() === marketId.toString();
-                const bIsResident = b.physicalMarket?.id?.toString() === marketId.toString();
+                const aIsResident = a.physicalMarketId?.toString() === marketId.toString();
+                const bIsResident = b.physicalMarketId?.toString() === marketId.toString();
                 if (aIsResident && !bIsResident) return -1;
                 if (!aIsResident && bIsResident) return 1;
             }
@@ -111,8 +109,8 @@ export class VendorService implements OnApplicationBootstrap {
             }
 
             if (marketId) {
-                const aHasSecondary = a.markets?.some((m: Market) => m.id?.toString() === marketId.toString());
-                const bHasSecondary = b.markets?.some((m: Market) => m.id?.toString() === marketId.toString());
+                const aHasSecondary = a.marketIds?.some(id => id?.toString() === marketId.toString());
+                const bHasSecondary = b.marketIds?.some(id => id?.toString() === marketId.toString());
                 if (aHasSecondary && !bHasSecondary) return -1;
                 if (!aHasSecondary && bHasSecondary) return 1;
             }
@@ -243,9 +241,9 @@ export class VendorService implements OnApplicationBootstrap {
         // Geolocation Inputs
         latitude?: number;
         longitude?: number;
-        locationId?: string;
-        physicalMarketId?: string;
-        marketIds?: string[];
+        locationId?: string | number;
+        physicalMarketId?: string | number;
+        marketIds?: string[] | number[];
     }): Promise<Vendor> {
         // Generate defaults if missing
         const timestamp = new Date().getTime();
@@ -295,6 +293,7 @@ export class VendorService implements OnApplicationBootstrap {
                 else if (fieldName === 'rccmNumber') isPresent = !!input.rccmNumber;
                 else if (fieldName === 'ifuNumber') isPresent = !!input.ifuNumber;
                 else if (fieldName === 'idCardNumber') isPresent = !!input.idCardNumber;
+                else if (fieldName === 'locationId') isPresent = !!input.locationId;
 
                 // Check file fields
                 else if (fieldName === 'rccmFile') isPresent = !!input.rccmFile && input.rccmFile.size > 0;
@@ -525,18 +524,13 @@ export class VendorService implements OnApplicationBootstrap {
             vendor.longitude = input.longitude;
         }
         if (input.locationId) {
-            vendor.location = await this.connection.getEntityOrThrow(adminCtx, GeographicLocation, input.locationId);
+            vendor.locationId = Number(input.locationId);
         }
         if (input.physicalMarketId) {
-            vendor.physicalMarket = await this.connection.getEntityOrThrow(adminCtx, Market, input.physicalMarketId);
+            vendor.physicalMarketId = Number(input.physicalMarketId);
         }
         if (input.marketIds && input.marketIds.length > 0) {
-            const marketsList: Market[] = [];
-            for (const id of input.marketIds) {
-                const m = await this.connection.getEntityOrThrow(adminCtx, Market, id);
-                marketsList.push(m);
-            }
-            vendor.markets = marketsList;
+            vendor.marketIds = input.marketIds.map(id => Number(id));
         }
 
         const newVendor = await this.connection.getRepository(adminCtx, Vendor).save(vendor);
@@ -545,7 +539,7 @@ export class VendorService implements OnApplicationBootstrap {
         return newVendor;
     }
 
-    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; logo?: any; coverImageId?: string; coverImage?: any; rejectionReason?: string; dynamicDetails?: any; latitude?: number; longitude?: number; locationId?: string; physicalMarketId?: string; marketIds?: string[] }): Promise<Vendor> {
+    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; logo?: any; coverImageId?: string; coverImage?: any; rejectionReason?: string; dynamicDetails?: any; latitude?: number; longitude?: number; locationId?: string | number; physicalMarketId?: string | number; marketIds?: string[] | number[] }): Promise<Vendor> {
         const vendor = await this.findOne(ctx, id);
         if (!vendor) {
             throw new Error(`Vendor with id ${id} not found`);
@@ -672,26 +666,13 @@ export class VendorService implements OnApplicationBootstrap {
             updated.longitude = input.longitude;
         }
         if (input.locationId !== undefined) {
-            updated.location = input.locationId 
-                ? await this.connection.getEntityOrThrow(ctx, GeographicLocation, input.locationId)
-                : null as any;
+            updated.locationId = input.locationId ? Number(input.locationId) : null as any;
         }
         if (input.physicalMarketId !== undefined) {
-            updated.physicalMarket = input.physicalMarketId 
-                ? await this.connection.getEntityOrThrow(ctx, Market, input.physicalMarketId)
-                : null as any;
+            updated.physicalMarketId = input.physicalMarketId ? Number(input.physicalMarketId) : null as any;
         }
         if (input.marketIds !== undefined) {
-            if (input.marketIds && input.marketIds.length > 0) {
-                const marketsList: Market[] = [];
-                for (const id of input.marketIds) {
-                    const m = await this.connection.getEntityOrThrow(ctx, Market, id);
-                    marketsList.push(m);
-                }
-                updated.markets = marketsList;
-            } else {
-                updated.markets = [];
-            }
+            updated.marketIds = input.marketIds ? input.marketIds.map(id => Number(id)) : [];
         }
 
         const savedVendor = await this.connection.getRepository(ctx, Vendor).save(updated);

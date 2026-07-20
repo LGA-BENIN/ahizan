@@ -17,6 +17,9 @@ export const GET_REGISTRATION_FIELDS = gql`
             enabled
             description
             placeholder
+            config {
+                showDetectPositionButton
+            }
         }
     }
 `;

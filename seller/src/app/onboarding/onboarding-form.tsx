@@ -6,8 +6,30 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { query } from '@/lib/vendure/api';
-import { GetRegistrationFieldsQuery } from '@/lib/vendure/queries';
 import { applyToBecomeVendorAction } from './actions';
+
+const GetRegistrationFieldsQuery = `
+    query GetRegistrationFields {
+        registrationFields {
+            id
+            name
+            label
+            type
+            options {
+                label
+                value
+            }
+            required
+            order
+            enabled
+            description
+            placeholder
+            config {
+                showDetectPositionButton
+            }
+        }
+    }
+`;
 
 const DEFAULT_REGISTRATION_FIELDS = [
     { name: 'name', label: 'Nom de la Boutique', type: 'string', required: true, order: 1, enabled: true, placeholder: 'Ex: Ahizan Fashion Store' },
@@ -19,9 +41,107 @@ const DEFAULT_REGISTRATION_FIELDS = [
 
 export function OnboardingForm({ customer, isRecognized }: { customer?: any; isRecognized?: boolean }) {
     const [dynamicFields, setDynamicFields] = useState<any[]>([]);
+    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
     const [sellerType, setSellerType] = useState<string>('ONLINE');
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
+    const [detectingGps, setDetectingGps] = useState(false);
+    const [gpsError, setGpsError] = useState<string | null>(null);
+
+    const handleDetectLocation = () => {
+        if (!navigator.geolocation) {
+            alert("La géolocalisation n'est pas supportée par votre navigateur.");
+            return;
+        }
+
+        setDetectingGps(true);
+        setGpsError(null);
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    // 1. Fetch details from Nominatim for full address details
+                    const osmRes = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+                        { headers: { 'Accept-Language': 'fr' } }
+                    );
+                    const osmData = await osmRes.json();
+                    const addressComponents = osmData.address || {};
+                    const neighborhoodName = addressComponents.suburb || addressComponents.neighbourhood || addressComponents.city_district || '';
+                    const fullAddress = osmData.display_name || '';
+
+                    // 2. Fetch the zone ID from Vendure reverseGeocode
+                    const res = await query(`
+                        query ReverseGeocode($lat: Float!, $lng: Float!) {
+                            reverseGeocode(latitude: $lat, longitude: $lng) {
+                                id
+                                name
+                            }
+                        }
+                    `, { lat: latitude, lng: longitude });
+
+                    const matchedZones = (res.data as any)?.reverseGeocode || [];
+                    let zoneId = '';
+                    if (matchedZones.length > 0) {
+                        zoneId = matchedZones[0].id;
+                    } else if (neighborhoodName) {
+                        // Fallback to match neighborhoodName with our loaded list of neighborhoods
+                        const matched = neighborhoods.find((n: any) => n.name.toLowerCase().includes(neighborhoodName.toLowerCase()));
+                        if (matched) {
+                            zoneId = matched.id;
+                        }
+                    }
+
+                    // 3. Fill the locationId select dropdown
+                    if (zoneId) {
+                        const selectEl = document.getElementsByName('locationId')[0] as HTMLSelectElement;
+                        if (selectEl) {
+                            selectEl.value = zoneId;
+                            const event = new Event('change', { bubbles: true });
+                            selectEl.dispatchEvent(event);
+                        }
+                    } else if (neighborhoodName) {
+                        setGpsError(`Quartier détecté (${neighborhoodName}) non disponible dans la liste des ventes.`);
+                    } else {
+                        setGpsError("Impossible de localiser votre quartier.");
+                    }
+
+                    // 4. Fill the address input field
+                    if (fullAddress) {
+                        const addressEl = document.getElementsByName('address')[0] as HTMLInputElement;
+                        if (addressEl) {
+                            addressEl.value = fullAddress;
+                            const event = new Event('change', { bubbles: true });
+                            addressEl.dispatchEvent(event);
+                        }
+                    }
+
+                    // 5. Fill the zone input field
+                    if (neighborhoodName) {
+                        const zoneEl = document.getElementsByName('zone')[0] as HTMLInputElement;
+                        if (zoneEl) {
+                            zoneEl.value = neighborhoodName;
+                            const event = new Event('change', { bubbles: true });
+                            zoneEl.dispatchEvent(event);
+                        }
+                    }
+
+                } catch (err: any) {
+                    console.error('Error during location detection:', err);
+                    setGpsError("Erreur lors de la détermination de la zone.");
+                } finally {
+                    setDetectingGps(false);
+                }
+            },
+            (error) => {
+                console.error('GPS error:', error);
+                setGpsError("Accès GPS refusé ou indisponible.");
+                setDetectingGps(false);
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    };
 
     // Charger les champs d'inscription configurés (ou fallback)
     useEffect(() => {
@@ -35,13 +155,30 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                 setDynamicFields(DEFAULT_REGISTRATION_FIELDS);
             }
         };
+        const fetchNeighborhoods = async () => {
+            try {
+                const res = await query(`
+                    query GetNeighborhoods {
+                        geoZones(type: "NEIGHBORHOOD") {
+                            id
+                            name
+                        }
+                    }
+                `);
+                const zones = (res.data as any)?.geoZones || [];
+                setNeighborhoods(zones);
+            } catch (err) {
+                console.error('Failed to load neighborhoods in onboarding:', err);
+            }
+        };
         fetchFields();
+        fetchNeighborhoods();
     }, []);
 
     // Filtrer et trier les champs actifs
     const activeFields = dynamicFields
-        .filter(f => f.enabled)
-        .sort((a, b) => (a.order || 0) - (b.order || 0));
+        .filter(f => f && f.enabled)
+        .sort((a, b) => ((a && a.order) || 0) - ((b && b.order) || 0));
 
     // Déterminer si un champ est lié à l'entreprise (à afficher uniquement si type === ENTERPRISE)
     const isEnterpriseField = (name: string) => {
@@ -98,7 +235,8 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                 const standardFieldsList = [
                     'name', 'email', 'phoneNumber', 'address', 'description', 'zone', 
                     'type', 'rccmNumber', 'ifuNumber', 'idCardNumber', 'website', 
-                    'facebook', 'instagram', 'rccmFile', 'ifuFile', 'idCardFile', 'logo', 'coverImage'
+                    'facebook', 'instagram', 'rccmFile', 'ifuFile', 'idCardFile', 'logo', 'coverImage',
+                    'locationId'
                 ];
 
                 const dynamicDetails: Record<string, any> = {};
@@ -164,10 +302,53 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                                 const isStandard = [
                                     'name', 'email', 'phoneNumber', 'address', 'description', 'zone', 
                                     'type', 'rccmNumber', 'ifuNumber', 'idCardNumber', 'website', 
-                                    'facebook', 'instagram', 'rccmFile', 'ifuFile', 'idCardFile', 'logo', 'coverImage'
+                                    'facebook', 'instagram', 'rccmFile', 'ifuFile', 'idCardFile', 'logo', 'coverImage',
+                                    'locationId'
                                 ].includes(field.name);
 
                                 const inputName = isStandard ? field.name : `custom_${field.name}`;
+
+                                // Cas particulier : Location / Résidence de résidence (Sélecteur)
+                                if (field.name === 'locationId') {
+                                    const showGpsBtn = field.config?.showDetectPositionButton;
+                                    return (
+                                        <div key={field.name} className="space-y-2 col-span-1 md:col-span-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-sm font-semibold text-foreground">
+                                                    {field.label} {field.required && <span className="text-red-500 font-bold">*</span>}
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDetectLocation}
+                                                    disabled={detectingGps || isPending}
+                                                    className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 focus:outline-none"
+                                                >
+                                                    {detectingGps ? (
+                                                        <>
+                                                            <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                                            Détection...
+                                                        </>
+                                                    ) : (
+                                                        <>📍 Utiliser ma position actuelle</>
+                                                    )}
+                                                </button>
+                                            </div>
+                                            <select
+                                                name={inputName}
+                                                required={field.required}
+                                                disabled={isPending}
+                                                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                                            >
+                                                <option value="">Sélectionnez votre quartier...</option>
+                                                {neighborhoods.map((n: any) => (
+                                                    <option key={n.id} value={n.id}>{n.name}</option>
+                                                ))}
+                                            </select>
+                                            {gpsError && <p className="text-xs text-red-500 mt-1">{gpsError}</p>}
+                                            {field.description && <p className="text-xs text-muted-foreground mt-1">{field.description}</p>}
+                                        </div>
+                                    );
+                                }
 
                                 // Cas particulier : Type de Vendeur (Sélecteur)
                                 if (field.name === 'type') {

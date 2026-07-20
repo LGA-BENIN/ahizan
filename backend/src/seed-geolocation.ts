@@ -2,8 +2,8 @@ import { DataSource } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import 'dotenv/config';
-import { GeographicLocation, LocationType } from './plugins/multivendor/entities/geographic-location.entity';
-import { Market } from './plugins/multivendor/entities/market.entity';
+import { GeoZone, GeoZoneType } from './plugins/geo-engine/entities/geo-zone.entity';
+import { Market } from './plugins/geo-engine/entities/market.entity';
 
 const dataSource = new DataSource({
     type: 'postgres',
@@ -13,7 +13,7 @@ const dataSource = new DataSource({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME || 'vendure',
     schema: process.env.DB_SCHEMA || 'public',
-    entities: [GeographicLocation, Market],
+    entities: [GeoZone, Market],
     synchronize: true, // This will automatically sync new tables to the DB
 });
 
@@ -35,7 +35,7 @@ async function seed() {
     await dataSource.initialize();
     console.log('🔌 Connected to PostgreSQL Database.');
 
-    const locationRepo = dataSource.getRepository(GeographicLocation);
+    const locationRepo = dataSource.getRepository(GeoZone);
     const marketRepo = dataSource.getRepository(Market);
 
     // 1. Seed Cities
@@ -46,18 +46,18 @@ async function seed() {
         { name: 'Abomey-Calavi', lat: 6.4481, lng: 2.3524, radius: 8000 },
     ];
 
-    const citiesMap = new Map<string, GeographicLocation>();
+    const citiesMap = new Map<string, GeoZone>();
 
     for (const city of citiesData) {
-        let dbCity = await locationRepo.findOne({ where: { name: city.name, type: LocationType.CITY } });
+        let dbCity = await locationRepo.findOne({ where: { name: city.name, type: GeoZoneType.COMMUNE } });
         if (!dbCity) {
-            dbCity = new GeographicLocation({
+            dbCity = new GeoZone({
                 name: city.name,
-                type: LocationType.CITY,
+                slug: slugify(city.name),
+                type: GeoZoneType.COMMUNE,
                 centerLatitude: city.lat,
                 centerLongitude: city.lng,
                 radiusMeters: city.radius,
-                isActive: true,
             });
             await locationRepo.save(dbCity);
             console.log(`✅ Created City: ${city.name}`);
@@ -91,21 +91,21 @@ async function seed() {
         { name: 'Cococodji', city: 'Abomey-Calavi', lat: 6.4250, lng: 2.2980, radius: 1200 },
     ];
 
-    const neighborhoodMap = new Map<string, GeographicLocation>();
+    const neighborhoodMap = new Map<string, GeoZone>();
 
     for (const q of neighborhoodsData) {
         const parentCity = citiesMap.get(q.city);
         if (!parentCity) continue;
 
-        let dbNeighborhood = await locationRepo.findOne({ where: { name: q.name, type: LocationType.NEIGHBORHOOD, parent: { id: parentCity.id } } });
+        let dbNeighborhood = await locationRepo.findOne({ where: { name: q.name, type: GeoZoneType.NEIGHBORHOOD, parent: { id: parentCity.id } } });
         if (!dbNeighborhood) {
-            dbNeighborhood = new GeographicLocation({
+            dbNeighborhood = new GeoZone({
                 name: q.name,
-                type: LocationType.NEIGHBORHOOD,
+                slug: slugify(q.name),
+                type: GeoZoneType.NEIGHBORHOOD,
                 centerLatitude: q.lat,
                 centerLongitude: q.lng,
                 radiusMeters: q.radius,
-                isActive: true,
                 parent: parentCity,
             });
             await locationRepo.save(dbNeighborhood);
@@ -183,7 +183,7 @@ async function seed() {
                         centerLongitude: coords.lng,
                         radiusMeters: coords.radius,
                         allowedFacetIds: [],
-                        location: parentCity,
+                        geoZone: parentCity,
                     });
                     await marketRepo.save(dbMarket);
                     console.log(`  ✅ Created Market: ${name} (Slug: ${slug}) in ${city}`);

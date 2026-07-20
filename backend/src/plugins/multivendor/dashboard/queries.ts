@@ -172,3 +172,13 @@ export const DELETE_VENDOR = `
         deleteVendor(id: $id, deleteProducts: $deleteProducts, deleteOrders: $deleteOrders)
     }
 `;
+
+export const DELETE_PRODUCT = `
+    mutation DeleteProduct($id: ID!) {
+        deleteProduct(id: $id) {
+            result
+            message
+        }
+    }
+`;
+

@@ -9,6 +9,7 @@ import { Loader2, Truck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCheckout } from '../checkout-provider';
 import { setShippingMethod as setShippingMethodAction } from '../actions';
+import { Price } from '@/components/commerce/price';
 
 interface DeliveryStepProps {
   onComplete: () => void;
@@ -86,12 +87,7 @@ export default function DeliveryStep({ onComplete }: DeliveryStepProps) {
                     <p className={`text-xl font-black ${method.priceWithTax === 0 ? 'text-green-600' : 'text-foreground'}`}>
                       {method.priceWithTax === 0
                         ? 'GRATUIT'
-                        : (method.priceWithTax / 100).toLocaleString('fr-FR', {
-                            style: 'currency',
-                            currency: 'XOF',
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0,
-                          })}
+                        : <Price value={method.priceWithTax} currencyCode={order?.currencyCode || 'XOF'} />}
                     </p>
                   </div>
                 </div>

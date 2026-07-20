@@ -3,17 +3,13 @@ import { OnApplicationBootstrap } from '@nestjs/common';
 import { Vendor } from './entities/vendor.entity';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { OrderStatus } from './entities/order-status.entity';
-import { DeliveryZone } from './entities/delivery-zone.entity';
 import { VendorLike } from './entities/vendor-like.entity';
 import { ProductLike } from './entities/product-like.entity';
 import { ChatMessage } from './entities/chat-message.entity';
-import { GeographicLocation } from './entities/geographic-location.entity';
-import { Market } from './entities/market.entity';
 import { VendorService } from './service/vendor.service';
 import { VendorOrderSubscriber } from './service/vendor-event.subscriber';
 import { PlatformSettingsService } from './service/platform-settings.service';
 import { OrderStatusService } from './service/order-status.service';
-import { DeliveryZoneService } from './service/delivery-zone.service';
 import { LikeService } from './service/like.service';
 import { ChatService } from './service/chat.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
@@ -21,23 +17,22 @@ import { VendorResolver, VendorAdminResolver } from './api/vendor.resolver';
 import { VendorShopResolver, ProductVariantShopResolver } from './api/vendor-shop.resolver';
 import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './api/platform-settings.resolver';
 import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-status.resolver';
-import { DeliveryZoneAdminResolver, DeliveryZoneShopResolver } from './api/delivery-zone.resolver';
 import { LikeShopResolver, LikeAdminResolver } from './api/like.resolver';
 import { ChatResolver } from './api/chat.resolver';
 import { gql } from 'graphql-tag';
 import path from 'path';
+import { GeoEnginePlugin } from '../geo-engine/geo-engine.plugin';
 
 @VendurePlugin({
-    imports: [PluginCommonModule],
+    imports: [PluginCommonModule, GeoEnginePlugin],
 
-    entities: [Vendor, PlatformSettings, OrderStatus, DeliveryZone, VendorLike, ProductLike, ChatMessage, GeographicLocation, Market],
+    entities: [Vendor, PlatformSettings, OrderStatus, VendorLike, ProductLike, ChatMessage],
 
     providers: [
         VendorService,
         VendorOrderSubscriber,
         PlatformSettingsService,
         OrderStatusService,
-        DeliveryZoneService,
         LikeService,
         ChatService,
     ],
@@ -52,7 +47,7 @@ ${commonApiExtensions}
 
 ${adminApiExtensions}
         `,
-        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, DeliveryZoneAdminResolver, LikeAdminResolver],
+        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver],
     },
 
     shopApiExtensions: {
@@ -61,7 +56,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, DeliveryZoneShopResolver, LikeShopResolver, ChatResolver],
+        resolvers: [VendorResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver],
     },
 
     configuration: (config: any) => {

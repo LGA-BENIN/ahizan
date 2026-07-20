@@ -13,6 +13,7 @@ import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
 import { BulkCollectionImportPlugin } from './plugins/bulk-collection-import/bulk-collection-import.plugin';
+import { GeoEnginePlugin } from './plugins/geo-engine/geo-engine.plugin';
 
 // This is a LITE configuration used specifically for the Vite Dashboard build.
 // It skips the database connection and heavy background processes to reduce
@@ -56,6 +57,7 @@ export const config: VendureConfig = {
         }),
         // We import the plugins to get their custom fields and API extensions
         // but since we are in "headless" mode, their logic won't run.
+        GeoEnginePlugin,
         MultivendorPlugin,
         TaxEnforcementPlugin,
         PageInscriptionPlugin,

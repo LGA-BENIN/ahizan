@@ -49,7 +49,9 @@ self.addEventListener("push", (event: PushEvent) => {
     vibrate: [100, 50, 100],
   } as NotificationOptions;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  const promise = self.registration.showNotification(title, options)
+    .catch((err) => console.error("SW showNotification failed:", err));
+  event.waitUntil(promise);
 });
 
 self.addEventListener("notificationclick", (event: NotificationEvent) => {

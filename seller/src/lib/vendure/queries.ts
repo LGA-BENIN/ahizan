@@ -568,23 +568,3 @@ export const GetOrderDetailQuery = graphql(`
         }
     }
 `);
-
-export const GetRegistrationFieldsQuery = `
-    query GetRegistrationFields {
-        registrationFields {
-            id
-            name
-            label
-            type
-            options {
-                label
-                value
-            }
-            required
-            order
-            enabled
-            description
-            placeholder
-        }
-    }
-`;

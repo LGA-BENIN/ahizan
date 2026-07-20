@@ -4,8 +4,9 @@ import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { OrderStatusService } from '../service/order-status.service';
 import { LikeService } from '../service/like.service';
-import { GeographicLocation } from '../entities/geographic-location.entity';
-import { Market } from '../entities/market.entity';
+import { GeoZone } from '../../geo-engine/entities/geo-zone.entity';
+import { Market } from '../../geo-engine/entities/market.entity';
+import { GeoService } from '../../geo-engine/service/geo.service';
 
 @Resolver('Vendor')
 export class VendorResolver {
@@ -16,6 +17,7 @@ export class VendorResolver {
         private connection: TransactionalConnection,
         private orderStatusService: OrderStatusService,
         private likeService: LikeService,
+        private geoService: GeoService,
     ) { }
 
     @ResolveField()
@@ -216,107 +218,27 @@ export class VendorResolver {
     }
 
     @ResolveField()
-    async location(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<GeographicLocation | null> {
-        if (vendor.location) {
-            return vendor.location;
+    async location(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<GeoZone | null> {
+        if (!vendor.locationId) {
+            return null;
         }
-        const dbVendor = await this.connection.getRepository(ctx, Vendor).findOne({
-            where: { id: vendor.id },
-            relations: ['location'],
-        });
-        return dbVendor?.location || null;
+        return this.geoService.getLocation(ctx, vendor.locationId);
     }
 
     @ResolveField()
     async physicalMarket(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Market | null> {
-        if (vendor.physicalMarket) {
-            return vendor.physicalMarket;
+        if (!vendor.physicalMarketId) {
+            return null;
         }
-        const dbVendor = await this.connection.getRepository(ctx, Vendor).findOne({
-            where: { id: vendor.id },
-            relations: ['physicalMarket'],
-        });
-        return dbVendor?.physicalMarket || null;
+        return this.geoService.getMarket(ctx, vendor.physicalMarketId);
     }
 
     @ResolveField()
     async markets(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Market[]> {
-        if (vendor.markets) {
-            return vendor.markets;
+        if (!vendor.marketIds || vendor.marketIds.length === 0) {
+            return [];
         }
-        const dbVendor = await this.connection.getRepository(ctx, Vendor).findOne({
-            where: { id: vendor.id },
-            relations: ['markets'],
-        });
-        return dbVendor?.markets || [];
-    }
-
-    @Query('markets')
-    @Allow(Permission.Public)
-    async getMarkets(@Ctx() ctx: RequestContext): Promise<Market[]> {
-        return this.connection.getRepository(ctx, Market).find({
-            relations: ['location'],
-        });
-    }
-
-    @Query('market')
-    @Allow(Permission.Public)
-    async getMarket(
-        @Ctx() ctx: RequestContext,
-        @Args('id') id?: string,
-        @Args('slug') slug?: string
-    ): Promise<Market | null> {
-        if (id) {
-            return this.connection.getRepository(ctx, Market).findOne({
-                where: { id: Number(id) },
-                relations: ['location'],
-            });
-        }
-        if (slug) {
-            return this.connection.getRepository(ctx, Market).findOne({
-                where: { slug },
-                relations: ['location'],
-            });
-        }
-        return null;
-    }
-
-    @Query('geographicLocations')
-    @Allow(Permission.Public)
-    async getGeographicLocations(
-        @Ctx() ctx: RequestContext,
-        @Args('parentName') parentName?: string,
-        @Args('type') type?: string
-    ): Promise<GeographicLocation[]> {
-        const repo = this.connection.getRepository(ctx, GeographicLocation);
-        const where: any = {};
-        if (type) {
-            where.type = type;
-        }
-        if (parentName) {
-            const parent = await repo.findOne({ where: { name: parentName } });
-            if (parent) {
-                where.parent = { id: parent.id };
-            } else {
-                return [];
-            }
-        }
-        return repo.find({
-            where,
-            relations: ['parent', 'children'],
-        });
-    }
-
-    @Query('geographicLocation')
-    @Allow(Permission.Public)
-    async getGeographicLocation(
-        @Ctx() ctx: RequestContext,
-        @Args('id') id: string
-    ): Promise<GeographicLocation | null> {
-        return this.connection.getRepository(ctx, GeographicLocation).findOne({
-            where: { id: Number(id) },
-            relations: ['parent', 'children'],
-        });
+        return this.geoService.getMarketsByIds(ctx, vendor.marketIds);
     }
 }
 
@@ -331,8 +253,9 @@ export class VendorAdminResolver {
         private productService: ProductService,
         private connection: TransactionalConnection,
         private likeService: LikeService,
+        private geoService: GeoService,
     ) {
-        console.log('VendorAdminResolver initialized with ProductService');
+        console.log('VendorAdminResolver initialized with ProductService and GeoService');
     }
 
     @ResolveField()
@@ -499,106 +422,26 @@ export class VendorAdminResolver {
     }
 
     @ResolveField()
-    async location(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<GeographicLocation | null> {
-        if (vendor.location) {
-            return vendor.location;
+    async location(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<GeoZone | null> {
+        if (!vendor.locationId) {
+            return null;
         }
-        const dbVendor = await this.connection.getRepository(ctx, Vendor).findOne({
-            where: { id: vendor.id },
-            relations: ['location'],
-        });
-        return dbVendor?.location || null;
+        return this.geoService.getLocation(ctx, vendor.locationId);
     }
 
     @ResolveField()
     async physicalMarket(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Market | null> {
-        if (vendor.physicalMarket) {
-            return vendor.physicalMarket;
+        if (!vendor.physicalMarketId) {
+            return null;
         }
-        const dbVendor = await this.connection.getRepository(ctx, Vendor).findOne({
-            where: { id: vendor.id },
-            relations: ['physicalMarket'],
-        });
-        return dbVendor?.physicalMarket || null;
+        return this.geoService.getMarket(ctx, vendor.physicalMarketId);
     }
 
     @ResolveField()
     async markets(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<Market[]> {
-        if (vendor.markets) {
-            return vendor.markets;
+        if (!vendor.marketIds || vendor.marketIds.length === 0) {
+            return [];
         }
-        const dbVendor = await this.connection.getRepository(ctx, Vendor).findOne({
-            where: { id: vendor.id },
-            relations: ['markets'],
-        });
-        return dbVendor?.markets || [];
-    }
-
-    @Query('markets')
-    @Allow(Permission.Public)
-    async getMarkets(@Ctx() ctx: RequestContext): Promise<Market[]> {
-        return this.connection.getRepository(ctx, Market).find({
-            relations: ['location'],
-        });
-    }
-
-    @Query('market')
-    @Allow(Permission.Public)
-    async getMarket(
-        @Ctx() ctx: RequestContext,
-        @Args('id') id?: string,
-        @Args('slug') slug?: string
-    ): Promise<Market | null> {
-        if (id) {
-            return this.connection.getRepository(ctx, Market).findOne({
-                where: { id: Number(id) },
-                relations: ['location'],
-            });
-        }
-        if (slug) {
-            return this.connection.getRepository(ctx, Market).findOne({
-                where: { slug },
-                relations: ['location'],
-            });
-        }
-        return null;
-    }
-
-    @Query('geographicLocations')
-    @Allow(Permission.Public)
-    async getGeographicLocations(
-        @Ctx() ctx: RequestContext,
-        @Args('parentName') parentName?: string,
-        @Args('type') type?: string
-    ): Promise<GeographicLocation[]> {
-        const repo = this.connection.getRepository(ctx, GeographicLocation);
-        const where: any = {};
-        if (type) {
-            where.type = type;
-        }
-        if (parentName) {
-            const parent = await repo.findOne({ where: { name: parentName } });
-            if (parent) {
-                where.parent = { id: parent.id };
-            } else {
-                return [];
-            }
-        }
-        return repo.find({
-            where,
-            relations: ['parent', 'children'],
-        });
-    }
-
-    @Query('geographicLocation')
-    @Allow(Permission.Public)
-    async getGeographicLocation(
-        @Ctx() ctx: RequestContext,
-        @Args('id') id: string
-    ): Promise<GeographicLocation | null> {
-        return this.connection.getRepository(ctx, GeographicLocation).findOne({
-            where: { id: Number(id) },
-            relations: ['parent', 'children'],
-        });
+        return this.geoService.getMarketsByIds(ctx, vendor.marketIds);
     }
 }

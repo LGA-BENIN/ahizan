@@ -30,6 +30,9 @@ import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plu
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
 import { BulkCollectionImportPlugin } from './plugins/bulk-collection-import/bulk-collection-import.plugin';
 import { WatermarkedLocalAssetStorageStrategy } from './watermarked-storage.strategy';
+import { GeoEnginePlugin } from './plugins/geo-engine/geo-engine.plugin';
+import { geoEngineShippingCalculator } from './plugins/geo-engine/shipping/geo-engine-shipping.calculator';
+import { geoEngineShippingEligibilityChecker } from './plugins/geo-engine/shipping/geo-engine-shipping.eligibility-checker';
 
 dns.setDefaultResultOrder('ipv4first');
 
@@ -92,7 +95,15 @@ export const config: VendureConfig = {
         migrations: [path.join(__dirname, './migrations/*.+(js|ts)')],
     },
     shippingOptions: {
-        shippingCalculators: [defaultShippingCalculator, globalFixedShippingCalculator, zoneBasedShippingCalculator],
+        shippingCalculators: [
+            defaultShippingCalculator, 
+            globalFixedShippingCalculator, 
+            zoneBasedShippingCalculator,
+            geoEngineShippingCalculator
+        ],
+        shippingEligibilityCheckers: [
+            geoEngineShippingEligibilityChecker,
+        ],
     },
     catalogOptions: {
         // Using only defaults first to ensure the server starts safely
@@ -102,6 +113,10 @@ export const config: VendureConfig = {
         paymentMethodHandlers: [cashOnDeliveryHandler],
     },
     customFields: {
+        Address: [
+            { name: 'latitude', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Latitude' }] },
+            { name: 'longitude', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Longitude' }] },
+        ],
         User: [
             { name: 'passwordResetCodeExpiresAt', type: 'datetime', public: false, label: [{ languageCode: LanguageCode.fr, value: 'Expiration du code de réinitialisation' }] },
         ],
@@ -160,6 +175,7 @@ export const config: VendureConfig = {
             route: 'admin',
             appDir: path.join(__dirname, '../dist/dashboard'),
         }),
+        GeoEnginePlugin,
         MultivendorPlugin,
         TaxEnforcementPlugin,
         PageInscriptionPlugin,

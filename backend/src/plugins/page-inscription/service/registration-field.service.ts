@@ -23,6 +23,24 @@ export class RegistrationFieldService implements OnApplicationBootstrap {
                 console.log('Seeding Registration Fields...');
                 await this.resetAndSeed();
                 console.log('Registration Fields Seeded.');
+            } else {
+                // Ensure locationId field exists
+                const locationIdField = await repo.findOne({ where: { name: 'locationId' } });
+                if (!locationIdField) {
+                    console.log('Bootstrapping missing locationId field...');
+                    await repo.save(new RegistrationField({
+                        name: 'locationId',
+                        label: 'Quartier / Arrondissement de résidence',
+                        type: 'select',
+                        required: false,
+                        order: 4,
+                        enabled: true,
+                        description: 'Votre quartier ou arrondissement de résidence',
+                        placeholder: 'Sélectionnez votre quartier...',
+                        options: [],
+                        config: {},
+                    }));
+                }
             }
         } catch (e) {
             console.error('Error seeding registration fields:', e);
@@ -170,6 +188,7 @@ export class RegistrationFieldService implements OnApplicationBootstrap {
             { name: 'phoneNumber', label: 'Téléphone', type: 'text', required: true, order: 2, enabled: true },
             { name: 'address', label: 'Adresse géographique', type: 'text', required: false, order: 3, enabled: true },
             { name: 'zone', label: 'Zone / Quartier', type: 'text', required: false, order: 4, enabled: true },
+            { name: 'locationId', label: 'Quartier / Arrondissement de résidence', type: 'select', required: false, order: 4, enabled: true, options: [] },
 
             // Business
             { name: 'description', label: 'Description', type: 'text', required: false, order: 5, enabled: true },

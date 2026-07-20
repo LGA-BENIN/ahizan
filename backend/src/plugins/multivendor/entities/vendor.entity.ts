@@ -1,7 +1,5 @@
 import { DeepPartial, VendureEntity, Asset, User } from '@vendure/core';
-import { Column, Entity, OneToOne, JoinColumn, ManyToOne, ManyToMany, JoinTable } from 'typeorm';
-import { GeographicLocation } from './geographic-location.entity';
-import { Market } from './market.entity';
+import { Column, Entity, OneToOne, JoinColumn } from 'typeorm';
 
 
 export enum VendorStatus {
@@ -148,15 +146,12 @@ export class Vendor extends VendureEntity {
     @Column({ type: 'float', nullable: true })
     longitude: number;
 
-    @ManyToOne(() => GeographicLocation, { nullable: true })
-    @JoinColumn()
-    location: GeographicLocation;
+    @Column({ type: 'int', nullable: true })
+    locationId: number;
 
-    @ManyToOne(() => Market, { nullable: true })
-    @JoinColumn()
-    physicalMarket: Market;
+    @Column({ type: 'int', nullable: true })
+    physicalMarketId: number;
 
-    @ManyToMany(() => Market)
-    @JoinTable({ name: 'vendor_markets_market' })
-    markets: Market[];
+    @Column({ type: 'simple-json', nullable: true })
+    marketIds: number[];
 }

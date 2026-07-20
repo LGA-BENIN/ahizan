@@ -244,7 +244,7 @@ export async function getAvailableLocationsAction() {
                 centerLongitude
                 radiusMeters
             }
-            geographicLocations(type: "NEIGHBORHOOD") {
+            geoZones(type: "NEIGHBORHOOD") {
                 id
                 name
                 centerLatitude
@@ -262,7 +262,7 @@ export async function getAvailableLocationsAction() {
         const result = await res.json();
         return {
             markets: result.data?.markets || [],
-            neighborhoods: result.data?.geographicLocations || []
+            neighborhoods: result.data?.geoZones || []
         };
     } catch (err) {
         console.error('[getAvailableLocationsAction] Error:', err);

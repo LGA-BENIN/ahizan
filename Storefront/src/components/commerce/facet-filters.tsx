@@ -54,7 +54,7 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
             const query = `
                 query GetZonesForFilter {
                     markets { id name }
-                    geographicLocations(type: "NEIGHBORHOOD") { id name }
+                    geoZones(type: "NEIGHBORHOOD") { id name }
                 }
             `;
             try {
@@ -66,7 +66,7 @@ export function FacetFilters({ productData, productDataPromise, allowedFacetIds,
                 });
                 const result = await res.json();
                 const mList = (result.data?.markets || []).map((m: any) => ({ id: String(m.id), name: m.name, type: 'MARKET' as const }));
-                const nList = (result.data?.geographicLocations || []).map((n: any) => ({ id: String(n.id), name: n.name, type: 'NEIGHBORHOOD' as const }));
+                const nList = (result.data?.geoZones || []).map((n: any) => ({ id: String(n.id), name: n.name, type: 'NEIGHBORHOOD' as const }));
                 const combined = [...mList, ...nList];
                 const uniqueMap = new Map<string, typeof combined[0]>();
                 combined.forEach(item => uniqueMap.set(`${item.type}-${item.id}`, item));

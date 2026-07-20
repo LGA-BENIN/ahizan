@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState, useRef, useTransition, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateVendorProfileAction, changePasswordAction } from './actions';
+import { query } from '@/lib/vendure/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -64,6 +65,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
 
     // Selected markets for dynamic map rendering
     const [selectedPhysicalMarketId, setSelectedPhysicalMarketId] = useState<string>(vendor?.physicalMarket?.id || '');
+    const [selectedLocationId, setSelectedLocationId] = useState<string>(vendor?.location?.id || '');
     const [selectedSecondaryMarketIds, setSelectedSecondaryMarketIds] = useState<string[]>(
         vendor?.markets ? vendor.markets.map((m: any) => m.id) : []
     );
@@ -82,7 +84,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                         centerLongitude
                         radiusMeters
                     }
-                    geographicLocations(type: "NEIGHBORHOOD") {
+                    geoZones(type: "NEIGHBORHOOD") {
                         id
                         name
                         centerLatitude
@@ -103,8 +105,8 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                 } else if (initialMarkets && initialMarkets.length > 0) {
                     setMarkets(initialMarkets);
                 }
-                if (result.data?.geographicLocations && result.data.geographicLocations.length > 0) {
-                    setNeighborhoods(result.data.geographicLocations);
+                if (result.data?.geoZones && result.data.geoZones.length > 0) {
+                    setNeighborhoods(result.data.geoZones);
                 } else if (initialNeighborhoods && initialNeighborhoods.length > 0) {
                     setNeighborhoods(initialNeighborhoods);
                 }
@@ -324,11 +326,72 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
         }
         setGpsDetecting(true);
         navigator.geolocation.getCurrentPosition(
-            (position) => {
+            async (position) => {
                 const { latitude, longitude } = position.coords;
                 updatePositionStateAndMap(latitude, longitude);
-                setGpsDetecting(false);
-                toast.success("Position détectée avec succès !");
+                
+                try {
+                    // Fetch details from Nominatim
+                    const osmRes = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+                        { headers: { 'Accept-Language': 'fr' } }
+                    );
+                    const osmData = await osmRes.json();
+                    const addressComponents = osmData.address || {};
+                    const neighborhoodName = addressComponents.suburb || addressComponents.neighbourhood || addressComponents.city_district || '';
+                    const fullAddress = osmData.display_name || '';
+
+                    // Fetch zone ID from Vendure reverseGeocode
+                    const res = await query(`
+                        query ReverseGeocode($lat: Float!, $lng: Float!) {
+                            reverseGeocode(latitude: $lat, longitude: $lng) {
+                                id
+                                name
+                            }
+                        }
+                    `, { lat: latitude, lng: longitude });
+
+                    const matchedZones = (res.data as any)?.reverseGeocode || [];
+                    let zoneId = '';
+                    if (matchedZones.length > 0) {
+                        zoneId = matchedZones[0].id;
+                    } else if (neighborhoodName) {
+                        const matched = neighborhoods.find((n: any) => n.name.toLowerCase().includes(neighborhoodName.toLowerCase()));
+                        if (matched) {
+                            zoneId = matched.id;
+                        }
+                    }
+
+                    if (zoneId) {
+                        setSelectedLocationId(zoneId);
+                    }
+
+                    if (fullAddress) {
+                        const addressEl = document.getElementsByName('address')[0] as HTMLInputElement;
+                        if (addressEl) {
+                            addressEl.value = fullAddress;
+                            const event = new Event('change', { bubbles: true });
+                            addressEl.dispatchEvent(event);
+                        }
+                    }
+
+                    if (neighborhoodName) {
+                        const zoneEl = document.getElementsByName('zone')[0] as HTMLInputElement;
+                        if (zoneEl) {
+                            zoneEl.value = neighborhoodName;
+                            const event = new Event('change', { bubbles: true });
+                            zoneEl.dispatchEvent(event);
+                        }
+                    }
+
+                    toast.success("Position et quartier détectés avec succès !");
+                } catch (err) {
+                    console.error('Error in settings geocode:', err);
+                    toast.success("Position GPS détectée avec succès !");
+                } finally {
+                    setGpsDetecting(false);
+                    setIsDirty(true);
+                }
             },
             (error) => {
                 setGpsDetecting(false);
@@ -510,6 +573,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
             };
             initialValuesRef.current = vals;
             setPaymentMethod(vendor.paymentMethod || 'CASH');
+            setSelectedLocationId(vendor.location?.id || '');
         }
     }, [vendor]);
 
@@ -772,7 +836,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
 
                     {/* Middle Bento Form Fields (7 Cols equivalent) */}
                     <div className="flex-1 min-w-0">
-                        <form ref={formRef} action={profileAction} onChange={handleFormChange}>
+                        <form ref={formRef} action={profileAction} onChange={handleFormChange} onSubmit={(e) => { if (lat === null || lng === null) { e.preventDefault(); toast.error('Vos coordonnées GPS (latitude et longitude) sont obligatoires pour permettre le calcul des frais de livraison au kilomètre.'); } }}>
                             
                             {/* Tab 1: Identity/General */}
                             <TabsContent value="general" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -976,7 +1040,10 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                                             <div className="border-t border-border/60 pt-6 space-y-4">
                                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                                                     <div>
-                                                        <h3 className="text-base font-serif font-black text-foreground">Position Géographique</h3>
+                                                        <h3 className="text-base font-serif font-black text-foreground flex items-center gap-2">
+                                                            Position Géographique
+                                                            <span className="text-destructive text-xs font-sans">* (Obligatoire)</span>
+                                                        </h3>
                                                         <p className="text-xs text-muted-foreground">
                                                             Cliquez sur la carte, déplacez le marqueur ou entrez vos coordonnées ci-dessous.
                                                         </p>
@@ -1000,6 +1067,10 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                                                         )}
                                                     </Button>
                                                 </div>
+
+                                                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                                                    ⚠️ <strong>Important :</strong> Vos coordonnées GPS (Latitude et Longitude) sont <strong>strictement obligatoires</strong>. Si elles ne sont pas renseignées, le calcul kilométrique des frais de livraison sera faussé.
+                                                </div>
                                                 
                                                 <div id="vendor-settings-map" className="h-64 w-full rounded-2xl border border-border overflow-hidden bg-muted relative" style={{ minHeight: '260px', zIndex: 10 }}>
                                                     {!leafletReady && (
@@ -1014,7 +1085,9 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
   
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div className="space-y-2">
-                                                        <Label htmlFor="latitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Latitude GPS</Label>
+                                                        <Label htmlFor="latitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                                                            Latitude GPS <span className="text-destructive">* (Obligatoire)</span>
+                                                        </Label>
                                                         <Input
                                                             id="latitude-input"
                                                             type="number"
@@ -1027,7 +1100,9 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label htmlFor="longitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Longitude GPS</Label>
+                                                        <Label htmlFor="longitude-input" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                                                            Longitude GPS <span className="text-destructive">* (Obligatoire)</span>
+                                                        </Label>
                                                         <Input
                                                             id="longitude-input"
                                                             type="number"

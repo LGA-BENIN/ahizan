@@ -2,7 +2,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry } from "serwist";
-import { Serwist } from "serwist";
+import { Serwist, NetworkOnly } from "serwist";
 
 declare const self: ServiceWorkerGlobalScope & {
   __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
@@ -15,7 +15,13 @@ const serwist = new Serwist({
     cleanupOutdatedCaches: true,
   },
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [
+    {
+      matcher: ({ url }) => url.hostname === "nominatim.openstreetmap.org",
+      handler: new NetworkOnly(),
+    },
+    ...defaultCache,
+  ],
 });
 
 self.addEventListener("install", (event: ExtendableEvent) => {
@@ -49,7 +55,9 @@ self.addEventListener("push", (event: PushEvent) => {
     vibrate: [100, 50, 100],
   } as NotificationOptions;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  const promise = self.registration.showNotification(title, options)
+    .catch((err) => console.error("SW showNotification failed:", err));
+  event.waitUntil(promise);
 });
 
 self.addEventListener("notificationclick", (event: NotificationEvent) => {

@@ -260,6 +260,10 @@ export const GetActiveOrderForCheckoutQuery = graphql(`
                 postalCode
                 country
                 phoneNumber
+                customFields {
+                    latitude
+                    longitude
+                }
             }
             billingAddress {
                 fullName
@@ -347,6 +351,10 @@ export const GetCustomerAddressesQuery = graphql(`
                 phoneNumber
                 defaultShippingAddress
                 defaultBillingAddress
+                customFields {
+                    latitude
+                    longitude
+                }
             }
         }
     }
@@ -455,6 +463,10 @@ export const GetOrderDetailQuery = graphql(`
                 postalCode
                 country
                 phoneNumber
+                customFields {
+                    latitude
+                    longitude
+                }
             }
             billingAddress {
                 fullName

@@ -3,8 +3,8 @@ import { EntityHydrator, ListQueryBuilder, TransactionalConnection, ID, RequestC
 import { DeletionResponse, DeletionResult } from '@vendure/common/lib/generated-types';
 import { Page } from '../entities/page.entity';
 import { PageSection } from '../entities/section.entity';
-import { Market } from '../../multivendor/entities/market.entity';
-import { GeographicLocation } from '../../multivendor/entities/geographic-location.entity';
+import { Market } from '../../geo-engine/entities/market.entity';
+import { GeoZone } from '../../geo-engine/entities/geo-zone.entity';
 import { PagePreset } from '../entities/page-preset.entity';
 import { SiteSeason } from '../entities/site-season.entity';
 import * as fs from 'fs/promises';
@@ -91,7 +91,7 @@ export class CMSService {
         // If not found in Page, check if it matches a Market slug
         const market = await this.connection.getRepository(ctx, Market).findOne({
             where: { slug },
-            relations: ['location'],
+            relations: ['geoZone'],
         });
 
         if (market) {
@@ -164,7 +164,7 @@ export class CMSService {
                                     radius: market.radiusMeters,
                                     image: this.getAssetUrl(market.image),
                                     icon: this.getAssetUrl(market.icon),
-                                    location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
+                                    location: market.geoZone ? { id: market.geoZone.id, name: market.geoZone.name, type: market.geoZone.type } : null,
                                 };
                             } else if (s.type === 'MARKET_CODE') {
                                 data.id = market.id;
@@ -226,7 +226,7 @@ export class CMSService {
                         radius: market.radiusMeters,
                         image: this.getAssetUrl(market.image),
                         icon: this.getAssetUrl(market.icon),
-                        location: market.location ? { id: market.location.id, name: market.location.name, type: market.location.type } : null,
+                        location: market.geoZone ? { id: market.geoZone.id, name: market.geoZone.name, type: market.geoZone.type } : null,
                     }),
                 });
 
@@ -275,7 +275,7 @@ export class CMSService {
         }
 
         // If not found in Market, check if it matches a Neighborhood slug
-        const geoRepo = this.connection.getRepository(ctx, GeographicLocation);
+        const geoRepo = this.connection.getRepository(ctx, GeoZone);
         const neighborhoods = await geoRepo.find({
             where: { type: 'NEIGHBORHOOD' as any },
             relations: ['parent'],
@@ -286,7 +286,7 @@ export class CMSService {
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)/g, '');
 
-        const geo = neighborhoods.find((n: GeographicLocation) => slugify(n.name) === slug);
+        const geo = neighborhoods.find((n: GeoZone) => slugify(n.name) === slug);
 
         if (geo) {
             // Find home page to copy theme/layout settings if needed
@@ -1642,29 +1642,7 @@ export class CMSService {
         return { result: 'DELETED' as any };
     }
 
-    async updateMarket(ctx: RequestContext, input: any): Promise<Market> {
-        const market = await this.connection.getEntityOrThrow(ctx, Market, input.id);
-        if (input.name !== undefined) market.name = input.name;
-        if (input.slug !== undefined) market.slug = input.slug;
-        if (input.description !== undefined) market.description = input.description;
-        if (input.image !== undefined) market.image = input.image;
-        if (input.icon !== undefined) market.icon = input.icon;
-        if (input.centerLatitude !== undefined) market.centerLatitude = input.centerLatitude;
-        if (input.centerLongitude !== undefined) market.centerLongitude = input.centerLongitude;
-        if (input.radiusMeters !== undefined) market.radiusMeters = input.radiusMeters;
-        return this.connection.getRepository(ctx, Market).save(market);
-    }
 
-    async updateGeographicLocation(ctx: RequestContext, input: any): Promise<GeographicLocation> {
-        const neighborhood = await this.connection.getEntityOrThrow(ctx, GeographicLocation, input.id);
-        if (input.name !== undefined) neighborhood.name = input.name;
-        if (input.image !== undefined) neighborhood.image = input.image;
-        if (input.icon !== undefined) neighborhood.icon = input.icon;
-        if (input.centerLatitude !== undefined) neighborhood.centerLatitude = input.centerLatitude;
-        if (input.centerLongitude !== undefined) neighborhood.centerLongitude = input.centerLongitude;
-        if (input.radiusMeters !== undefined) neighborhood.radiusMeters = input.radiusMeters;
-        return this.connection.getRepository(ctx, GeographicLocation).save(neighborhood);
-    }
 
     async getThemeSettingsDirect(): Promise<any | null> {
         const repository = this.connection.rawConnection.getRepository(PageSection);

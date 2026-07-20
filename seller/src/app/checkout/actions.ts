@@ -2,6 +2,7 @@
 
 import { mutate, query } from '@/lib/vendure/api';
 import { setAuthToken, getAuthToken } from '@/lib/auth';
+import { getAvailableCountriesCached } from '@/lib/vendure/cached';
 import {
     SetOrderShippingAddressMutation,
     SetOrderBillingAddressMutation,
@@ -51,15 +52,32 @@ interface AddressInput {
     company?: string;
 }
 
+async function normalizeCountryCode<T extends { countryCode: string }>(address: T): Promise<T> {
+    try {
+        const countries = await getAvailableCountriesCached();
+        const matched = countries.find((c: any) => c.code.toLowerCase() === address.countryCode.toLowerCase());
+        if (matched) {
+            return {
+                ...address,
+                countryCode: matched.code,
+            };
+        }
+    } catch (e) {
+        console.error('Error normalizing country code:', e);
+    }
+    return address;
+}
+
 export async function setShippingAddress(
     shippingAddress: AddressInput,
     useSameForBilling: boolean
 ) {
     await ensureAddingItems();
+    const normalized = await normalizeCountryCode(shippingAddress);
     log(`Setting shipping address for order. Use same for billing: ${useSameForBilling}`);
     const shippingResult = await mutate(
         SetOrderShippingAddressMutation,
-        {input: shippingAddress},
+        {input: normalized},
         {useAuthToken: true}
     );
 
@@ -70,7 +88,7 @@ export async function setShippingAddress(
     if (useSameForBilling) {
         const billingResult = await mutate(
             SetOrderBillingAddressMutation,
-            {input: shippingAddress},
+            {input: normalized},
             {useAuthToken: true}
         );
         if (billingResult.headers) {
@@ -109,9 +127,10 @@ export async function setShippingMethod(shippingMethodId: string) {
 }
 
 export async function createCustomerAddress(address: AddressInput) {
+    const normalized = await normalizeCountryCode(address);
     const result = await mutate(
         CreateCustomerAddressMutation,
-        {input: address},
+        {input: normalized},
         {useAuthToken: true}
     );
 

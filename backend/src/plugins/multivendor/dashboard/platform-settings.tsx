@@ -14,6 +14,8 @@ const GET_PLATFORM_SETTINGS = `
             emailVerificationRequired
             vendorAutoApproval
             placeholderEmailDomain
+            deliveryBaseFee
+            deliveryFeePerKm
         }
     }
 `;
@@ -31,6 +33,8 @@ const UPDATE_PLATFORM_SETTINGS = `
             emailVerificationRequired
             vendorAutoApproval
             placeholderEmailDomain
+            deliveryBaseFee
+            deliveryFeePerKm
         }
     }
 `;
@@ -60,6 +64,8 @@ export function PlatformSettingsComponent() {
         emailVerificationRequired: false,
         vendorAutoApproval: false,
         placeholderEmailDomain: 'ahizan.com',
+        deliveryBaseFee: 500,
+        deliveryFeePerKm: 100,
     });
 
     const addToast = (message: string, type: 'success' | 'error') => {
@@ -168,6 +174,17 @@ export function PlatformSettingsComponent() {
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <input type="checkbox" checked={formData.emailVerificationRequired} onChange={e => setFormData({ ...formData, emailVerificationRequired: e.target.checked })} />
                             <span style={{ fontWeight: 500 }}>Vérification email obligatoire</span>
+                        </label>
+                    </fieldset>
+                    <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+                        <legend style={{ fontWeight: 'bold', padding: '0 8px' }}>Livraison (repli kilométrique)</legend>
+                        <label style={{ display: 'block', marginBottom: 8 }}>
+                            <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Frais de base de livraison (FCFA)</span>
+                            <input type="number" min="0" value={formData.deliveryBaseFee ?? 500} onChange={e => setFormData({ ...formData, deliveryBaseFee: parseInt(e.target.value, 10) || 0 })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
+                        </label>
+                        <label style={{ display: 'block', marginBottom: 8 }}>
+                            <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Tarif de livraison par kilomètre (FCFA/km)</span>
+                            <input type="number" min="0" value={formData.deliveryFeePerKm ?? 100} onChange={e => setFormData({ ...formData, deliveryFeePerKm: parseInt(e.target.value, 10) || 0 })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
                         </label>
                     </fieldset>
                 </div>

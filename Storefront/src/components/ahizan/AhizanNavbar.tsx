@@ -267,63 +267,68 @@ export function AhizanNavbar({
                 >
                     {/* Mobile Layout */}
                     <div className="lg:hidden flex flex-col gap-2 py-2">
-                        {/* Row 1: Menu, Logo, Icons */}
-                        <div className="flex items-center justify-between">
-                            {/* Left: Menu + Logo */}
-                            <div className="flex items-center gap-1">
+                        {/* Row 1: Menu, Logo+Location pill, Icons */}
+                        <div className="flex items-center justify-between gap-1">
+                            {/* Left: Menu + Logo + Location pill — min-w-0 so it can shrink */}
+                            <div className="flex items-center gap-0.5 min-w-0 flex-1">
                                 {pathname !== '/' && (
                                     <button
                                         onClick={() => router.back()}
-                                        className="p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors"
+                                        className="p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
                                         aria-label="Go back"
                                     >
-                                        <ChevronLeft className="w-6 h-6 stroke-[1.5]" />
+                                        <ChevronLeft className="w-5 h-5 stroke-[1.5]" />
                                     </button>
                                 )}
                                 {showTopIconsOnMobile && (
                                     <button
                                         onClick={() => setMobileMenuOpen(true)}
-                                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                        className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
                                         aria-label="Open menu"
                                     >
                                         <Menu className="w-5 h-5" />
                                     </button>
                                 )}
-                                <Link href="/" className={`flex items-center gap-1.5 flex-shrink-0 ${showTopIconsOnMobile ? 'ml-1' : ''}`}>
+                                {/* Logo */}
+                                <Link href="/" className={`flex items-center flex-shrink-0 ${showTopIconsOnMobile ? 'ml-0.5' : ''}`}>
                                     {logoUrl ? (
                                         <img
                                             src={getAssetUrl(logoUrl)}
-                                            className="h-8 w-auto object-contain transition-all duration-300"
+                                            className="h-7 w-auto object-contain transition-all duration-300"
                                             alt={siteName}
                                             style={isTransparentState ? { filter: 'brightness(0) invert(1)' } : undefined}
                                         />
                                     ) : (
                                         <>
-                                            <ShoppingBag className="w-5 h-5" />
-                                            <span className="text-lg font-bold tracking-tight">{siteName}</span>
+                                            <ShoppingBag className="w-4 h-4" />
+                                            <span className="text-base font-bold tracking-tight">{siteName}</span>
                                         </>
                                     )}
                                 </Link>
+                                {/* Location Pill — mobile only, beside logo, can shrink */}
+                                <div className="lg:hidden min-w-0 ml-1.5">
+                                    <LocationWidget variant="mobile" />
+                                </div>
                             </div>
 
-                            {/* Right: Icons */}
+                            {/* Right: Action icons — always fixed width, never shrink */}
                             {showTopIconsOnMobile && (
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
                                     {isInstallable && !isStandalone && (
                                         <button
                                             onClick={handleInstallClick}
-                                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-primary animate-pulse flex items-center justify-center"
+                                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-primary animate-pulse flex items-center justify-center"
                                             aria-label="Installer l'application"
                                         >
-                                            <Download className="h-5 w-5" />
+                                            <Download className="h-4.5 w-4.5" />
                                         </button>
                                     )}
                                     {showAccountIcon && (
                                         isLoggedIn ? (
                                             <DropdownMenu modal={false}>
                                                 <DropdownMenuTrigger asChild>
-                                                    <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer">
-                                                        <UserRoundCheck className="h-5 w-5" />
+                                                    <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer">
+                                                        <UserRoundCheck className="h-4.5 w-4.5" />
                                                     </button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
@@ -354,14 +359,14 @@ export function AhizanNavbar({
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         ) : (
-                                            <Link href="/sign-in" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                                <UserRound className="h-5 w-5" />
+                                            <Link href="/sign-in" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                                                <UserRound className="h-4.5 w-4.5" />
                                             </Link>
                                         )
                                     )}
                                     {false && showWishlistIcon && (
-                                        <Link href="/account/wishlist" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                            <Heart className="h-5 w-5" />
+                                        <Link href="/account/wishlist" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                                            <Heart className="h-4.5 w-4.5" />
                                         </Link>
                                     )}
                                     {isLoggedIn && (
@@ -374,11 +379,11 @@ export function AhizanNavbar({
                                         />
                                     )}
                                     {showCartIcon && (
-                                        <Link href="/cart" className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative">
-                                            <ShoppingCart className="h-5 w-5" />
+                                        <Link href="/cart" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors relative">
+                                            <ShoppingCart className="h-4.5 w-4.5" />
                                             {cartCount > 0 && (
                                                 <span
-                                                    className="absolute -top-1 -right-1 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"
+                                                    className="absolute -top-0.5 -right-0.5 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center"
                                                     style={{ backgroundColor: cartBadgeColor }}
                                                 >
                                                     {cartCount}
@@ -390,10 +395,7 @@ export function AhizanNavbar({
                             )}
                         </div>
 
-                        {/* Geolocation selector on Mobile */}
-                        <div className="flex items-center justify-start mb-2.5">
-                            <LocationWidget />
-                        </div>
+                        {/* Geolocation selector on Mobile removed - now under logo */}
 
                         {/* Row 2: Search Bar */}
                         {showSearch && (
@@ -527,7 +529,7 @@ export function AhizanNavbar({
                             )}
 
                             <div className="hidden lg:block">
-                                <LocationWidget />
+                                <LocationWidget variant="desktop" />
                             </div>
 
                             {showAccountIcon && (

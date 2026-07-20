@@ -1,6 +1,6 @@
-import { Column, Entity, ManyToOne, JoinColumn, PrimaryGeneratedColumn } from 'typeorm';
-import { VendureEntity, DeepPartial, Asset } from '@vendure/core';
-import { GeographicLocation } from './geographic-location.entity';
+import { Column, Entity, ManyToOne, JoinColumn, PrimaryGeneratedColumn, Index } from 'typeorm';
+import { VendureEntity, DeepPartial } from '@vendure/core';
+import { GeoZone } from './geo-zone.entity';
 
 @Entity()
 export class Market extends VendureEntity {
@@ -14,6 +14,7 @@ export class Market extends VendureEntity {
     @Column()
     name: string;
 
+    @Index({ unique: true })
     @Column({ unique: true })
     slug: string;
 
@@ -38,7 +39,13 @@ export class Market extends VendureEntity {
     @Column({ type: 'simple-json', nullable: true })
     allowedFacetIds: string[];
 
-    @ManyToOne(() => GeographicLocation, { nullable: true })
+    @ManyToOne(() => GeoZone, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn()
-    location: GeographicLocation;
+    geoZone: GeoZone | null;
+
+    @Column({ type: 'simple-json', nullable: true })
+    openingHours: any;
+
+    @Column({ type: 'simple-json', nullable: true })
+    stats: any;
 }

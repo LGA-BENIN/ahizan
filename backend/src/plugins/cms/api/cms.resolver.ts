@@ -432,19 +432,7 @@ export class CMSAdminResolver {
         return this.cmsService.deleteHabillage(ctx, args.id);
     }
 
-    @Mutation()
-    @Transaction()
-    @Allow(Permission.Public)
-    async updateMarket(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
-        return this.cmsService.updateMarket(ctx, input);
-    }
 
-    @Mutation()
-    @Transaction()
-    @Allow(Permission.Public)
-    async updateGeographicLocation(@Ctx() ctx: RequestContext, @Args('input') input: any): Promise<any> {
-        return this.cmsService.updateGeographicLocation(ctx, input);
-    }
 }
 
 @Resolver()

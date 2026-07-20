@@ -7,6 +7,8 @@ import {
     SetOrderShippingMethodMutation,
     AddPaymentToOrderMutation,
     CreateCustomerAddressMutation,
+    UpdateCustomerAddressMutation,
+    DeleteCustomerAddressMutation,
     TransitionOrderToStateMutation,
     SetCustomerForOrderMutation,
 } from '@/lib/vendure/mutations';
@@ -16,6 +18,7 @@ import { redirect } from "next/navigation";
 import { formatPhoneE164 } from '@/lib/format-phone';
 import fs from 'fs';
 import { setAuthToken, getAuthToken } from '@/lib/auth';
+import { getAvailableCountriesCached } from '@/lib/vendure/cached';
 
 function log(message: string) {
     const timestamp = new Date().toISOString();
@@ -51,6 +54,30 @@ interface AddressInput {
     countryCode: string;
     phoneNumber: string;
     company?: string;
+    customFields?: {
+        latitude?: number | null;
+        longitude?: number | null;
+    };
+}
+
+export interface UpdateAddressInput extends AddressInput {
+    id: string;
+}
+
+async function normalizeCountryCode<T extends { countryCode: string }>(address: T): Promise<T> {
+    try {
+        const countries = await getAvailableCountriesCached();
+        const matched = countries.find((c: any) => c.code.toLowerCase() === address.countryCode.toLowerCase());
+        if (matched) {
+            return {
+                ...address,
+                countryCode: matched.code,
+            };
+        }
+    } catch (e) {
+        console.error('Error normalizing country code:', e);
+    }
+    return address;
 }
 
 export async function setShippingAddress(
@@ -58,10 +85,11 @@ export async function setShippingAddress(
     useSameForBilling: boolean
 ) {
     await ensureAddingItems();
+    const normalized = await normalizeCountryCode(shippingAddress);
     // Format phone number to E.164 for Brevo SMS compatibility
     const formattedAddress = {
-        ...shippingAddress,
-        phoneNumber: formatPhoneE164(shippingAddress.phoneNumber) || shippingAddress.phoneNumber,
+        ...normalized,
+        phoneNumber: formatPhoneE164(normalized.phoneNumber) || normalized.phoneNumber,
     };
 
     log(`Setting shipping address for order. Use same for billing: ${useSameForBilling}`);
@@ -117,9 +145,10 @@ export async function setShippingMethod(shippingMethodId: string) {
 }
 
 export async function createCustomerAddress(address: AddressInput) {
+    const normalized = await normalizeCountryCode(address);
     const result = await mutate(
         CreateCustomerAddressMutation,
-        { input: address },
+        { input: normalized },
         { useAuthToken: true }
     );
 
@@ -133,6 +162,56 @@ export async function createCustomerAddress(address: AddressInput) {
 
     revalidatePath('/checkout');
     return result.data.createCustomerAddress;
+}
+
+export async function updateCustomerAddress(address: UpdateAddressInput) {
+    const normalized = await normalizeCountryCode(address);
+    const { id, customFields, ...input } = normalized;
+
+    const inputData: any = {
+        id,
+        fullName: input.fullName,
+        streetLine1: input.streetLine1,
+        streetLine2: input.streetLine2,
+        city: input.city,
+        province: input.province,
+        postalCode: input.postalCode,
+        countryCode: input.countryCode,
+        phoneNumber: input.phoneNumber,
+        company: input.company,
+    };
+
+    if (customFields) {
+        inputData.customFields = customFields;
+    }
+
+    const result = await mutate(
+        UpdateCustomerAddressMutation,
+        { input: inputData },
+        { useAuthToken: true }
+    );
+
+    if (!result.data.updateCustomerAddress) {
+        throw new Error('Failed to update address');
+    }
+
+    revalidatePath('/checkout');
+    return result.data.updateCustomerAddress;
+}
+
+export async function deleteCustomerAddress(id: string) {
+    const result = await mutate(
+        DeleteCustomerAddressMutation,
+        { id },
+        { useAuthToken: true }
+    );
+
+    if (!result.data.deleteCustomerAddress.success) {
+        throw new Error('Failed to delete address');
+    }
+
+    revalidatePath('/checkout');
+    return result.data.deleteCustomerAddress;
 }
 
 export async function transitionToArrangingPayment() {

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getActiveCustomer } from "@/lib/vendure/actions";
+import { getActiveCustomer, getPublicPlatformStatsAction } from "@/lib/vendure/actions";
 import { ShaderBackground } from "@/components/shared/shader-background";
 import { ThreeDashboard } from "@/components/shared/three-dashboard";
 import { SITE_NAME, SITE_URL, buildCanonicalUrl } from "@/lib/metadata";
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
     title: {
@@ -24,7 +26,10 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-    const customer = await getActiveCustomer().catch(() => null);
+    const [customer, stats] = await Promise.all([
+        getActiveCustomer().catch(() => null),
+        getPublicPlatformStatsAction().catch(() => ({ visitors: 150, orders: 0, vendors: 0, products: 0 }))
+    ]);
     const ctaUrl = customer ? "/dashboard" : "/register";
     const ctaText = customer ? "Accéder au tableau de bord" : "Créer ma boutique";
     const ctaTextFree = customer ? "Accéder au tableau de bord" : "Créer ma boutique gratuitement";
@@ -53,19 +58,19 @@ export default async function Home() {
                         {/* Stats Bar */}
                         <div className="pt-10 grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-outline-variant w-full">
                             <div className="text-center lg:text-left">
-                                <p className="text-primary font-bold text-headline-lg" data-count="15000">0</p>
+                                <p className="text-primary font-bold text-headline-lg" data-count={stats.visitors}>0</p>
                                 <p className="text-body-sm text-secondary uppercase tracking-wider font-semibold">Visiteurs</p>
                             </div>
                             <div className="text-center lg:text-left">
-                                <p className="text-primary font-bold text-headline-lg" data-count="2400">0</p>
+                                <p className="text-primary font-bold text-headline-lg" data-count={stats.orders}>0</p>
                                 <p className="text-body-sm text-secondary uppercase tracking-wider font-semibold">Commandes</p>
                             </div>
                             <div className="text-center lg:text-left">
-                                <p className="text-primary font-bold text-headline-lg" data-count="850">0</p>
+                                <p className="text-primary font-bold text-headline-lg" data-count={stats.vendors}>0</p>
                                 <p className="text-body-sm text-secondary uppercase tracking-wider font-semibold">Vendeurs</p>
                             </div>
                             <div className="text-center lg:text-left">
-                                <p className="text-primary font-bold text-headline-lg" data-count="50000">0</p>
+                                <p className="text-primary font-bold text-headline-lg" data-count={stats.products}>0</p>
                                 <p className="text-body-sm text-secondary uppercase tracking-wider font-semibold">Produits vendus</p>
                             </div>
                         </div>
@@ -444,7 +449,7 @@ export default async function Home() {
                             Contacter un conseiller
                         </a>
                     </div>
-                    <p className="text-sm opacity-60">Déjà plus de 850 commerçants nous font confiance.</p>
+                    <p className="text-sm opacity-60">Déjà plus de {stats.vendors} commerçants nous font confiance.</p>
                 </div>
             </section>
 

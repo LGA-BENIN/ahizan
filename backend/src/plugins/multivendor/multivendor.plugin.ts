@@ -16,6 +16,7 @@ import { ChatService } from './service/chat.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
 import { VendorResolver, VendorAdminResolver } from './api/vendor.resolver';
 import { VendorShopResolver, ProductVariantShopResolver } from './api/vendor-shop.resolver';
+import { VendorShopApiResolver } from './api/vendor-shop-api.resolver';
 import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './api/platform-settings.resolver';
 import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-status.resolver';
 import { LikeShopResolver, LikeAdminResolver } from './api/like.resolver';
@@ -57,7 +58,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver],
+        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver],
     },
 
     configuration: (config: any) => {

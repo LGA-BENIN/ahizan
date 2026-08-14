@@ -10,6 +10,8 @@ import { getAuthToken } from "@/lib/auth";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { getVendorProductsLikesAction } from "@/lib/vendure/actions";
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
     noStore();
     const token = await getAuthToken();
@@ -17,7 +19,7 @@ export default async function DashboardPage() {
     // Fetch vendor profile, products, and orders in parallel
     const [{ data: vendorData }, { data: productsData }, { data: ordersData }, { data: allOrdersData }, likesData] = await Promise.all([
         query(GetMyVendorProfileQuery, {}, { token }).catch(() => ({ data: { myVendorProfile: null } })),
-        query(GetMyVendorProductsQuery, { options: { take: 50 } }, { token }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
+        query(GetMyVendorProductsQuery, { options: { take: 50, sort: { createdAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
         query(GetMyVendorOrdersQuery, { options: { take: 10, sort: { updatedAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
         query(GetMyVendorOrdersQuery, { options: { take: 1000 } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
         getVendorProductsLikesAction().catch(() => [])
@@ -29,7 +31,9 @@ export default async function DashboardPage() {
     const rawOrders = (ordersData as any)?.myVendorOrders?.items || [];
     // N'afficher chez le vendeur que les commandes payees ou validees (exclure l'etat de brouillon de paiement)
     const recentOrders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment');
-    const products = (productsData as any)?.myVendorProducts?.items || [];
+    const products = [...((productsData as any)?.myVendorProducts?.items || [])].sort((a: any, b: any) => {
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
 
     // Filter settled states for revenue calculation (Real stats)
     const settledStates = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
@@ -44,6 +48,22 @@ export default async function DashboardPage() {
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
     const revenue = monthlyOrders.reduce((acc: number, o: any) => acc + (o.totalWithTax || 0), 0);
+
+    // Calculate real previous month revenue & orders for true growth comparison
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    const prevMonthOrders = settledAllOrders.filter((o: any) => {
+        const d = new Date(o.createdAt);
+        return d.getMonth() === prevMonth && d.getFullYear() === prevMonthYear;
+    });
+    const prevRevenue = prevMonthOrders.reduce((acc: number, o: any) => acc + (o.totalWithTax || 0), 0);
+    const hasPrevRevenue = prevRevenue > 0;
+    const revenueGrowth = hasPrevRevenue ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : (revenue > 0 ? 100 : 0);
+
+    const prevOrdersCount = prevMonthOrders.length;
+    const monthlyOrdersCount = monthlyOrders.length;
+    const hasPrevOrders = prevOrdersCount > 0;
+    const ordersGrowth = hasPrevOrders ? Math.round(((monthlyOrdersCount - prevOrdersCount) / prevOrdersCount) * 100) : (monthlyOrdersCount > 0 ? 100 : 0);
 
     // Real total orders count
     const totalOrdersCount = (allOrdersData as any)?.myVendorOrders?.totalItems || 0;
@@ -115,7 +135,7 @@ export default async function DashboardPage() {
                         Bonjour, <span className="text-primary">{vendorName}</span>.
                     </h1>
                     <p className="text-sm md:text-base text-muted-foreground font-medium mt-1">
-                        Voici l'aperçu de votre activité aujourd'hui. Vos performances sont en hausse de 12%.
+                        Voici l'aperçu de votre activité. {totalOrdersCount > 0 ? `Vous avez ${totalOrdersCount} commande(s) enregistrée(s) et ${totalProducts} produit(s) en ligne.` : `Vous avez ${totalProducts} produit(s) en ligne.`}
                     </p>
                 </div>
             </div>
@@ -131,7 +151,13 @@ export default async function DashboardPage() {
                                 <DollarSign className="w-5 h-5" />
                             </div>
                             <span className="text-[10px] font-black text-green-600 bg-green-50 dark:bg-green-950/20 px-2.5 py-1 rounded-full flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" /> +12%
+                                {hasPrevRevenue ? (
+                                    <>
+                                        <TrendingUp className="w-3 h-3" /> {revenueGrowth >= 0 ? `+${revenueGrowth}%` : `${revenueGrowth}%`}
+                                    </>
+                                ) : (
+                                    "Ce mois"
+                                )}
                             </span>
                         </div>
                         <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Ventes du mois</p>
@@ -156,7 +182,13 @@ export default async function DashboardPage() {
                                 <ShoppingBag className="w-5 h-5" />
                             </div>
                             <span className="text-[10px] font-black text-green-600 bg-green-50 dark:bg-green-950/20 px-2.5 py-1 rounded-full flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" /> +5%
+                                {hasPrevOrders ? (
+                                    <>
+                                        <TrendingUp className="w-3 h-3" /> {ordersGrowth >= 0 ? `+${ordersGrowth}%` : `${ordersGrowth}%`}
+                                    </>
+                                ) : (
+                                    "Total"
+                                )}
                             </span>
                         </div>
                         <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Commandes</p>
@@ -165,7 +197,7 @@ export default async function DashboardPage() {
                         </h3>
                     </div>
                     <div className="mt-6 text-[10px] text-muted-foreground font-semibold italic">
-                        Moyenne de {(totalOrdersCount / 30).toFixed(1)} commandes/jour
+                        {totalOrdersCount > 0 ? `Moyenne de ${(totalOrdersCount / 30).toFixed(1)} commandes/jour` : "Aucune commande pour le moment"}
                     </div>
                 </div>
 
@@ -176,8 +208,8 @@ export default async function DashboardPage() {
                             <div className="p-2.5 bg-cyan-50 text-cyan-600 dark:bg-cyan-950/10 dark:text-cyan-400 rounded-xl group-hover:scale-110 transition-transform">
                                 <Users className="w-5 h-5" />
                             </div>
-                            <span className="text-[10px] font-black text-green-600 bg-green-50 dark:bg-green-950/20 px-2.5 py-1 rounded-full flex items-center gap-1">
-                                <TrendingUp className="w-3 h-3" /> +18%
+                            <span className="text-[10px] font-black text-cyan-600 bg-cyan-50 dark:bg-cyan-950/20 px-2.5 py-1 rounded-full flex items-center gap-1">
+                                Total
                             </span>
                         </div>
                         <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Favoris Produits</p>
@@ -186,7 +218,7 @@ export default async function DashboardPage() {
                         </h3>
                     </div>
                     <div className="mt-6 w-full bg-slate-100 dark:bg-slate-850 h-2 rounded-full overflow-hidden">
-                        <div className="bg-cyan-500 w-3/4 h-full rounded-full" />
+                        <div className="bg-cyan-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(5, (totalLikes / Math.max(1, totalProducts * 5)) * 100))}%` }} />
                     </div>
                 </div>
 

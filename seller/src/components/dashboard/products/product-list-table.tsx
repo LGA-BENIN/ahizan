@@ -246,11 +246,11 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-muted/30 text-muted-foreground text-[10px] uppercase font-black tracking-wider border-b border-border">
-                                <th className="px-6 py-4">Produit</th>
-                                <th className="px-6 py-4">Statut</th>
-                                <th className="px-6 py-4">Stock</th>
-                                <th className="px-6 py-4 text-right">Prix</th>
-                                <th className="px-6 py-4 text-right">Actions</th>
+                                <th className="px-2.5 sm:px-4 md:px-6 py-4">Produit</th>
+                                <th className="px-2.5 sm:px-4 md:px-6 py-4">Statut</th>
+                                <th className="px-2.5 sm:px-4 md:px-6 py-4">Stock</th>
+                                <th className="px-2.5 sm:px-4 md:px-6 py-4 text-right">Prix</th>
+                                <th className="px-2.5 sm:px-4 md:px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -264,7 +264,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                         <tr key={product.id} className="group hover:bg-muted/20 transition-colors">
                                             
                                             {/* Product Column (Image, Title, SKU) */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5">
                                                 <div className="flex items-center gap-4">
                                                     {product.featuredAsset ? (
                                                         <img 
@@ -277,8 +277,8 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                                             <Package className="h-6 w-6 text-muted-foreground" />
                                                         </div>
                                                     )}
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                                                    <div className="flex flex-col max-w-[90px] sm:max-w-[150px] md:max-w-[240px]">
+                                                        <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate block" title={product.name}>
                                                             {product.name}
                                                         </span>
                                                         {variant?.sku && (
@@ -291,7 +291,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                             </td>
 
                                             {/* Status Badge */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap">
                                                 {(() => {
                                                     const status = product.customFields?.approvalStatus || 'pending';
                                                     const reason = product.customFields?.rejectionReason;
@@ -334,7 +334,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                             </td>
 
                                             {/* Stock Indicator */}
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap">
                                                 <div className="flex items-center gap-2">
                                                     <div className={cn("w-2 h-2 rounded-full", stockInfo.color)} />
                                                     <span className={cn("text-xs", stockInfo.textClass)}>
@@ -344,12 +344,12 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                             </td>
 
                                             {/* Price in CFA */}
-                                            <td className="px-6 py-4 whitespace-nowrap text-right font-serif font-black text-foreground text-sm">
+                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right font-serif font-black text-foreground text-sm">
                                                 {variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF').toLocaleString('fr-FR') : '0'} F CFA
                                             </td>
 
                                             {/* Action Buttons (discretes, scale on hover) */}
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right">
                                                 <div className="flex items-center justify-end gap-1">
                                                     <Link href={`/dashboard/products/${product.id}`}>
                                                         <button 

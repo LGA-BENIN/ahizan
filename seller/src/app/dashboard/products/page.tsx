@@ -15,7 +15,7 @@ export default async function ProductListPage() {
         redirect('/onboarding');
     }
     const [{ data: productData }, collectionsResult] = await Promise.all([
-        query(GetMyVendorProductsQuery, { options: { take: 500 } }, { token }).catch((err) => {
+        query(GetMyVendorProductsQuery, { options: { take: 500, sort: { createdAt: 'DESC' } } }, { token }).catch((err) => {
             console.error('[ProductListPage] Failed to fetch products:', err);
             return { data: { myVendorProducts: { items: [], totalItems: 0 } } };
         }),
@@ -25,7 +25,9 @@ export default async function ProductListPage() {
         })
     ]);
 
-    const products = (productData as any).myVendorProducts?.items || [];
+    const products = [...((productData as any).myVendorProducts?.items || [])].sort((a: any, b: any) => {
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
     const collectionTree = (collectionsResult?.data as any)?.cmsCollectionsTree || [];
 
     if (products.length === 0) {

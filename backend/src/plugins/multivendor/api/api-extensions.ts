@@ -317,6 +317,13 @@ export const commonApiExtensions = `
         likesCount: Int!
     }
 
+    type PlatformPublicStats {
+        visitorsCount: Int!
+        ordersCount: Int!
+        vendorsCount: Int!
+        productsCount: Int!
+    }
+
     type WithdrawalRequest {
         id: ID!
         createdAt: DateTime!
@@ -338,6 +345,7 @@ export const shopApiExtensions = `
     # ── Unified account system ──
 
     extend type Query {
+        publicPlatformStats: PlatformPublicStats!
         vendor(id: ID!): Vendor
         vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
         myVendorProfile: Vendor
@@ -409,6 +417,7 @@ export const shopApiExtensions = `
 
 export const adminApiExtensions = `
     extend type Query {
+        publicPlatformStats: PlatformPublicStats!
         vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
         vendor(id: ID!): Vendor
         adminVendorProducts(options: ProductListOptions): ProductList!

@@ -5,6 +5,7 @@ export const GetMyVendorProductsQuery = graphql(`
         myVendorProducts(options: $options) {
             items {
                 id
+                createdAt
                 name
                 slug
                 enabled

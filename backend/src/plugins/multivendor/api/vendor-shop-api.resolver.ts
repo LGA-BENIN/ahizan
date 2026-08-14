@@ -15,6 +15,15 @@ export class VendorShopApiResolver {
     ) { }
 
     /**
+     * Get public platform statistics (visitors, orders, vendors, products)
+     */
+    @Query()
+    @Allow(Permission.Public)
+    async publicPlatformStats(@Ctx() ctx: RequestContext): Promise<any> {
+        return this.vendorService.getPublicStats(ctx);
+    }
+
+    /**
      * Get the vendor profile for the authenticated user
      */
     @Query()

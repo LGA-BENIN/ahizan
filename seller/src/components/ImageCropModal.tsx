@@ -54,30 +54,47 @@ export default function ImageCropModal({
             image.onload = resolve;
         });
 
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        if (!ctx) return;
-
-        // Calculate the rotated dimensions
         const radian = (rotation * Math.PI) / 180;
         const sin = Math.abs(Math.sin(radian));
         const cos = Math.abs(Math.cos(radian));
 
-        const newWidth = image.width * cos + image.height * sin;
-        const newHeight = image.width * sin + image.height * cos;
+        // Bounding box size of the rotated image
+        const bBoxWidth = image.width * cos + image.height * sin;
+        const bBoxHeight = image.width * sin + image.height * cos;
+
+        // Create a temporary canvas for the full rotated image with white background
+        const bBoxCanvas = document.createElement('canvas');
+        const bBoxCtx = bBoxCanvas.getContext('2d');
+        if (!bBoxCtx) return;
+
+        bBoxCanvas.width = bBoxWidth;
+        bBoxCanvas.height = bBoxHeight;
+
+        // Fill background with solid white
+        bBoxCtx.fillStyle = '#ffffff';
+        bBoxCtx.fillRect(0, 0, bBoxWidth, bBoxHeight);
+
+        // Draw rotated image centered on bBoxCanvas
+        bBoxCtx.translate(bBoxWidth / 2, bBoxHeight / 2);
+        bBoxCtx.rotate(radian);
+        bBoxCtx.translate(-image.width / 2, -image.height / 2);
+        bBoxCtx.drawImage(image, 0, 0);
+
+        // Create final canvas of size croppedAreaPixels.width x croppedAreaPixels.height
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
         canvas.width = croppedAreaPixels.width;
         canvas.height = croppedAreaPixels.height;
 
-        // Translate and rotate context
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate(radian);
-        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+        // Fill final canvas background with solid white
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw the cropped image
+        // Draw cropped portion from bBoxCanvas onto final canvas
         ctx.drawImage(
-            image,
+            bBoxCanvas,
             croppedAreaPixels.x,
             croppedAreaPixels.y,
             croppedAreaPixels.width,
@@ -97,11 +114,11 @@ export default function ImageCropModal({
     }, [croppedAreaPixels, imageSrc, rotation, onCropComplete, onClose]);
 
     const handleZoomIn = () => {
-        setZoom((prev) => Math.min(prev + 0.1, 3));
+        setZoom((prev) => Math.min(prev + 0.1, 5));
     };
 
     const handleZoomOut = () => {
-        setZoom((prev) => Math.max(prev - 0.1, 1));
+        setZoom((prev) => Math.max(prev - 0.1, 0.2));
     };
 
     const handleRotate = () => {
@@ -110,90 +127,109 @@ export default function ImageCropModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl w-full p-0 overflow-hidden max-h-[90vh] flex flex-col">
-                <DialogHeader className="px-6 py-4 border-b shrink-0">
-                    <DialogTitle>Ajuster l'image</DialogTitle>
-                    <DialogDescription>
-                        Déplacez et zoomez pour cadrer votre image, puis cliquez sur Confirmer.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="max-w-4xl w-full p-0 overflow-hidden max-h-[95vh] bg-background border-none gap-0">
+                <div className="flex flex-col max-h-[95vh] w-full gap-0">
+                    <DialogHeader className="px-5 py-3.5 border-b shrink-0">
+                        <DialogTitle className="text-base sm:text-lg">Ajuster l'image</DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Déplacez et zoomez (avant/arrière) pour cadrer votre image, puis cliquez sur Confirmer.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                <div className="relative bg-muted/30 w-full h-[55vh] min-h-[320px] overflow-hidden">
-                    {imageSrc ? (
-                        <Cropper
-                            image={imageSrc}
-                            crop={crop}
-                            zoom={zoom}
-                            rotation={rotation}
-                            aspect={aspectRatio}
-                            onCropChange={setCrop}
-                            onZoomChange={setZoom}
-                            onCropComplete={onCropCompleteHandler}
-                            style={{
-                                containerStyle: {
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    backgroundColor: '#f5f5f5',
-                                },
-                            }}
-                        />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                            <p className="text-sm text-muted-foreground">Aucune image</p>
-                        </div>
-                    )}
-                </div>
-
-                <div className="px-6 py-4 border-t space-y-4 shrink-0">
-                    {/* Zoom Controls */}
-                    <div className="flex items-center gap-4">
-                        <ZoomOut className="w-5 h-5 text-muted-foreground shrink-0" />
-                        <Slider
-                            value={[zoom]}
-                            onValueChange={(value) => setZoom(value[0])}
-                            min={1}
-                            max={3}
-                            step={0.1}
-                            className="flex-1"
-                        />
-                        <ZoomIn className="w-5 h-5 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium w-12 text-right shrink-0">{Math.round(zoom * 100)}%</span>
+                    <div className="relative bg-white w-full h-[45vh] min-h-[220px] md:min-h-[350px] overflow-hidden border-b border-t border-border shrink">
+                        {imageSrc ? (
+                            <Cropper
+                                image={imageSrc}
+                                crop={crop}
+                                zoom={zoom}
+                                minZoom={0.2}
+                                maxZoom={5.0}
+                                restrictPosition={false}
+                                rotation={rotation}
+                                aspect={aspectRatio}
+                                onCropChange={setCrop}
+                                onZoomChange={setZoom}
+                                onCropComplete={onCropCompleteHandler}
+                                style={{
+                                    containerStyle: {
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: '#ffffff',
+                                    },
+                                }}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-white">
+                                <p className="text-xs text-muted-foreground">Aucune image</p>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleRotate}
-                            className="gap-2 w-full sm:w-auto"
-                        >
-                            <RotateCw className="w-4 h-4" />
-                            Pivoter
-                        </Button>
+                    <div className="px-5 py-3 space-y-3 shrink-0 bg-background">
+                        {/* Zoom Controls */}
+                        <div className="flex items-center gap-3">
+                            <button 
+                                type="button" 
+                                onClick={handleZoomOut}
+                                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                                title="Zoom arrière"
+                            >
+                                <ZoomOut className="w-4 h-4 shrink-0" />
+                            </button>
+                            <Slider
+                                value={[zoom]}
+                                onValueChange={(value) => setZoom(value[0])}
+                                min={0.2}
+                                max={5.0}
+                                step={0.05}
+                                className="flex-1 cursor-pointer"
+                            />
+                            <button 
+                                type="button" 
+                                onClick={handleZoomIn}
+                                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                                title="Zoom avant"
+                            >
+                                <ZoomIn className="w-4 h-4 shrink-0" />
+                            </button>
+                            <span className="text-xs font-medium w-12 text-right shrink-0">{Math.round(zoom * 100)}%</span>
+                        </div>
 
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        {/* Action Buttons */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={onClose}
-                                className="gap-2 flex-1 sm:flex-none"
+                                size="sm"
+                                onClick={handleRotate}
+                                className="gap-2 w-full sm:w-auto h-9 text-xs"
                             >
-                                <X className="w-4 h-4" />
-                                Annuler
+                                <RotateCw className="w-3.5 h-3.5" />
+                                Pivoter
                             </Button>
-                            <Button
-                                type="button"
-                                onClick={handleCrop}
-                                className="gap-2 flex-1 sm:flex-none"
-                            >
-                                <Check className="w-4 h-4" />
-                                Confirmer
-                            </Button>
+
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={onClose}
+                                    className="gap-2 flex-1 sm:flex-none h-9 text-xs"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                    Annuler
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleCrop}
+                                    className="gap-2 flex-1 sm:flex-none h-9 text-xs"
+                                >
+                                    <Check className="w-3.5 h-3.5" />
+                                    Confirmer
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -201,3 +237,4 @@ export default function ImageCropModal({
         </Dialog>
     );
 }
+

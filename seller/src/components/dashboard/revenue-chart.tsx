@@ -37,17 +37,6 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
                     last30Days[day] += order.totalWithTax;
                 }
             }
-        } else {
-            // Demo data for preview if no sales yet (smooth wave)
-            // This ensures a premium aesthetic even on empty state
-            const baseValues = [12000, 15000, 8000, 19000, 22000, 14000, 28000, 31000, 25000, 42000];
-            const keys = Object.keys(last30Days);
-            keys.forEach((key, index) => {
-                const valIndex = Math.floor(index / 3) % baseValues.length;
-                // Add minor random noise for realism
-                const noise = Math.sin(index) * 2000;
-                last30Days[key] = Math.max(0, baseValues[valIndex] + noise);
-            });
         }
 
         return Object.entries(last30Days).map(([date, total]) => ({
@@ -66,16 +55,13 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
         }).format(value);
     };
 
-    const isDemo = settledOrders.length === 0;
+    const hasNoSales = settledOrders.length === 0;
 
     return (
         <div className="relative w-full h-[240px]">
-            {isDemo && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/40 backdrop-blur-[1px] z-10 rounded-xl pointer-events-none">
-                    <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest mb-1 shadow-sm border border-primary/20">
-                        Mode Aperçu
-                    </span>
-                    <p className="text-xs text-muted-foreground font-semibold">Vos ventes réelles s'afficheront ici</p>
+            {hasNoSales && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-[1px] z-10 rounded-xl pointer-events-none">
+                    <p className="text-xs text-muted-foreground font-semibold">Aucune vente enregistrée pour les 30 derniers jours</p>
                 </div>
             )}
             
@@ -83,7 +69,7 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
                 <AreaChart 
                     data={chartData} 
                     margin={{ top: 15, right: 5, left: 5, bottom: 5 }}
-                    className={isDemo ? "opacity-30 select-none" : ""}
+                    className={hasNoSales ? "opacity-40 select-none" : ""}
                 >
                     <defs>
                         <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">

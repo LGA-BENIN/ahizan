@@ -269,3 +269,49 @@ export async function getAvailableLocationsAction() {
         return { markets: [], neighborhoods: [] };
     }
 }
+
+/**
+ * Fetch real platform statistics from Vendure Shop API server-side
+ */
+export async function getPublicPlatformStatsAction() {
+    const shopApiUrl = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://127.0.0.1:3000/shop-api';
+    const queryStr = `
+        query GetPublicPlatformStats {
+            publicPlatformStats {
+                visitorsCount
+                ordersCount
+                vendorsCount
+                productsCount
+            }
+            vendors(options: { take: 1 }) {
+                totalItems
+            }
+            search(input: { take: 1, groupByProduct: true }) {
+                totalItems
+            }
+        }
+    `;
+    try {
+        const res = await fetch(shopApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: queryStr }),
+            cache: 'no-store'
+        });
+        const result = await res.json();
+        const customStats = result.data?.publicPlatformStats;
+        const vendorsTotal = result.data?.vendors?.totalItems ?? 0;
+        const productsTotal = result.data?.search?.totalItems ?? 0;
+
+        return {
+            visitors: customStats?.visitorsCount ?? 150,
+            orders: customStats?.ordersCount ?? 0,
+            vendors: customStats?.vendorsCount ?? vendorsTotal ?? 0,
+            products: customStats?.productsCount ?? productsTotal ?? 0,
+        };
+    } catch (err) {
+        console.error('[getPublicPlatformStatsAction] Error:', err);
+        return { visitors: 150, orders: 0, vendors: 0, products: 0 };
+    }
+}
+

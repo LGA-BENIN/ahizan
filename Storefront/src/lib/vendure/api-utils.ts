@@ -122,26 +122,10 @@ export function getPromoPriceInfo({
     let discountPct = 0;
     let showBothPrices = activeFlash ? activeFlash.showPromotionalPrice !== false : true;
 
-    if (shouldApplyFlashLogic && activeFlash) {
-        // Vente Flash rules:
-        if (hasRealPromo && realPromoPrice !== null) {
-            hasPromotion = true;
-            finalPromoPrice = realPromoPrice;
-            discountPct = Math.round(((price - realPromoPrice) / price) * 100);
-        } else if (activeFlash.applyFakePromotion && activeFlash.discountPercentage > 0) {
-            // Apply fake promotion
-            hasPromotion = true;
-            discountPct = activeFlash.discountPercentage;
-            finalPromoPrice = price; // The actual price paid is what the seller chose
-            finalOriginalPrice = Math.round(price / (1 - discountPct / 100)); // The crossed-out price is inflated
-        }
-    } else {
-        // Standard (Non-flash) pages:
-        if (hasRealPromo && realPromoPrice !== null) {
-            hasPromotion = true;
-            finalPromoPrice = realPromoPrice;
-            discountPct = Math.round(((price - realPromoPrice) / price) * 100);
-        }
+    if (hasRealPromo && realPromoPrice !== null && realPromoPrice > 0) {
+        hasPromotion = true;
+        finalPromoPrice = realPromoPrice;
+        discountPct = price > realPromoPrice ? Math.round(((price - realPromoPrice) / price) * 100) : 0;
     }
 
     return {

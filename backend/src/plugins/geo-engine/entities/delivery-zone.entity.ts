@@ -26,6 +26,9 @@ export class DeliveryZone extends VendureEntity {
     @Column({ type: 'int', default: 0 })
     price: number;
 
+    @Column({ type: 'int', nullable: true })
+    maxPrice?: number | null;
+
     @Column({ type: 'varchar', default: DeliveryZoneType.RADIUS })
     type: DeliveryZoneType;
 

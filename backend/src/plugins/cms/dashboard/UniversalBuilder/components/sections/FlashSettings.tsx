@@ -243,7 +243,10 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                     <div className="grid-2" style={{ marginTop: '1rem' }}>
                         <div><label className="label-pro">Type de fond</label>
                             <select className="input-pro" value={sv.bgType} onChange={(e) => updateVersion(sv.id, { bgType: e.target.value })}>
-                                <option value="color">Uni</option><option value="gradient">Dégradé</option><option value="image">Image</option>
+                                <option value="color">Uni</option>
+                                <option value="gradient">Dégradé</option>
+                                <option value="image">Image avec Texte et Minuteur</option>
+                                <option value="image_only">🖼️ Image ou GIF uniquement (Sans texte ni couleur dessus)</option>
                             </select>
                         </div>
                         <div><label className="label-pro">Rayon de section</label>
@@ -252,8 +255,8 @@ export const FlashSettings = ({ data, onSave }: FlashSettingsProps) => {
                             </select>
                         </div>
                     </div>
-                    {sv.bgType === 'image' && (
-                        <div style={{ marginTop: '1rem' }}><FileUploadField label="Image d'arrière-plan" value={sv.bgImageUrl} onChange={(v) => updateVersion(sv.id, { bgImageUrl: v })} accept="image/*,image/gif" /></div>
+                    {(sv.bgType === 'image' || sv.bgType === 'image_only') && (
+                        <div style={{ marginTop: '1rem' }}><FileUploadField label="Image ou GIF d'arrière-plan" value={sv.bgImageUrl} onChange={(v) => updateVersion(sv.id, { bgImageUrl: v })} accept="image/*,image/gif" /></div>
                     )}
                 </div>
             </div>

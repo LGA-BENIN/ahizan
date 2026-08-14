@@ -23,7 +23,7 @@ export function PreviewFooter({ config }: { config?: FooterConfData }) {
 
     const defaultLinkGroups = [
         { title: "BESOIN D'AIDE ?", links: [{ label: 'Discuter avec nous', link: '/contact' }, { label: 'Aide & FAQ', link: '/help' }, { label: 'Contactez-nous', link: '/contact' }] },
-        { title: 'LIENS UTILES', links: [{ label: 'Suivre sa commande', link: '/account/orders' }, { label: 'Politique de retour', link: '/returns' }, { label: 'Comment commander ?', link: '/how-to' }] },
+        { title: 'LIENS UTILES', links: [{ label: 'Suivre sa commande', link: '/track-order' }, { label: 'Politique de retour', link: '/returns' }, { label: 'Comment commander ?', link: '/how-to' }] },
     ];
     const linkGroups = config?.linkGroups?.length ? config.linkGroups : defaultLinkGroups;
 

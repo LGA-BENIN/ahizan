@@ -34,7 +34,6 @@ export default function DeliveryStep({ onComplete }: DeliveryStepProps) {
     setSubmitting(true);
     try {
       await setShippingMethodAction(selectedMethodId);
-      router.refresh();
       onComplete();
     } catch (error) {
       console.error('Error setting shipping method:', error);
@@ -78,7 +77,7 @@ export default function DeliveryStep({ onComplete }: DeliveryStepProps) {
                       <p className="font-black text-lg tracking-tight leading-tight">{method.name}</p>
                       {method.description && (
                         <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-wider">
-                          {method.description}
+                          {method.description.replace(/<[^>]*>/g, '').trim()}
                         </p>
                       )}
                     </div>

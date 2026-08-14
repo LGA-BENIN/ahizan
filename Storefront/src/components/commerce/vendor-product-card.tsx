@@ -24,8 +24,11 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     const [isLiked, setIsLiked] = useState(false);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
+
+    const productName = product.name || product.productName || "Produit";
+    const productSlug = product.slug || product.productSlug || product.id || product.productId;
     
-    const imageUrl = getAssetUrl(product.featuredAsset?.preview || product.productAsset?.preview);
+    const imageUrl = getAssetUrl(product.featuredAsset?.preview || product.productAsset?.preview || product.assets?.[0]?.preview);
     const isImageGif = isGif(imageUrl);
     const defaultImage = themeSettings?.defaultProductImage;
     const displayImageUrl = imageUrl || defaultImage;
@@ -34,13 +37,16 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     const activeFlash = themeSettings?.activeFlashSale;
     const applyToCollection = themeSettings?.applyFlashPromoToCollections;
 
-    // Use the first variant's price if available
-    const basePrice = product.variants?.[0]?.priceWithTax || 0;
+    // Use the first variant's price or direct price field if available
+    const basePrice = product.variants?.[0]?.priceWithTax || 
+                      product.priceWithTax?.value || 
+                      product.priceWithTax?.min || 
+                      (typeof product.priceWithTax === 'number' ? product.priceWithTax : 0);
 
     const priceInfo = getPromoPriceInfo({
         price: basePrice,
-        variantCustomFields: product.variants?.[0]?.customFields || null,
-        productId: product.id,
+        variantCustomFields: product.variants?.[0]?.customFields || product.customFields || null,
+        productId: product.id || product.productId,
         collectionIds: [], // Similar here, simplified for vendor card
         activeFlash,
         globalApplySettings: {
@@ -52,7 +58,9 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     // Fetch initial like status on mount
     useEffect(() => {
         let isMounted = true;
-        checkProductLikeStatus(product.id).then(status => {
+        const targetId = product.id || product.productId;
+        if (!targetId) return;
+        checkProductLikeStatus(targetId).then(status => {
             if (isMounted) {
                 setIsLiked(status);
             }
@@ -60,22 +68,24 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
         return () => {
             isMounted = false;
         };
-    }, [product.id]);
+    }, [product.id, product.productId]);
 
     const handleLike = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        const targetId = product.id || product.productId;
+        if (!targetId) return;
         
         startTransition(async () => {
-            const res = await toggleProductLikeAction(product.id);
+            const res = await toggleProductLikeAction(targetId);
             if (res.success) {
                 setIsLiked(!!res.liked);
                 if (res.liked) {
-                    toast.success(`${product.name} ajouté à vos favoris !`);
+                    toast.success(`${productName} ajouté à vos favoris !`);
                 } else {
-                    toast.info(`${product.name} retiré de vos favoris.`);
+                    toast.info(`${productName} retiré de vos favoris.`);
                 }
-            } else if (res.authenticated === false) {
+            } else if (res.authenticated === false || res.error === 'UNAUTHORIZED') {
                 setIsLoginModalOpen(true);
             } else {
                 toast.error(res.error || "Erreur lors de la mise à jour du favori");
@@ -112,7 +122,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
 
         if (type === 'vendor_name' && product.vendorName) {
             return (
-                <span className={`${posClass} bg-black/80 backdrop-blur-sm text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider shadow-sm max-w-[120px] truncate`}>
+                <span className={`${posClass} bg-black/85 backdrop-blur-sm text-white text-[11px] font-black uppercase px-2.5 py-1 rounded-full tracking-wider shadow-md max-w-[120px] truncate border border-white/15`}>
                     👤 {product.vendorName}
                 </span>
             );
@@ -120,7 +130,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
 
         if (type === 'market_badge' && product.marketName) {
             return (
-                <span className={`${posClass} bg-red-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider shadow-sm flex items-center gap-1`}>
+                <span className={`${posClass} bg-red-650 text-white text-[11px] font-black uppercase px-2.5 py-1 rounded-md tracking-wider shadow-md flex items-center gap-1 border border-red-500/25`}>
                     🏛️ {product.marketName}
                 </span>
             );
@@ -129,7 +139,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
         if (type === 'market_name_short' && product.marketName) {
             const shortName = product.marketName.replace(/Marché de |Marché d'/i, '');
             return (
-                <span className={`${posClass} bg-slate-900/90 dark:bg-slate-950/90 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm`}>
+                <span className={`${posClass} bg-slate-900/90 dark:bg-slate-950/90 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md border border-slate-700/40`}>
                     📍 {shortName}
                 </span>
             );
@@ -139,7 +149,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
             const discount = Math.round(((priceInfo.originalPrice - priceInfo.promotionalPrice) / priceInfo.originalPrice) * 100);
             if (discount > 0) {
                 return (
-                    <span className={`${posClass} bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm`}>
+                    <span className={`${posClass} bg-red-600 text-white text-[11px] font-black px-2.5 py-1 rounded-full shadow-md animate-pulse`}>
                         -{discount}%
                     </span>
                 );
@@ -148,7 +158,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
 
         if (type === 'location_distance' && product.locationName) {
             return (
-                <span className={`${posClass} bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm`}>
+                <span className={`${posClass} bg-emerald-600 text-white text-[11px] font-black px-2.5 py-1 rounded-full shadow-md`}>
                     📍 {product.locationName}
                 </span>
             );
@@ -157,7 +167,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
         if (type === 'stock_status') {
             const inStock = product.inStock !== false;
             return (
-                <span className={`${posClass} ${inStock ? 'bg-green-600/95' : 'bg-red-600/95'} text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm`}>
+                <span className={`${posClass} ${inStock ? 'bg-green-600/95' : 'bg-red-600/95'} text-white text-[10px] font-extrabold px-2.5 py-1 rounded shadow-md`}>
                     {inStock ? 'En Stock' : 'Rupture'}
                 </span>
             );
@@ -165,7 +175,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
 
         if (type === 'delivery_time') {
             return (
-                <span className={`${posClass} bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm`}>
+                <span className={`${posClass} bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded shadow-md`}>
                     ⚡ 15-30 min
                 </span>
             );
@@ -173,7 +183,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
 
         if (type === 'market_icon' && product.marketName) {
             return (
-                <div className={`${posClass} bg-white dark:bg-slate-900 border border-border p-1 rounded-full shadow-md text-primary`} title={product.marketName}>
+                <div className={`${posClass} bg-white dark:bg-slate-900 border border-border p-1.5 rounded-full shadow-md text-primary`} title={product.marketName}>
                     🏛️
                 </div>
             );
@@ -186,12 +196,12 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        toast.success(`${product.name} ajouté au panier !`);
+                        toast.success(`${productName} ajouté au panier !`);
                     }}
                     className={`${posClass} p-1.5 rounded-full bg-primary text-white hover:bg-primary/95 hover:scale-105 active:scale-95 transition-all shadow-md flex items-center justify-center`}
                     title="Ajouter au panier"
                 >
-                    <ShoppingCart className="w-3 h-3" />
+                    <ShoppingCart className="w-3.5 h-3.5" />
                 </button>
             );
         }
@@ -231,7 +241,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
         return (
             <>
                 <Link
-                    href={`/product/${product.slug}`}
+                    href={`/product/${productSlug}`}
                     className={`group flex items-center rounded-xl overflow-hidden p-2.5 gap-4 transition-all duration-300 ${cardThemeClass}`}
                 >
                     <div className="w-28 h-28 relative bg-muted shrink-0 rounded-lg overflow-hidden">
@@ -239,13 +249,13 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                             isDisplayGif ? (
                                 <img
                                     src={getAssetUrl(displayImageUrl)}
-                                    alt={product.name}
+                                    alt={productName}
                                     className="w-full h-full object-contain p-1.5 group-hover:scale-105 transition-transform duration-300"
                                 />
                             ) : (
                                 <Image
                                     src={getAssetUrl(displayImageUrl) as string}
-                                    alt={product.name}
+                                    alt={productName}
                                     fill
                                     className="object-contain p-1.5 group-hover:scale-105 transition-transform duration-300"
                                     sizes="96px"
@@ -262,7 +272,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                         <div className="space-y-1">
                             <div className="flex items-start justify-between gap-1">
                                 <h3 className="text-xs sm:text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight flex-1">
-                                    {product.name}
+                                    {productName}
                                 </h3>
                                 {(config?.showCartIcon || config?.showAddToCart) && (
                                     <button
@@ -279,7 +289,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                                             startTransition(async () => {
                                                 const res = await addToCart(variantId, 1);
                                                 if (res.success) {
-                                                    toast.success(`${product.name} ajouté au panier !`);
+                                                    toast.success(`${productName} ajouté au panier !`);
                                                 } else {
                                                     toast.error(res.error || "Erreur lors de l'ajout au panier");
                                                 }
@@ -368,7 +378,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     return (
         <>
             <Link
-                href={`/product/${product.slug}`}
+                href={`/product/${productSlug}`}
                 className={`group block rounded-xl overflow-hidden transition-all duration-300 ${cardThemeClass}`}
             >
                 <div className="aspect-square relative bg-muted">
@@ -376,13 +386,13 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                         isDisplayGif ? (
                             <img
                                 src={getAssetUrl(displayImageUrl)}
-                                alt={product.name}
+                                alt={productName}
                                 className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                             />
                         ) : (
                             <Image
                                 src={getAssetUrl(displayImageUrl) as string}
-                                alt={product.name}
+                                alt={productName}
                                 fill
                                 className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -399,7 +409,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                     <div className="space-y-0.5">
                         <div className="flex items-start justify-between gap-1">
                             <h3 className="text-sm font-bold line-clamp-2 group-hover:text-primary transition-colors leading-tight flex-1">
-                                {product.name}
+                                {productName}
                             </h3>
                             {(config?.showCartIcon || config?.showAddToCart) && (
                                 <button
@@ -416,7 +426,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
                                         startTransition(async () => {
                                             const res = await addToCart(variantId, 1);
                                             if (res.success) {
-                                                toast.success(`${product.name} ajouté au panier !`);
+                                                toast.success(`${productName} ajouté au panier !`);
                                             } else {
                                                 toast.error(res.error || "Erreur lors de l'ajout au panier");
                                             }

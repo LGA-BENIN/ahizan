@@ -6,6 +6,7 @@ import { OrderStatus } from './entities/order-status.entity';
 import { VendorLike } from './entities/vendor-like.entity';
 import { ProductLike } from './entities/product-like.entity';
 import { ChatMessage } from './entities/chat-message.entity';
+import { WithdrawalRequest } from './entities/withdrawal-request.entity';
 import { VendorService } from './service/vendor.service';
 import { VendorOrderSubscriber } from './service/vendor-event.subscriber';
 import { PlatformSettingsService } from './service/platform-settings.service';
@@ -20,13 +21,13 @@ import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-s
 import { LikeShopResolver, LikeAdminResolver } from './api/like.resolver';
 import { ChatResolver } from './api/chat.resolver';
 import { gql } from 'graphql-tag';
-import path from 'path';
 import { GeoEnginePlugin } from '../geo-engine/geo-engine.plugin';
+import { AhizanNotificationsPlugin } from '../notifications/ahizan-notifications.plugin';
 
 @VendurePlugin({
-    imports: [PluginCommonModule, GeoEnginePlugin],
+    imports: [PluginCommonModule, GeoEnginePlugin, AhizanNotificationsPlugin],
 
-    entities: [Vendor, PlatformSettings, OrderStatus, VendorLike, ProductLike, ChatMessage],
+    entities: [Vendor, PlatformSettings, OrderStatus, VendorLike, ProductLike, ChatMessage, WithdrawalRequest],
 
     providers: [
         VendorService,
@@ -80,12 +81,38 @@ ${shopApiExtensions}
             // FIX: évite push sur undefined
         }
 
+        if (!config.customFields.GlobalSettings) {
+            config.customFields.GlobalSettings = [];
+        }
+
         // Helper to push only if not already present by name
         const pushUnique = (array: any[], field: any) => {
             if (!array.some((f: any) => f.name === field.name)) {
                 array.push(field);
             }
         };
+
+        // ---------------------------
+        // GLOBAL SETTINGS CUSTOM FIELDS
+        // ---------------------------
+        pushUnique(config.customFields.GlobalSettings, {
+            name: 'minimumMarketplacePrice',
+            type: 'int',
+            public: true,
+            nullable: true,
+            defaultValue: 0,
+            label: [{ languageCode: 'fr' as any, value: 'Prix minimal sur la marketplace' }],
+        });
+
+        pushUnique(config.customFields.GlobalSettings, {
+            name: 'whatsappNumber',
+            type: 'string',
+            public: true,
+            nullable: true,
+            defaultValue: '',
+            label: [{ languageCode: 'fr' as any, value: 'Numéro WhatsApp de contact' }],
+        });
+
 
         // ---------------------------
         // PRODUCT CUSTOM FIELDS
@@ -124,6 +151,38 @@ ${shopApiExtensions}
         });
 
         // ---------------------------
+        // ORDER LINE CUSTOM FIELDS
+        // ---------------------------
+
+        if (!config.customFields.OrderLine) {
+            config.customFields.OrderLine = [];
+        }
+
+        pushUnique(config.customFields.OrderLine, {
+            name: 'sellerStatus',
+            type: 'string',
+            public: true,
+            nullable: true,
+            defaultValue: 'pending',
+            options: [
+                { value: 'pending' },
+                { value: 'confirmed' },
+                { value: 'refused' },
+                { value: 'reassigning' },
+                { value: 'reassigned_to_other' }
+            ],
+            label: [{ languageCode: 'fr' as any, value: 'Statut du produit' }]
+        });
+
+        pushUnique(config.customFields.OrderLine, {
+            name: 'assignedVendor',
+            type: 'relation',
+            entity: Vendor,
+            public: true,
+            nullable: true,
+        });
+
+        // ---------------------------
         // ORDER CUSTOM FIELDS
         // ---------------------------
 
@@ -138,8 +197,28 @@ ${shopApiExtensions}
         pushUnique(config.customFields.Order, {
             name: 'commissionAmount',
             type: 'int',
-            public: false,
+            public: true,
             nullable: true,
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'commissionRate',
+            type: 'float',
+            public: true,
+            nullable: true,
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'paymentStatus',
+            type: 'string',
+            public: true,
+            nullable: true,
+            defaultValue: 'PENDING',
+            options: [
+                { value: 'PENDING' },
+                { value: 'RETIRABLE' },
+                { value: 'PAID' },
+            ],
         });
 
         pushUnique(config.customFields.Order, {
@@ -152,6 +231,8 @@ ${shopApiExtensions}
                 { value: 'pending' },
                 { value: 'confirmed' },
                 { value: 'refused' },
+                { value: 'reassigning' },
+                { value: 'reassigned_to_other' }
             ],
             readonly: true,
         });
@@ -172,6 +253,21 @@ ${shopApiExtensions}
             ui: {
                 component: 'select-form-input',
             },
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'vendorStatuses',
+            type: 'text',
+            public: true,
+            nullable: true,
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'isVendorPaid',
+            type: 'boolean',
+            public: true,
+            nullable: true,
+            defaultValue: false,
         });
 
         // ---------------------------

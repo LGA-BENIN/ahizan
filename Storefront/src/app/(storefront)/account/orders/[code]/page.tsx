@@ -12,6 +12,7 @@ import {notFound, redirect} from "next/navigation";
 import {Price} from '@/components/commerce/price';
 import {OrderStatusBadge} from '@/components/commerce/order-status-badge';
 import {formatDate} from '@/lib/format';
+import { OrderSubOrdersTracking } from './OrderSubOrdersTracking';
 import Link from "next/link";
 
 type OrderDetailPageProps = any;
@@ -34,7 +35,7 @@ export default async function OrderDetailPage(props: any) {
         {useAuthToken: true, fetch: {}}
     );
 
-    if (!data.orderByCode) {
+    if (!data?.orderByCode) {
         return redirect('/account/orders');
     }
 
@@ -43,6 +44,21 @@ export default async function OrderDetailPage(props: any) {
     }
 
     const order = data.orderByCode;
+
+    let vMap: any = {};
+    const vsStr = order.customFields?.vendorStatuses || order.customFields?.vendorstatuses;
+    if (vsStr) {
+        try { vMap = typeof vsStr === 'string' ? JSON.parse(vsStr) : vsStr; } catch(e) {}
+    }
+
+    const getLineStatus = (line: any) => {
+        const vStatus = line.customFields?.sellerStatus || 'pending';
+        if (vStatus === 'cancelled') return { text: '❌ Annulé par le client', color: 'bg-rose-100 text-rose-800 border-rose-200' };
+        if (vStatus === 'confirmed') return { text: '✅ Confirmé par le vendeur', color: 'bg-green-100 text-green-800 border-green-200' };
+        if (vStatus === 'refused' || vStatus === 'reassigning') return { text: '⏳ En cours de réassignation', color: 'bg-amber-100 text-amber-800 border-amber-200' };
+        if (vStatus === 'reassigned_to_other') return { text: '❌ Annulé (Réassigné)', color: 'bg-red-100 text-red-800 border-red-200' };
+        return { text: '⏳ En attente de confirmation', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+    };
 
     return (
         <div>
@@ -67,6 +83,9 @@ export default async function OrderDetailPage(props: any) {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Order Items and Totals */}
                 <div className="lg:col-span-2 space-y-6">
+                    {/* Multi-Vendor Sub-Orders Tracking & Cancellation Acceptance */}
+                    <OrderSubOrdersTracking order={order} />
+
                     {/* Order Items */}
                     <Card>
                         <CardHeader>
@@ -74,44 +93,65 @@ export default async function OrderDetailPage(props: any) {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {order.lines.map((line: any) => (
-                                    <div key={line.id} className="flex gap-4">
+                                {(order.lines || []).map((line: any) => {
+                                    const statusBadge = getLineStatus(line);
+                                    const prodName = line.productVariant?.product?.name || line.productVariant?.name || 'Produit';
+                                    const prodSlug = line.productVariant?.product?.slug || '';
+                                    const imgUrl = line.productVariant?.product?.featuredAsset?.preview || line.productVariant?.featuredAsset?.preview;
+                                    const sku = line.productVariant?.sku || 'N/A';
+
+                                    const isCancelled = line.customFields?.sellerStatus === 'cancelled';
+
+                                    return (
+                                    <div key={line.id} className={`flex gap-4 ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
                                         <div
                                             className="relative h-20 w-20 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
-                                            {line.productVariant.product.featuredAsset && (
+                                            {imgUrl ? (
                                                 <Image
-                                                    src={line.productVariant.product.featuredAsset.preview}
-                                                    alt={line.productVariant.name}
+                                                    src={imgUrl}
+                                                    alt={prodName}
                                                     fill
                                                     className="object-cover"
                                                 />
-                                            )}
+                                            ) : null}
                                         </div>
                                         <div className="flex-1">
-                                            <Link
-                                                href={`/product/${line.productVariant.product.slug}`}
-                                                className="font-medium hover:underline"
-                                            >
-                                                {line.productVariant.product.name}
-                                            </Link>
-                                            <p className="text-sm text-muted-foreground">
-                                                {line.productVariant.name}
+                                            <div className="flex items-center gap-2">
+                                                {prodSlug ? (
+                                                    <Link
+                                                        href={`/product/${prodSlug}`}
+                                                        className={`font-medium hover:underline ${isCancelled ? 'line-through' : ''}`}
+                                                    >
+                                                        {prodName}
+                                                    </Link>
+                                                ) : (
+                                                    <span className={`font-medium ${isCancelled ? 'line-through' : ''}`}>{prodName}</span>
+                                                )}
+                                                {statusBadge && (
+                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge.color}`}>
+                                                        {statusBadge.text}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                {line.productVariant?.name || prodName}
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                SKU: {line.productVariant.sku}
+                                                SKU: {sku}
                                             </p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-medium">
-                                                <Price value={line.linePriceWithTax} currencyCode={order.currencyCode}/>
+                                            <p className={`font-medium ${isCancelled ? 'line-through' : ''}`}>
+                                                <Price value={line.linePriceWithTax || (line.listPrice * line.quantity) || 0} currencyCode={order.currencyCode}/>
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                Qté : {line.quantity} × <Price value={line.unitPriceWithTax}
+                                                Qté : {line.quantity} × <Price value={line.unitPriceWithTax || line.listPrice || 0}
                                                                               currencyCode={order.currencyCode}/>
                                             </p>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </CardContent>
                     </Card>
@@ -160,6 +200,49 @@ export default async function OrderDetailPage(props: any) {
 
                 {/* Right Column - Shipping, Billing, Payment */}
                 <div className="space-y-6">
+                    {/* Delivery & Shipping Tracking Status */}
+                    <Card className="border-2 border-primary/20 shadow-sm overflow-hidden">
+                        <CardHeader className="bg-primary/5 pb-3">
+                            <CardTitle className="text-base flex items-center justify-between">
+                                <span>Suivi & Statut de livraison</span>
+                                <Badge className={
+                                    order.customFields?.adminStatus === 'delivered' ? 'bg-emerald-600' :
+                                    order.customFields?.adminStatus === 'shipped' || order.customFields?.adminStatus === 'in_transit' ? 'bg-blue-600' :
+                                    order.customFields?.adminStatus === 'cancelled' ? 'bg-rose-600' : 'bg-amber-600'
+                                }>
+                                    {
+                                        order.customFields?.adminStatus === 'delivered' ? 'Livrée' :
+                                        order.customFields?.adminStatus === 'shipped' ? 'Expédiée' :
+                                        order.customFields?.adminStatus === 'in_transit' ? 'En transit' :
+                                        order.customFields?.adminStatus === 'cancelled' ? 'Annulée' : 'En attente d\'expédition'
+                                    }
+                                </Badge>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4 space-y-3 text-sm">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground font-medium">Validation Vendeur :</span>
+                                <span className="font-bold text-foreground">
+                                    {
+                                        order.customFields?.sellerStatus === 'confirmed' ? '✅ Confirmée' :
+                                        order.customFields?.sellerStatus === 'refused' ? '❌ Refusée' : '⏳ En attente'
+                                    }
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-muted-foreground font-medium">Statut d'expédition :</span>
+                                <span className="font-bold text-foreground">
+                                    {
+                                        order.customFields?.adminStatus === 'delivered' ? '📦 Colis Livré' :
+                                        order.customFields?.adminStatus === 'shipped' ? '🚚 Expédiée' :
+                                        order.customFields?.adminStatus === 'in_transit' ? '✈️ En transit' :
+                                        order.customFields?.adminStatus === 'cancelled' ? '❌ Annulée' : '⏳ Préparation du colis'
+                                    }
+                                </span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Shipping Address */}
                     {order.shippingAddress && (
                         <Card>
@@ -264,7 +347,7 @@ export default async function OrderDetailPage(props: any) {
                                         <p className="font-medium">{line.shippingMethod.name}</p>
                                         {line.shippingMethod.description && (
                                             <p className="text-muted-foreground">
-                                                {line.shippingMethod.description}
+                                                {line.shippingMethod.description.replace(/<[^>]*>/g, '').trim()}
                                             </p>
                                         )}
                                         <p className="font-medium">

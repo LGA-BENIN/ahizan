@@ -5,6 +5,7 @@ import { MessageSquare, Store, Send, ChevronLeft, Loader2, ArrowRight, Info } fr
 import { getMyConversationsAction, getChatHistoryAction, sendChatMessageAction } from '@/app/(storefront)/likes-actions';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { encodeId } from '@/lib/hash-utils';
 
 interface Vendor {
     id: string;
@@ -285,7 +286,7 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
                                 </div>
                             </div>
                             <Link
-                                href={`/vendor/${selectedConv.vendor.id}`}
+                                href={`/vendor/${encodeId(selectedConv.vendor.id)}`}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider transition-colors shrink-0"
                             >
                                 <Store className="h-3.5 w-3.5" />

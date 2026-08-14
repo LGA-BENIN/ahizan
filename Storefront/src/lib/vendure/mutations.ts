@@ -58,6 +58,23 @@ export const RemoveFromCartMutation = graphql(`
     }
 `);
 
+export const RemoveAllOrderLinesMutation = graphql(`
+    mutation RemoveAllOrderLines {
+        removeAllOrderLines {
+            __typename
+            ... on Order {
+                id
+                code
+                totalQuantity
+            }
+            ... on ErrorResult {
+                errorCode
+                message
+            }
+        }
+    }
+`);
+
 export const AdjustCartItemMutation = graphql(`
     mutation AdjustCartItem($lineId: ID!, $quantity: Int!) {
         adjustOrderLine(orderLineId: $lineId, quantity: $quantity) {

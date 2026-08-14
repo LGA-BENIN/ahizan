@@ -67,3 +67,27 @@ export const TEST_SMTP_CONNECTION_DIRECT = gql`
         )
     }
 `;
+
+export const GET_VAPID_PUBLIC_KEY = gql`
+    query GetVapidPublicKey {
+        vapidPublicKey
+    }
+`;
+
+export const SUBSCRIBE_TO_PUSH = gql`
+    mutation SubscribeToPush(
+        $endpoint: String!
+        $p256dh: String!
+        $auth: String!
+        $userAgent: String
+    ) {
+        subscribeToPush(
+            endpoint: $endpoint
+            p256dh: $p256dh
+            auth: $auth
+            userAgent: $userAgent
+        ) {
+            success
+        }
+    }
+`;

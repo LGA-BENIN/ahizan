@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { logoutAction } from '@/app/sign-in/actions';
+import { encodeId } from '@/lib/hash-utils';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from './theme-toggle';
@@ -251,7 +252,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                     {vendor?.id && (
                         <div className="flex gap-2">
                             <a
-                                href={`${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${vendor.id}`}
+                                href={`${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${encodeId(vendor.id)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-bold rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
@@ -261,7 +262,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                             </a>
                             <button
                                 onClick={() => {
-                                    const url = `${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${vendor.id}`;
+                                    const url = `${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${encodeId(vendor.id)}`;
                                     navigator.clipboard.writeText(url).then(() => {
                                         setIsCopied(true);
                                         setTimeout(() => setIsCopied(false), 2000);

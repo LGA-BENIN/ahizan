@@ -39,7 +39,10 @@ export const Toolbar = () => {
           🎛️ Par-visuel
         </button>
         <button className={`mode-btn ${mode === 'CODE' ? 'active' : ''}`} onClick={() => setMode('CODE')}>
-          ⌨️ Code
+          ⌨️ Code Section
+        </button>
+        <button className={`mode-btn ${mode === 'GLOBAL_CODE' ? 'active' : ''}`} onClick={() => setMode('GLOBAL_CODE')}>
+          🌐 JSON Global
         </button>
       </div>
 

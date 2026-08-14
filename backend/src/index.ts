@@ -15,6 +15,19 @@ runMigrations(config)
     .then(() => bootstrap(config))
     .then(async (app) => {
         appInstance = app;
+
+        // Tune HTTP server keep-alive timeouts to prevent idle connection dropouts
+        try {
+            const server = app.getHttpServer();
+            if (server) {
+                server.keepAliveTimeout = 65000;
+                server.headersTimeout = 66000;
+                console.log('HTTP Server keepAliveTimeout set to 65000ms.');
+            }
+        } catch (err) {
+            console.error('Error setting keepAliveTimeout:', err);
+        }
+
         // Inject TypeORM connection into our dynamic email sender
         const dataSource = app.get(DataSource);
         emailSenderNode.setDataSource(dataSource);

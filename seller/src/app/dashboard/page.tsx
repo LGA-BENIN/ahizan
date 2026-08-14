@@ -8,16 +8,19 @@ import { formatPrice } from "@/lib/format";
 import Link from "next/link";
 import { getAuthToken } from "@/lib/auth";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
+import { getVendorProductsLikesAction } from "@/lib/vendure/actions";
 
 export default async function DashboardPage() {
     noStore();
     const token = await getAuthToken();
 
     // Fetch vendor profile, products, and orders in parallel
-    const [{ data: vendorData }, { data: productsData }, { data: ordersData }] = await Promise.all([
+    const [{ data: vendorData }, { data: productsData }, { data: ordersData }, { data: allOrdersData }, likesData] = await Promise.all([
         query(GetMyVendorProfileQuery, {}, { token }).catch(() => ({ data: { myVendorProfile: null } })),
         query(GetMyVendorProductsQuery, { options: { take: 50 } }, { token }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
-        query(GetMyVendorOrdersQuery, { options: { take: 10, sort: { updatedAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } }))
+        query(GetMyVendorOrdersQuery, { options: { take: 10, sort: { updatedAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
+        query(GetMyVendorOrdersQuery, { options: { take: 1000 } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
+        getVendorProductsLikesAction().catch(() => [])
     ]);
 
     const vendor = (vendorData as any)?.myVendorProfile;
@@ -28,10 +31,26 @@ export default async function DashboardPage() {
     const recentOrders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment');
     const products = (productsData as any)?.myVendorProducts?.items || [];
 
-    // Filter settled states for revenue calculation
+    // Filter settled states for revenue calculation (Real stats)
     const settledStates = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
-    const settledOrders = recentOrders.filter((o: any) => settledStates.includes(o.state));
-    const revenue = settledOrders.reduce((acc: number, o: any) => acc + (o.totalWithTax || 0), 0);
+    const rawAllOrders = (allOrdersData as any)?.myVendorOrders?.items || [];
+    const settledAllOrders = rawAllOrders.filter((o: any) => o && settledStates.includes(o.state));
+
+    // Calculate real monthly revenue
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthlyOrders = settledAllOrders.filter((o: any) => {
+        const d = new Date(o.createdAt);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const revenue = monthlyOrders.reduce((acc: number, o: any) => acc + (o.totalWithTax || 0), 0);
+
+    // Real total orders count
+    const totalOrdersCount = (allOrdersData as any)?.myVendorOrders?.totalItems || 0;
+
+    // Real likes count
+    const likesList = (likesData as any) || [];
+    const totalLikes = likesList.reduce((acc: number, item: any) => acc + (item.likesCount || 0), 0);
 
     // Dynamic calculations for "À traiter" center
     const pendingShipmentCount = recentOrders.filter((o: any) => 
@@ -142,15 +161,15 @@ export default async function DashboardPage() {
                         </div>
                         <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Commandes</p>
                         <h3 className="text-xl md:text-2xl font-serif font-black tracking-tight">
-                            {recentOrders.length}
+                            {totalOrdersCount}
                         </h3>
                     </div>
                     <div className="mt-6 text-[10px] text-muted-foreground font-semibold italic">
-                        Moyenne de 4.2 commandes/jour
+                        Moyenne de {(totalOrdersCount / 30).toFixed(1)} commandes/jour
                     </div>
                 </div>
 
-                {/* Card 3: Visitors */}
+                {/* Card 3: Favorites */}
                 <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-primary/20 transition-all duration-300 group">
                     <div>
                         <div className="flex justify-between items-start mb-4">
@@ -161,9 +180,9 @@ export default async function DashboardPage() {
                                 <TrendingUp className="w-3 h-3" /> +18%
                             </span>
                         </div>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Visiteurs</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Favoris Produits</p>
                         <h3 className="text-xl md:text-2xl font-serif font-black tracking-tight">
-                            12.450
+                            {totalLikes}
                         </h3>
                     </div>
                     <div className="mt-6 w-full bg-slate-100 dark:bg-slate-850 h-2 rounded-full overflow-hidden">
@@ -171,25 +190,25 @@ export default async function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Card 4: Conversion Rate */}
+                {/* Card 4: Total Products */}
                 <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-primary/20 transition-all duration-300 group">
                     <div>
                         <div className="flex justify-between items-start mb-4">
                             <div className="p-2.5 bg-primary/5 text-primary rounded-xl group-hover:scale-110 transition-transform">
-                                <Percent className="w-5 h-5" />
+                                <Package className="w-5 h-5" />
                             </div>
                             <span className="text-[10px] font-black text-muted-foreground bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
-                                Stable
+                                Actifs
                             </span>
                         </div>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Taux de conversion</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-1">Produits en Ligne</p>
                         <h3 className="text-xl md:text-2xl font-serif font-black tracking-tight">
-                            2.4%
+                            {totalProducts}
                         </h3>
                     </div>
-                    <div className="mt-6 text-[10px] text-primary font-bold hover:underline cursor-pointer flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                        Voir l'entonnoir de vente →
-                    </div>
+                    <Link href="/dashboard/products" className="mt-6 text-[10px] text-primary font-bold hover:underline flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        Gérer le catalogue →
+                    </Link>
                 </div>
 
             </div>

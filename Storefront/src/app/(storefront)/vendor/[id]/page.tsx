@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { rawQuery } from '@/lib/vendure/raw-api';
 import { notFound } from 'next/navigation';
 import { VendorShopClient } from './vendor-shop-client';
+import { decodeId } from '@/lib/hash-utils';
 
 interface VendorPageProps {
     params: Promise<{ id: string }>;
@@ -78,7 +79,8 @@ async function getVendorData(id: string) {
 }
 
 export async function generateMetadata({ params }: VendorPageProps): Promise<Metadata> {
-    const { id } = await params;
+    const { id: hashedId } = await params;
+    const id = decodeId(hashedId);
     const vendor = await getVendorData(id);
     if (!vendor) {
         return {
@@ -92,7 +94,8 @@ export async function generateMetadata({ params }: VendorPageProps): Promise<Met
 }
 
 export default async function VendorDetailPage({ params }: VendorPageProps) {
-    const { id } = await params;
+    const { id: hashedId } = await params;
+    const id = decodeId(hashedId);
     const vendor = await getVendorData(id);
 
     if (!vendor) {

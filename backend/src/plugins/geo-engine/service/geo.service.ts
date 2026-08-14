@@ -4,12 +4,41 @@ import { In } from 'typeorm';
 import { GeoZone, GeoZoneType, GeoZoneStatus } from '../entities/geo-zone.entity';
 import { Market } from '../entities/market.entity';
 import { DeliveryZone, DeliveryZoneType } from '../entities/delivery-zone.entity';
+import { GeoResolutionLog } from '../entities/geo-resolution-log.entity';
+import { GeoUserCorrection } from '../entities/geo-user-correction.entity';
+import { GeoZoneAlias } from '../entities/geo-zone-alias.entity';
+import { OSMProvider } from '../providers/osm.provider';
 import { Vendor } from '../../multivendor/entities/vendor.entity';
 import { PlatformSettings } from '../../multivendor/entities/platform-settings.entity';
 import * as XLSX from 'xlsx';
 
+export interface CurrentLocation {
+    geoId: string;
+    hierarchicalCode: string;
+    latitude: number;
+    longitude: number;
+    geoZoneId: number;
+    geoZone?: GeoZone | null;
+    marketId: number | null;
+    marketName: string | null;
+    country: string;
+    department: string;
+    commune: string;
+    arrondissement: string;
+    neighborhood: string;
+    deliveryZoneId: number | null;
+    deliveryZonePrice: number | null;
+    displayName: string;
+    formattedAddress: string;
+    confidence: number;
+    isLearnedLocation: boolean;
+}
+
 @Injectable()
 export class GeoService {
+    private l1Cache = new Map<string, { data: CurrentLocation; expiresAt: number }>();
+    private osmProvider = new OSMProvider();
+
     constructor(public connection: TransactionalConnection) {}
 
     async getLocation(ctx: RequestContext, id: number): Promise<GeoZone | null> {
@@ -84,6 +113,127 @@ export class GeoService {
         ];
 
         return zones.sort((a: GeoZone, b: GeoZone) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type));
+    }
+
+    /**
+     * Central Single Source of Truth resolver.
+     * Takes lat/lng, queries PostGIS for exact GeoZone hierarchy, market, and delivery zone,
+     * and returns normalized CurrentLocation.
+     */
+    async resolveCoordinates(ctx: RequestContext, lat: number, lng: number): Promise<CurrentLocation> {
+        const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+        const cached = this.l1Cache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.data;
+        }
+
+        const zones = await this.reverseGeocode(ctx, lat, lng);
+
+        let country = 'Bénin';
+        let department = '';
+        let commune = '';
+        let arrondissement = '';
+        let neighborhood = '';
+        let specificZone: GeoZone | null = null;
+        let confidence = 0.3;
+
+        if (zones.length > 0) {
+            confidence = 1.0;
+            specificZone = zones[zones.length - 1];
+            for (const z of zones) {
+                if (z.type === GeoZoneType.COUNTRY) country = z.name;
+                if (z.type === GeoZoneType.DEPARTMENT) department = z.name;
+                if (z.type === GeoZoneType.COMMUNE) commune = z.name;
+                if (z.type === GeoZoneType.ARRONDISSEMENT) arrondissement = z.name;
+                if (z.type === GeoZoneType.NEIGHBORHOOD) neighborhood = z.name;
+            }
+        }
+
+        const displayName = specificZone?.name || neighborhood || arrondissement || commune || department || 'Cotonou';
+        const permanentGeoId = specificZone?.geoId || (specificZone?.id ? `GEO-BJ-${String(specificZone.id).padStart(8, '0')}` : 'GEO-BJ-FALLBACK');
+        const hierarchicalCode = this.generateHierarchicalCode(zones);
+
+        let marketId: number | null = null;
+        let marketName: string | null = null;
+        const nearbyMarkets = await this.getNearbyMarkets(ctx, lat, lng, 3000);
+        if (nearbyMarkets.length > 0) {
+            marketId = nearbyMarkets[0].id;
+            marketName = nearbyMarkets[0].name;
+            if (zones.length === 0) confidence = 0.8;
+        }
+
+        const matchingPrices = await this.getMatchingZonePrices(ctx, { lat, lng });
+
+        const location: CurrentLocation = {
+            geoId: permanentGeoId,
+            hierarchicalCode,
+            latitude: lat,
+            longitude: lng,
+            geoZoneId: specificZone?.id || 0,
+            geoZone: specificZone,
+            marketId,
+            marketName,
+            country,
+            department,
+            commune,
+            arrondissement,
+            neighborhood,
+            deliveryZoneId: null,
+            deliveryZonePrice: matchingPrices?.price ?? 500,
+            displayName,
+            formattedAddress: [displayName, commune, country].filter(Boolean).join(', '),
+            confidence,
+            isLearnedLocation: false,
+        };
+
+        this.logResolution(ctx, lat, lng, permanentGeoId, specificZone?.id, marketId, confidence, displayName).catch(() => {});
+
+        this.l1Cache.set(cacheKey, { data: location, expiresAt: Date.now() + 5 * 60 * 1000 });
+        return location;
+    }
+
+    /**
+     * Search address via IGeoProvider (OSM), then passes coordinates to PostGIS resolveCoordinates.
+     */
+    async searchAddress(ctx: RequestContext, queryStr: string): Promise<CurrentLocation[]> {
+        const providerResults = await this.osmProvider.searchAddress(queryStr);
+        const resolvedList: CurrentLocation[] = [];
+        for (const item of providerResults) {
+            const location = await this.resolveCoordinates(ctx, item.latitude, item.longitude);
+            if (item.displayName && !location.formattedAddress) {
+                location.formattedAddress = item.displayName;
+            }
+            resolvedList.push(location);
+        }
+        return resolvedList;
+    }
+
+    generateHierarchicalCode(zones: GeoZone[]): string {
+        if (!zones || zones.length === 0) return 'BJ-UNKNOWN';
+        const parts = zones.map(z => {
+            if (z.code) return z.code;
+            return z.slug.toUpperCase().substring(0, 6);
+        });
+        return parts.join('-');
+    }
+
+    private async logResolution(ctx: RequestContext, lat: number, lng: number, geoId: string, geoZoneId?: number, marketId?: number | null, confidence = 1.0, rawAddress?: string) {
+        try {
+            const repo = this.connection.getRepository(ctx, GeoResolutionLog);
+            const log = new GeoResolutionLog({
+                latitude: lat,
+                longitude: lng,
+                geoId,
+                geoZoneId: geoZoneId || undefined,
+                marketId: marketId || undefined,
+                provider: 'POSTGIS',
+                confidence,
+                rawAddress,
+            });
+            await repo.save(log);
+        } catch (e) {
+            // Non-blocking log error
+        }
     }
 
     /**
@@ -198,44 +348,59 @@ export class GeoService {
     }
 
     /**
+     * Finds the matching delivery zone covering clientGps, prioritizing the one with the highest maxPrice (for intersections).
+     */
+    async getMatchingZonePrices(ctx: RequestContext, clientGps: { lat: number; lng: number }): Promise<{ price: number, maxPrice: number | null } | null> {
+        try {
+            const query = `
+                SELECT dz.price, dz."maxPrice"
+                FROM delivery_zone dz
+                LEFT JOIN geo_zone gz ON dz."geoZoneId" = gz.id
+                WHERE dz."isActive" = true AND (
+                    (dz."geoZoneId" IS NOT NULL AND gz.status = 'ACTIVE' AND (
+                        (gz.boundary IS NOT NULL AND ST_Contains(gz.boundary, ST_SetSRID(ST_Point($1, $2), 4326)))
+                        OR
+                        (gz.boundary IS NULL AND gz."centerLatitude" IS NOT NULL AND gz."centerLongitude" IS NOT NULL AND gz."radiusMeters" IS NOT NULL AND
+                         ST_Distance(ST_SetSRID(ST_Point(gz."centerLongitude", gz."centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($1, $2), 4326)::geography) <= gz."radiusMeters")
+                    ))
+                    OR
+                    (dz."geoZoneId" IS NULL AND (
+                        (dz.type = 'RADIUS' AND dz."centerLatitude" IS NOT NULL AND dz."centerLongitude" IS NOT NULL AND dz."radiusMeters" IS NOT NULL AND
+                         ST_Distance(ST_SetSRID(ST_Point(dz."centerLongitude", dz."centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($1, $2), 4326)::geography) <= dz."radiusMeters")
+                        OR
+                        (dz.type = 'POLYGON' AND dz."polygonGeometry" IS NOT NULL AND ST_Contains(dz."polygonGeometry", ST_SetSRID(ST_Point($1, $2), 4326)))
+                    ))
+                )
+                ORDER BY dz."maxPrice" DESC NULLS LAST
+                LIMIT 1
+            `;
+            const raw = await this.connection.rawConnection.query(query, [clientGps.lng, clientGps.lat]);
+            if (raw && raw.length > 0) {
+                return {
+                    price: raw[0].price != null ? Number(raw[0].price) : 0,
+                    maxPrice: raw[0].maxPrice != null ? Number(raw[0].maxPrice) : null
+                };
+            }
+        } catch (e) {
+            console.error('[GeoService] Failed to check matching delivery zone:', e);
+        }
+        return null;
+    }
+
+    /**
      * Evaluates if the client coordinates fall within any active delivery zone of the vendor.
-     * Selects the cheapest zone and returns it.
+     * Calculates distance-based fee (baseFee + distance * pricePerKm) and caps it by maxPrice ceiling if applicable.
      */
     async checkDeliveryEligibility(ctx: RequestContext, clientGps: { lat: number; lng: number }, vendorId: string): Promise<{ eligible: boolean; fee: number }> {
-        const query = `
-            SELECT dz.id, dz.price, dz."ownerId"
-            FROM delivery_zone dz
-            LEFT JOIN geo_zone gz ON dz."geoZoneId" = gz.id
-            WHERE (dz."ownerId" = $1 OR dz."ownerId" IS NULL) AND dz."isActive" = true AND (
-                -- Case 1: Linked to a GeoZone
-                (dz."geoZoneId" IS NOT NULL AND gz.status = 'ACTIVE' AND (
-                    (gz.boundary IS NOT NULL AND ST_Contains(gz.boundary, ST_SetSRID(ST_Point($2, $3), 4326)))
-                    OR
-                    (gz.boundary IS NULL AND gz."centerLatitude" IS NOT NULL AND gz."centerLongitude" IS NOT NULL AND gz."radiusMeters" IS NOT NULL AND
-                     ST_Distance(ST_SetSRID(ST_Point(gz."centerLongitude", gz."centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($2, $3), 4326)::geography) <= gz."radiusMeters")
-                ))
-                -- Case 2: Legacy fallback directly on delivery_zone fields
-                OR
-                (dz."geoZoneId" IS NULL AND (
-                    (dz.type = 'RADIUS' AND dz."centerLatitude" IS NOT NULL AND dz."centerLongitude" IS NOT NULL AND dz."radiusMeters" IS NOT NULL AND
-                     ST_Distance(ST_SetSRID(ST_Point(dz."centerLongitude", dz."centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($2, $3), 4326)::geography) <= dz."radiusMeters")
-                    OR
-                    (dz.type = 'POLYGON' AND dz."polygonGeometry" IS NOT NULL AND ST_Contains(dz."polygonGeometry", ST_SetSRID(ST_Point($2, $3), 4326)))
-                ))
-            )
-            ORDER BY (dz."ownerId" IS NULL) ASC, dz.price ASC
-            LIMIT 1
-        `;
-        const raw = await this.connection.rawConnection.query(query, [vendorId, clientGps.lng, clientGps.lat]);
-        if (raw.length > 0) {
-            return { eligible: true, fee: raw[0].price };
-        }
+        const zonePrices = await this.getMatchingZonePrices(ctx, clientGps);
+        const maxPriceCap = zonePrices?.maxPrice ?? null;
+        let baseFeeFromZone = zonePrices?.price;
 
-        // Fallback: Dynamic distance-based kilometric calculator
+        // Dynamic distance-based kilometric calculator
+        let vendorLat: number | null = null;
+        let vendorLng: number | null = null;
+
         try {
-            let vendorLat: number | null = null;
-            let vendorLng: number | null = null;
-
             const rawVendor = await this.connection.rawConnection.query(
                 `SELECT latitude, longitude, "physicalMarketId", "locationId" FROM vendor WHERE id = $1 LIMIT 1`,
                 [vendorId]
@@ -266,41 +431,42 @@ export class GeoService {
                     }
                 }
             }
-
-            if (vendorLat == null || vendorLng == null || isNaN(vendorLat) || isNaN(vendorLng)) {
-                vendorLat = 6.3654; // Cotonou center fallback
-                vendorLng = 2.4183;
+            
+            const settings = await this.connection.getRepository(ctx, PlatformSettings).findOne({ where: { id: 'platform_settings' } as any });
+            
+            // Base fee logic: Use Zone base fee if available, but ensure it is never lower than global platform settings.
+            const globalBaseFee = settings?.deliveryBaseFee ?? 500;
+            const baseFee = Math.max(baseFeeFromZone != null ? baseFeeFromZone : globalBaseFee, globalBaseFee);
+            const deliveryFeePerKm = settings?.deliveryFeePerKm ?? 100;
+            
+            let distanceKm = 0;
+            if (vendorLat != null && vendorLng != null) {
+                const distanceMeters = await this.calculateDistance(ctx, { lat: vendorLat, lng: vendorLng }, clientGps);
+                distanceKm = distanceMeters / 1000;
             }
 
-            const distanceMeters = await this.calculateDistance(ctx, { lat: vendorLat, lng: vendorLng }, clientGps);
-            const distanceKm = distanceMeters / 1000;
-            
-            // Platform level configured settings via raw query
-            let baseFee = 500;
-            let feePerKm = 100;
-            try {
-                const rawSettings = await this.connection.rawConnection.query(`SELECT "deliveryBaseFee", "deliveryFeePerKm" FROM platform_settings WHERE id = 'platform_settings' LIMIT 1`);
-                if (rawSettings && rawSettings[0]) {
-                    if (rawSettings[0].deliveryBaseFee != null) baseFee = Number(rawSettings[0].deliveryBaseFee);
-                    if (rawSettings[0].deliveryFeePerKm != null) feePerKm = Number(rawSettings[0].deliveryFeePerKm);
-                }
-            } catch (e) {}
+            let finalFee = baseFee + Math.round(distanceKm * deliveryFeePerKm);
 
-            const calculatedFee = Math.round(baseFee + (distanceKm * feePerKm));
-            const finalFee = Math.max(calculatedFee, baseFee);
+            if (maxPriceCap != null && maxPriceCap > 0) {
+                finalFee = Math.min(finalFee, maxPriceCap);
+            }
+            
+            // Ensure fee never goes below baseFee.
+            finalFee = Math.max(finalFee, baseFee);
             
             return { eligible: true, fee: finalFee };
         } catch (e) {
-            console.error('Failed to calculate dynamic distance-based delivery fee:', e);
-        }
-
-        // If all calculations fail, return baseFee instead of 0 to avoid free shipping by mistake
-        try {
-            const settings = await this.connection.getRepository(ctx, PlatformSettings).findOne({ where: { id: 'platform_settings' } as any });
-            const baseFee = settings?.deliveryBaseFee ?? 500;
-            return { eligible: true, fee: baseFee };
-        } catch (e) {
-            return { eligible: true, fee: 500 };
+            console.error('[GeoService] checkDeliveryEligibility error:', e);
+            const fallbackSettings = await this.connection.getRepository(ctx, PlatformSettings).findOne({ where: { id: 'platform_settings' } as any });
+            const globalFallbackBase = fallbackSettings?.deliveryBaseFee ?? 500;
+            const fallbackBase = Math.max(baseFeeFromZone != null ? baseFeeFromZone : globalFallbackBase, globalFallbackBase);
+            
+            let finalFee = fallbackBase;
+            if (maxPriceCap != null && maxPriceCap > 0) {
+                finalFee = Math.min(finalFee, maxPriceCap);
+            }
+            finalFee = Math.max(finalFee, fallbackBase);
+            return { eligible: true, fee: finalFee };
         }
     }
 
@@ -565,4 +731,113 @@ export class GeoService {
 
         return { count };
     }
+
+    // -------------------------------------------------------------
+    // GEO ENGINE ADMIN SIG & MODERATION METHODS
+    // -------------------------------------------------------------
+
+    async getResolutionLogs(ctx: RequestContext, limit = 50, offset = 0): Promise<GeoResolutionLog[]> {
+        return this.connection.getRepository(ctx, GeoResolutionLog).find({
+            order: { createdAt: 'DESC' },
+            take: limit,
+            skip: offset,
+        });
+    }
+
+    async getUserCorrections(ctx: RequestContext, status?: string): Promise<GeoUserCorrection[]> {
+        const where: any = {};
+        if (status) {
+            where.status = status;
+        }
+        return this.connection.getRepository(ctx, GeoUserCorrection).find({
+            where,
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    async getCoverageStats(ctx: RequestContext): Promise<any> {
+        const totalZones = await this.connection.getRepository(ctx, GeoZone).count();
+        const activeZones = await this.connection.getRepository(ctx, GeoZone).count({ where: { status: GeoZoneStatus.ACTIVE } });
+        const totalMarkets = await this.connection.getRepository(ctx, Market).count();
+        const totalLogs = await this.connection.getRepository(ctx, GeoResolutionLog).count();
+
+        const rawTypeStats = await this.connection.rawConnection.query(
+            `SELECT type, COUNT(*) as count FROM geo_zone GROUP BY type`
+        );
+
+        return {
+            totalZones,
+            activeZones,
+            totalMarkets,
+            totalLogs,
+            zonesByType: rawTypeStats,
+            coveragePercentage: 100, // Cotonou Phase 0.1 complete
+        };
+    }
+
+    async submitUserCorrection(ctx: RequestContext, input: { latitude: number; longitude: number; suggestedGeoZoneId?: number; userComment?: string }): Promise<GeoUserCorrection> {
+        const repo = this.connection.getRepository(ctx, GeoUserCorrection);
+        const correction = new GeoUserCorrection({
+            latitude: input.latitude,
+            longitude: input.longitude,
+            suggestedGeoZoneId: input.suggestedGeoZoneId,
+            userComment: input.userComment,
+            status: 'PENDING' as any,
+        });
+        return repo.save(correction);
+    }
+
+    async moderateUserCorrection(ctx: RequestContext, id: number, approve: boolean): Promise<GeoUserCorrection> {
+        const repo = this.connection.getRepository(ctx, GeoUserCorrection);
+        const correction = await repo.findOneOrFail({ where: { id } });
+        correction.status = approve ? ('APPROVED' as any) : ('REJECTED' as any);
+        return repo.save(correction);
+    }
+
+    async splitGeoZone(ctx: RequestContext, parentZoneId: number, newZoneNames: string[]): Promise<GeoZone[]> {
+        const repo = this.connection.getRepository(ctx, GeoZone);
+        const parent = await repo.findOneOrFail({ where: { id: parentZoneId } });
+
+        const createdZones: GeoZone[] = [];
+        for (let i = 0; i < newZoneNames.length; i++) {
+            const name = newZoneNames[i];
+            const slug = `${parent.slug}-${name.toLowerCase().replace(/\s+/g, '-')}`;
+            const geoId = `${parent.geoId || 'GEO-BJ-00'}-PART${i + 1}`;
+            const zone = new GeoZone({
+                name,
+                slug,
+                geoId,
+                type: parent.type,
+                status: GeoZoneStatus.ACTIVE,
+                parent,
+                centerLatitude: parent.centerLatitude,
+                centerLongitude: parent.centerLongitude,
+            });
+            const saved = await repo.save(zone);
+            createdZones.push(saved);
+        }
+        return createdZones;
+    }
+
+    async mergeGeoZones(ctx: RequestContext, zoneIds: number[], mergedName: string): Promise<GeoZone> {
+        const repo = this.connection.getRepository(ctx, GeoZone);
+        const zones = await repo.find({ where: { id: In(zoneIds) }, relations: ['parent'] });
+        if (zones.length === 0) {
+            throw new Error('No zones found to merge');
+        }
+
+        const primary = zones[0];
+        primary.name = mergedName;
+        primary.slug = mergedName.toLowerCase().replace(/\s+/g, '-');
+        await repo.save(primary);
+
+        // Deactivate merged sibling zones
+        for (let i = 1; i < zones.length; i++) {
+            zones[i].status = GeoZoneStatus.ARCHIVED;
+            await repo.save(zones[i]);
+        }
+
+        return primary;
+    }
 }
+

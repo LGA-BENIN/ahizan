@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Search, Folder, FolderOpen } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronRight, Search, Folder, FolderOpen, Plus } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,14 @@ export default function CategoryCheckboxTree({
 }: CategoryCheckboxTreeProps) {
     const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
     const [searchQuery, setSearchQuery] = useState('');
+    // "Autre" inline option state
+    const [showAutreInput, setShowAutreInput] = useState(false);
+    const [autreValue, setAutreValue] = useState('');
+    const autreInputRef = useRef<HTMLInputElement>(null);
+
+    // Extract any existing "autre:..." custom entry from selectedIds
+    const autreId = selectedIds.find(id => id.startsWith('autre:'));
+    const autreChecked = !!autreId;
 
     const toggleExpand = (id: string) => {
         setExpandedIds((prev: Record<string, boolean>) => ({ ...prev, [id]: !prev[id] }));
@@ -39,7 +47,30 @@ export default function CategoryCheckboxTree({
         }
     };
 
-    // Helper to determine if a node or any of its descendants matches search
+    // Handle "Autre" checkbox toggle
+    const handleAutreCheckboxChange = (checked: boolean) => {
+        if (checked) {
+            setShowAutreInput(true);
+            setTimeout(() => autreInputRef.current?.focus(), 50);
+        } else {
+            onChange(selectedIds.filter(id => !id.startsWith('autre:')));
+            setShowAutreInput(false);
+            setAutreValue('');
+        }
+    };
+
+    // Confirm "Autre" value
+    const confirmAutreValue = () => {
+        const trimmed = autreValue.trim();
+        if (!trimmed) {
+            setShowAutreInput(false);
+            return;
+        }
+        const without = selectedIds.filter(id => !id.startsWith('autre:'));
+        onChange([...without, `autre:${trimmed}`]);
+        setShowAutreInput(false);
+    };
+
     const matchesSearch = (node: CollectionNode, query: string): boolean => {
         if (!query) return true;
         const normalizedQuery = query.toLowerCase();
@@ -50,7 +81,6 @@ export default function CategoryCheckboxTree({
         return false;
     };
 
-    // Recursively expand all nodes that have children matching search
     const handleExpandAllMatching = (nodes: CollectionNode[], query: string, acc: Record<string, boolean> = {}): Record<string, boolean> => {
         if (!query) return {};
         for (const node of nodes) {
@@ -65,15 +95,12 @@ export default function CategoryCheckboxTree({
         return acc;
     };
 
-    // Auto-expand parents matching search
     useEffect(() => {
         if (searchQuery) {
             const newExpanded = handleExpandAllMatching(collectionTree, searchQuery);
             setExpandedIds((prev: Record<string, boolean>) => {
                 const hasNew = Object.keys(newExpanded).some(k => !prev[k]);
-                if (hasNew) {
-                    return { ...prev, ...newExpanded };
-                }
+                if (hasNew) return { ...prev, ...newExpanded };
                 return prev;
             });
         }
@@ -93,15 +120,10 @@ export default function CategoryCheckboxTree({
         setExpandedIds(acc);
     };
 
-    const collapseAll = () => {
-        setExpandedIds({});
-    };
+    const collapseAll = () => setExpandedIds({});
 
-    // Render tree node recursively
     const renderNode = (node: CollectionNode, depth = 0) => {
-        if (searchQuery && !matchesSearch(node, searchQuery)) {
-            return null;
-        }
+        if (searchQuery && !matchesSearch(node, searchQuery)) return null;
 
         const hasChildren = node.children && node.children.length > 0;
         const isExpanded = !!expandedIds[node.id];
@@ -109,59 +131,39 @@ export default function CategoryCheckboxTree({
 
         return (
             <div key={node.id} className="select-none">
-                <div 
+                <div
                     className="flex items-center gap-2 py-1.5 px-2 hover:bg-muted/40 rounded-lg transition-colors cursor-pointer group"
                     style={{ paddingLeft: `${Math.max(8, depth * 24)}px` }}
                 >
-                    {/* Expand/Collapse Chevron */}
                     {hasChildren ? (
                         <button
                             type="button"
-                            onClick={(e: React.MouseEvent) => {
-                                e.stopPropagation();
-                                toggleExpand(node.id);
-                            }}
+                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleExpand(node.id); }}
                             className="p-1 rounded hover:bg-muted text-muted-foreground transition-colors flex items-center justify-center shrink-0 w-6 h-6"
                         >
-                            {isExpanded ? (
-                                <ChevronDown className="w-4 h-4" />
-                            ) : (
-                                <ChevronRight className="w-4 h-4" />
-                            )}
+                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                     ) : (
-                        <div className="w-6 shrink-0" /> // spacer
+                        <div className="w-6 shrink-0" />
                     )}
-
-                    {/* Checkbox */}
                     <Checkbox
                         id={`category-${node.id}`}
                         checked={isChecked}
                         onCheckedChange={(checked: boolean | 'indeterminate') => handleCheckboxChange(node.id, checked === true)}
                         className="rounded border-muted-foreground/30 focus-visible:ring-primary/20 shrink-0"
                     />
-
-                    {/* Label/Icon */}
                     <label
                         htmlFor={`category-${node.id}`}
                         className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer flex-grow py-0.5"
                     >
                         {hasChildren ? (
-                            isExpanded ? (
-                                <FolderOpen className="w-4 h-4 text-primary/70 shrink-0" />
-                            ) : (
-                                <Folder className="w-4 h-4 text-primary/70 shrink-0" />
-                            )
+                            isExpanded ? <FolderOpen className="w-4 h-4 text-primary/70 shrink-0" /> : <Folder className="w-4 h-4 text-primary/70 shrink-0" />
                         ) : (
                             <Folder className="w-4 h-4 text-muted-foreground/50 shrink-0" />
                         )}
-                        <span className={isChecked ? 'font-bold text-primary' : ''}>
-                            {node.name}
-                        </span>
+                        <span className={isChecked ? 'font-bold text-primary' : ''}>{node.name}</span>
                     </label>
                 </div>
-
-                {/* Children */}
                 {hasChildren && isExpanded && (
                     <div className="mt-0.5 border-l border-border/50 ml-5 pl-1 transition-all duration-300">
                         {node.children!.map((child) => renderNode(child, depth + 1))}
@@ -186,22 +188,10 @@ export default function CategoryCheckboxTree({
                     />
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={expandAll}
-                        className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider"
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={expandAll} className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider">
                         Tout dérouler
                     </Button>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={collapseAll}
-                        className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider"
-                    >
+                    <Button type="button" variant="outline" size="sm" onClick={collapseAll} className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider">
                         Tout replier
                     </Button>
                 </div>
@@ -215,14 +205,49 @@ export default function CategoryCheckboxTree({
                     collectionTree.map((node) => renderNode(node, 0))
                 )}
             </div>
-            
-            {/* Summary of selections */}
+
+            {/* ── Autre catégorie ── */}
+            <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center gap-2 py-1 px-2">
+                    <div className="w-6 shrink-0" />
+                    <Checkbox
+                        id="category-autre"
+                        checked={autreChecked || showAutreInput}
+                        onCheckedChange={(checked: boolean | 'indeterminate') => handleAutreCheckboxChange(checked === true)}
+                        className="rounded border-dashed border-primary/50 focus-visible:ring-primary/20 shrink-0"
+                    />
+                    <label htmlFor="category-autre" className="flex items-center gap-2 text-sm cursor-pointer flex-grow py-0.5">
+                        <Plus className="w-4 h-4 text-primary/60 shrink-0" />
+                        <span className={(autreChecked || showAutreInput) ? 'font-bold text-primary' : 'text-muted-foreground italic'}>
+                            Autre catégorie{autreId ? ` : ${autreId.replace('autre:', '')}` : ''}
+                        </span>
+                    </label>
+                </div>
+                {showAutreInput && (
+                    <div className="flex items-center gap-2 pl-14">
+                        <Input
+                            ref={autreInputRef}
+                            type="text"
+                            placeholder="Saisir le nom de la catégorie..."
+                            value={autreValue}
+                            onChange={(e) => setAutreValue(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), confirmAutreValue())}
+                            className="h-9 text-xs rounded-lg flex-1"
+                        />
+                        <Button type="button" size="sm" onClick={confirmAutreValue} className="h-9 px-3 text-[10px] font-bold uppercase">
+                            Valider
+                        </Button>
+                    </div>
+                )}
+            </div>
+
+            {/* Summary */}
             {selectedIds.length > 0 && (
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold border-t pt-2.5 flex items-center justify-between">
                     <span>{selectedIds.length} catégorie(s) sélectionnée(s)</span>
                     <button
                         type="button"
-                        onClick={() => onChange([])}
+                        onClick={() => { onChange([]); setShowAutreInput(false); setAutreValue(''); }}
                         className="text-destructive hover:underline font-extrabold"
                     >
                         Tout décocher

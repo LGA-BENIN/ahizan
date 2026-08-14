@@ -19,6 +19,7 @@ import { ProductReviewsSettings } from './sections/ProductReviewsSettings';
 import { RelatedProductsSettings } from './sections/RelatedProductsSettings';
 import { SmartVisualGridSettings } from './sections/SmartGrid/SmartVisualGridSettings';
 import { FreeformBuilderSettings } from './sections/craft-freeform/FreeformBuilderSettings';
+import { UniversalProductCollectionSettings } from './sections/UniversalProductCollectionSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 import { FileUploadField } from './sections/FileUploadField';
@@ -100,8 +101,9 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
 
                 const sectionsJson = JSON.stringify(sections);
                 
-                // OPTIMISTIC LOCAL UPDATE (Instantly update UI)
+                // OPTIMISTIC LOCAL UPDATE (Instantly update UI and live preview)
                 setActiveHabillage((prev: any) => prev ? { ...prev, sectionsJson } : prev);
+                setPreviewVersion(Date.now());
                 
                 // FIRE AND FORGET BACKGROUND SAVE
                 fetchGraphQL(AUTO_SAVE_HABILLAGE, {
@@ -128,6 +130,12 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
     );
 
     switch (section.type) {
+        case 'PRODUCT_COLLECTION':
+            return withCodePanel(<UniversalProductCollectionSettings data={data} onSave={handleSave} />);
+
+        case 'CATEGORY_COLLECTION':
+            return withCodePanel(<CategorySectionSettings data={data} onSave={handleSave} />);
+
         case 'HERO':
             return withCodePanel(<HeroSettings data={data} onSave={handleSave} />);
         

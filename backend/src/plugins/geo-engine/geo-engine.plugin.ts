@@ -3,6 +3,10 @@ import { PluginCommonModule, VendurePlugin, ShippingMethodService, ChannelServic
 import { GeoZone } from './entities/geo-zone.entity';
 import { Market } from './entities/market.entity';
 import { DeliveryZone } from './entities/delivery-zone.entity';
+import { GeoZoneAlias } from './entities/geo-zone-alias.entity';
+import { GeoResolutionLog } from './entities/geo-resolution-log.entity';
+import { GeoUserCorrection } from './entities/geo-user-correction.entity';
+import { GeoPOI } from './entities/geo-poi.entity';
 import { GeoService } from './service/geo.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
 import { GeoResolver, GeoAdminResolver, MarketResolver, DeliveryZoneResolver } from './api/geo.resolver';
@@ -12,7 +16,7 @@ import { geoEngineShippingEligibilityChecker } from './shipping/geo-engine-shipp
 
 @VendurePlugin({
     imports: [PluginCommonModule],
-    entities: [GeoZone, Market, DeliveryZone],
+    entities: [GeoZone, Market, DeliveryZone, GeoZoneAlias, GeoResolutionLog, GeoUserCorrection, GeoPOI],
     providers: [GeoService],
     exports: [GeoService],
     compatibility: '^3.0.0',

@@ -1,10 +1,11 @@
 'use client';
 
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Field, FieldLabel, FieldError, FieldGroup } from '@/components/ui/field';
 import { useForm, Controller } from 'react-hook-form';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Navigation } from 'lucide-react';
 import { CountrySelect } from '@/components/shared/country-select';
 
 interface Country {
@@ -49,7 +50,7 @@ interface AddressFormProps {
 }
 
 export function AddressForm({ countries, address, onSubmit, onCancel, isSubmitting }: AddressFormProps) {
-  const { register, handleSubmit, formState: { errors }, control } = useForm<AddressFormData>({
+  const { register, handleSubmit, formState: { errors }, control, setValue } = useForm<AddressFormData>({
     defaultValues: address ? {
       fullName: address.fullName || '',
       company: address.company || '',
@@ -64,6 +65,78 @@ export function AddressForm({ countries, address, onSubmit, onCancel, isSubmitti
       countryCode: countries[0]?.code || 'US',
     }
   });
+
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  const handleUseGps = () => {
+    if (!navigator.geolocation) {
+      alert("La géolocalisation n'est pas supportée par votre navigateur.");
+      return;
+    }
+
+    setGpsLoading(true);
+    let isResolved = false;
+
+    const fallbackTimer = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        setGpsLoading(false);
+        alert("Le délai d'attente de la géolocalisation a expiré. Veuillez vérifier que la localisation est autorisée sur votre appareil ou saisir directement votre ville.");
+      }
+    }, 7000);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        if (isResolved) return;
+        isResolved = true;
+        clearTimeout(fallbackTimer);
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+            { headers: { 'Accept-Language': 'fr' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            const street = [addr.house_number, addr.road].filter(Boolean).join(' ')
+              || addr.suburb
+              || addr.neighbourhood
+              || addr.quarter
+              || addr.city_district
+              || addr.village
+              || addr.town
+              || addr.city;
+            const city = addr.city || addr.town || addr.village || addr.suburb || addr.county || 'Cotonou';
+            const province = addr.state || '';
+            const postalCode = addr.postcode || '';
+            const countryCode = (addr.country_code || 'bj').toUpperCase();
+
+            const finalName = street || city;
+            if (finalName) setValue('streetLine1', finalName);
+            if (city) setValue('city', city);
+            if (province) setValue('province', province);
+            if (postalCode) setValue('postalCode', postalCode);
+            const matchedCountry = countries.find(c => c.code === countryCode);
+            if (matchedCountry) setValue('countryCode', matchedCountry.code);
+          }
+        } catch (e) {
+          console.error('Reverse geocode error:', e);
+        } finally {
+          setGpsLoading(false);
+        }
+      },
+      (error) => {
+        if (isResolved) return;
+        isResolved = true;
+        clearTimeout(fallbackTimer);
+        console.error('GPS error:', error);
+        alert("Impossible d'accéder à votre position GPS. Vérifiez les autorisations du navigateur ou saisissez manuellement votre ville.");
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+  };
 
   const handleFormSubmit = async (data: AddressFormData) => {
     await onSubmit(address ? { ...data, id: address.id } : data);
@@ -87,6 +160,21 @@ export function AddressForm({ countries, address, onSubmit, onCancel, isSubmitti
             <FieldLabel htmlFor="company">Entreprise / Société</FieldLabel>
             <Input id="company" {...register('company')} disabled={isSubmitting} />
           </Field>
+
+          <div className="col-span-2">
+            <button
+              type="button"
+              onClick={handleUseGps}
+              disabled={gpsLoading || isSubmitting}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-bold text-sm border border-primary/20 transition-all disabled:opacity-60 cursor-pointer"
+            >
+              {gpsLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /><span>Localisation en cours...</span></>
+              ) : (
+                <><Navigation className="w-4 h-4" /><span>Utiliser ma position actuelle</span></>
+              )}
+            </button>
+          </div>
 
           <Field className="col-span-2">
             <FieldLabel htmlFor="streetLine1">Adresse *</FieldLabel>

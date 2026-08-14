@@ -8,11 +8,13 @@ import { getUrlContext, sanitizeRedirectUrl } from '@/lib/url-utils';
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ redirectTo?: string }>;
+  searchParams: Promise<{ redirectTo?: string; email?: string; notice?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const { sellerUrl, useProdUrls } = await getUrlContext();
   const redirectTo = sanitizeRedirectUrl(resolvedSearchParams.redirectTo, useProdUrls);
+  const defaultEmail = resolvedSearchParams.email || '';
+  const notice = resolvedSearchParams.notice || '';
 
   const token = await getAuthToken();
   let isAlreadyLoggedIn = false;
@@ -39,5 +41,5 @@ export default async function Page({
     }
   }
 
-  return <RegisterForm redirectTo={redirectTo} />;
+  return <RegisterForm redirectTo={redirectTo} defaultEmail={defaultEmail} notice={notice} />;
 }

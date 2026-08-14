@@ -204,68 +204,24 @@ function VendorDetailModal({ isOpen, onClose, vendorId, addToast }: { isOpen: bo
                                                     }} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reject</button>
                                                 </>
                                             )}
-                                            {vendor.status === 'APPROVED' && <button onClick={() => updateStatusMutation.mutate({ status: 'SUSPENDED' })} style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Suspend</button>}
+                                            {vendor.status === 'APPROVED' && (
+                                                <button onClick={() => {
+                                                    const reason = prompt("Veuillez saisir le motif de la suspension du compte vendeur :");
+                                                    if (reason && reason.trim()) {
+                                                        updateStatusMutation.mutate({ status: 'SUSPENDED', reason: reason.trim() });
+                                                    }
+                                                }} style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Suspendre</button>
+                                            )}
                                             {vendor.status === 'SUSPENDED' && <button onClick={() => updateStatusMutation.mutate({ status: 'APPROVED' })} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reactivate</button>}
                                             {vendor.status === 'REJECTED' && (
                                                 <button onClick={() => updateStatusMutation.mutate({ status: 'PENDING' })} style={{ background: '#eab308', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Re-evaluate</button>
                                             )}
                                         </div>
                                     </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '8px', color: '#64748b' }}>Commission (%)</label>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <input type="number" value={commissionRate} onChange={e => setCommissionRate(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', width: '80px' }} />
-                                            <button onClick={() => {
-                                                const rate = parseFloat(commissionRate);
-                                                if (isNaN(rate) || rate < 0 || rate > 100) return addToast('Invalid percentage', 'error');
-                                                updateVendorMutation.mutate({ commissionRate: rate });
-                                            }} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}>Save</button>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
-                            {/* Wallet Management */}
-                            <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <h3 style={{ margin: 0, fontSize: '16px' }}>💰 Wallet Management</h3>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ fontSize: '18px', fontWeight: 'bold', color: (vendor.walletBalance || 0) < 0 ? '#dc2626' : '#16a34a' }}>
-                                            {(vendor.walletBalance || 0).toLocaleString()} FCFA
-                                        </div>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={!!vendor.allowNegativeBalance} 
-                                                onChange={(e) => toggleOverdraftMutation.mutate(e.target.checked)}
-                                            />
-                                            Allow Overdraft
-                                        </label>
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#64748b' }}>Amount</label>
-                                        <input type="number" placeholder="0" value={walletAmount} onChange={e => setWalletAmount(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', width: '120px' }} />
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#64748b' }}>Note (Optional)</label>
-                                        <input type="text" placeholder="Reason for transaction" value={walletNote} onChange={e => setWalletNote(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', width: '100%' }} />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button onClick={() => {
-                                            const amt = parseInt(walletAmount);
-                                            if (isNaN(amt) || amt <= 0) return addToast('Invalid amount', 'error');
-                                            creditWalletMutation.mutate({ amount: amt, note: walletNote });
-                                        }} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>+ Credit</button>
-                                        <button onClick={() => {
-                                            const amt = parseInt(walletAmount);
-                                            if (isNaN(amt) || amt <= 0) return addToast('Invalid amount', 'error');
-                                            debitWalletMutation.mutate({ amount: amt, note: walletNote });
-                                        }} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}>- Debit</button>
-                                    </div>
-                                </div>
-                            </div>
+
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                 <div><strong>Email:</strong> {vendor.email}</div>
@@ -543,13 +499,7 @@ export function VendorListComponent() {
                                 <div style={{ fontSize: '14px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                     <div>📍 {vendor.zone || 'No Zone'}</div>
                                     <div>⭐ {vendor.rating} Rating</div>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <span>💰 Wallet:</span>
-                                        <span style={{ fontWeight: 600, color: (vendor.walletBalance || 0) < 0 ? '#dc2626' : '#16a34a' }}>
-                                            {(vendor.walletBalance || 0).toLocaleString()} FCFA
-                                        </span>
-                                        {vendor.allowNegativeBalance && <span style={{ fontSize: '10px', background: '#e0e7ff', color: '#3730a3', padding: '2px 4px', borderRadius: '4px' }}>Overdraft OK</span>}
-                                    </div>
+
                                     <div>📅 Joined {new Date(vendor.createdAt).toLocaleDateString()}</div>
                                 </div>
                             </div>

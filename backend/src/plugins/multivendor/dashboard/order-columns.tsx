@@ -12,11 +12,12 @@ async function fetchGraphQL(query: string, variables?: any) {
     if (json.errors) throw new Error(json.errors[0].message);
     return json.data;
 }
-
 const sellerLabels: Record<string, {label: string; color: string}> = {
     pending: { label: 'En attente', color: '#F59E0B' },
     confirmed: { label: 'Confirmée', color: '#3B82F6' },
     refused: { label: 'Refusée', color: '#EF4444' },
+    reassigning: { label: 'En réassignation', color: '#8B5CF6' },
+    reassigned_to_other: { label: 'Réassignée', color: '#6B7280' },
 };
 
 const adminLabels: Record<string, {label: string; color: string}> = {

@@ -77,19 +77,35 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                             reverseGeocode(latitude: $lat, longitude: $lng) {
                                 id
                                 name
+                                type
                             }
                         }
                     `, { lat: latitude, lng: longitude });
 
                     const matchedZones = (res.data as any)?.reverseGeocode || [];
                     let zoneId = '';
-                    if (matchedZones.length > 0) {
-                        zoneId = matchedZones[0].id;
-                    } else if (neighborhoodName) {
-                        // Fallback to match neighborhoodName with our loaded list of neighborhoods
-                        const matched = neighborhoods.find((n: any) => n.name.toLowerCase().includes(neighborhoodName.toLowerCase()));
+                    
+                    // Search backwards from most specific zone (NEIGHBORHOOD -> ARRONDISSEMENT -> COMMUNE)
+                    for (let i = matchedZones.length - 1; i >= 0; i--) {
+                        const z = matchedZones[i];
+                        const exists = neighborhoods.some((n: any) => String(n.id) === String(z.id));
+                        if (exists) {
+                            zoneId = String(z.id);
+                            break;
+                        }
+                    }
+
+                    if (!zoneId && matchedZones.length > 0) {
+                        zoneId = String(matchedZones[matchedZones.length - 1].id);
+                    }
+
+                    if (!zoneId && neighborhoodName) {
+                        const matched = neighborhoods.find((n: any) => 
+                            n.name.toLowerCase().includes(neighborhoodName.toLowerCase()) ||
+                            neighborhoodName.toLowerCase().includes(n.name.toLowerCase())
+                        );
                         if (matched) {
-                            zoneId = matched.id;
+                            zoneId = String(matched.id);
                         }
                     }
 
@@ -102,7 +118,7 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                             selectEl.dispatchEvent(event);
                         }
                     } else if (neighborhoodName) {
-                        setGpsError(`Quartier détecté (${neighborhoodName}) non disponible dans la liste des ventes.`);
+                        setGpsError(`Quartier détecté (${neighborhoodName}) non disponible dans la liste.`);
                     } else {
                         setGpsError("Impossible de localiser votre quartier.");
                     }
@@ -143,6 +159,22 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
         );
     };
 
+    const FALLBACK_ZONES = [
+        { id: "18", name: "Cotonou", type: "COMMUNE" },
+        { id: "3", name: "Abomey-Calavi", type: "COMMUNE" },
+        { id: "2", name: "Porto-Novo", type: "COMMUNE" },
+        { id: "85", name: "Akpakpa Dodomè", type: "NEIGHBORHOOD" },
+        { id: "86", name: "Agla", type: "NEIGHBORHOOD" },
+        { id: "87", name: "Fidjrossè", type: "NEIGHBORHOOD" },
+        { id: "88", name: "Cadjèhoun", type: "NEIGHBORHOOD" },
+        { id: "89", name: "Gbégamey", type: "NEIGHBORHOOD" },
+        { id: "96", name: "Ouando", type: "NEIGHBORHOOD" },
+        { id: "97", name: "Ahouangbo", type: "NEIGHBORHOOD" },
+        { id: "98", name: "Tokpota", type: "NEIGHBORHOOD" },
+        { id: "101", name: "Zogbadjè", type: "NEIGHBORHOOD" },
+        { id: "102", name: "Godomey", type: "NEIGHBORHOOD" },
+    ];
+
     // Charger les champs d'inscription configurés (ou fallback)
     useEffect(() => {
         const fetchFields = async () => {
@@ -159,16 +191,22 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
             try {
                 const res = await query(`
                     query GetNeighborhoods {
-                        geoZones(type: "NEIGHBORHOOD") {
+                        geoZones {
                             id
                             name
+                            type
+                            parent {
+                                id
+                                name
+                            }
                         }
                     }
                 `);
                 const zones = (res.data as any)?.geoZones || [];
-                setNeighborhoods(zones);
+                setNeighborhoods(zones.length > 0 ? zones : FALLBACK_ZONES);
             } catch (err) {
                 console.error('Failed to load neighborhoods in onboarding:', err);
+                setNeighborhoods(FALLBACK_ZONES);
             }
         };
         fetchFields();
@@ -333,17 +371,36 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
                                                     )}
                                                 </button>
                                             </div>
-                                            <select
-                                                name={inputName}
-                                                required={field.required}
-                                                disabled={isPending}
-                                                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                                            >
-                                                <option value="">Sélectionnez votre quartier...</option>
-                                                {neighborhoods.map((n: any) => (
-                                                    <option key={n.id} value={n.id}>{n.name}</option>
-                                                ))}
-                                            </select>
+                                            {(() => {
+                                                const mainCities = neighborhoods.filter((n: any) => n.type === 'COMMUNE' || n.type === 'CITY' || ['cotonou', 'abomey-calavi', 'porto-novo'].includes(n.name?.toLowerCase()));
+                                                const subZones = neighborhoods.filter((n: any) => !mainCities.some((c: any) => c.id === n.id));
+                                                return (
+                                                    <select
+                                                        name={inputName}
+                                                        required={field.required}
+                                                        disabled={isPending}
+                                                        className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                                                    >
+                                                        <option value="">Sélectionnez votre ville, quartier ou arrondissement...</option>
+                                                        {mainCities.length > 0 && (
+                                                            <optgroup label="🏙️ Villes / Communes principales">
+                                                                {mainCities.map((n: any) => (
+                                                                    <option key={n.id} value={n.id}>{n.name}</option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                        {subZones.length > 0 && (
+                                                            <optgroup label="🏘️ Quartiers et Arrondissements">
+                                                                {subZones.map((n: any) => (
+                                                                    <option key={n.id} value={n.id}>
+                                                                        {n.parent?.name ? `${n.name} (${n.parent.name})` : n.name}
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                        )}
+                                                    </select>
+                                                );
+                                            })()}
                                             {gpsError && <p className="text-xs text-red-500 mt-1">{gpsError}</p>}
                                             {field.description && <p className="text-xs text-muted-foreground mt-1">{field.description}</p>}
                                         </div>

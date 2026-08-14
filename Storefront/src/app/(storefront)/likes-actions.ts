@@ -37,10 +37,16 @@ export async function toggleProductLikeAction(productId: string) {
         });
         return { success: true, liked: data.toggleLikeProduct };
     } catch (e: any) {
-        const errorMessage = e.message || '';
-        // If unauthorized/unauthenticated error is detected in GraphQL errors
-        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
-            return { success: false, authenticated: false };
+        const errorMessage = e?.message || '';
+        const isAuthError = !errorMessage || 
+            errorMessage.toLowerCase().includes('authorized') || 
+            errorMessage.toLowerCase().includes('authenticated') ||
+            errorMessage.toLowerCase().includes('forbidden') ||
+            errorMessage.toLowerCase().includes('customer profile not found') ||
+            errorMessage.toLowerCase().includes('unauthorized');
+
+        if (isAuthError) {
+            return { success: false, authenticated: false, error: 'UNAUTHORIZED' };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la mise à jour du favori' };
     }
@@ -57,9 +63,16 @@ export async function toggleVendorLikeAction(vendorId: string) {
         });
         return { success: true, liked: data.toggleLikeVendor };
     } catch (e: any) {
-        const errorMessage = e.message || '';
-        if (errorMessage.toLowerCase().includes('authorized') || errorMessage.toLowerCase().includes('authenticated')) {
-            return { success: false, authenticated: false };
+        const errorMessage = e?.message || '';
+        const isAuthError = !errorMessage || 
+            errorMessage.toLowerCase().includes('authorized') || 
+            errorMessage.toLowerCase().includes('authenticated') ||
+            errorMessage.toLowerCase().includes('forbidden') ||
+            errorMessage.toLowerCase().includes('customer profile not found') ||
+            errorMessage.toLowerCase().includes('unauthorized');
+
+        if (isAuthError) {
+            return { success: false, authenticated: false, error: 'UNAUTHORIZED' };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la mise à jour de l\'abonnement' };
     }

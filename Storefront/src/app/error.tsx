@@ -10,6 +10,14 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  if (
+    error?.message?.includes("NEXT_REDIRECT") ||
+    error?.digest?.includes("NEXT_REDIRECT") ||
+    (typeof error === "object" && error !== null && "digest" in error && String(error.digest).includes("NEXT_REDIRECT"))
+  ) {
+    throw error;
+  }
+
   useEffect(() => {
     // Log the error to an error reporting service
     console.error("Storefront Application Error:", error);

@@ -9,6 +9,9 @@ import { FlashSaleSection } from "./FlashSaleSection";
 import { RichTextSection } from './RichTextSection';
 import { HomeModal } from "./HomeModal";
 import { CmsSection } from "@/lib/vendure/cms-queries";
+import { adaptLegacySection } from "@/lib/cms/legacy-section.adapter";
+import { UniversalProductCollection } from "@/components/cms/UniversalProductCollection";
+import { CategoryCollection } from "@/components/cms/CategoryCollection";
 import { TabbedProductGrid } from "@/components/cms/tabbed-product-grid";
 import { CategoryGrid } from "@/components/cms/category-grid";
 import { SmartVisualGridSection } from "./SmartGrid/SmartVisualGridSection";
@@ -17,6 +20,7 @@ import MarketInfoRenderer from "@/components/cms/MarketInfoRenderer";
 import { LocalPersonalizedProducts } from "@/components/cms/LocalPersonalizedProducts";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Script from "next/script";
+import { useLocation } from "@/contexts/location-context";
 
 interface Props {
     section: CmsSection;
@@ -27,25 +31,51 @@ interface Props {
 
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
-function ShadowWrapper({ html, css }: { html: string, css?: string }) {
+// IsolatedHtmlContainer: renders custom HTML+CSS inside a Shadow DOM.
+// Shadow DOM is the ONLY 100% guaranteed way to prevent <style> leakage.
+// Styles inside shadow root are completely invisible to the rest of the page.
+function IsolatedHtmlContainer({ html, css }: { html: string; css?: string }) {
     const hostRef = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
-        if (hostRef.current) {
-            if (!hostRef.current.shadowRoot) {
-                hostRef.current.attachShadow({ mode: 'open' });
-            }
-            if (hostRef.current.shadowRoot) {
-                hostRef.current.shadowRoot.innerHTML = `
-                    ${css ? `<style>${css}</style>` : ''}
-                    <div>${html}</div>
-                `;
-            }
+        const host = hostRef.current;
+        if (!host) return;
+
+        // Attach shadow root once
+        let shadow = host.shadowRoot;
+        if (!shadow) {
+            shadow = host.attachShadow({ mode: 'open' });
         }
+
+        // Build shadow DOM content: base reset + link to public fonts if needed + user CSS + user HTML
+        shadow.innerHTML = `
+            <style>
+                :host {
+                    display: block;
+                    width: 100%;
+                    all: initial;
+                    contain: content;
+                    font-family: inherit;
+                    font-size: 16px;
+                    line-height: 1.5;
+                    color: #111;
+                    box-sizing: border-box;
+                }
+                *, *::before, *::after {
+                    box-sizing: border-box;
+                }
+                img, video { max-width: 100%; display: block; }
+                a { color: inherit; }
+            </style>
+            ${css ? `<style>${css}</style>` : ''}
+            <div class="custom-html-root">${html}</div>
+        `;
     }, [html, css]);
 
-    return <div ref={hostRef} />;
+    return <div ref={hostRef} style={{ display: 'block', width: '100%' }} />;
 }
+
+
 
 function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrapper }: { config: any, siteCategories: any[], globalPromoConfig: any, wrapper: string }) {
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -65,122 +95,36 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
     const filteredCats = siteCategories.filter((cat: any) => enabledSlugs.includes(cat.slug) || enabledSlugs.includes(cat.id));
     if (filteredCats.length === 0) return null;
 
-    const isCarousel = config.layout === 'carousel';
-
-    const cols = config.columnsDesktop === 2 ? 'grid-cols-2' :
-        config.columnsDesktop === 3 ? 'grid-cols-2 md:grid-cols-3' :
-        config.columnsDesktop === 4 ? 'grid-cols-2 md:grid-cols-4' :
-        config.columnsDesktop === 6 ? 'grid-cols-3 md:grid-cols-6' :
-        'grid-cols-2 md:grid-cols-3 lg:grid-cols-6';
-
-    const cardRadius = config.cardBorderRadius || '12px';
-    const cardStyle = config.cardStyle || 'standard';
-    const imageShape = config.imageShape || 'rounded';
-    const imgRadius = imageShape === 'circle' ? '50%' : imageShape === 'square' ? '4px' : '12px';
-
-    const getMobileW = (c: number) => c === 2 ? 'w-[calc(50%-4px)]' : c === 3 ? 'w-[calc(33.333%-5.33px)]' : 'w-[calc(50%-4px)]';
-    const getTabletW = (c: number) => c === 2 ? 'sm:w-[calc(50%-6px)]' : c === 3 ? 'sm:w-[calc(33.333%-8px)]' : c === 4 ? 'sm:w-[calc(25%-9px)]' : 'sm:w-[calc(33.333%-8px)]';
-    const getDesktopW = (c: number) => c === 2 ? 'md:w-[calc(50%-8px)]' : c === 3 ? 'md:w-[calc(33.333%-10.66px)]' : c === 4 ? 'md:w-[calc(25%-12px)]' : c === 6 ? 'md:w-[calc(16.666%-13.33px)]' : c === 8 ? 'md:w-[calc(12.5%-14px)]' : 'md:w-[calc(16.666%-13.33px)]';
-
-    const carouselWidthClass = isCarousel ? `${getMobileW(config.columnsMobile)} ${getTabletW(config.columnsTablet)} ${getDesktopW(config.columnsDesktop)} flex-shrink-0 snap-start` : '';
-
-    const limit = config.limit || 12;
-    const catsToShow = filteredCats.slice(0, limit);
-
     return (
-        <section className={`${wrapper} mt-8 md:mt-10 relative group/cat-carousel`}>
-            {(config.title || config.subtitle) && (
-                <div className="mb-4 sm:mb-6 md:mb-8 text-center">
-                    {config.title && <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary tracking-tight">{config.title}</h2>}
-                    {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2 font-medium">{config.subtitle}</p>}
+        <section className={`${wrapper} mt-8 md:mt-10`}>
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+                <div>
+                    <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900">{config.title || "Catégories"}</h2>
+                    {config.subtitle && <p className="text-sm text-slate-500 mt-1">{config.subtitle}</p>}
                 </div>
-            )}
-            
-            {isCarousel && (
-                <>
-                    <button 
-                        onClick={() => scroll('left')}
-                        className="absolute left-0 sm:left-4 top-[60%] -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/cat-carousel:opacity-100 hidden md:flex items-center justify-center"
-                        aria-label="Défiler vers la gauche"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
+                <div className="flex gap-2">
+                    <button onClick={() => scroll('left')} className="p-2 rounded-full border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <ChevronLeft className="w-5 h-5 text-slate-600" />
                     </button>
-                    <button 
-                        onClick={() => scroll('right')}
-                        className="absolute right-0 sm:right-4 top-[60%] -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/cat-carousel:opacity-100 hidden md:flex items-center justify-center"
-                        aria-label="Défiler vers la droite"
-                    >
-                        <ChevronRight className="w-5 h-5" />
+                    <button onClick={() => scroll('right')} className="p-2 rounded-full border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <ChevronRight className="w-5 h-5 text-slate-600" />
                     </button>
-                </>
-            )}
-
-            <div 
-                ref={isCarousel ? scrollContainerRef : null}
-                className={
-                    isCarousel
-                    ? "flex overflow-x-auto snap-x snap-mandatory gap-2 sm:gap-3 md:gap-4 pb-2"
-                    : `grid gap-2 sm:gap-3 md:gap-4 ${cols}`
-                }
-                style={isCarousel ? { scrollbarWidth: 'none', msOverflowStyle: 'none' } : {}}
-            >
-                {catsToShow.map((cat: any) => {
-                    const catImg = catCollectionMedia[cat.slug] || catCollectionMedia[cat.id] || cat.image || cat.icon || null;
-                    const isElevated = cardStyle === 'elevated';
-                    const isBold = cardStyle === 'bold';
-                    const isMinimal = cardStyle === 'minimal';
-
+                </div>
+            </div>
+            <div ref={scrollContainerRef} className="flex gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-4">
+                {filteredCats.map((cat: any) => {
+                    const customImg = catCollectionMedia[cat.slug]?.image || catCollectionMedia[cat.id]?.image;
+                    const displayImg = customImg || cat.icon || getAssetUrl(cat.featuredAsset?.source);
                     return (
-                        <Link
-                            key={cat.id}
-                            href={`/collection/${cat.slug}`}
-                            className={`group flex flex-col items-center justify-center overflow-hidden transition-all duration-200 ${carouselWidthClass} ${
-                                isElevated ? 'p-3 sm:p-5 hover:-translate-y-1 hover:shadow-xl' :
-                                isBold ? 'p-2 sm:p-3 hover:-translate-y-0.5 hover:shadow-lg' :
-                                isMinimal ? 'p-1.5 sm:p-2 hover:opacity-80' :
-                                'p-2.5 sm:p-4 hover:-translate-y-0.5 hover:shadow-lg'
-                            }`}
-                            style={{
-                                borderRadius: cardRadius,
-                                border: isMinimal ? 'none' : `1px solid var(--border, #e2e8f0)`,
-                                backgroundColor: config.cardBgColor || '#fff',
-                                boxShadow: isElevated ? '0 4px 12px rgba(0,0,0,0.06)' : config.cardShadow ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                            }}
-                        >
-                            <div
-                                className={`overflow-hidden flex items-center justify-center mb-1.5 sm:mb-2.5 group-hover:scale-105 transition-transform duration-300 ${
-                                    isBold ? 'w-10 h-10 sm:w-14 sm:h-14 md:w-18 md:h-18' : isMinimal ? 'w-9 h-9 sm:w-12 sm:h-12 md:w-16 md:h-16' : 'w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20'
-                                }`}
-                                style={{
-                                    borderRadius: imgRadius,
-                                    backgroundColor: catImg ? 'transparent' : 'var(--primary-5, rgba(226,232,240,0.5))',
-                                }}
-                            >
-                                {catImg ? (
-                                    <img
-                                        src={getAssetUrl(catImg)}
-                                        alt={cat.name}
-                                        className="w-full h-full object-cover"
-                                        style={{ borderRadius: imgRadius }}
-                                    />
+                        <Link key={cat.id} href={`/search?category=${cat.slug}`} className="flex-shrink-0 w-36 md:w-44 group">
+                            <div className="aspect-square rounded-2xl bg-slate-100 overflow-hidden mb-3 border border-slate-200/60 group-hover:shadow-md transition-all duration-300">
+                                {displayImg ? (
+                                    <img src={displayImg} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 ) : (
-                                    <span className={`font-black text-primary/30 ${isBold ? 'text-3xl' : 'text-2xl'}`}>
-                                        {cat.name?.charAt(0) || '?'}
-                                    </span>
+                                    <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
                                 )}
                             </div>
-                            {config.showLabels !== false && (
-                                <span
-                                    className="font-bold text-center text-secondary line-clamp-2 group-hover:text-primary transition-colors"
-                                    style={{
-                                        fontSize: config.labelFontSize || '11px',
-                                        fontWeight: config.labelFontWeight || '700',
-                                        color: config.labelColor || undefined,
-                                    }}
-                                >
-                                    {cat.name}
-                                </span>
-                            )}
+                            <h3 className="text-sm font-semibold text-slate-800 text-center group-hover:text-red-600 transition-colors line-clamp-1">{cat.name}</h3>
                         </Link>
                     );
                 })}
@@ -190,166 +134,26 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
 }
 
 export function CustomCodeRenderer({ config, wrapperClass }: { config: any; wrapperClass?: string }) {
-    const html = config.htmlContent || '';
-    const css = config.cssContent || '';
-    const js = config.jsContent || '';
-    const { id, name, latitude, longitude, radius, type } = config;
+    const rawHtml = config.htmlContent || config.html || config.code || config.value || config.content || '';
+    const rawCss = config.cssContent || config.css || '';
+    const js = config.jsContent || config.js || '';
+    const scriptId = React.useId().replace(/:/g, 'sc-');
 
-    const [leafletReady, setLeafletReady] = useState(false);
-    const [vendors, setVendors] = useState<any[]>([]);
-
-    // 1. Fetch vendors if we have center coordinates to display shops on map
-    useEffect(() => {
-        if (!id || !latitude || !longitude) return;
-        const variables = type === 'MARKET' ? { marketId: id } : { locationId: id };
-        const query = `
-            query GetLocalVendors($marketId: ID, $locationId: ID) {
-                vendors(
-                    marketId: $marketId, 
-                    locationId: $locationId, 
-                    options: { filter: { status: { eq: "APPROVED" } } }
-                ) {
-                    items {
-                        id name latitude longitude address logo { preview } address
-                    }
-                }
-            }
-        `;
-        fetch(getShopApiUrl(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, variables })
-        })
-        .then(res => res.json())
-        .then(result => {
-            setVendors(result.data?.vendors?.items || []);
-        })
-        .catch(err => console.error("Error fetching map vendors:", err));
-    }, [id, latitude, longitude, type]);
-
-    // 2. Load Leaflet if #ahizan-custom-map is present in html
-    useEffect(() => {
-        const hasMapPlaceholder = html.includes('id="ahizan-custom-map"') || html.includes("id='ahizan-custom-map'");
-        if (!hasMapPlaceholder || !latitude || !longitude) return;
-
-        if ((window as any).L) {
-            setLeafletReady(true);
-            return;
-        }
-
-        // CSS
-        if (!document.querySelector('link[href*="leaflet.css"]')) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(link);
-        }
-
-        // JS
-        if (!document.querySelector('script[src*="leaflet.js"]')) {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            script.onload = () => setLeafletReady(true);
-            document.body.appendChild(script);
-        } else {
-            const interval = setInterval(() => {
-                if ((window as any).L) {
-                    setLeafletReady(true);
-                    clearInterval(interval);
-                }
-            }, 100);
-            return () => clearInterval(interval);
-        }
-    }, [html, latitude, longitude]);
-
-    // 3. Initialize Map on mount/ready
-    useEffect(() => {
-        if (!leafletReady || !latitude || !longitude) return;
-        const L = (window as any).L;
-        if (!L) return;
-
-        const mapContainer = document.getElementById('ahizan-custom-map');
-        if (!mapContainer || (mapContainer as any)._leaflet_id) return;
-
-        const map = L.map('ahizan-custom-map').setView([latitude, longitude], 15);
-        
-        setTimeout(() => { map.invalidateSize(); }, 150);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-
-        L.circle([latitude, longitude], {
-            color: '#e31837',
-            fillColor: '#e31837',
-            fillOpacity: 0.1,
-            radius: radius || 400
-        }).addTo(map);
-
-        const centerIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-        });
-
-        L.marker([latitude, longitude], { icon: centerIcon }).addTo(map)
-            .bindPopup(`<b>${name}</b><br/>${type === 'MARKET' ? 'Centre du Marché' : 'Quartier'}`)
-            .openPopup();
-
-        const shopIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-        });
-
-        vendors.forEach(v => {
-            if (v.latitude && v.longitude) {
-                L.marker([v.latitude, v.longitude], { icon: shopIcon }).addTo(map)
-                    .bindPopup(`
-                        <div class="p-1 font-sans">
-                            <b class="text-sm font-bold text-slate-900">${v.name}</b>
-                            <p class="text-xs text-slate-600 my-1">${v.address || ''}</p>
-                            <a href="/vendor/${v.id}" class="inline-block text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline mt-1">Visiter la boutique →</a>
-                        </div>
-                    `);
-            }
-        });
-
-        const savedLocation = localStorage.getItem('ahizan_client_location');
-        if (savedLocation) {
-            try {
-                const loc = JSON.parse(savedLocation);
-                if (loc.latitude && loc.longitude) {
-                    const clientIcon = L.icon({
-                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
-                        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-                        iconSize: [25, 41],
-                        iconAnchor: [12, 41],
-                        popupAnchor: [1, -34],
-                        shadowSize: [41, 41]
-                    });
-                    L.marker([loc.latitude, loc.longitude], { icon: clientIcon }).addTo(map)
-                        .bindPopup(`<b>Votre position</b><br/>${loc.name}`);
-                }
-            } catch (e) {
-                console.error("Error setting user location:", e);
-            }
-        }
-    }, [leafletReady, latitude, longitude, radius, name, type, vendors]);
+    // Extract any embedded <style> blocks from the HTML and merge them into rawCss
+    // so that they are safely injected inside the Shadow DOM and not into the global document
+    let html = rawHtml;
+    let css = rawCss;
+    html = html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_: string, innerCss: string) => {
+        css += '\n' + innerCss;
+        return '';
+    });
 
     return (
-        <section className={wrapperClass}>
-            {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
-            <div dangerouslySetInnerHTML={{ __html: html }} />
-            {js && (
-                <script dangerouslySetInnerHTML={{
-                    __html: `(function() {
+        <section className={wrapperClass || "w-full"}>
+            <IsolatedHtmlContainer html={html} css={css} />
+            {js && js.trim().length > 0 && (
+                <Script id={`js-${scriptId}`} strategy="afterInteractive" dangerouslySetInnerHTML={{
+                    __html: `(() => {
                         try {
                             ${js}
                         } catch(e) {
@@ -362,14 +166,80 @@ export function CustomCodeRenderer({ config, wrapperClass }: { config: any; wrap
     );
 }
 
+function evaluateSectionRules(rulesJsonStr?: string, selectedLocation?: any): boolean {
+    if (!rulesJsonStr || typeof rulesJsonStr !== 'string' || rulesJsonStr.trim() === '') return true;
+    try {
+        const rules = JSON.parse(rulesJsonStr);
+
+        // 1. Évaluation dynamique de n'importe quelle GeoZone (GeoEngine)
+        if (rules.geoZones && Array.isArray(rules.geoZones) && rules.geoZones.length > 0) {
+            const activeLocName = selectedLocation?.name || '';
+            if (!activeLocName) return true; // Si aucune localisation n'est sélectionnée, afficher par défaut
+
+            // Helper de normalisation dynamique (supprime les accents, tirets, espaces et casse)
+            const normalizeGeoStr = (str: string) => (str || '')
+                .toUpperCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^A-Z0-9]/g, "");
+
+            const normActiveLoc = normalizeGeoStr(activeLocName);
+
+            const isMatch = rules.geoZones.some((zone: string) => {
+                const normZone = normalizeGeoStr(zone);
+                if (!normZone || !normActiveLoc) return false;
+                return normActiveLoc.includes(normZone) || normZone.includes(normActiveLoc);
+            });
+
+            if (!isMatch) {
+                return false; // Section masquée car l'utilisateur est hors de la GeoZone ciblée
+            }
+        }
+
+        // 2. Évaluation de la plage horaire
+        if (rules.timeRange?.start && rules.timeRange?.end) {
+            const now = new Date();
+            const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            if (currentHHMM < rules.timeRange.start || currentHHMM > rules.timeRange.end) {
+                return false;
+            }
+        }
+
+        return true;
+    } catch (e) {
+        return true;
+    }
+}
+
 /**
  * Strict body-section renderer.
  * Each case renders ONLY if the section has meaningful data.
  * Returns null when there's nothing to show, preventing empty cards.
  */
 export function BodySectionRenderer({ section, siteCategories, globalPromoConfig, allSections = [] }: Props) {
-    const config = section.data || {};
-    const type = section.type;
+    const locationContext = useLocation();
+    const selectedLocation = locationContext?.selectedLocation;
+
+    const adaptedSection = adaptLegacySection(section);
+    const config = adaptedSection.data || {};
+    const type = adaptedSection.type;
+
+    // Évaluation dynamique des règles conditionnelles EMS (GeoZone, Horaire, Segment)
+    const rulesJsonStr = config._rulesJson || config.rulesJson || section.data?._rulesJson || section.data?.rulesJson;
+    if (!evaluateSectionRules(rulesJsonStr, selectedLocation)) {
+        return null; // Masquer la section si les conditions GeoZone/Horaire ne sont pas remplies
+    }
+
+    // Masquage automatique des Ventes Flash expirées (uniquement si Vente Flash limitée avec masque forcé et date valide)
+    const isFlashStrategy = type === 'FLASH_DEALS' || type === 'FLASH_SALE' || config.experienceStrategy === 'FLASH_SALE' || config.showCountdown;
+    const endTimeStr = config.countdownEnd || config.endTime;
+    const isUnlimited = config.isUnlimited === true;
+    const shouldAutoHide = config.forceHideWhenExpired === true || (config.autoHideExpired === true && config.forceHideWhenExpired !== false);
+    if (isFlashStrategy && !isUnlimited && shouldAutoHide && typeof endTimeStr === 'string' && endTimeStr.trim().length > 0) {
+        const endMs = new Date(endTimeStr).getTime();
+        if (!isNaN(endMs) && endMs < Date.now()) {
+            return null; // Masquer la section uniquement si le chrono flash est réellement expiré et explicitement configuré pour se masquer
+        }
+    }
 
     // Strict emptiness check helper
     const isEmpty = (v: any) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
@@ -377,6 +247,21 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
     const wrapper = "max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12";
 
     switch (type) {
+        case 'PRODUCT_COLLECTION': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <UniversalProductCollection {...config} />
+                </section>
+            );
+        }
+
+        case 'CATEGORY_COLLECTION': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <CategoryCollection {...config} />
+                </section>
+            );
+        }
         case 'QUICK_LINKS': {
             // QuickLinks now only renders promotional banners
             const hasBanners = (config.promoBanners && config.promoBanners.length > 0) || config.promoBanner;
@@ -388,276 +273,39 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             );
         }
 
+        case 'FLASH_SALE':
         case 'FLASH_DEALS': {
-            // We now strictly enforce ONE flash campaign per CMS component 
-            // so the user can easily reorder them in the backend layout structure.
-            let activeVersion: any = null;
-            if (config.flashVersions && Array.isArray(config.flashVersions)) {
-                activeVersion = config.flashVersions.find((v: any) => v.isActive);
-                if (!activeVersion && config.flashVersions.length > 0) {
-                    activeVersion = config.flashVersions[0];
-                }
-            } else if (config.title || config.endTime || config.manualProductIds?.length || config.filterCriteria) {
-                activeVersion = config;
-            }
-            if (!activeVersion) return null;
-            
             return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    <FlashSaleSection config={activeVersion} />
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <FlashSaleSection config={config} />
                 </section>
             );
+        }
+
+        case 'RICH_TEXT': {
+            return (
+                <RichTextSection config={config} wrapper={wrapper} />
+            );
+        }
+
+        case 'MODALS': {
+            return <HomeModal config={config} />;
         }
 
         case 'CATEGORIES': {
             return <InlineCategorySection config={config} siteCategories={siteCategories} globalPromoConfig={globalPromoConfig} wrapper={wrapper} />;
         }
 
-        case 'FEATURES': {
-            const features = config.features || config.items || [];
-            if (features.length === 0) return null;
-            return (
-                <section className="w-full mt-8 md:mt-10 border-y border-border/30" style={config.bgColor ? { backgroundColor: config.bgColor } : { backgroundColor: '#fafafa' }}>
-                    <div className={`${wrapper} py-6 md:py-8`}>
-                        {config.title && (
-                            <h2 className="text-xl md:text-2xl font-black text-center mb-6 text-secondary">{config.title}</h2>
-                        )}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                            {features.map((feat: any, idx: number) => (
-                                <div key={idx} className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg hover:bg-white/50 transition-colors">
-                                    <div className="shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center text-base sm:text-xl">
-                                        {feat.icon || '✨'}
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-xs sm:text-sm text-secondary">{feat.title || feat.label}</div>
-                                        {feat.description && <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">{feat.description}</div>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            );
-        }
-
-        case 'CTA_VENDOR': {
-            if (!config.title && !config.description && !config.buttonText) return null;
-            const isBgGif = isGif(config.bgImageUrl);
-            return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    <div
-                        className="rounded-xl sm:rounded-2xl md:rounded-3xl overflow-hidden relative p-5 sm:p-8 md:p-14 text-center shadow-xl"
-                        style={{
-                            background: config.bgImageUrl && !isBgGif
-                                ? `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)), url(${getAssetUrl(config.bgImageUrl)})`
-                                : 'linear-gradient(135deg, var(--primary, #0f172a) 0%, #1e40af 100%)',
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                        }}
-                    >
-                        {config.bgImageUrl && isBgGif && (
-                            <img src={getAssetUrl(config.bgImageUrl)} alt="" className="absolute inset-0 w-full h-full object-cover z-0" />
-                        )}
-                        {config.bgImageUrl && <div className="absolute inset-0 bg-black/50 z-0" />}
-                        <div className="relative z-10">
-                            <h2 className="text-lg sm:text-2xl md:text-4xl font-black text-white tracking-tight mb-2 sm:mb-3">
-                                {config.title || 'Rejoignez-nous en tant que vendeur'}
-                            </h2>
-                            <p className="text-white/90 text-xs sm:text-sm md:text-base max-w-2xl mx-auto mb-4 sm:mb-6 md:mb-8 font-medium">
-                                {config.description || 'Développez votre activité sur notre marketplace'}
-                            </p>
-                            <a
-                                href={config.buttonLink || '/vendor/register'}
-                                className="inline-flex items-center gap-2 bg-white text-secondary font-black px-4 sm:px-6 md:px-10 py-2.5 sm:py-3 md:py-4 rounded-xl hover:scale-105 active:scale-95 transition-transform shadow-lg text-xs sm:text-sm md:text-base"
-                            >
-                                {config.buttonText || 'Devenir vendeur'} →
-                            </a>
-                        </div>
-                    </div>
-                </section>
-            );
-        }
-
-        case 'NEWSLETTER': {
-            if (!config.title && !config.subtitle && !config.buttonText) return null;
-            return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    <div
-                        className="rounded-xl sm:rounded-2xl p-5 sm:p-8 md:p-12 text-center border border-border/30"
-                        style={config.bgColor ? { backgroundColor: config.bgColor } : { background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}
-                    >
-                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary/10 mb-4">
-                            <span className="text-2xl">✉️</span>
-                        </div>
-                        <h2 className="text-base sm:text-xl md:text-2xl font-black text-secondary mb-2">{config.title || 'Newsletter'}</h2>
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6 max-w-lg mx-auto">{config.subtitle || 'Recevez nos offres exclusives'}</p>
-                        <form className="flex flex-col sm:flex-row max-w-md mx-auto gap-2">
-                            <input
-                                type="email"
-                                placeholder={config.placeholder || 'Votre email'}
-                                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-border bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                            />
-                            <button
-                                type="submit"
-                                className="bg-primary text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-sm hover:opacity-90 active:scale-95 transition-all shadow-md"
-                            >
-                                {config.buttonText || "S'inscrire"}
-                            </button>
-                        </form>
-                    </div>
-                </section>
-            );
-        }
-
-        case 'TESTIMONIALS': {
-            const testimonials = config.testimonials || config.items || [];
-            if (testimonials.length === 0) return null;
-            return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    {config.title && (
-                        <div className="mb-4 sm:mb-6 md:mb-8 text-center">
-                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary">{config.title}</h2>
-                            {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">{config.subtitle}</p>}
-                        </div>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-                        {testimonials.map((t: any, idx: number) => (
-                            <div key={idx} className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-border/30 hover:shadow-lg transition-shadow relative">
-                                <div className="absolute -top-3 -left-2 text-5xl text-primary/20 font-serif leading-none">&ldquo;</div>
-                                <p className="text-sm text-secondary/80 italic mb-4 relative z-10 leading-relaxed">
-                                    {t.text || t.content}
-                                </p>
-                                <div className="flex items-center gap-3 pt-4 border-t border-border/20">
-                                    {t.avatar && <img src={getAssetUrl(t.avatar)} alt={t.author} className="w-10 h-10 rounded-full object-cover" />}
-                                    <div>
-                                        <div className="font-bold text-sm text-secondary">{t.author || t.name}</div>
-                                        {t.role && <div className="text-xs text-muted-foreground">{t.role}</div>}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            );
-        }
-
-        case 'BLOG_POSTS': {
-            const posts = config.posts || config.items || [];
-            if (posts.length === 0) return null;
-            return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    {config.title && (
-                        <div className="mb-4 sm:mb-6 md:mb-8 flex items-end justify-between">
-                            <div>
-                                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary">{config.title}</h2>
-                                {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">{config.subtitle}</p>}
-                            </div>
-                            {config.viewAllLink && (
-                                <Link href={config.viewAllLink} className="text-sm font-bold text-primary hover:underline">
-                                    Tout voir →
-                                </Link>
-                            )}
-                        </div>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-                        {posts.map((post: any, idx: number) => (
-                            <Link
-                                key={idx}
-                                href={post.link || '#'}
-                                className="group bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-border/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
-                            >
-                                {post.imageUrl && (
-                                    <div className="aspect-[16/9] overflow-hidden bg-muted/10">
-                                        <img
-                                            src={getAssetUrl(post.imageUrl)}
-                                            alt={post.title}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        />
-                                    </div>
-                                )}
-                                <div className="p-3 sm:p-5">
-                                    {post.category && (
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-primary">{post.category}</span>
-                                    )}
-                                    <h3 className="font-bold text-base text-secondary mt-1 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-                                        {post.title}
-                                    </h3>
-                                    {(post.excerpt || post.description) && (
-                                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                                            {post.excerpt || post.description}
-                                        </p>
-                                    )}
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                </section>
-            );
-        }
-
-        case 'RICH_TEXT': {
-            if (!config.htmlContent || config.htmlContent.trim() === '') return null;
-            return <RichTextSection config={config} wrapper={wrapper} />;
-        }
-
-        case 'CUSTOM': {
-            const html = config.htmlContent || config.customHtml || config.html;
-            if (!html || html.trim() === '') return null;
-            return (
-                <section className={`${wrapper} mt-8 md:mt-12 overflow-hidden`}>
-                    <ShadowWrapper html={html} css={config.customCss} />
-                    {config.customJs && (
-                        <Script id={`custom-js-${config.id || Math.random().toString(36).substr(2, 9)}`} strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: config.customJs }} />
-                    )}
-                </section>
-            );
-        }
-
-        case 'MODALS': {
-            // Modals render at any time but have no layout presence
-            const hasModals = config.modals?.some((m: any) => m.enabled);
-            if (!config.enabled && !hasModals) return null;
-            return <HomeModal config={config} />;
-        }
-
-        case 'TABBED_PRODUCT_GRID': {
-            if (!config.tabs || config.tabs.length === 0) return null;
-            return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    <TabbedProductGrid {...config} layout="carousel" />
-                </section>
-            );
-        }
-
         case 'PRODUCT_GRID': {
-            // Product grid with configurable filter type
-            if (!config.title && !config.filterType && !config.collectionSlug) return null;
-            const gridCols = config.columns === 2 ? 'grid-cols-2' :
-                config.columns === 3 ? 'grid-cols-2 md:grid-cols-3' :
-                config.columns === 5 ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' :
-                'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+            // Standard product grid section using the cms/TabbedProductGrid component
             return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
-                    {config.title && (
-                        <div className="mb-4 sm:mb-6 md:mb-8 text-center">
-                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-secondary tracking-tight">{config.title}</h2>
-                            {config.subtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">{config.subtitle}</p>}
-                        </div>
-                    )}
+                <section className={`${wrapper} mt-2 md:mt-3`}>
                     <TabbedProductGrid
-                        title=""
-                        tabs={[{
-                            id: 'product-grid-tab',
-                            label: config.title || 'Produits',
-                            filterType: config.filterType || 'LATEST',
-                            collectionSlug: config.collectionSlug,
-                            collectionIds: config.collectionIds,
-                            facetValueIds: config.facetValueIds,
-                            take: config.take || 8,
-                        }]}
-                        layout="carousel"
+                        title={config.title}
+                        layout={config.layout || 'grid'}
                         columns={config.columns || 4}
                         cardStyle={config.cardStyle || 'standard'}
+                        tabs={config.tabs}
                     />
                 </section>
             );
@@ -666,7 +314,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         case 'CATEGORY_GRID': {
             // Category grid using the cms/CategoryGrid component
             return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
+                <section className={`${wrapper} mt-2 md:mt-3`}>
                     <CategoryGrid
                         title={config.title}
                         description={config.description}
@@ -688,7 +336,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
 
         case 'LOCAL_PRODUCTS': {
             return (
-                <section className={`${wrapper} mt-8 md:mt-10`}>
+                <section className={`${wrapper} mt-2 md:mt-3`}>
                     <LocalPersonalizedProducts config={config} />
                 </section>
             );
@@ -702,6 +350,8 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             return <MarketInfoRenderer config={config} showProducts={!hasOtherProductsSection} />;
         }
 
+        case 'CUSTOM':
+        case 'CUSTOM_HTML':
         case 'MARKET_CODE':
         case 'NEIGHBORHOOD_CODE': {
             return <CustomCodeRenderer config={config} wrapperClass={`${wrapper} mt-8 md:mt-10`} />;

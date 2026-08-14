@@ -124,7 +124,11 @@ export function NotificationBell({
                 try {
                     const payload = JSON.parse(event.data);
                     
-                    // Filter: Only display in-app notifications
+                    // Storefront Bell MUST ONLY display client buyer notifications (BUYER_EVENT)
+                    if (payload.type && payload.type !== 'BUYER_EVENT') {
+                        return;
+                    }
+
                     const channels = payload.channels || ['IN_APP'];
                     if (!channels.includes('IN_APP') && !channels.includes('ALL')) {
                         return;
@@ -143,29 +147,6 @@ export function NotificationBell({
                     };
                     setNotifications(prev => [newNotif, ...prev].slice(0, 50));
                     setUnreadCount(prev => prev + 1);
-
-                    // Browser notification if tab is hidden or visible
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        if ('serviceWorker' in navigator) {
-                            navigator.serviceWorker.ready.then((registration) => {
-                                registration.showNotification(payload.title || 'Ahizan', {
-                                    body: payload.body,
-                                    icon: payload.iconUrl || '/icon.png',
-                                    data: { url: payload.actionUrl || '/' }
-                                });
-                            }).catch(() => {
-                                new Notification(payload.title || 'Ahizan', {
-                                    body: payload.body,
-                                    icon: payload.iconUrl || '/icon.png',
-                                });
-                            });
-                        } else {
-                            new Notification(payload.title || 'Ahizan', {
-                                body: payload.body,
-                                icon: payload.iconUrl || '/icon.png',
-                            });
-                        }
-                    }
                 } catch {
                     // Ignore parse errors
                 }

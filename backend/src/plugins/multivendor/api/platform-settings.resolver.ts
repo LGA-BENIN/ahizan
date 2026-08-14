@@ -1,4 +1,4 @@
-import { Allow, Ctx, Permission, RequestContext } from '@vendure/core';
+import { Allow, Ctx, GlobalSettingsService, Permission, RequestContext } from '@vendure/core';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { PlatformSettingsService } from '../service/platform-settings.service';
 import { PlatformSettings } from '../entities/platform-settings.entity';
@@ -25,11 +25,22 @@ export class PlatformSettingsAdminResolver {
 
 @Resolver()
 export class PlatformSettingsShopResolver {
-    constructor(private platformSettingsService: PlatformSettingsService) { }
+    constructor(
+        private platformSettingsService: PlatformSettingsService,
+        private globalSettingsService: GlobalSettingsService,
+    ) { }
 
     @Query()
     @Allow(Permission.Public)
     async platformSettings(@Ctx() ctx: RequestContext): Promise<PlatformSettings | null> {
         return this.platformSettingsService.getOrCreateSettings(ctx);
     }
+
+    @Query()
+    @Allow(Permission.Public)
+    async whatsappNumber(@Ctx() ctx: RequestContext): Promise<string> {
+        const settings = await this.globalSettingsService.getSettings(ctx);
+        return (settings?.customFields as any)?.whatsappNumber || '';
+    }
 }
+

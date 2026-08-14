@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-export type EditorMode = 'LIVE' | 'PAR_VISUEL' | 'CODE';
+export type EditorMode = 'LIVE' | 'PAR_VISUEL' | 'CODE' | 'GLOBAL_CODE';
 
 interface Section {
   id: string;

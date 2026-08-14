@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { encodeId } from '@/lib/hash-utils';
 import { Search, MapPin, Star, Store, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 interface Vendor {
@@ -76,7 +77,7 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                         return (
                             <Link
                                 key={vendor.id}
-                                href={`/vendor/${vendor.id}`}
+                                href={`/vendor/${encodeId(vendor.id)}`}
                                 className="group bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full no-underline"
                             >
                                 {/* Cover Image Header */}

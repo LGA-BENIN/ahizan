@@ -77,7 +77,7 @@ export function PopupManager({ popups }: { popups: ModalConfig[] }) {
         return () => window.removeEventListener('keydown', handler);
     }, [activePopup, handleClose]);
 
-    if (!activePopup || !isOpen) return null;
+    if (!activePopup || !isOpen || (!activePopup.value && !activePopup.title)) return null;
 
     const isClosable = activePopup.isClosable !== false;
     const size = SIZE_MAP[activePopup.size || 'md'] || SIZE_MAP.md;

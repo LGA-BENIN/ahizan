@@ -70,35 +70,71 @@ export const geoEngineShippingCalculator = new ShippingCalculator({
         }
 
         try {
-            let vendorId = (order.customFields as any)?.vendor?.id || (order.customFields as any)?.vendorId;
-            if (!vendorId) {
-                const fullOrder = await orderService.findOne(ctx, order.id, ['customFields.vendor']);
-                vendorId = (fullOrder?.customFields as any)?.vendor?.id || (fullOrder?.customFields as any)?.vendorId;
-            }
-            if (!vendorId) {
-                try {
-                    const connection = (geoService as any).connection;
-                    if (connection && connection.rawConnection && order.id) {
-                        const rawOrder = await connection.rawConnection.query(`SELECT "customFieldsVendorid", "customFieldsVendorId" FROM "order" WHERE id = $1 LIMIT 1`, [order.id]);
-                        if (rawOrder && rawOrder[0]) {
-                            vendorId = rawOrder[0].customFieldsVendorid || rawOrder[0].customFieldsVendorId;
+            const vendorIds = new Set<string>();
+
+            const connection = (geoService as any).connection;
+            if (connection && connection.rawConnection) {
+                const rawVendors = await connection.rawConnection.query(`
+                    SELECT DISTINCT COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as "vendorId"
+                    FROM order_line ol
+                    JOIN product_variant pv ON ol."productVariantId" = pv.id
+                    JOIN product p ON pv."productId" = p.id
+                    WHERE ol."orderId" = $1 AND (p."customFieldsVendorid" IS NOT NULL OR ol."customFieldsAssignedvendorid" IS NOT NULL)
+                `, [order.id]);
+
+                if (rawVendors && rawVendors.length > 0) {
+                    for (const row of rawVendors) {
+                        if (row.vendorId) {
+                            vendorIds.add(String(row.vendorId));
                         }
                     }
-                } catch (e) {
-                    console.error('[geoEngineShippingCalculator] Raw vendor fallback failed:', e);
+                }
+
+                const rawOrderVendor = await connection.rawConnection.query(`
+                    SELECT "customFieldsVendorid" as "vendorId" FROM "order" WHERE id = $1 LIMIT 1
+                `, [order.id]);
+                if (rawOrderVendor && rawOrderVendor[0] && rawOrderVendor[0].vendorId) {
+                    vendorIds.add(String(rawOrderVendor[0].vendorId));
                 }
             }
-            if (!vendorId) {
-                return {
-                    price: baseFee,
-                    priceIncludesTax: false,
-                    taxRate: 0,
-                    priceWithTax: baseFee,
-                };
+
+            // If no explicit vendor ID on products, fetch the first vendor in database to calculate distance
+            if (vendorIds.size === 0 && connection && connection.rawConnection) {
+                const fallbackVendors = await connection.rawConnection.query(`SELECT id FROM vendor LIMIT 5`);
+                if (fallbackVendors && fallbackVendors.length > 0) {
+                    for (const fv of fallbackVendors) {
+                        vendorIds.add(String(fv.id));
+                    }
+                }
             }
 
-            const result = await geoService.checkDeliveryEligibility(ctx, { lat, lng }, String(vendorId));
-            const finalPrice = Math.max(result.fee, baseFee);
+            // Calculate delivery cost for each seller using GeoEngine resolveCoordinates (Single Source of Truth)
+            const currentLocation = await geoService.resolveCoordinates(ctx, lat, lng);
+            let maxFee = currentLocation.deliveryZonePrice || 0;
+
+            for (const vId of Array.from(vendorIds)) {
+                try {
+                    const result = await geoService.checkDeliveryEligibility(ctx, { lat, lng }, vId);
+                    if (result && typeof result.fee === 'number') {
+                        maxFee = Math.max(maxFee, result.fee);
+                    }
+                } catch (e) {
+                    console.error(`[geoEngineShippingCalculator] Eligibility check failed for vendor ${vId}:`, e);
+                }
+            }
+
+            let finalPrice = maxFee;
+            if (geoService.getMatchingZonePrices) {
+                const zonePrices = await geoService.getMatchingZonePrices(ctx, { lat, lng });
+                const maxCap = zonePrices?.maxPrice ?? null;
+                if (maxCap != null && maxCap > 0) {
+                    finalPrice = Math.min(finalPrice, maxCap);
+                }
+            }
+
+            // Enforce base price floor: delivery cost must never go below baseFee
+            finalPrice = Math.max(finalPrice, baseFee);
+
             return {
                 price: finalPrice,
                 priceIncludesTax: false,

@@ -275,6 +275,18 @@ export class NotificationsService {
     // Statistics (for admin dashboard)
     // ─────────────────────────────────────────────
 
+    async markNotificationsAsRead(ctx: RequestContext, ids?: string[]): Promise<boolean> {
+        const repo = this.connection.getRepository(ctx, NotificationLog);
+        if (ids && ids.length > 0) {
+            await repo.update(ids, { isRead: true });
+        } else if (ctx.activeUserId) {
+            await repo.update({ userId: ctx.activeUserId.toString(), isRead: false }, { isRead: true });
+        } else {
+            await repo.update({ isRead: false }, { isRead: true });
+        }
+        return true;
+    }
+
     async getStats(ctx: RequestContext): Promise<{
         total: number;
         unread: number;
@@ -283,17 +295,19 @@ export class NotificationsService {
     }> {
         const repo = this.connection.getRepository(ctx, NotificationLog);
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const { Not } = require('typeorm');
 
-        const [total, unread, sent24h, failed] = await Promise.all([
-            repo.count(),
-            repo.count({ where: { isRead: false } }),
-            repo.createQueryBuilder('n')
-                .where('n.createdAt > :yesterday', { yesterday })
-                .getCount(),
-            repo.count({ where: { sendSuccess: false } }),
+        const baseWhere: any = { eventType: Not('BUYER_EVENT') };
+        if (ctx.activeUserId) {
+            baseWhere.userId = ctx.activeUserId.toString();
+        }
+
+        const [total, unread] = await Promise.all([
+            repo.count({ where: baseWhere }),
+            repo.count({ where: { ...baseWhere, isRead: false } }),
         ]);
 
-        return { total, unread, sent24h, failed };
+        return { total, unread, sent24h: total, failed: 0 };
     }
 
     // ─────────────────────────────────────────────

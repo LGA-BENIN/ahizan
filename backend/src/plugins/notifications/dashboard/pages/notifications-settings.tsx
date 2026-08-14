@@ -1,6 +1,136 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_BREVO_SETTINGS, UPDATE_BREVO_SETTINGS, TEST_SMTP_CONNECTION, TEST_SMTP_CONNECTION_DIRECT } from '../queries';
+import { GET_BREVO_SETTINGS, UPDATE_BREVO_SETTINGS, TEST_SMTP_CONNECTION, TEST_SMTP_CONNECTION_DIRECT, GET_VAPID_PUBLIC_KEY, SUBSCRIBE_TO_PUSH } from '../queries';
+
+function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+function WebPushDeviceCard({ addToast }: { addToast: (msg: string, type: 'success' | 'error') => void }) {
+    const [pushStatus, setPushStatus] = useState<'granted' | 'denied' | 'default' | 'unsupported' | 'subscribing'>('default');
+    const [isSubscribed, setIsSubscribed] = useState(false);
+
+    useEffect(() => {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+            setPushStatus('unsupported');
+            return;
+        }
+        setPushStatus(Notification.permission as any);
+        checkSubscription();
+    }, []);
+
+    const checkSubscription = async () => {
+        if (!('serviceWorker' in navigator)) return;
+        try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg) {
+                const sub = await reg.pushManager.getSubscription();
+                if (sub) {
+                    setIsSubscribed(true);
+                }
+            }
+        } catch (e) {
+            console.error('Check subscription error:', e);
+        }
+    };
+
+    const handleEnablePush = async () => {
+        if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+            addToast("Les notifications Web Push ne sont pas supportées sur ce navigateur.", "error");
+            return;
+        }
+
+        try {
+            setPushStatus('subscribing');
+            const permission = await Notification.requestPermission();
+            setPushStatus(permission as any);
+
+            if (permission !== 'granted') {
+                addToast("Permission refusée. Vous ne recevrez pas les notifications sur cet appareil.", "error");
+                return;
+            }
+
+            // 1. Fetch VAPID key
+            const vapidData = await fetchGraphQL(GET_VAPID_PUBLIC_KEY);
+            const vapidPublicKey = vapidData?.vapidPublicKey;
+            if (!vapidPublicKey) {
+                throw new Error("Clé VAPID publique introuvable sur le serveur.");
+            }
+
+            // 2. Register Service Worker for push handling
+            const swUrl = '/notifications/sw.js';
+            const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+            await navigator.serviceWorker.ready;
+
+            // 3. Subscribe with PushManager
+            const sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+
+            const subJson = sub.toJSON();
+            const endpoint = subJson.endpoint || '';
+            const p256dh = subJson.keys?.p256dh || '';
+            const auth = subJson.keys?.auth || '';
+
+            // 4. Register with backend
+            await fetchGraphQL(SUBSCRIBE_TO_PUSH, {
+                endpoint,
+                p256dh,
+                auth,
+                userAgent: navigator.userAgent
+            });
+
+            setIsSubscribed(true);
+            addToast("Notifications Web Push activées avec succès sur cet appareil !", "success");
+        } catch (err: any) {
+            console.error('Push activation failed:', err);
+            addToast(`Échec d'activation Push : ${err.message}`, "error");
+        }
+    };
+
+    return (
+        <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>📲 Notifications Web Push sur votre appareil</span>
+                        {isSubscribed && <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '11px', padding: '2px 8px', borderRadius: '999px', fontWeight: 700 }}>Actif & Abonné</span>}
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#0e7490' }}>
+                        Recevez des alertes instantanées sur cet ordinateur/téléphone dès qu'une nouvelle commande est effectuée.
+                    </p>
+                </div>
+                <button
+                    onClick={handleEnablePush}
+                    disabled={isSubscribed}
+                    style={{
+                        background: isSubscribed ? '#10b981' : '#0284c7',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        cursor: isSubscribed ? 'default' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                    }}
+                >
+                    {isSubscribed ? '✓ Notification activée sur cet appareil' : '🔔 Activer les notifications sur cet appareil'}
+                </button>
+            </div>
+        </div>
+    );
+}
 
 function getAuthToken(): string | null {
     for (let i = 0; i < localStorage.length; i++) {
@@ -68,11 +198,13 @@ export function NotificationsSettingsComponent() {
             ShippingUpdate: { ...defaultChannelConfig },
             NewOrderVendor: { ...defaultChannelConfig },
             VendorRegistration: { ...defaultChannelConfig },
+            SellerAccountVerification: { ...defaultChannelConfig },
             VendorApproved: { ...defaultChannelConfig },
             VendorRejected: { ...defaultChannelConfig },
             PasswordReset: { ...defaultChannelConfig },
             StockAlert: { ...defaultChannelConfig },
             BuyerRegistration: { ...defaultChannelConfig },
+            GuestOrderConfirmed: { ...defaultChannelConfig },
         }
     });
 
@@ -89,6 +221,7 @@ export function NotificationsSettingsComponent() {
 
     useEffect(() => {
         if (data?.brevoSettings) {
+            const savedChannels = data.brevoSettings.channelsConfig || {};
             setFormData((prev: any) => ({
                 ...prev,
                 brevoApiKey: data.brevoSettings.brevoApiKey || '',
@@ -102,7 +235,9 @@ export function NotificationsSettingsComponent() {
                 fromName: data.brevoSettings.fromName || '',
                 channelsConfig: {
                     ...prev.channelsConfig,
-                    ...(data.brevoSettings.channelsConfig || {})
+                    ...savedChannels,
+                    // If SellerAccountVerification is not explicitly saved, fallback to VendorRegistration
+                    SellerAccountVerification: savedChannels.SellerAccountVerification || savedChannels.VendorRegistration || prev.channelsConfig.VendorRegistration
                 }
             }));
         }
@@ -152,6 +287,11 @@ export function NotificationsSettingsComponent() {
     };
 
     const handleSave = () => {
+        const finalChannelsConfig = { ...formData.channelsConfig };
+        if (finalChannelsConfig.VendorRegistration) {
+            finalChannelsConfig.SellerAccountVerification = { ...finalChannelsConfig.VendorRegistration };
+        }
+
         const payload = {
             brevoApiKey: formData.brevoApiKey,
             defaultPhonePrefix: formData.defaultPhonePrefix,
@@ -162,7 +302,7 @@ export function NotificationsSettingsComponent() {
             smtpPassword: formData.smtpPassword,
             fromEmail: formData.fromEmail,
             fromName: formData.fromName,
-            channelsConfig: formData.channelsConfig
+            channelsConfig: finalChannelsConfig
         };
         updateSettingsMutation.mutate(payload);
     };
@@ -181,6 +321,11 @@ export function NotificationsSettingsComponent() {
             // Auto-enable if channel is not NONE
             if (field === 'channel') {
                 newConfig[eventName].enabled = value !== 'NONE';
+            }
+
+            // Keep SellerAccountVerification synced with VendorRegistration
+            if (eventName === 'VendorRegistration') {
+                newConfig.SellerAccountVerification = { ...newConfig.VendorRegistration };
             }
 
             return { ...prev, channelsConfig: newConfig };
@@ -256,6 +401,8 @@ export function NotificationsSettingsComponent() {
                     {updateSettingsMutation.isPending ? 'Sauvegarde...' : 'Enregistrer'}
                 </button>
             </div>
+
+            <WebPushDeviceCard addToast={addToast} />
 
             <div style={cardStyle}>
                 <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Configuration API Globale</h2>
@@ -408,7 +555,8 @@ export function NotificationsSettingsComponent() {
             <div style={cardStyle}>
                 <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Acheteurs : Parcours Commande et Inscription</h2>
                 <EventConfigBlock title="Inscription Acheteur (Bienvenue & Confirmation)" eventName="BuyerRegistration" variables="{{ firstName }}, {{ lastName }}, {{ email }}, {{ verificationToken }}, {{ verificationLink }}" />
-                <EventConfigBlock title="Confirmation de Commande" eventName="OrderConfirmed" variables="{{ orderCode }}, {{ firstName }}" />
+                <EventConfigBlock title="Confirmation de Commande (Client Inscrit)" eventName="OrderConfirmed" variables="{{ orderCode }}, {{ firstName }}" />
+                <EventConfigBlock title="Confirmation de Commande (Client Non Inscrit / Invité)" eventName="GuestOrderConfirmed" variables="{{ orderCode }}, {{ firstName }}, {{ email }}, {{ signupUrl }}" />
                 <EventConfigBlock title="Mise à jour Livraison (Expédiée / Livrée)" eventName="ShippingUpdate" variables="{{ orderCode }}, {{ status }}" />
                 <EventConfigBlock title="Échec du Paiement" eventName="PaymentFailed" variables="{{ orderCode }}" />
             </div>

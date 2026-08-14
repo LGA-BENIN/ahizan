@@ -23,6 +23,7 @@ export const commonApiExtensions = `
         verificationStatus: Boolean
         commissionRate: Float
         rejectionReason: String
+        suspensionReason: String
         products: [Product!]
         user: User
 
@@ -189,6 +190,7 @@ export const commonApiExtensions = `
     input CreateVendorProductInput {
         name: String!
         description: String!
+        shortDescription: String
         price: Int!
         stock: Int!
         collectionIds: [ID!]
@@ -202,6 +204,7 @@ export const commonApiExtensions = `
     input UpdateVendorProductInput {
         name: String
         description: String
+        shortDescription: String
         collectionIds: [ID!]
         facetValueIds: [ID!]
         assetIds: [ID!]
@@ -234,6 +237,8 @@ export const commonApiExtensions = `
         placeholderEmailDomain: String!
         deliveryBaseFee: Int!
         deliveryFeePerKm: Int!
+        commissionMode: String!
+        collectionCommissionRates: JSON
     }
 
     input UpdatePlatformSettingsInput {
@@ -248,6 +253,8 @@ export const commonApiExtensions = `
         placeholderEmailDomain: String
         deliveryBaseFee: Int
         deliveryFeePerKm: Int
+        commissionMode: String
+        collectionCommissionRates: JSON
     }
 
     # ── OrderStatus (custom marketplace statuses) ──
@@ -309,6 +316,18 @@ export const commonApiExtensions = `
         product: Product!
         likesCount: Int!
     }
+
+    type WithdrawalRequest {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        vendor: Vendor!
+        amount: Int!
+        status: String!
+        mobileMoneyNumber: String
+        rejectionReason: String
+        transferReference: String
+    }
 `;
 
 export const shopApiExtensions = `
@@ -326,8 +345,10 @@ export const shopApiExtensions = `
         myVendorProducts(options: ProductListOptions): ProductList!
         myVendorProduct(id: ID!): Product
         platformSettings: PlatformSettings
+        whatsappNumber: String
         orderStatuses: [OrderStatus!]!
         vendorOrderStatuses: [OrderStatus!]!
+        myWithdrawals: [WithdrawalRequest!]!
 
 
         # Email role checking (public — no auth required)
@@ -359,6 +380,10 @@ export const shopApiExtensions = `
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
         updateMyOrderSellerStatus(orderId: ID!, statusCode: String!): Boolean!
+        updateMyOrderLineSellerStatus(lineId: ID!, statusCode: String!): Boolean!
+        continueOrderWithoutReassigning(orderId: ID!, lineId: ID): Boolean!
+        acceptOrderWithoutCancelledVendor(orderId: ID!, vendorId: ID!): Boolean!
+        cancelCustomerOrder(orderId: ID!): Boolean!
         uploadVendorFile(file: Upload!): Asset!
         
         createMyProduct(input: CreateVendorProductInput!): Product!
@@ -369,6 +394,7 @@ export const shopApiExtensions = `
         # Unified account: add roles to existing accounts
         addVendorRoleToExistingClient: Vendor!
         addClientRoleToExistingVendor: Boolean!
+        requestVendorWithdrawal(amount: Int!): Boolean!
 
         # Likes system mutations (Shop API)
         toggleLikeVendor(id: ID!): Boolean!
@@ -392,7 +418,7 @@ export const adminApiExtensions = `
         myVendorProduct(id: ID!): Product
         platformSettings: PlatformSettings
         orderStatuses: [OrderStatus!]!
-
+        withdrawalRequests: [WithdrawalRequest!]!
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
@@ -407,6 +433,8 @@ export const adminApiExtensions = `
         deleteVendor(id: ID!, deleteProducts: Boolean!, deleteOrders: Boolean!): Boolean!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
+        continueOrderWithoutReassigning(orderId: ID!, lineId: ID): Boolean!
+        cancelCustomerOrder(orderId: ID!): Boolean!
 
         # Unified account: add roles to existing accounts
         addVendorRoleToExistingClient: Vendor!
@@ -434,8 +462,16 @@ export const adminApiExtensions = `
         deleteMyProduct(id: ID!): DeletionResponse!
         uploadVendorFile(file: Upload!): Asset!
         
-        # Order Management (Admin status updates)
-        updateOrderAdminStatus(orderId: ID!, status: String!): Boolean!
-        updateOrderSellerStatus(orderId: ID!, status: String!): Boolean!
+        # Order Management (Admin status updates & Reassignment)
+        updateOrderAdminStatus(orderId: ID!, status: String!, vendorId: ID): Boolean!
+        updateOrderSellerStatus(orderId: ID!, status: String!, vendorId: ID): Boolean!
+        updateOrderVendorPaymentStatus(orderId: ID!, isPaid: Boolean!, vendorId: ID): Boolean!
+        acceptOrderWithoutCancelledVendor(orderId: ID!, vendorId: ID!): Boolean!
+        reassignVendorSubOrder(orderId: ID!, oldVendorId: ID!, newVendorId: ID!): Boolean!
+        reassignOrderLineToProduct(orderId: ID!, lineId: ID!, newProductId: ID, newProductName: String, newPrice: Float!, newVendorId: ID!): Boolean!
+        deleteVendorOrder(orderId: ID!): Boolean!
+        approveWithdrawalRequest(id: ID!): Boolean!
+        rejectWithdrawalRequest(id: ID!, reason: String): Boolean!
+        deleteOrderAdmin(id: ID!): Boolean!
     }
 `;

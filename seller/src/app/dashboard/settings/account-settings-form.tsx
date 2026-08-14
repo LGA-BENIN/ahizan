@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save, CreditCard, Landmark } from 'lucide-react';
+import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save, CreditCard, Landmark, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
 
@@ -27,6 +27,15 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
     const [passwordState, passwordAction, isPasswordPending] = useActionState<any, FormData>(changePasswordAction, undefined);
     const [activeTab, setActiveTab] = useState('general');
     
+    // Collapsible sections and bio counter
+    const [isVisualExpanded, setIsVisualExpanded] = useState(true);
+    const [isContactExpanded, setIsContactExpanded] = useState(true);
+    const [isGeoExpanded, setIsGeoExpanded] = useState(true);
+    const [isMarketExpanded, setIsMarketExpanded] = useState(true);
+    const [isSocialExpanded, setIsSocialExpanded] = useState(true);
+    const [isPaymentExpanded, setIsPaymentExpanded] = useState(true);
+    const [descLength, setDescLength] = useState(vendor?.description?.length || 0);
+
     // Form dirtiness tracking
     const [isDirty, setIsDirty] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
@@ -792,199 +801,268 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="flex flex-col lg:flex-row gap-8">
-                    
-                    {/* Left Navigation Menu */}
-                    <aside className="w-full lg:w-52 shrink-0 overflow-x-auto lg:overflow-visible custom-scrollbar">
-                        <TabsList className="flex flex-row lg:flex-col h-auto bg-transparent border-none p-0 space-x-1 lg:space-x-0 lg:space-y-1">
-                            <TabsTrigger 
-                                value="general" 
-                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
-                            >
-                                <Store className="w-4 h-4 shrink-0" />
-                                <span className="whitespace-nowrap">Boutique</span>
-                            </TabsTrigger>
-                            <TabsTrigger 
-                                value="localisation" 
-                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
-                            >
-                                <MapPin className="w-4 h-4 shrink-0" />
-                                <span className="whitespace-nowrap">Localisation</span>
-                            </TabsTrigger>
-                            <TabsTrigger 
-                                value="social" 
-                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
-                            >
-                                <Globe className="w-4 h-4 shrink-0" />
-                                <span className="whitespace-nowrap">Sociaux</span>
-                            </TabsTrigger>
-                            <TabsTrigger 
-                                value="payment" 
-                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
-                            >
-                                <CreditCard className="w-4 h-4 shrink-0" />
-                                <span className="whitespace-nowrap">Paiements</span>
-                            </TabsTrigger>
-                            <TabsTrigger 
-                                value="security" 
-                                className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0"
-                            >
-                                <Shield className="w-4 h-4 shrink-0" />
-                                <span className="whitespace-nowrap">Sécurité</span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </aside>
+                    {/* Sidebar: Navigation & Shop Info (2-column layout on desktop) */}
+                    <aside className="w-full lg:w-72 shrink-0 space-y-6">
+                        <div className="bg-card rounded-2xl border border-border p-3 shadow-sm">
+                            <TabsList className="flex flex-row lg:flex-col h-auto bg-transparent border-none p-0 space-x-1 lg:space-x-0 lg:space-y-1.5 w-full overflow-x-auto lg:overflow-visible custom-scrollbar">
+                                <TabsTrigger 
+                                    value="general" 
+                                    className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer"
+                                >
+                                    <Store className="w-4 h-4 shrink-0" />
+                                    <span className="whitespace-nowrap">Boutique</span>
+                                </TabsTrigger>
+                                <TabsTrigger 
+                                    value="localisation" 
+                                    className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer"
+                                >
+                                    <MapPin className="w-4 h-4 shrink-0" />
+                                    <span className="whitespace-nowrap">Localisation</span>
+                                </TabsTrigger>
+                                <TabsTrigger 
+                                    value="social" 
+                                    className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer"
+                                >
+                                    <Globe className="w-4 h-4 shrink-0" />
+                                    <span className="whitespace-nowrap">Sociaux</span>
+                                </TabsTrigger>
+                                <TabsTrigger 
+                                    value="payment" 
+                                    className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer"
+                                >
+                                    <CreditCard className="w-4 h-4 shrink-0" />
+                                    <span className="whitespace-nowrap">Paiements</span>
+                                </TabsTrigger>
+                                <TabsTrigger 
+                                    value="security" 
+                                    className="w-auto lg:w-full justify-start gap-3 px-4 py-3 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-muted-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer"
+                                >
+                                    <Shield className="w-4 h-4 shrink-0" />
+                                    <span className="whitespace-nowrap">Sécurité</span>
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+
+                        {/* Shop Status Card (Desktop only) */}
+                        <Card className="border border-border shadow-sm bg-card rounded-2xl overflow-hidden hidden lg:block">
+                            <CardHeader className="p-5 pb-3">
+                                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Statut de la boutique</h3>
+                            </CardHeader>
+                            <CardContent className="p-5 pt-0 space-y-4">
+                                <div className="flex items-center justify-between p-3.5 bg-muted/40 rounded-xl border border-border/50">
+                                    <span className="text-xs font-semibold text-foreground">Visibilité publique</span>
+                                    
+                                    {/* Toggle Switch */}
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setIsPublic(!isPublic);
+                                            toast.info(isPublic ? 'Boutique masquée du public (simulation)' : 'Boutique mise en ligne (simulation)');
+                                        }}
+                                        className={cn(
+                                            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                                            isPublic ? "bg-primary" : "bg-slate-250 dark:bg-slate-800"
+                                        )}
+                                    >
+                                        <span 
+                                            className={cn(
+                                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                                isPublic ? "translate-x-5" : "translate-x-0"
+                                            )}
+                                        />
+                                    </button>
+                                </div>
+                                <div className="p-4 bg-tertiary/5 text-tertiary rounded-xl border border-tertiary/10 text-xs leading-relaxed font-medium">
+                                    Votre boutique est actuellement en ligne. Toutes les modifications textuelles et réseaux s'appliqueront instantanément au profil public.
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        </aside>
 
                     {/* Middle Bento Form Fields (7 Cols equivalent) */}
                     <div className="flex-1 min-w-0">
                         <form ref={formRef} action={profileAction} onChange={handleFormChange} onSubmit={(e) => { if (lat === null || lng === null) { e.preventDefault(); toast.error('Vos coordonnées GPS (latitude et longitude) sont obligatoires pour permettre le calcul des frais de livraison au kilomètre.'); } }}>
                             
                             {/* Tab 1: Identity/General */}
-                            <TabsContent value="general" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <TabsContent value="general" forceMount className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 data-[state=inactive]:hidden">
                                 
                                 {/* Visual Identity Card */}
                                 <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem] overflow-hidden">
-                                    <CardHeader className="p-6 sm:p-8 pb-4">
-                                        <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
-                                            <Palette className="w-5 h-5 text-primary" />
-                                            Identité visuelle de votre boutique
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                                            Gérez la bannière et le logo public.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
-                                        
-                                        {/* Banner Upload Section */}
-                                        <div className="relative">
-                                            <label className="block text-[10px] font-black uppercase mb-2 text-muted-foreground tracking-wider">
-                                                Bannière de la boutique
-                                            </label>
-                                            <div 
-                                                onClick={triggerBannerUpload}
-                                                className="w-full h-44 rounded-xl bg-muted overflow-hidden group relative cursor-pointer border border-border border-dashed hover:border-primary/50 transition-all"
-                                            >
-                                                <div 
-                                                    className="w-full h-full bg-cover bg-center opacity-70 group-hover:opacity-50 transition-opacity" 
-                                                    style={{ backgroundImage: `url('${bannerUrl}')` }}
-                                                />
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                                    <UploadCloud className="w-8 h-8 text-foreground/80 group-hover:scale-110 transition-transform duration-300" />
-                                                    <span className="text-xs font-bold text-foreground mt-2 bg-card/80 px-3 py-1.5 rounded-lg border shadow-sm">
-                                                        Cliquez pour charger une bannière
-                                                    </span>
-                                                </div>
-                                                <input 
-                                                    type="file" 
-                                                    ref={bannerInputRef} 
-                                                    onChange={handleBannerFileChange} 
-                                                    accept="image/*" 
-                                                    className="hidden" 
-                                                    name="coverImage"
-                                                />
-                                            </div>
+                                    <CardHeader 
+                                        className="p-6 sm:p-8 pb-4 flex flex-row items-center justify-between cursor-pointer select-none hover:bg-muted/5 transition-colors"
+                                        onClick={() => setIsVisualExpanded(!isVisualExpanded)}
+                                    >
+                                        <div className="space-y-1.5">
+                                            <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
+                                                <Palette className="w-5 h-5 text-primary" />
+                                                Identité visuelle de votre boutique
+                                            </CardTitle>
+                                            <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                                                Gérez la bannière et le logo public.
+                                            </CardDescription>
                                         </div>
-
-                                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                                        <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", isVisualExpanded && "rotate-180")} />
+                                    </CardHeader>
+                                    
+                                    {isVisualExpanded && (
+                                        <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
                                             
-                                            {/* Logo Upload Section */}
-                                            <div className="flex-shrink-0 w-full sm:w-auto">
+                                            {/* Banner Upload Section */}
+                                            <div className="relative">
                                                 <label className="block text-[10px] font-black uppercase mb-2 text-muted-foreground tracking-wider">
-                                                    Logo
+                                                    Bannière de la boutique
                                                 </label>
                                                 <div 
-                                                    onClick={triggerLogoUpload}
-                                                    className="w-32 h-32 mx-auto sm:mx-0 rounded-2xl bg-muted border border-border border-dashed flex items-center justify-center cursor-pointer group hover:border-primary/50 transition-all overflow-hidden relative shadow-inner"
+                                                    onClick={triggerBannerUpload}
+                                                    className="w-full h-44 rounded-xl bg-muted overflow-hidden group relative cursor-pointer border border-border border-dashed hover:border-primary/50 transition-all"
                                                 >
-                                                    {logoUrl ? (
-                                                        <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="flex flex-col items-center justify-center text-muted-foreground text-center p-2">
-                                                            <UploadCloud className="w-6 h-6 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
-                                                            <span className="text-[9px] font-bold uppercase tracking-wider">Logo 128x128</span>
-                                                        </div>
-                                                    )}
-                                                    <div className="absolute inset-0 bg-primary/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-white/90 px-2 py-1 rounded border shadow-sm">Modifier</span>
+                                                    <div 
+                                                        className="w-full h-full bg-cover bg-center opacity-70 group-hover:opacity-50 transition-opacity" 
+                                                        style={{ backgroundImage: `url('${bannerUrl}')` }}
+                                                    />
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                        <UploadCloud className="w-8 h-8 text-foreground/80 group-hover:scale-110 transition-transform duration-300" />
+                                                        <span className="text-xs font-bold text-foreground mt-2 bg-card/80 px-3 py-1.5 rounded-lg border shadow-sm">
+                                                            Cliquez pour charger une bannière
+                                                        </span>
                                                     </div>
                                                     <input 
                                                         type="file" 
-                                                        ref={logoInputRef} 
-                                                        onChange={handleLogoFileChange} 
+                                                        ref={bannerInputRef} 
+                                                        onChange={handleBannerFileChange} 
                                                         accept="image/*" 
                                                         className="hidden" 
-                                                        name="logo"
+                                                        name="coverImage"
                                                     />
                                                 </div>
                                             </div>
 
-                                            {/* Core Info Inputs with micro-animations */}
-                                            <div className="flex-1 w-full space-y-6">
-                                                <div className="space-y-2 group">
-                                                    <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Nom de la boutique</Label>
-                                                    <Input 
-                                                        id="name" 
-                                                        name="name" 
-                                                        defaultValue={vendor?.name} 
-                                                        className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
-                                                    />
+                                            <div className="flex flex-col sm:flex-row gap-6 items-start">
+                                                
+                                                {/* Logo Upload Section */}
+                                                <div className="flex-shrink-0 w-full sm:w-auto">
+                                                    <label className="block text-[10px] font-black uppercase mb-2 text-muted-foreground tracking-wider">
+                                                        Logo
+                                                    </label>
+                                                    <div 
+                                                        onClick={triggerLogoUpload}
+                                                        className="w-32 h-32 mx-auto sm:mx-0 rounded-2xl bg-muted border border-border border-dashed flex items-center justify-center cursor-pointer group hover:border-primary/50 transition-all overflow-hidden relative shadow-inner"
+                                                    >
+                                                        {logoUrl ? (
+                                                            <img src={logoUrl} alt="Logo Preview" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center text-muted-foreground text-center p-2">
+                                                                <UploadCloud className="w-6 h-6 mb-1 text-muted-foreground group-hover:text-primary transition-colors" />
+                                                                <span className="text-[9px] font-bold uppercase tracking-wider">Logo 128x128</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-primary/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-white/90 px-2 py-1 rounded border shadow-sm">Modifier</span>
+                                                        </div>
+                                                        <input 
+                                                            type="file" 
+                                                            ref={logoInputRef} 
+                                                            onChange={handleLogoFileChange} 
+                                                            accept="image/*" 
+                                                            className="hidden" 
+                                                            name="logo"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="space-y-2 group">
-                                                    <Label htmlFor="description" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Description professionnelle</Label>
-                                                    <Textarea 
-                                                        id="description" 
-                                                        name="description" 
-                                                        defaultValue={vendor?.description} 
-                                                        rows={4} 
-                                                        className="rounded-xl bg-card border-border resize-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
-                                                        placeholder="Décrivez l'activité, l'expertise et la vision de votre boutique..."
-                                                    />
+
+                                                {/* Core Info Inputs with micro-animations */}
+                                                <div className="flex-1 w-full space-y-6">
+                                                    <div className="space-y-2 group">
+                                                        <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Nom de la boutique</Label>
+                                                        <Input 
+                                                            id="name" 
+                                                            name="name" 
+                                                            defaultValue={vendor?.name} 
+                                                            className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2 group">
+                                                        <Label htmlFor="description" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Description professionnelle</Label>
+                                                        <Textarea 
+                                                            id="description" 
+                                                            name="description" 
+                                                            defaultValue={vendor?.description} 
+                                                            maxLength={500}
+                                                            onChange={(e) => {
+                                                                setDescLength(e.target.value.length);
+                                                                handleFormChange(e);
+                                                            }}
+                                                            rows={4} 
+                                                            className="rounded-xl bg-card border-border resize-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
+                                                            placeholder="Décrivez l'activité, l'expertise et la vision de votre boutique..."
+                                                        />
+                                                        <div className="text-right text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                                                            {descLength}/500 caractères
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                    </CardContent>
+                                        </CardContent>
+                                    )}
                                 </Card>
 
                                 {/* Contact Card */}
                                 <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem]">
-                                    <CardHeader className="p-6 sm:p-8 pb-4">
-                                        <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
-                                            <Contact className="w-5 h-5 text-primary" />
-                                            Coordonnées
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                                            Informations de contact public et marchand.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-6 sm:p-8 pt-0">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="phoneNumber" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Téléphone de contact</Label>
-                                            <Input 
-                                                id="phoneNumber" 
-                                                name="phoneNumber" 
-                                                type="tel"
-                                                defaultValue={vendor?.phoneNumber} 
-                                                className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
-                                            />
+                                    <CardHeader 
+                                        className="p-6 sm:p-8 pb-4 flex flex-row items-center justify-between cursor-pointer select-none hover:bg-muted/5 transition-colors"
+                                        onClick={() => setIsContactExpanded(!isContactExpanded)}
+                                    >
+                                        <div className="space-y-1.5">
+                                            <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
+                                                <Contact className="w-5 h-5 text-primary" />
+                                                Coordonnées
+                                            </CardTitle>
+                                            <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                                                Informations de contact public et marchand.
+                                            </CardDescription>
                                         </div>
-                                    </CardContent>
+                                        <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", isContactExpanded && "rotate-180")} />
+                                    </CardHeader>
+                                    {isContactExpanded && (
+                                        <CardContent className="p-6 sm:p-8 pt-0">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="phoneNumber" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Téléphone de contact</Label>
+                                                <Input 
+                                                    id="phoneNumber" 
+                                                    name="phoneNumber" 
+                                                    type="tel"
+                                                    defaultValue={vendor?.phoneNumber} 
+                                                    className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
+                                                />
+                                            </div>
+                                        </CardContent>
+                                    )}
                                 </Card>
 
                             </TabsContent>
 
                             {/* Tab 2: Location/Details */}
-                            <TabsContent value="localisation" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem]">
-                                    <CardHeader className="p-6 sm:p-8 pb-4">
-                                        <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
-                                            <MapPin className="w-5 h-5 text-primary" />
-                                            Localisation & Expéditions
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                                            Gérez votre adresse physique et vos politiques.
-                                        </CardDescription>
+                            <TabsContent value="localisation" forceMount className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 data-[state=inactive]:hidden">
+                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem] overflow-hidden">
+                                    <CardHeader 
+                                        className="p-6 sm:p-8 pb-4 flex flex-row items-center justify-between cursor-pointer select-none hover:bg-muted/5 transition-colors"
+                                        onClick={() => setIsGeoExpanded(!isGeoExpanded)}
+                                    >
+                                        <div className="space-y-1.5">
+                                            <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
+                                                <MapPin className="w-5 h-5 text-primary" />
+                                                Localisation & Expéditions
+                                            </CardTitle>
+                                            <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                                                Gérez votre adresse physique et vos politiques.
+                                            </CardDescription>
+                                        </div>
+                                        <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", isGeoExpanded && "rotate-180")} />
                                     </CardHeader>
-                                    <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
+                                    {isGeoExpanded && (
+                                        <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
                                         <div className="space-y-6">
                                             <div className="space-y-2">
                                                 <Label htmlFor="address" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Adresse de la boutique</Label>
@@ -1180,71 +1258,87 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                                             </div>
                                         </div>
                                     </CardContent>
+                                    )}
                                 </Card>
                             </TabsContent>
 
                             {/* Tab 3: Social/Web */}
-                            <TabsContent value="social" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem]">
-                                    <CardHeader className="p-6 sm:p-8 pb-4">
-                                        <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
-                                            <Globe className="w-5 h-5 text-primary" />
-                                            Liens & Réseaux Sociaux
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                                            Associez votre e-boutique à vos canaux digitaux.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Site Internet officiel</Label>
-                                                <Input 
-                                                    id="website" 
-                                                    name="website" 
-                                                    placeholder="https://www.votresite.com"
-                                                    defaultValue={vendor?.website} 
-                                                    className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="facebook" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Page Facebook (URL)</Label>
-                                                <Input 
-                                                    id="facebook" 
-                                                    name="facebook" 
-                                                    placeholder="https://facebook.com/nom_boutique"
-                                                    defaultValue={vendor?.facebook} 
-                                                    className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
-                                                />
-                                            </div>
-                                            <div className="space-y-2 sm:col-span-2">
-                                                <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Compte Instagram (URL)</Label>
-                                                <Input 
-                                                    id="instagram" 
-                                                    name="instagram" 
-                                                    placeholder="https://instagram.com/nom_boutique"
-                                                    defaultValue={vendor?.instagram} 
-                                                    className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
-                                                />
-                                            </div>
+                            <TabsContent value="social" forceMount className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 data-[state=inactive]:hidden">
+                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem] overflow-hidden">
+                                    <CardHeader 
+                                        className="p-6 sm:p-8 pb-4 flex flex-row items-center justify-between cursor-pointer select-none hover:bg-muted/5 transition-colors"
+                                        onClick={() => setIsSocialExpanded(!isSocialExpanded)}
+                                    >
+                                        <div className="space-y-1.5">
+                                            <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
+                                                <Globe className="w-5 h-5 text-primary" />
+                                                Liens & Réseaux Sociaux
+                                            </CardTitle>
+                                            <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                                                Associez votre e-boutique à vos canaux digitaux.
+                                            </CardDescription>
                                         </div>
-                                    </CardContent>
+                                        <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", isSocialExpanded && "rotate-180")} />
+                                    </CardHeader>
+                                    {isSocialExpanded && (
+                                        <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="website" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Site Internet officiel</Label>
+                                                    <Input 
+                                                        id="website" 
+                                                        name="website" 
+                                                        placeholder="https://www.votresite.com"
+                                                        defaultValue={vendor?.website} 
+                                                        className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="facebook" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Page Facebook (URL)</Label>
+                                                    <Input 
+                                                        id="facebook" 
+                                                        name="facebook" 
+                                                        placeholder="https://facebook.com/nom_boutique"
+                                                        defaultValue={vendor?.facebook} 
+                                                        className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
+                                                    />
+                                                </div>
+                                                <div className="space-y-2 sm:col-span-2">
+                                                    <Label htmlFor="instagram" className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Compte Instagram (URL)</Label>
+                                                    <Input 
+                                                        id="instagram" 
+                                                        name="instagram" 
+                                                        placeholder="https://instagram.com/nom_boutique"
+                                                        defaultValue={vendor?.instagram} 
+                                                        className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300 focus-visible:scale-[1.01]" 
+                                                    />
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    )}
                                 </Card>
                             </TabsContent>
 
                             {/* Tab 4: Payments Configuration */}
-                            <TabsContent value="payment" className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem]">
-                                    <CardHeader className="p-6 sm:p-8 pb-4">
-                                        <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
-                                            <CreditCard className="w-5 h-5 text-primary" />
-                                            Modes de Règlement Acceptés
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
-                                            Configurez comment vous souhaitez encaisser vos ventes.
-                                        </CardDescription>
+                            <TabsContent value="payment" forceMount className="m-0 space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 data-[state=inactive]:hidden">
+                                <Card className="border border-border shadow-sm bg-card rounded-2xl md:rounded-[2rem] overflow-hidden">
+                                    <CardHeader 
+                                        className="p-6 sm:p-8 pb-4 flex flex-row items-center justify-between cursor-pointer select-none hover:bg-muted/5 transition-colors"
+                                        onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
+                                    >
+                                        <div className="space-y-1.5">
+                                            <CardTitle className="text-xl md:text-2xl font-serif font-black flex items-center gap-2">
+                                                <CreditCard className="w-5 h-5 text-primary" />
+                                                Modes de Règlement Acceptés
+                                            </CardTitle>
+                                            <CardDescription className="text-[10px] uppercase font-black tracking-wider text-muted-foreground">
+                                                Configurez comment vous souhaitez encaisser vos ventes.
+                                            </CardDescription>
+                                        </div>
+                                        <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform duration-300", isPaymentExpanded && "rotate-180")} />
                                     </CardHeader>
-                                    <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
+                                    {isPaymentExpanded && (
+                                        <CardContent className="p-6 sm:p-8 pt-0 space-y-6">
                                         <div className="space-y-6">
                                             {/* Mandatory Cash on Delivery */}
                                             <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
@@ -1329,6 +1423,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                                             )}
                                         </div>
                                     </CardContent>
+                                    )}
                                 </Card>
                             </TabsContent>
                             <div className="pt-6 mt-6 border-t border-border flex justify-end">
@@ -1415,72 +1510,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                         </TabsContent>
                     </div>
 
-                    {/* Right Sidebar Column (4 Cols equivalent) */}
-                    <aside className="w-full lg:w-72 space-y-6">
-                        
-                        {/* Shop Status Card */}
-                        <Card className="border border-border shadow-sm bg-card rounded-2xl overflow-hidden">
-                            <CardHeader className="p-5 pb-3">
-                                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Statut de la boutique</h3>
-                            </CardHeader>
-                            <CardContent className="p-5 pt-0 space-y-4">
-                                <div className="flex items-center justify-between p-3.5 bg-muted/40 rounded-xl border border-border/50">
-                                    <span className="text-xs font-semibold text-foreground">Visibilité publique</span>
-                                    
-                                    {/* Toggle Switch */}
-                                    <button 
-                                        type="button"
-                                        onClick={() => {
-                                            setIsPublic(!isPublic);
-                                            toast.info(isPublic ? 'Boutique masquée du public (simulation)' : 'Boutique mise en ligne (simulation)');
-                                        }}
-                                        className={cn(
-                                            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
-                                            isPublic ? "bg-primary" : "bg-slate-250 dark:bg-slate-800"
-                                        )}
-                                    >
-                                        <span 
-                                            className={cn(
-                                                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                                isPublic ? "translate-x-5" : "translate-x-0"
-                                            )}
-                                        />
-                                    </button>
-                                </div>
-                                <div className="p-4 bg-tertiary/5 text-tertiary rounded-xl border border-tertiary/10 text-xs leading-relaxed font-medium">
-                                    Votre boutique est actuellement en ligne. Toutes les modifications textuelles et réseaux s'appliqueront instantanément au profil public.
-                                </div>
-                            </CardContent>
-                        </Card>
 
-                        {/* Public Preview Card */}
-                        <Card className="border border-border shadow-sm bg-card rounded-2xl overflow-hidden text-center p-6 flex flex-col items-center">
-                            <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-5 self-start">Aperçu rapide</h3>
-                            <div className="w-20 h-20 rounded-full bg-muted shadow-inner mb-4 flex items-center justify-center overflow-hidden border border-border/75">
-                                {logoUrl ? (
-                                    <img src={logoUrl} alt="Store logo" className="w-full h-full object-cover" />
-                                ) : (
-                                    <span className="text-lg font-black text-muted-foreground">
-                                        {vendor?.name ? vendor.name.substring(0, 2).toUpperCase() : 'AH'}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="font-serif font-black text-base text-foreground leading-tight">{vendor?.name || 'Boutique'}</div>
-                            <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-1 flex items-center gap-1">
-                                <MapPin className="w-3.5 h-3.5 text-primary" />
-                                {vendor?.zone || 'Bénin'}
-                            </div>
-                            
-                            <Button 
-                                variant="link" 
-                                className="text-primary font-bold text-xs uppercase tracking-wider mt-5 hover:underline flex items-center gap-1.5"
-                                onClick={() => toast.info('Affichage du profil public')}
-                            >
-                                <Eye className="w-4 h-4" />
-                                Voir mon profil public
-                            </Button>
-                        </Card>
-                    </aside>
 
                 </div>
             </Tabs>

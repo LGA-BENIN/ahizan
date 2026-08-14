@@ -70,7 +70,6 @@ export default function ContactStep({ onComplete }: ContactStepProps) {
       const result = await setCustomerForOrder(data);
 
       if (result.success) {
-        router.refresh();
         onComplete();
       } else {
         setError(result);

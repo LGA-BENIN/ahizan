@@ -21,9 +21,32 @@ export async function getUrlContext() {
 
 export function sanitizeRedirectUrl(url: string | undefined | null, useProdUrls: boolean): string {
   if (!url) return '';
-  if (!useProdUrls) return url;
 
-  return url
-    .replace('http://localhost:3001', 'https://ahizan.com')
-    .replace('http://localhost:3002', 'https://seller.ahizan.com');
+  let cleanedUrl = url;
+  if (useProdUrls) {
+    cleanedUrl = url
+      .replace('http://localhost:3001', 'https://ahizan.com')
+      .replace('http://localhost:3002', 'https://seller.ahizan.com');
+  }
+
+  // Enforce secure redirection targets:
+  // - Safe relative paths (starting with / but not //)
+  const isRelative = cleanedUrl.startsWith('/') && !cleanedUrl.startsWith('//');
+  
+  // - Official allowed domains
+  const isAllowedDomain = 
+    cleanedUrl.startsWith('https://ahizan.com') ||
+    cleanedUrl.startsWith('https://www.ahizan.com') ||
+    cleanedUrl.startsWith('https://seller.ahizan.com') ||
+    cleanedUrl.startsWith('https://auth.ahizan.com') ||
+    (!useProdUrls && (
+      cleanedUrl.startsWith('http://localhost:') ||
+      cleanedUrl.startsWith('http://127.0.0.1:')
+    ));
+
+  if (isRelative || isAllowedDomain) {
+    return cleanedUrl;
+  }
+
+  return '';
 }

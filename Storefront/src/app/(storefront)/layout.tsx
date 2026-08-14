@@ -87,7 +87,7 @@ async function StorefrontMainContent({
         }))
     }));
 
-    const flashSection = sections.find(s => s.type === 'FLASH_SALE')?.data;
+    const flashSection = sections.find(s => s.type === 'FLASH_SALE' || s.type === 'FLASH_DEALS' || s.data?.experienceStrategy === 'FLASH_SALE')?.data;
     let activeFlash = null;
     if (flashSection) {
         if (flashSection.flashVersions && Array.isArray(flashSection.flashVersions)) {
@@ -123,7 +123,7 @@ async function StorefrontMainContent({
                     {/* Global mobile category sidebar - available on all pages */}
                     <MobileCategorySidebar categories={collections} />
 
-                    <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
+                    <main className={`flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
                         {children}
                     </main>
 

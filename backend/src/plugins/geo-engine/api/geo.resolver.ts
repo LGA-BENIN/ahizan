@@ -46,6 +46,24 @@ export class GeoResolver {
 
     @Query()
     @Allow(Permission.Public)
+    async resolveCoordinates(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { latitude: number; longitude: number },
+    ): Promise<any> {
+        return this.geoService.resolveCoordinates(ctx, args.latitude, args.longitude);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async searchAddress(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { query: string },
+    ): Promise<any[]> {
+        return this.geoService.searchAddress(ctx, args.query);
+    }
+
+    @Query()
+    @Allow(Permission.Public)
     async geoZone(@Ctx() ctx: RequestContext, @Args() args: any): Promise<GeoZone | null> {
         const repo = this.geoService.connection.getRepository(ctx, GeoZone);
         if (args.id) {
@@ -531,6 +549,48 @@ export class GeoAdminResolver {
         @Args() args: { base64Content: string; format: any; type: any }
     ): Promise<any> {
         return this.geoService.importMassiveData(ctx, args.base64Content, args.format, args.type);
+    }
+
+    @Query()
+    @Allow(Permission.ReadSettings)
+    async geoResolutionLogs(@Ctx() ctx: RequestContext, @Args() args: any): Promise<any[]> {
+        return this.geoService.getResolutionLogs(ctx, args.limit, args.offset);
+    }
+
+    @Query()
+    @Allow(Permission.ReadSettings)
+    async geoUserCorrections(@Ctx() ctx: RequestContext, @Args() args: any): Promise<any[]> {
+        return this.geoService.getUserCorrections(ctx, args.status);
+    }
+
+    @Query()
+    @Allow(Permission.ReadSettings)
+    async geoCoverageStats(@Ctx() ctx: RequestContext): Promise<any> {
+        return this.geoService.getCoverageStats(ctx);
+    }
+
+    @Mutation()
+    @Allow(Permission.Public)
+    async submitUserCorrection(@Ctx() ctx: RequestContext, @Args() args: any): Promise<any> {
+        return this.geoService.submitUserCorrection(ctx, args);
+    }
+
+    @Mutation()
+    @Allow(Permission.UpdateSettings)
+    async moderateUserCorrection(@Ctx() ctx: RequestContext, @Args() args: { id: number; approve: boolean }): Promise<any> {
+        return this.geoService.moderateUserCorrection(ctx, args.id, args.approve);
+    }
+
+    @Mutation()
+    @Allow(Permission.UpdateSettings)
+    async splitGeoZone(@Ctx() ctx: RequestContext, @Args() args: { parentZoneId: number; newZoneNames: string[] }): Promise<any[]> {
+        return this.geoService.splitGeoZone(ctx, args.parentZoneId, args.newZoneNames);
+    }
+
+    @Mutation()
+    @Allow(Permission.UpdateSettings)
+    async mergeGeoZones(@Ctx() ctx: RequestContext, @Args() args: { zoneIds: number[]; mergedName: string }): Promise<any> {
+        return this.geoService.mergeGeoZones(ctx, args.zoneIds, args.mergedName);
     }
 }
 

@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CmsSection, ThemeSettingsData, HeaderConfData, FooterConfData } from "@/lib/vendure/cms-queries";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
+import { getPreviewHabillageAction } from "./preview-actions";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { LocationProvider } from "@/contexts/location-context";
 
 interface PreviewSection {
     id: string;
@@ -51,38 +54,12 @@ export function PreviewContent({ presetId, version, pageSlug }: { presetId: stri
 
         const fetchPreview = async () => {
             try {
-                const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
-
-                const res = await fetch(shopApiUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    cache: "no-store",
-                    body: JSON.stringify({
-                        query: `
-                            query PreviewHabillage($presetId: ID!) {
-                                previewHabillage(presetId: $presetId) {
-                                    id
-                                    name
-                                    isDefault
-                                    isBackup
-                                    sections {
-                                        id type title description layout order isActive pageSlug dataJson
-                                    }
-                                }
-                            }
-                        `,
-                        variables: { presetId },
-                    }),
-                });
-
-                const data = await res.json();
-                console.log('[Preview] Fetched data for presetId:', presetId, data);
-                if (data.errors) {
-                    throw new Error(data.errors.map((e: any) => e.message).join(', '));
+                const res = await getPreviewHabillageAction(presetId);
+                if (!res.success) {
+                    throw new Error(res.error || "Habillage introuvable");
                 }
 
-                const preview = data.data?.previewHabillage;
+                const preview = res.preview;
                 console.log('[Preview] Habillage preview:', preview);
                 if (!preview) {
                     throw new Error("Habillage introuvable");
@@ -124,6 +101,15 @@ export function PreviewContent({ presetId, version, pageSlug }: { presetId: stri
             };
         });
     }, [habillage]);
+
+    const activeFlash = useMemo(() => {
+        const flashSection = cmsSections.find(s => s.type === 'FLASH_SALE' || s.type === 'FLASH_DEALS' || s.data?.experienceStrategy === 'FLASH_SALE')?.data;
+        if (!flashSection) return null;
+        if (flashSection.flashVersions && Array.isArray(flashSection.flashVersions)) {
+            return flashSection.flashVersions.find((v: any) => v.isActive) || flashSection.flashVersions[0];
+        }
+        return flashSection;
+    }, [cmsSections]);
 
     // Extract theme, header, footer from habillage sections (NOT from live page)
     const globalSections = useMemo(() => {
@@ -203,72 +189,83 @@ export function PreviewContent({ presetId, version, pageSlug }: { presetId: stri
         );
     }
 
+
+
     return (
-        <div className="fixed inset-0 z-[9999] flex flex-col overflow-x-hidden overflow-y-auto" style={themeStyles}>
-            {/* Global Background Layer (from habillage theme) */}
-            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-                {bgType === 'color' && (
-                    <div className="absolute inset-0" style={{ background: bgValue }} />
-                )}
-                {bgType === 'image' && bgValue && (
-                    <div
-                        className="absolute inset-0 bg-cover bg-center bg-fixed"
-                        style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
-                    />
-                )}
-                {bgType === 'video' && bgValue && (
-                    <video
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        key={bgValue}
-                        className="absolute min-w-full min-h-full object-cover opacity-60"
-                    >
-                        <source src={getAssetUrl(bgValue)} type="video/mp4" />
-                    </video>
-                )}
-            </div>
+        <ThemeProvider themeSettings={{
+            defaultProductImage: theme?.defaultProductImage,
+            applyFlashPromoToProducts: (theme as any)?.applyFlashPromoToProducts === true,
+            applyFlashPromoToCollections: (theme as any)?.applyFlashPromoToCollections === true,
+            activeFlashSale: activeFlash
+        }}>
+            <LocationProvider>
+                <div className="fixed inset-0 z-[9999] flex flex-col overflow-x-hidden overflow-y-auto" style={themeStyles}>
+                    {/* Global Background Layer (from habillage theme) */}
+                    <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                        {bgType === 'color' && (
+                            <div className="absolute inset-0" style={{ background: bgValue }} />
+                        )}
+                        {bgType === 'image' && bgValue && (
+                            <div
+                                className="absolute inset-0 bg-cover bg-center bg-fixed"
+                                style={{ backgroundImage: `url(${getAssetUrl(bgValue)})` }}
+                            />
+                        )}
+                        {bgType === 'video' && bgValue && (
+                            <video
+                                autoPlay
+                                muted
+                                loop
+                                playsInline
+                                key={bgValue}
+                                className="absolute min-w-full min-h-full object-cover opacity-60"
+                            >
+                                <source src={getAssetUrl(bgValue)} type="video/mp4" />
+                            </video>
+                        )}
+                    </div>
 
-            {/* Preview Banner (always on top) */}
-            <div className="sticky top-0 z-[60] py-2 px-4 text-center text-sm font-bold flex items-center justify-center gap-3" style={{ background: '#7c3aed', color: '#fff' }}>
-                <span>👁️ Aperçu — {habillage?.name || `Habillage #${presetId}`}</span>
-                {pageSlug && pageSlug !== 'home' && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase">{pageSlug}</span>
-                )}
-                <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">ID: {presetId}</span>
-                <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">{habillage?.sections?.length || 0} sections</span>
-                {habillage?.isDefault && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">DÉFAUT</span>
-                )}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => window.close()}
-                    className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold"
-                >
-                    Fermer
-                </Button>
-            </div>
+                    {/* Preview Banner (always on top) */}
+                    <div className="sticky top-0 z-[60] py-2 px-4 text-center text-sm font-bold flex items-center justify-center gap-3" style={{ background: '#7c3aed', color: '#fff' }}>
+                        <span>👁️ Aperçu — {habillage?.name || `Habillage #${presetId}`}</span>
+                        {pageSlug && pageSlug !== 'home' && (
+                            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase">{pageSlug}</span>
+                        )}
+                        <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">ID: {presetId}</span>
+                        <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">{habillage?.sections?.length || 0} sections</span>
+                        {habillage?.isDefault && (
+                            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">DÉFAUT</span>
+                        )}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.close()}
+                            className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold"
+                        >
+                            Fermer
+                        </Button>
+                    </div>
 
-            <HeaderWrapper config={headerConfig} isPreview={true}>
-                <TopFlashBanner config={headerConfig?.topBar} />
-                <AhizanNavbar config={headerConfig} customer={null} order={null} isPreview={true} />
-            </HeaderWrapper>
+                    <HeaderWrapper config={headerConfig} isPreview={true}>
+                        <TopFlashBanner config={headerConfig?.topBar} />
+                        <AhizanNavbar config={headerConfig} customer={null} order={null} isPreview={true} />
+                    </HeaderWrapper>
 
-            <MobileCategorySidebar categories={[]} />
+                    <MobileCategorySidebar categories={[]} />
 
-            {/* Body sections rendered via AhizanHome (same engine as real storefront) */}
-            <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
-                <AhizanHome sections={cmsSections} />
-            </main>
+                    {/* Body sections rendered via AhizanHome (same engine as real storefront) */}
+                    <main className={`relative z-10 flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
+                        <AhizanHome sections={cmsSections} />
+                    </main>
 
-            {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
-                <MobileBottomNav config={headerConfig} customer={null} order={null} />
-            )}
+                    {(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) && (
+                        <MobileBottomNav config={headerConfig} customer={null} order={null} />
+                    )}
 
-            {/* Footer from habillage (not live storefront) */}
-            <PreviewFooter config={footerConfig} />
-        </div>
+                    {/* Footer from habillage (not live storefront) */}
+                    <PreviewFooter config={footerConfig} />
+                </div>
+            </LocationProvider>
+        </ThemeProvider>
     );
 }

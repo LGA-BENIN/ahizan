@@ -136,8 +136,7 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                             query: productsQuery, 
                             variables: { 
                                 options: { 
-                                    take,
-                                    filter: { approvalStatus: { eq: "approved" } }
+                                    take
                                 } 
                             } 
                         })
@@ -174,7 +173,7 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
         };
 
         fetchProducts();
-    }, [config]);
+    }, [JSON.stringify(config)]);
 
     const isBgGif = isGif(config.bgImageUrl);
     const bgStyle: any = {};

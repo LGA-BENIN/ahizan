@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { encodeId } from '@/lib/hash-utils';
 import Image from 'next/image';
 import { Star, MapPin, Navigation, Info, Store } from 'lucide-react';
 import { getShopApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
@@ -208,7 +209,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
                         <div class="p-1">
                             <b class="text-sm font-bold text-slate-900">${v.name}</b>
                             <p class="text-xs text-slate-600 my-1">${v.address || ''}</p>
-                            <a href="/vendor/${v.id}" class="inline-block text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline mt-1">Visiter la boutique →</a>
+                            <a href="/vendor/${encodeId(v.id)}" class="inline-block text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline mt-1">Visiter la boutique →</a>
                         </div>
                     `);
             }
@@ -302,7 +303,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
                                     const logoPreview = getAssetUrl(v.logo?.preview) || null;
                                     const isLogoGif = isGif(logoPreview);
                                     return (
-                                        <Link key={v.id} href={`/vendor/${v.id}`} className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800/50 transition-all no-underline text-inherit group">
+                                        <Link key={v.id} href={`/vendor/${encodeId(v.id)}`} className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800/50 transition-all no-underline text-inherit group">
                                             <div className="w-11 h-11 relative rounded-xl overflow-hidden bg-white border border-slate-200/65 flex-shrink-0 flex items-center justify-center">
                                                 {logoPreview ? (
                                                     isLogoGif ? (

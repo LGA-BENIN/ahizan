@@ -82,6 +82,9 @@ export const LivePreview = () => {
             if (host === 'localhost' || host === '127.0.0.1') {
                 return `http://${host}:3001`;
             }
+            if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+                return `http://${host}:3001`;
+            }
         }
         return 'https://ahizan.com';
     };

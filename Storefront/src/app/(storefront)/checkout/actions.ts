@@ -12,7 +12,7 @@ import {
     TransitionOrderToStateMutation,
     SetCustomerForOrderMutation,
 } from '@/lib/vendure/mutations';
-import { GetActiveOrderForCheckoutQuery } from '@/lib/vendure/queries';
+import { GetActiveOrderForCheckoutQuery, GetCustomerAddressesQuery } from '@/lib/vendure/queries';
 import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from "next/navigation";
 import { formatPhoneE164 } from '@/lib/format-phone';
@@ -108,6 +108,33 @@ export async function setShippingAddress(
 
     if (shippingResult.token) {
         await setAuthToken(shippingResult.token);
+    }
+
+    // Auto-save address to customer's address book if logged in
+    try {
+        const customerData = await query(GetCustomerAddressesQuery, {}, { useAuthToken: true });
+        const activeCustomer = customerData.data?.activeCustomer;
+        if (activeCustomer && activeCustomer.id) {
+            // Check if address already exists in customer's address book
+            const existingAddresses = activeCustomer.addresses || [];
+            const isExisting = existingAddresses.some((addr: any) => {
+                return (addr.streetLine1 || '').toLowerCase().trim() === formattedAddress.streetLine1.toLowerCase().trim() &&
+                       (addr.city || '').toLowerCase().trim() === formattedAddress.city.toLowerCase().trim() &&
+                       (addr.postalCode || '').toLowerCase().trim() === (formattedAddress.postalCode || '').toLowerCase().trim();
+            });
+
+            if (!isExisting) {
+                log(`Auto-saving shipping address to customer account address book`);
+                await mutate(
+                    CreateCustomerAddressMutation,
+                    { input: formattedAddress },
+                    { useAuthToken: true }
+                );
+                revalidatePath('/account/addresses');
+            }
+        }
+    } catch (err) {
+        log(`Failed to auto-save shipping address to customer: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     if (useSameForBilling) {
@@ -327,15 +354,11 @@ export async function placeOrder(paymentMethodCode: string) {
         updateTag('cart');
         updateTag('active-order');
 
-        log('Redirecting to confirmation page');
-        redirect(`/order-confirmation/${orderCode}`);
+        log('Returning redirect URL for confirmation page');
+        return { success: true, orderCode, redirectUrl: `/order-confirmation/${orderCode}` };
     } catch (e) {
-        if (e instanceof Error && e.message.includes('NEXT_REDIRECT')) {
-            log('Server redirect triggered (normal)');
-            throw e;
-        }
         log(`ERROR in placeOrder: ${e instanceof Error ? e.message : String(e)}`);
-        throw e;
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
     }
 }
 

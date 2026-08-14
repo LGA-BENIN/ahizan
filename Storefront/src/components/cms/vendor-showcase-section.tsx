@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { encodeId } from '@/lib/hash-utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Star, MapPin, Loader2 } from 'lucide-react';
 import { getShopApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
+import { useLocation } from '@/contexts/location-context';
 
 interface VendorItem {
     id: string;
@@ -31,12 +33,12 @@ export function VendorShowcaseSection({
     layout = 'grid',
     take = 8,
 }: VendorShowcaseProps) {
+    const { selectedLocation } = useLocation();
     const [vendors, setVendors] = useState<VendorItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchVendorsList = async () => {
         try {
-            const saved = typeof window !== 'undefined' ? localStorage.getItem('ahizan_client_location') : null;
             const variables: any = {
                 options: {
                     take,
@@ -44,20 +46,33 @@ export function VendorShowcaseSection({
                 }
             };
 
-            if (saved) {
-                try {
-                    const loc = JSON.parse(saved);
-                    if (loc.type === 'MARKET') {
-                        variables.marketId = loc.id;
-                    } else if (loc.type === 'NEIGHBORHOOD') {
-                        variables.locationId = loc.id;
+            if (selectedLocation) {
+                if (selectedLocation.type === 'MARKET') {
+                    variables.marketId = selectedLocation.id;
+                } else {
+                    variables.locationId = selectedLocation.id;
+                }
+                if ((selectedLocation as any).latitude && (selectedLocation as any).longitude) {
+                    variables.latitude = (selectedLocation as any).latitude;
+                    variables.longitude = (selectedLocation as any).longitude;
+                }
+            } else {
+                const saved = typeof window !== 'undefined' ? localStorage.getItem('ahizan_client_location') : null;
+                if (saved) {
+                    try {
+                        const loc = JSON.parse(saved);
+                        if (loc.type === 'MARKET') {
+                            variables.marketId = loc.id;
+                        } else {
+                            variables.locationId = loc.id;
+                        }
+                        if (loc.latitude && loc.longitude) {
+                            variables.latitude = loc.latitude;
+                            variables.longitude = loc.longitude;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing geolocation data', e);
                     }
-                    if (loc.latitude && loc.longitude) {
-                        variables.latitude = loc.latitude;
-                        variables.longitude = loc.longitude;
-                    }
-                } catch (e) {
-                    console.error('Error parsing geolocation data', e);
                 }
             }
 
@@ -109,7 +124,7 @@ export function VendorShowcaseSection({
                 window.removeEventListener('ahizan_location_changed', fetchVendorsList);
             };
         }
-    }, [take]);
+    }, [selectedLocation, take]);
 
     if (loading) {
         return (
@@ -145,7 +160,7 @@ export function VendorShowcaseSection({
                 {vendors.map((vendor) => {
                     const isLogoGif = isGif(vendor.logoUrl);
                     return (
-                        <Link key={vendor.id} href={`/vendor/${vendor.id}`}
+                        <Link key={vendor.id} href={`/vendor/${encodeId(vendor.id)}`}
                             className="flex flex-col items-center p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-primary/30 transition-all group no-underline text-inherit">
                             <div className="w-20 h-20 relative mb-4 bg-muted rounded-full overflow-hidden border-4 border-muted group-hover:border-primary/10 transition-colors">
                                 {vendor.logoUrl ? (

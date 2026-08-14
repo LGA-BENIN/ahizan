@@ -10,7 +10,7 @@ COPY backend/package*.json ./
 
 # Installation des dépendances
 # Note: On utilise npm ci si le package-lock.json existe, sinon npm install
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN if [ -f package-lock.json ]; then npm ci; else npm install --legacy-peer-deps; fi
 
 # Copie du reste du code source
 COPY backend/ .

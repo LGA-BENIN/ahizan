@@ -2,13 +2,29 @@ import {CartItems} from "./cart-items";
 import {OrderSummary} from "./order-summary";
 import {PromotionCode} from "./promotion-code";
 import {query} from "@/lib/vendure/api";
+import {rawQuery} from "@/lib/vendure/raw-api";
 import {GetActiveOrderQuery} from "@/lib/vendure/queries";
 
-export async function Cart() {
+const GET_GLOBAL_WHATSAPP = `
+    query GetGlobalWhatsapp {
+        whatsappNumber
+    }
+`;
 
-    const {data} = await query(GetActiveOrderQuery, {}, {
-        useAuthToken: true,
-    });
+async function getWhatsappNumber(): Promise<string> {
+    try {
+        const data = await rawQuery(GET_GLOBAL_WHATSAPP);
+        return data?.whatsappNumber || '';
+    } catch {
+        return '';
+    }
+}
+
+export async function Cart() {
+    const [{data}, whatsappNumber] = await Promise.all([
+        query(GetActiveOrderQuery, {}, { useAuthToken: true }),
+        getWhatsappNumber()
+    ]);
 
     const activeOrder = data.activeOrder;
 
@@ -22,7 +38,7 @@ export async function Cart() {
             <CartItems activeOrder={activeOrder}/>
 
             <div className="lg:col-span-1">
-                <OrderSummary activeOrder={activeOrder}/>
+                <OrderSummary activeOrder={activeOrder} whatsappNumber={whatsappNumber}/>
                 <PromotionCode activeOrder={activeOrder}/>
             </div>
         </div>

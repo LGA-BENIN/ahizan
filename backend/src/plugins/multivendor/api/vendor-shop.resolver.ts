@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService } from '@vendure/core';
 import { In } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
@@ -20,6 +20,7 @@ export class VendorShopResolver {
         private connection: TransactionalConnection,
         private collectionService: CollectionService,
         private searchService: SearchService,
+        private globalSettingsService: GlobalSettingsService,
     ) { }
 
     /**
@@ -126,7 +127,7 @@ export class VendorShopResolver {
     @Allow(Permission.Authenticated)
     async createMyProduct(
         @Ctx() ctx: RequestContext,
-        @Args('input') input: { name: string, description: string, price: number, stock: number, collectionIds?: string[], facetValueIds?: string[], assetIds?: string[], featuredAssetId?: string, onPromotion?: boolean, promotionalPrice?: number }
+        @Args('input') input: { name: string, description: string, shortDescription?: string, price: number, stock: number, collectionIds?: string[], facetValueIds?: string[], assetIds?: string[], featuredAssetId?: string, onPromotion?: boolean, promotionalPrice?: number }
     ): Promise<Product> {
         const vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
@@ -138,6 +139,13 @@ export class VendorShopResolver {
         console.log(`createMyProduct: Extracted facetIds:`, extractedFacetIds);
         const finalFacetValueIds = Array.from(new Set([...(input.facetValueIds || []), ...extractedFacetIds]));
         console.log(`createMyProduct: Final facetValueIds to be saved:`, finalFacetValueIds);
+        
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
+        if (input.price < minPrice) {
+            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+        }
+
 
         // 1. Create Product with Collections and Assets
         const product = await this.productService.create(ctx, {
@@ -146,13 +154,17 @@ export class VendorShopResolver {
                 name: input.name,
                 slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
                 description: input.description,
+                customFields: {
+                    shortDescription: input.shortDescription || '',
+                },
             }],
             enabled: false,
             assetIds: input.assetIds,
             facetValueIds: finalFacetValueIds,
             featuredAssetId: input.featuredAssetId,
             customFields: {
-                vendor: { id: vendor.id }
+                vendor: { id: vendor.id },
+                shortDescription: input.shortDescription || '',
             }
         });
 
@@ -185,6 +197,9 @@ export class VendorShopResolver {
         await this.productService.update(ctx, {
             id: product.id,
             facetValueIds: finalFacetValueIds,
+            customFields: {
+                shortDescription: input.shortDescription || '',
+            }
         });
 
         // 4. Assign product to collections AFTER update so INSERTs aren't overwritten
@@ -232,24 +247,49 @@ export class VendorShopResolver {
         }
 
         // Handle collectionIds and facetValueIds separately
-        const { collectionIds, facetValueIds, ...productInput } = input;
+        const { collectionIds, facetValueIds, name, description, shortDescription, ...productInput } = input;
 
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
 
-        // 1. Update the product FIRST (facets, name, description, assets)
-        // This triggers Vendure's internal collection re-evaluation
-        // We force enabled to false and reset validation status to pending
-        const updated = await this.productService.update(ctx, { 
-            id, 
+        const updateData: any = {
+            id,
             ...productInput,
             facetValueIds: finalFacetValueIds,
             enabled: false,
             customFields: {
                 approvalStatus: 'pending',
                 rejectionReason: '',
+                ...(shortDescription !== undefined ? { shortDescription } : {}),
             }
-        });
+        };
+
+        if (name !== undefined || description !== undefined || shortDescription !== undefined) {
+            const existingProduct = await this.productService.findOne(ctx, id, ['translations']);
+            const existingTranslation = existingProduct?.translations.find(t => t.languageCode === ctx.languageCode);
+            
+            updateData.translations = [{
+                languageCode: ctx.languageCode,
+                ...(existingTranslation ? { id: existingTranslation.id as string } : {}),
+                ...(name !== undefined ? { name } : {}),
+                ...(name !== undefined ? { slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') } : {}),
+                ...(description !== undefined ? { description } : {}),
+                customFields: {
+                    ...(existingTranslation?.customFields || {}),
+                    ...(shortDescription !== undefined ? { shortDescription } : {}),
+                }
+            }];
+        }
+
+        // Enforce Minimum Marketplace Price if variant is passed
+        // We will do the variant check in the next step, but let's just make sure updateMyProduct is clean.
+        // Actually, updateMyProduct only updates the Product (name, description), not the price!
+        // Wait, price is on the Variant! Let's find updateMyProductVariant.
+
+        // 1. Update the product FIRST (facets, name, description, assets)
+        // This triggers Vendure's internal collection re-evaluation
+        // We force enabled to false and reset validation status to pending
+        const updated = await this.productService.update(ctx, updateData);
 
         // 2. Get variants AFTER update (Vendure may have re-evaluated collections here)
         console.log(`updateMyProduct: collectionIds = ${JSON.stringify(collectionIds)}`);
@@ -318,7 +358,17 @@ export class VendorShopResolver {
         const updateInput: any = {
             id: input.id,
         };
-        if (input.price !== undefined) updateInput.price = input.price;
+        
+        if (input.price !== undefined) {
+            // Enforce Minimum Marketplace Price
+            const globalSettings = await this.globalSettingsService.getSettings(ctx);
+            const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
+            if (input.price < minPrice) {
+                throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+            }
+            updateInput.price = input.price;
+        }
+        
         if (input.stock !== undefined) updateInput.stockOnHand = input.stock;
 
         // Add promotional price custom fields
@@ -443,6 +493,53 @@ export class VendorShopResolver {
 
         // Transition order state
         return this.orderService.transitionToState(ctx, orderId, status as any);
+    }
+
+    /**
+     * Client drops reassigning items and continues with the rest
+     */
+    @Mutation()
+    @Allow(Permission.Owner, Permission.Public)
+    async continueOrderWithoutReassigning(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('lineId') lineId?: string
+    ): Promise<boolean> {
+        return this.vendorService.continueOrderWithoutReassignedItems(ctx, orderId, lineId);
+    }
+
+    /**
+     * Client accepts order without items from a specific cancelled vendor
+     */
+    @Mutation()
+    @Allow(Permission.Owner, Permission.Public)
+    async acceptOrderWithoutCancelledVendor(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('vendorId') vendorId: string
+    ): Promise<boolean> {
+        return this.vendorService.acceptOrderWithoutCancelledVendor(ctx, orderId, vendorId);
+    }
+
+    /**
+     * Customer cancels their entire order
+     */
+    @Mutation()
+    @Allow(Permission.Owner, Permission.Public)
+    async cancelCustomerOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string
+    ): Promise<boolean> {
+        try {
+            await this.connection.rawConnection.query(
+                `UPDATE "order" SET "state" = 'Cancelled', "customFieldsSellerstatus" = 'refused' WHERE id = $1`,
+                [orderId]
+            );
+            return true;
+        } catch (e) {
+            console.error('[cancelCustomerOrder] Error cancelling order:', e);
+            return false;
+        }
     }
 
     /**

@@ -19,6 +19,19 @@ interface FlashSaleSectionProps {
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
 export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps) {
+    let endTimeStr = activeFlash?.countdownEnd || activeFlash?.endTime;
+    let endMs = typeof endTimeStr === 'string' && endTimeStr.trim().length > 0 ? new Date(endTimeStr).getTime() : NaN;
+    
+    // If date is missing or in the past, provide an active 24h rolling countdown fallback so the section never disappears unexpectedly
+    if (isNaN(endMs) || endMs <= Date.now()) {
+        if (activeFlash?.forceHideWhenExpired === true) {
+            return null;
+        }
+        const fallbackEnd = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        endTimeStr = fallbackEnd.toISOString();
+        endMs = fallbackEnd.getTime();
+    }
+
     const [flashProducts, setFlashProducts] = useState<any[]>([]);
     const iconValue = activeFlash?.icon || '⚡';
     const DynamicIcon = (LucideIcons as any)[iconValue];
@@ -39,11 +52,11 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     };
 
     useEffect(() => {
-        if (!activeFlash?.endTime || activeFlash.isUnlimited) return;
+        if (!endTimeStr || activeFlash.isUnlimited) return;
         
-        const timer = setInterval(() => {
+        const updateTimer = () => {
             const now = new Date();
-            const end = new Date(activeFlash.endTime);
+            const end = new Date(endTimeStr);
             const start = activeFlash.startTime ? new Date(activeFlash.startTime) : now;
             
             const isActive = now >= start && now <= end;
@@ -51,14 +64,12 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
 
             if (!isActive && !isSimple) {
                 setTimeLeft({ h: '00', m: '00', s: '00' });
-                clearInterval(timer);
                 return;
             }
 
             const diff = end.getTime() - now.getTime();
             if (diff <= 0) {
                 setTimeLeft({ h: '00', m: '00', s: '00' });
-                clearInterval(timer);
                 return;
             }
         
@@ -71,10 +82,12 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 m: m < 10 ? `0${m}` : `${m}`,
                 s: s < 10 ? `0${s}` : `${s}`
             });
-        }, 1000);
-        
+        };
+
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
         return () => clearInterval(timer);
-    }, [activeFlash]);
+    }, [endTimeStr, activeFlash]);
 
     const activeFlashStr = JSON.stringify(activeFlash);
 
@@ -87,7 +100,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         setClientLoc(locObj);
 
         const isLocalMode = activeFlashObj.selectionType === 'LOCAL_NEIGHBORHOOD' || activeFlashObj.selectionType === 'LOCAL_MARKET';
-        const isFilterMode = activeFlashObj.selectionType === 'FILTER';
+        const isManualMode = activeFlashObj.selectionType === 'MANUAL' && activeFlashObj.manualProductIds?.length > 0;
+        const isFilterMode = !isLocalMode && !isManualMode;
         
         if (isLocalMode && !locObj && activeFlashObj.unconfirmedLocationBehavior === 'hide_completely') {
             setFlashProducts([]);
@@ -112,6 +126,14 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         items {
                             id
                             name
+                            location {
+                                id
+                                name
+                            }
+                            physicalMarket {
+                                id
+                                name
+                            }
                             products {
                                 id
                                 name
@@ -151,7 +173,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     currencyCode: 'XOF',
                     inStock: true,
                     collectionIds: [],
-                    facetValueIds: []
+                    facetValueIds: [],
+                    vendorName: v.name,
+                    marketName: v.physicalMarket?.name || null,
+                    locationName: v.location?.name || null
                 })));
                 const limit = activeFlashObj.filterCriteria?.take || 12;
                 setFlashProducts(items.slice(0, limit));
@@ -191,6 +216,14 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                                 id
                                                 preview
                                             }
+                                            customFields {
+                                                vendor {
+                                                    id
+                                                    name
+                                                    location { name }
+                                                    physicalMarket { name }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -224,7 +257,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     slug: item.product.slug,
                                     productAsset: item.product.assets?.[0],
                                     priceWithTax: { value: item.priceWithTax },
-                                    customFields: item.customFields
+                                    customFields: item.customFields,
+                                    vendorName: item.product.customFields?.vendor?.name || null,
+                                    marketName: item.product.customFields?.vendor?.physicalMarket?.name || null,
+                                    locationName: item.product.customFields?.vendor?.location?.name || null
                                 });
                             }
                             return acc;
@@ -251,6 +287,14 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                         id
                                         priceWithTax
                                     }
+                                    customFields {
+                                        vendor {
+                                            id
+                                            name
+                                            location { name }
+                                            physicalMarket { name }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -262,8 +306,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             query: productsQuery, 
                             variables: { 
                                 options: { 
-                                    take,
-                                    filter: { approvalStatus: { eq: "approved" } }
+                                    take
                                 } 
                             } 
                         })
@@ -278,7 +321,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             productName: prod.name,
                             slug: prod.slug,
                             productAsset: prod.assets?.[0],
-                            priceWithTax: { value: prod.variants?.[0]?.priceWithTax || 0 }
+                            priceWithTax: { value: prod.variants?.[0]?.priceWithTax || 0 },
+                            vendorName: prod.customFields?.vendor?.name || null,
+                            marketName: prod.customFields?.vendor?.physicalMarket?.name || null,
+                            locationName: prod.customFields?.vendor?.location?.name || null
                         }));
                     })
                     .catch(err => {
@@ -368,6 +414,14 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     assets {
                                         preview
                                     }
+                                    customFields {
+                                        vendor {
+                                            id
+                                            name
+                                            location { name }
+                                            physicalMarket { name }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -394,7 +448,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     currencyCode: 'XOF',
                     inStock: p.variants?.[0]?.stockLevel === 'IN_STOCK',
                     collectionIds: [],
-                    facetValueIds: []
+                    facetValueIds: [],
+                    vendorName: p.customFields?.vendor?.name || null,
+                    marketName: p.customFields?.vendor?.physicalMarket?.name || null,
+                    locationName: p.customFields?.vendor?.location?.name || null
                 })));
                 setLoading(false);
             })
@@ -405,31 +462,34 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     }, [activeFlashStr]);
 
     const now = new Date();
-    const isStarted = !activeFlash.startTime || now >= new Date(activeFlash.startTime);
-    const isNotEnded = activeFlash.isUnlimited || !activeFlash.endTime || now <= new Date(activeFlash.endTime);
-    // Simple mode always shows regardless of scheduling
-    if (!activeFlash.isSimpleMode && (!isStarted || !isNotEnded)) return null;
-
-    // Don't render if there's no meaningful config at all
-    if (!activeFlash.title && !activeFlash.subtitle && !activeFlash.endTime && flashProducts.length === 0 && !loading) return null;
+    // Do not hide section silently when products are loading or empty
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 relative group/carousel">
             {/* Header section */}
             {activeFlash.headerStyle === 'smart_cart' ? (
                 <div className="flex flex-col text-left items-start mb-6 gap-1 px-2 sm:px-4 pt-4">
-                    <div className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm bg-[#e31837] text-white">
+                    <div 
+                        className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm text-white"
+                        style={{ backgroundColor: activeFlash.badgeBgColor || activeFlash.accentColor || activeFlash.bgColor || '#e31837' }}
+                    >
                         <Sparkles className="w-3.5 h-3.5" />
                         <span>{activeFlash?.badgeText || (activeFlash?.selectionType === 'LOCAL_NEIGHBORHOOD' ? '📍 OFFRES DE QUARTIER' : activeFlash?.selectionType === 'LOCAL_MARKET' ? '📍 OFFRES DE MARCHÉ' : '✨ VENTES FLASH SPÉCIALES')}</span>
                     </div>
                     <div className="flex items-center justify-between w-full mt-3 flex-wrap gap-4">
-                        <h2 className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight flex items-center gap-2 text-foreground">
+                        <h2 
+                            className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight flex items-center gap-2"
+                            style={{ color: activeFlash.textColor || undefined }}
+                        >
                             <span>{activeFlash?.icon || '🛍️'}</span> {activeFlash?.title || "Ventes Flash"}
                         </h2>
                         {!activeFlash.isUnlimited && (
                             <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Expire dans:</span>
-                                <div className="flex items-center gap-1 font-black text-xs sm:text-sm text-primary">
+                                <div 
+                                    className="flex items-center gap-1 font-black text-xs sm:text-sm"
+                                    style={{ color: activeFlash.accentColor || activeFlash.badgeBgColor || 'var(--primary)' }}
+                                >
                                     <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.h}</span>:
                                     <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.m}</span>:
                                     <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.s}</span>
@@ -440,11 +500,22 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     <p className="font-medium text-xs sm:text-sm mt-1 max-w-2xl text-muted-foreground">
                         {activeFlash?.subtitle || "Profitez de nos remises exceptionnelles en cours d'expiration"}
                     </p>
-                    <div className="h-1 w-16 bg-[#e31837] mt-3 rounded-full" />
+                    <div 
+                        className="h-1 w-16 mt-3 rounded-full" 
+                        style={{ backgroundColor: activeFlash.badgeBgColor || activeFlash.accentColor || activeFlash.bgColor || '#e31837' }}
+                    />
+                </div>
+            ) : activeFlash.bgType === 'image_only' && activeFlash.bgImageUrl ? (
+                <div className="relative w-full overflow-hidden rounded-t-xl">
+                    <img 
+                        src={getAssetUrl(activeFlash.bgImageUrl)} 
+                        alt="" 
+                        className="w-full h-auto object-cover max-h-[350px] rounded-t-xl" 
+                    />
                 </div>
             ) : (
                 <div 
-                    className={`flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-3 overflow-hidden relative ${
+                    className={`flex flex-row items-center justify-between gap-2 sm:gap-4 overflow-hidden relative w-full text-left ${
                         activeFlash.isSimpleMode 
                         ? 'bg-transparent py-2 border-b border-border/40' 
                         : 'rounded-t-xl p-2.5 sm:p-3 md:p-4 shadow-sm'
@@ -464,23 +535,26 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     {/* Overlay for better text readability (Styled Mode Only) */}
                     {!activeFlash.isSimpleMode && <div className="absolute inset-x-0 inset-y-0 bg-black/40 z-0" />}
 
-                    <div className="flex items-center gap-3 sm:gap-4 relative z-10">
+                    <div className="flex items-center gap-2 sm:gap-4 relative z-10 text-left min-w-0 flex-1">
                         {!activeFlash.isSimpleMode && (
-                            <div className="bg-primary p-1.5 sm:p-2 rounded-full shadow-sm flex items-center justify-center min-w-[28px] min-h-[28px] sm:min-w-[32px] sm:min-h-[32px]">
+                            <div className="flex items-center justify-center min-w-[24px] min-h-[24px]">
                                 {DynamicIcon ? (
-                                    <DynamicIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-white" />
+                                    <DynamicIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white" />
                                 ) : (
-                                    <span className="text-[14px] sm:text-[16px] leading-none">{iconValue}</span>
+                                    <span className="text-[18px] sm:text-[22px] leading-none">{iconValue}</span>
                                 )}
                             </div>
                         )}
-                        <div>
-                            <h2 className={`font-black tracking-tight flex items-center gap-2 ${
-                                activeFlash.isSimpleMode ? 'text-sm sm:text-lg text-black' : 'text-sm sm:text-lg md:text-xl text-white'
-                            }`}>
+                        <div className="text-left min-w-0">
+                            <h2 
+                                className={`font-black tracking-tight flex items-center gap-2 text-left truncate ${
+                                    activeFlash.isSimpleMode ? 'text-xs sm:text-lg text-black' : 'text-xs sm:text-lg md:text-xl text-white'
+                                }`}
+                                style={{ color: activeFlash.textColor || undefined }}
+                            >
                                 {activeFlash?.title || "Ventes Flash"}
                             </h2>
-                            <p className={`text-[10px] sm:text-[12px] font-bold uppercase tracking-widest ${
+                            <p className={`text-[9px] sm:text-[12px] font-bold uppercase tracking-widest text-left truncate ${
                                 activeFlash.isSimpleMode ? 'text-muted-foreground' : 'text-white/80'
                             }`}>
                                 {activeFlash?.subtitle || "Stock limité !"}
@@ -489,7 +563,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     </div>
 
                     {!activeFlash.isSimpleMode && !activeFlash.isUnlimited && (
-                        <div className="flex items-center gap-3 sm:gap-6 relative z-10">
+                        <div className="ml-auto flex items-center gap-2 sm:gap-4 relative z-10 flex-shrink-0">
                             <div className="flex items-center gap-1.5 sm:gap-2">
                                 <span className={`text-[10px] font-black uppercase tracking-widest hidden sm:block ${
                                     activeFlash.isSimpleMode ? 'text-muted-foreground' : 'text-white/60'

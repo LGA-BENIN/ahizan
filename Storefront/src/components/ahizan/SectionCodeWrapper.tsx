@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useId } from 'react';
 import { getShopApiUrl } from '@/lib/vendure/api-utils';
+import { encodeId } from '@/lib/hash-utils';
 
 interface SectionCodeWrapperProps {
     config: any;
@@ -134,7 +135,7 @@ export function SectionCodeWrapper({ config, sectionId, children }: SectionCodeW
                                 <div class="p-1 font-sans">
                                     <b class="text-sm font-bold text-slate-900">${v.name}</b>
                                     <p class="text-xs text-slate-600 my-1">${v.address || ''}</p>
-                                    <a href="/vendor/${v.id}" class="inline-block text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline mt-1">Visiter la boutique →</a>
+                                    <a href="/vendor/${encodeId(v.id)}" class="inline-block text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline mt-1">Visiter la boutique →</a>
                                 </div>
                             `);
                     }

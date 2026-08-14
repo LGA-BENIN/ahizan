@@ -1,0 +1,72 @@
+[
+  {
+    "type": "THEME_SETTINGS",
+    "title": "🎨 Thème & Couleurs",
+    "description": "",
+    "layout": "grid",
+    "order": 0,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"primaryColor\":\"#0f172a\",\"secondaryColor\":\"#f59e0b\",\"accentColor\":\"#d8263e\",\"successColor\":\"#059669\",\"warningColor\":\"#d97706\",\"dangerColor\":\"#dc2626\",\"backgroundColor\":\"#ffffff\",\"surfaceColor\":\"#f8fafc\",\"textColor\":\"#1e293b\",\"textMutedColor\":\"#64748b\",\"borderColor\":\"#e2e8f0\",\"fontFamily\":\"'Outfit', sans-serif\",\"headingFontFamily\":\"Inter, sans-serif\",\"baseFontSize\":\"16px\",\"headingFontWeight\":\"800\",\"bodyLineHeight\":\"1.6\",\"borderRadius\":\"8px\",\"buttonRadius\":\"8px\",\"cardRadius\":\"12px\",\"inputRadius\":\"8px\",\"layoutMode\":\"boxed\",\"maxWidth\":\"1280px\",\"sectionSpacing\":\"48px\",\"containerPadding\":\"16px\",\"backgroundType\":\"color\",\"backgroundImageUrl\":\"\",\"backgroundVideoUrl\":\"\",\"backgroundOverlay\":0,\"backgroundFixed\":false,\"backgroundBlur\":0,\"buttonStyle\":\"filled\",\"buttonSize\":\"md\",\"buttonTextTransform\":\"uppercase\",\"shadowIntensity\":\"medium\",\"animationSpeed\":\"normal\",\"enableAnimations\":true,\"enableHoverEffects\":true,\"enableSmoothScroll\":true,\"preloader\":{\"type\":\"default\",\"url\":\"\",\"bgColor\":\"#ffffff\",\"duration\":2,\"bgOpacity\":1,\"bgBlur\":0,\"size\":240,\"loop\":true,\"speed\":1,\"transitionType\":\"fade\"},\"scrollToTop\":{\"enabled\":true,\"style\":\"circle\",\"color\":\"#0f172a\"},\"favicon\":\"https://api.ahizan.com/assets/preview/28/whatsapp-image-2026-07-10-at-5.44.08-pm__02__preview.jpeg\",\"defaultProductImage\":\"https://api.ahizan.com/assets/preview/f8/whatsapp-image-2026-07-10-at-5.44.08-pm__preview.jpeg\",\"applyFlashPromoToProducts\":false,\"applyFlashPromoToCollections\":false,\"watermarkUrl\":\"\",\"watermarkOpacity\":0.4,\"watermarkSize\":25,\"watermarkPosition\":\"center\",\"pushNotificationDelay\\\":3,\\\"pushNotificationMaxPerDay\\\":3,\\\"pushNotificationInterval\\\":30}"
+  },
+  {
+    "type": "HEADER_CONF",
+    "title": "Header & Navigation",
+    "description": "",
+    "layout": "grid",
+    "order": 1,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"siteName\":\"AHIZAN\",\"logoUrl\":\"https://api.ahizan.com/assets/preview/78/logo-temp-01__preview.png\",\"logoWidth\":\"120px\",\"logoHeight\":\"auto\",\"sticky\":true,\"stickyStyle\":\"solid\",\"headerBgColor\":\"#ffffff\",\"headerTextColor\":\"#1e293b\",\"headerBorderColor\":\"#ffffff\",\"headerShadow\":false,\"headerHeight\":\"64px\",\"headerPadding\":\"0 16px\",\"layoutType\":\"standard\",\"showSearch\":true,\"searchPlaceholder\":\"Rechercher un produit...\",\"searchStyle\":\"rounded\",\"searchBgColor\":\"#f1f5f9\",\"showCartIcon\\\":true,\\\"showWishlistIcon\\\":true,\\\"showAccountIcon\\\":true,\\\"cartBadgeColor\\\":\\\"#d8263e\\\",\\\"showVendorLink\\\":true,\\\"vendorLinkText\\\":\\\"Vendre sur ahizan\\\",\\\"vendorLinkUrl\\\":\\\"https://seller.ahizan.com/\\\",\\\"vendorLinkStyle\\\":\\\"button\\\",\\\"menuItems\\\":[{\\\"label\\\":\\\"Accueil\\\",\\\"link\\\":\\\"/\\\"},{\\\"label\\\":\\\"Toutes nos Boutiques\\\",\\\"link\\\":\\\"https://ahizan.com/vendors\\\",\\\"style\\\":\\\"text\\\"}],\\\"helpLinks\\\":[],\\\"mobileMenuStyle\\\":\\\"drawer\\\",\\\"mobileNavStyle\\\":\\\"both\\\",\\\"mobileBreakpoint\\\":\\\"768px\\\",\\\"topBar\\\":{\\\"enabled\\\":true,\\\"text\\\":\\\"Creer votre boutique sur ahizan.com en cliquant ici\\\",\\\"bgColor\\\":\\\"#d8263e\\\",\\\"textColor\\\":\\\"#ffffff\\\",\\\"fontSize\\\":\\\"12px\\\",\\\"height\\\":\\\"36px\\\",\\\"showCloseBtn\\\":false,\\\"link\\\":\\\"https://seller.ahizan.com/\\\",\\\"fontWeight\\\":\\\"600\\\",\\\"textAlign\\\":\\\"center\\\",\\\"animationType\\\":\\\"none\\\",\\\"imageUrl\\\":\\\"\\\",\\\"displayMode\\\":\\\"text\\\"},\\\"categoryBar\\\":{\\\"enabled\\\":false,\\\"bgColor\\\":\\\"#f8fafc\\\",\\\"textColor\\\":\\\"#334155\\\",\\\"hoverColor\\\":\\\"#2563eb\\\",\\\"fontSize\\\":\\\"13px\\\",\\\"fontWeight\\\":\\\"600\\\",\\\"style\\\":\\\"underline\\\"}}"
+  },
+  {
+    "type": "HERO",
+    "title": "🚀 Section Héro",
+    "description": "",
+    "layout": "grid",
+    "order": 2,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"selectedTemplate\":\"classic\",\"showSidebar\":true,\"useCarousel\":true,\"slides\":[{\"type\":\"image\",\"bgUrl\":\"https://api.ahizan.com/assets/preview/5d/whatsapp-image-2026-07-10-at-5.44.08-pm-1__preview.jpeg\",\"title\":\"Tout le marché béninois, au même endroit.\",\"subtitle\":\"Achetez et vendez facilement près de chez vous.\",\"buttonText\":\"Découvrir maintenant\",\"buttonLink\":\"#\"},{\"type\":\"image\",\"bgUrl\":\"https://api.ahizan.com/assets/preview/c1/whatsapp-image-2026-07-10-at-5.44.07-pm-3__preview.jpeg\",\"title\":\"Des offres qui vous ressemblent.\",\"subtitle\":\"Des milliers de produits au même endroit.\",\"buttonText\":\"Explorer les catégories\",\"buttonLink\":\"#\"},{\"type\":\"image\",\"bgUrl\":\"https://api.ahizan.com/assets/preview/2e/whatsapp-image-2026-07-10-at-5.44.08-pm-1__02__preview.jpeg\",\"title\":\"Faites grandir votre activité avec Ahizan.\",\"subtitle\":\"Touchez plus de clients avec Ahizan.\",\"buttonText\":\"Commencer à vendre\",\"buttonLink\":\"#\"},{\"type\":\"image\",\"bgUrl\":\"https://api.ahizan.com/assets/preview/17/whatsapp-image-2026-07-10-at-5.44.08-pm__03__preview.jpeg\",\"title\":\"Le commerce local prend une nouvelle dimension.\",\"subtitle\":\"Rejoignez une communauté qui grandit chaque jour.\",\"buttonText\":\"Rejoindre Ahizan\",\"buttonLink\":\"#\"}],\"autoplay\":true,\"autoplaySpeed\":5000,\"showArrows\":true,\"showDots\":true,\"arrowStyle\":\"circle\",\"dotStyle\":\"line\",\"transitionEffect\":\"fade\",\"overlayOpacity\":0.3,\"overlayColor\":\"#000000\",\"contentAlignment\":\"left\",\"contentVerticalAlign\":\"center\",\"contentMaxWidth\":\"600px\",\"classic\":{\"type\":\"image\",\"bgUrl\":\"\",\"videoUrl\":\"\",\"title\":\"VOTRE SHOPPING, NOTRE PASSION\",\"titleFontSize\":\"42px\",\"titleFontWeight\":\"900\",\"titleColor\":\"#ffffff\",\"titleShadow\":true,\"subtitle\":\"Découvrez les meilleures offres du moment.\",\"subtitleFontSize\":\"16px\",\"subtitleColor\":\"#ffffffcc\",\"buttonText\":\"VOIR LES OFFRES\",\"buttonLink\":\"/search\",\"buttonBgColor\":\"#e31837\",\"buttonTextColor\":\"#ffffff\",\"buttonStyle\":\"filled\",\"buttonSize\":\"lg\",\"secondaryButtonText\":\"\",\"secondaryButtonLink\":\"\",\"secondaryButtonStyle\":\"outline\",\"badgeText\":\"\",\"badgeColor\":\"#f59e0b\",\"height\":\"500px\",\"mobileHeight\":\"350px\",\"assistanceTitle\":\"BESOIN D'AIDE ?\",\"assistanceDesc\":\"Conseillers 24/7.\",\"assistanceLink\":\"/contact\",\"assistanceIcon\":\"🎧\",\"whatsappTitle\":\"CHAT WHATSAPP\",\"whatsappDesc\":\"Via WhatsApp.\",\"whatsappLink\":\"https://wa.me/\",\"whatsappIcon\":\"💬\",\"sellTitle\":\"VENDRE ICI\",\"sellDesc\":\"Boutique en 5 min.\",\"sellLink\":\"/register\",\"sellIcon\":\"🏪\",\"showServices\":true,\"flashTitle\":\"VENTE FLASH\",\"flashDiscount\":\"-50%\",\"flashBgType\":\"image\",\"flashBgColor\":\"#e6e8ea\",\"flashBgUrl\":\"https://api.ahizan.com/assets/preview/52/whatsapp-image-2026-07-10-at-5.44.08-pm__05__preview.jpeg\",\"showFlashCard\\\":true},\\\"bento\\\":{\\\"mainTitle\\\":\\\"BENTO STYLE\\\",\\\"mainSubtitle\\\":\\\"Layout moderne.\\\",\\\"mainButtonText\\\":\\\"Découvrir\\\",\\\"mainButtonLink\\\":\\\"/search\\\",\\\"type\\\":\\\"image\\\",\\\"bgUrl\\\":\\\"\\\",\\\"titleFontSize\\\":\\\"36px\\\",\\\"titleColor\\\":\\\"#ffffff\\\",\\\"height\\\":\\\"450px\\\",\\\"showCard1\\\":true,\\\"card1Title\\\":\\\"PROMOTIONS\\\",\\\"card1Subtitle\\\":\\\"Saison Été\\\",\\\"card1Discount\\\":\\\"-50%\\\",\\\"card1Link\\\":\\\"/promo1\\\",\\\"card1ButtonText\\\":\\\"Voir\\\",\\\"card1BgColor\\\":\\\"#f59e0b\\\",\\\"card1BgUrl\\\":\\\"\\\",\\\"showCard2\\\":true,\\\"card2Title\\\":\\\"NOUVEAUTÉS\\\",\\\"card2Subtitle\\\":\\\"Collection 2024\\\",\\\"card2Discount\\\":\\\"NEW\\\",\\\"card2Link\\\":\\\"/promo2\\\",\\\"card2ButtonText\\\":\\\"Découvrir\\\",\\\"card2BgColor\\\":\\\"#059669\\\",\\\"card2BgUrl\\\":\\\"\\\",\\\"flashTitle\\\":\\\"OFFRE SPÉCIALE\\\",\\\"flashDesc\\\":\\\"-70%\\\",\\\"flashBgUrl\\\":\\\"\\\",\\\"showServices\\\":true,\\\"assistanceTitle\\\":\\\"AIDE\\\",\\\"assistanceDesc\\\":\\\"\\\",\\\"whatsappTitle\\\":\\\"CONTACT\\\",\\\"whatsappDesc\\\":\\\"\\\",\\\"sellTitle\\\":\\\"VENDRE\\\",\\\"sellDesc\\\":\\\"\\\"},\\\"fullwidth\\\":{\\\"title\\\":\\\"FULL IMPACT\\\",\\\"subtitle\\\":\\\"Expérience immersive.\\\",\\\"buttonText\\\":\\\"EXPLORER\\\",\\\"buttonLink\\\":\\\"/search\\\",\\\"type\\\":\\\"video\\\",\\\"bgUrl\\\":\\\"\\\",\\\"videoUrl\\\":\\\"\\\",\\\"titleFontSize\\\":\\\"56px\\\",\\\"titleColor\\\":\\\"#ffffff\\\",\\\"titleFontWeight\\\":\\\"900\\\",\\\"height\\\":\\\"100vh\\\",\\\"minHeight\\\":\\\"600px\\\",\\\"showOverlay\\\":true,\\\"overlayGradient\\\":\\\"linear-gradient(to right, rgba(0,0,0,0.7), transparent)\\\",\\\"showServices\\\":false,\\\"assistanceTitle\\\":\\\"\\\",\\\"assistanceDesc\\\":\\\"\\\",\\\"whatsappTitle\\\":\\\"\\\",\\\"whatsappDesc\\\":\\\"\\\",\\\"sellTitle\\\":\\\"\\\",\\\"sellDesc\\\":\\\"\\\"},\\\"title\\\":\\\"okay na le titre est ici uhn\\\",\\\"subtitle\\\":\\\"knfelawifnmawemlcaxfckùames canrcdx,mcùèasdcxa;rvc\\\",\\\"ctaText\\\":\\\"buy na \\\",\\\"ctaLink\\\":\\\"/buy\\\",\\\"backgroundImage\\\":\\\"/assets/banners/1775559477105-LOGO AHIZAN (1).png\\\",\\\"height\\\":\\\"md\\\"}"
+  },
+  {
+    "type": "FOOTER_CONF",
+    "title": "🗺️ Pied de page",
+    "description": "",
+    "layout": "grid",
+    "order": 3,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"about\":\"AHIZAN marketplace.\",\"copyrightText\":\"© 2026 AHIZAN. Tous droits réservés.\"}"
+  },
+  {
+    "type": "MODALS",
+    "title": "",
+    "description": "",
+    "layout": "grid",
+    "order": 4,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"modals\":[{\"enabled\":true,\"type\":\"text\",\"value\":\"\",\"link\":\"\",\"delay\":2,\"duration\":0,\"isClosable\":true,\"position\":\"center\",\"size\":\"md\",\"overlayColor\":\"rgba(0,0,0,0.5)\",\"overlayBlur\":0,\"borderRadius\":\"16px\",\"animation\":\"fade\",\"showOnce\":true,\"triggerType\":\"timer\",\"bgColor\":\"#ffffff\",\"textColor\":\"#1e293b\",\"padding\":\"0px\",\"title\":\"\",\"buttonText\":\"\",\"buttonLink\":\"\",\"buttonColor\":\"#2563eb\"}]}"
+  },
+  {
+    "type": "CATEGORY_COLLECTION",
+    "title": "",
+    "description": "",
+    "layout": "grid",
+    "order": 5,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"title\":\"Nos Catégories\",\"subtitle\":\"voici les collection dispo , cool non \",\"layout\":\"carousel\",\"columnsDesktop\":6,\"columnsTablet\":3,\"columnsMobile\":2,\"cardStyle\":\"minimal\",\"cardBorderRadius\":\"12px\",\"cardBgColor\":\"#ffffff\",\"cardShadow\":true,\"showLabels\":true,\"labelFontSize\":\"11px\",\"labelFontWeight\":\"700\",\"labelColor\":\"#334155\",\"imageShape\":\"rounded\",\"limit\":12,\"collectionMedia\":{},\"heroIcons\":{},\"enabledCategories\":{\"alimentation-a\":true,\"epicerie-alimentation-a-1\":true,\"hygiene-et-soins-personnels-a-2\":true,\"enfants-nourrissons-a-3\":true,\"entretien-divers-a-4\":true,\"boissons-a-5\":true,\"top-marques-a-6\":true,\"categorie-a-48-a-48\":true,\"maison-bureau-b\":true,\"petit-electromenager-b-1\":true,\"gros-electromenager-b-2\":true,\"cuisine-et-arts-de-la-table-b-3\":true,\"maison-et-ameublement-b-4\":true,\"jardin-plein-air-b-5\":true,\"bricolage-renovation-b-6\":true,\"telephones-tablettes-c\":true,\"telephone-portables-c-1\":true,\"accessoires-telephone-c-2\":true,\"tablettes-c-3\":true,\"top-marques-c-4\":true,\"xiaomi-c-45\":true,\"electronique-photo-d\":true,\"television-d-1\":true,\"accessoires-tv-d-2\":true,\"audio-hifi-d-3\":true,\"photo-cameras-d-4\":true,\"categorie-d-34-d-34\":true,\"beaute-hygiene-e\":true,\"parfums-e-1\":true,\"maquillage-e-2\":true,\"bien-etre-social-e-3\":true,\"beaute-soins-personnels-e-4\":true,\"beaute-homme-e-5\":true,\"nutrition-sportive-e-6\":true,\"bien-etre-relaxation-e-7\":true,\"bebes-enfants-f\":true,\"soins-bien-etre-bebe-f-1\":true,\"couches-f-2\":true,\"bain-soins-de-peau-f-3\":true,\"chambre-pour-bebe-f-4\":true,\"vetements-accessoires-f-5\":true,\"poussettes-accessoires-f-6\":true,\"alimentation-f-7\":true}}"
+  },
+  {
+    "type": "PRODUCT_COLLECTION",
+    "title": "",
+    "description": "",
+    "layout": "grid",
+    "order": 6,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": "{\"title\":\"Sélection pour vous\",\"subtitle\":\"Découvrez nos offres recommandées\",\"badgeText\":\"Recommandation EMS\",\"experienceStrategy\":\"TRENDING\",\"layout\":\"carousel\",\"columns\":4,\"limit\":8,\"textAlign\":\"left\",\"headerStyle\":\"smart_cart\",\"titleColor\":\"#0f172a\",\"subtitleColor\":\"#475569\",\"badgeBgColor\":\"#e31837\",\"badgeTextColor\":\"#ffffff\",\"cardTheme\":\"default\",\"showCountdown\":false,\"countdownEnd\":\"\",\"flashCampaignTitle\":\"Vente Flash Exclusive\",\"flashBadgeStyle\":\"neon_timer\",\"autoHideExpired\":true,\"mixCollectionId\":\"\",\"filterType\":\"LATEST\",\"enableTabs\":false,\"requireConfirmedLocation\":true,\"mixMode\":\"none\",\"radiusKm\":10,\"maxItemsPerVendor\":3,\"boostCertifiedVendors\":true,\"topLeftBadge\":\"vendor_name\",\"topRightBadge\":\"like_button\",\"bottomLeftBadge\":\"stock_status\",\"bottomRightBadge\":\"cart_button\",\"selectionMode\":\"PRODUCTS\"}"
+  }
+]

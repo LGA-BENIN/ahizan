@@ -61,9 +61,11 @@ const MASTER_ZONE_MAP = [
     {
         zone: 'Corps',
         items: [
+            { type: 'PRODUCT_COLLECTION', icon: '🎯', label: 'Collection de Produits EMS (Unifiée)', mode: 'multi' },
+            { type: 'CATEGORY_COLLECTION', icon: '🗂️', label: 'Collection de Catégories EMS', mode: 'multi' },
             { type: 'FLASH_DEALS', icon: '⚡', label: 'Campagnes Flash', mode: 'multi' },
             { type: 'QUICK_LINKS', icon: '🏷️', label: 'Liens Rapides et Bannières', mode: 'multi' },
-            { type: 'CATEGORIES', icon: '', label: 'Catégories', mode: 'multi' },
+            { type: 'CATEGORIES', icon: '📁', label: 'Catégories', mode: 'multi' },
             { type: 'SMART_VISUAL_GRID', icon: '✨', label: 'Smart Visual Grid', mode: 'multi' },
             { type: 'FREEFORM_BUILDER', icon: '🏗️', label: 'Constructeur Libre Drag & Drop', mode: 'multi' },
         ],
@@ -109,26 +111,37 @@ const getZoneMapForSlug = (slug?: string) => {
     const permittedTypes: Record<string, string[]> = {
         home: [
             'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
+            'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
             'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         category: [
-            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER'
+            'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         product: [
-            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'FLASH_DEALS', 'SMART_VISUAL_GRID', 'RICH_TEXT', 'FREEFORM_BUILDER'
+            'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         market: [
-            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO',
-            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
+            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
         ],
         neighborhood: [
-            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO',
-            'FLASH_DEALS', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'NEIGHBORHOOD_CODE'
+            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'NEIGHBORHOOD_CODE'
         ]
     };
 
-    const allowedTypes = permittedTypes[activeSlug] || permittedTypes['home'];
+    const defaultPermitted = [
+        'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+        'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+        'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+    ];
+
+    const allowedTypes = permittedTypes[activeSlug] || defaultPermitted;
 
     // Map and filter the zones dynamically
     return MASTER_ZONE_MAP

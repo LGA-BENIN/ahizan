@@ -11,6 +11,7 @@ import { getAssetUrl } from '@/lib/vendure/api-utils';
 import { getPageContent, getPreviewHabillageContent } from '@/lib/vendure/cms-queries';
 import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
 import { FiltersToggleWrapper } from '@/components/commerce/FiltersToggleWrapper';
+import { priceFromSubunit } from '@/lib/format';
 import React from 'react';
 
 async function getCollectionMetadata(slug: string) {
@@ -444,7 +445,7 @@ export default async function CollectionPage({ params, searchParams }: any) {
                 } else if (p.variants?.[0]?.priceWithTax) {
                     price = p.variants[0].priceWithTax;
                 }
-                const userPrice = price / 100;
+                const userPrice = priceFromSubunit(price);
 
                 if (minPriceNum !== undefined && userPrice < minPriceNum) return false;
                 if (maxPriceNum !== undefined && userPrice > maxPriceNum) return false;

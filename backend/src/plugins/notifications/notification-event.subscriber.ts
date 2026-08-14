@@ -13,6 +13,7 @@ import {
     Order,
     User,
     Customer,
+    Administrator,
 } from '@vendure/core';
 import { BrevoSmsService } from './brevo-sms.service';
 import { BrevoSettings } from './entities/brevo-settings.entity';
@@ -40,14 +41,17 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         body: string,
         actionUrl?: string,
         iconUrl?: string,
+        eventType: string = 'SYSTEM_EVENT',
+        channelsOverride?: ('IN_APP' | 'PUSH')[],
     ) {
         try {
+            const channels: ('IN_APP' | 'PUSH')[] = channelsOverride ?? ['IN_APP', 'PUSH'];
             await this.notificationsService.notify(ctx, {
                 userId,
-                eventType: 'SYSTEM_EVENT',
+                eventType,
                 title,
                 body,
-                channels: ['IN_APP', 'PUSH'],
+                channels,
                 actionUrl,
                 iconUrl,
             });
@@ -140,6 +144,50 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             };
             modified = true;
         }
+        if (!channelsConfig.GuestOrderConfirmed) {
+            this.logger.log('Initializing default GuestOrderConfirmed configuration...');
+            channelsConfig.GuestOrderConfirmed = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Confirmation de votre commande Ahizan - #{{ orderCode }}',
+                emailTemplate: '<p>Bonjour {{ firstName }},</p>\n<p>Merci pour votre commande sur Ahizan ! Votre commande <strong>#{{ orderCode }}</strong> a été enregistrée avec succès.</p>\n<p>Pour suivre vos commandes et bénéficier d\'une expérience personnalisée, nous vous invitons à créer votre mot de passe pour finaliser la création de votre compte Ahizan :</p>\n<p><a href="{{ trackUrl }}" style="background: #1d4ed8; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Suivre ma commande / Finaliser mon inscription ({{ email }})</a></p>\n<p>À très bientôt sur Ahizan !</p>',
+                smsTemplate: 'Ahizan: Merci pour votre commande {{ orderCode }}. Finalisez votre inscription sur {{ signupUrl }}'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.OrderConfirmed) {
+            this.logger.log('Initializing default OrderConfirmed configuration...');
+            channelsConfig.OrderConfirmed = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Confirmation de votre commande Ahizan - #{{ orderCode }}',
+                emailTemplate: '<p>Bonjour {{ firstName }},</p>\n<p>Merci pour votre commande sur Ahizan ! Votre commande <strong>#{{ orderCode }}</strong> a été enregistrée avec succès.</p>\n<p>Vous pouvez consulter les détails et le statut de votre commande à tout moment sur votre compte Ahizan.</p>\n<p>À très bientôt sur Ahizan !</p>',
+                smsTemplate: 'Ahizan: Votre commande {{ orderCode }} a été confirmée.'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.NewOrderVendor) {
+            this.logger.log('Initializing default NewOrderVendor configuration...');
+            channelsConfig.NewOrderVendor = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Nouvelle Vente ! - Commande #{{ orderCode }}',
+                emailTemplate: '<p>Félicitation !</p>\n<p>Vous avez reçu une nouvelle commande <strong>#{{ orderCode }}</strong> sur votre boutique Ahizan.</p>\n<p>Connectez-vous à votre espace vendeur pour préparer et gérer l\'expédition.</p>',
+                smsTemplate: 'Ahizan Seller: Vous avez reçu une nouvelle commande {{ orderCode }}.'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.ShippingUpdate) {
+            this.logger.log('Initializing default ShippingUpdate configuration...');
+            channelsConfig.ShippingUpdate = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Mise à jour de la livraison - Commande #{{ orderCode }}',
+                emailTemplate: '<p>Bonjour,</p>\n<p>Votre commande <strong>#{{ orderCode }}</strong> est maintenant <strong>{{ status }}</strong>.</p>',
+                smsTemplate: 'Ahizan: Votre commande {{ orderCode }} est {{ status }}.'
+            };
+            modified = true;
+        }
         if (modified) {
             await this.smsService.saveSettings({ channelsConfig });
         }
@@ -193,15 +241,60 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             const settings = await this.smsService.getSettings();
             if (!settings?.channelsConfig) return;
 
-            const { order, toState } = event;
+            const { order, fromState, toState } = event;
 
             // ── Acheteur : Commande Confirmée ──
             if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
-                const config = settings.channelsConfig?.OrderConfirmed;
+                // Skip duplicate notification if transition is PaymentAuthorized -> PaymentSettled
+                if (fromState === 'PaymentAuthorized' && toState === 'PaymentSettled') {
+                    return;
+                }
+
+                // Strict DB Deduplication: Do not process order if already notified in last 120 seconds
+                try {
+                    const dupCheck: { count: string }[] = await this.connection.rawConnection.query(`
+                        SELECT count(*)::int as count 
+                        FROM notification_log 
+                        WHERE body LIKE $1 AND "createdAt" > NOW() - INTERVAL '120 seconds'
+                    `, [`%${order.code}%`]);
+                    if (dupCheck && parseInt(dupCheck[0]?.count, 10) > 0) {
+                        return;
+                    }
+                } catch (dupErr) {}
+                let buyerUserId = order.customer?.user?.id;
+                let isGuest = !buyerUserId;
+
+                if (!buyerUserId && order.customer?.id) {
+                    const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
+                        where: { id: order.customer.id },
+                        relations: ['user']
+                    });
+                    buyerUserId = customer?.user?.id;
+                    if (!customer?.user) {
+                        isGuest = true;
+                    }
+                }
+
+                // Determine if we should use GuestOrderConfirmed or OrderConfirmed
+                const guestConfig = settings.channelsConfig?.GuestOrderConfirmed;
+                const standardConfig = settings.channelsConfig?.OrderConfirmed;
+                const config = (isGuest && guestConfig?.enabled) ? guestConfig : standardConfig;
+
                 if (config?.enabled) {
                     const phone = order.customer?.phoneNumber;
-                    const email = order.customer?.emailAddress;
-                    const vars = { orderCode: order.code, firstName: order.customer?.firstName || '' };
+                    const email = order.customer?.emailAddress || '';
+                    const sfUrl = process.env.STOREFRONT_URL || 'https://ahizan.com';
+                    const trackUrl = `${sfUrl}/track-order?code=${order.code}&email=${encodeURIComponent(email)}`;
+                    const signupUrl = `${process.env.AUTH_URL || 'https://auth.ahizan.com'}/register?email=${encodeURIComponent(email)}&notice=track-order&redirectTo=${encodeURIComponent(`${sfUrl}/account/orders/${order.code}`)}`;
+                    const vars = { 
+                        orderCode: order.code, 
+                        firstName: order.customer?.firstName || '',
+                        lastName: order.customer?.lastName || '',
+                        email: email,
+                        trackUrl: trackUrl,
+                        signupUrl: trackUrl,
+                        signupLink: trackUrl,
+                    };
 
                     if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
                         const content = this.smsService.interpolate(config.smsTemplate, vars);
@@ -214,23 +307,60 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     }
                 }
 
-                // In-App/Push notification to Buyer
-                let buyerUserId = order.customer?.user?.id;
-                if (!buyerUserId && order.customer?.id) {
-                    const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
-                        where: { id: order.customer.id },
-                        relations: ['user']
-                    });
-                    buyerUserId = customer?.user?.id;
-                }
+                // In-App/Push notification to Buyer if registered
                 if (buyerUserId) {
+                    let buyerChannels: ('IN_APP' | 'PUSH')[] = ['IN_APP', 'PUSH'];
+                    try {
+                        const vRows: { user_id: string }[] = await this.connection.rawConnection.query(`
+                            SELECT DISTINCT v."userId" as user_id
+                            FROM order_line ol
+                            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                            INNER JOIN product p ON pv."productId" = p.id
+                            INNER JOIN vendor v ON p."customFieldsVendorid" = v.id
+                            WHERE ol."orderId" = $1 AND v."userId" IS NOT NULL
+                        `, [order.id]);
+                        const vUserIds = vRows.map(v => v.user_id?.toString()).filter(Boolean);
+                        if (vUserIds.includes(buyerUserId.toString())) {
+                            buyerChannels = ['IN_APP'];
+                        }
+                    } catch (e) {}
+
                     await this.sendInAppAndPushNotification(
                         event.ctx,
                         buyerUserId.toString(),
                         `Commande Confirmée`,
                         `Votre commande ${order.code} a été confirmée avec succès.`,
                         `/account/orders/${order.code}`,
+                        undefined,
+                        'BUYER_EVENT',
+                        buyerChannels,
                     );
+                }
+
+                // ── Notification Web Push / In-App EXCLUSIVEMENT au Superadmin sur chaque vente ──
+                try {
+                    const superAdminUsers: { id: string }[] = await this.connection.rawConnection.query(`
+                        SELECT DISTINCT u.id 
+                        FROM "user" u
+                        INNER JOIN user_roles_role urr ON urr."userId" = u.id
+                        INNER JOIN role r ON r.id = urr."roleId"
+                        WHERE r.code = '__super_admin_role__' OR r.code = 'superadmin' OR u.identifier = 'superadmin'
+                    `);
+                    const formattedTotal = (order.totalWithTax / 100).toLocaleString('fr-FR');
+
+                    for (const adminUser of superAdminUsers) {
+                        if (adminUser.id) {
+                            await this.sendInAppAndPushNotification(
+                                event.ctx,
+                                adminUser.id.toString(),
+                                `Nouvelle vente ! 🎉`,
+                                `Commande #${order.code} d'un montant de ${formattedTotal} FCFA enregistrée.`,
+                                `/orders/${order.id}`
+                            );
+                        }
+                    }
+                } catch (adminErr: any) {
+                    this.logger.error(`Erreur notification superadmin sur vente #${order.code}: ${adminErr.message}`);
                 }
             }
 
@@ -278,32 +408,45 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
 
             // ── Vendeur : Notification de Nouvelle Vente ──
             if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
-                const config = settings.channelsConfig?.NewOrderVendor;
-                if (config?.enabled) {
-                    try {
-                        const fullOrder = await this.connection.getEntityOrThrow(event.ctx, Order, order.id, {
-                            relations: [
-                                'lines', 
-                                'lines.productVariant', 
-                                'lines.productVariant.product', 
-                                'lines.productVariant.product.customFields.vendor',
-                                'lines.productVariant.product.customFields.vendor.user'
-                            ]
+                // Resolve buyer userId for exclusion (already done above but re-read safely)
+                let buyerUserIdForVendorCheck: string | undefined;
+                try {
+                    let bUid = order.customer?.user?.id;
+                    if (!bUid && order.customer?.id) {
+                        const cust = await this.connection.rawConnection.getRepository(Customer).findOne({
+                            where: { id: order.customer.id },
+                            relations: ['user']
                         });
+                        bUid = cust?.user?.id;
+                    }
+                    if (bUid) buyerUserIdForVendorCheck = bUid.toString();
+                } catch (_) {}
 
-                        const vendorsToNotify = new Map<string, any>();
-                        for (const line of fullOrder.lines || []) {
-                            const vendor = (line.productVariant?.product?.customFields as any)?.vendor;
-                            if (vendor && vendor.id) {
-                                vendorsToNotify.set(vendor.id.toString(), vendor);
-                            }
+                try {
+                    const vendorRows: { vendor_id: string; vendor_name: string; phone_number: string; email: string; user_id: string }[] = await this.connection.rawConnection.query(`
+                        SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id
+                        FROM order_line ol
+                        INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                        INNER JOIN product p ON pv."productId" = p.id
+                        INNER JOIN vendor v ON p."customFieldsVendorid" = v.id
+                        WHERE ol."orderId" = $1 AND v.id IS NOT NULL
+                    `, [order.id]);
+
+                    const config = settings.channelsConfig?.NewOrderVendor;
+
+                    for (const v of vendorRows) {
+                        // CRITICAL: If this vendor IS the buyer (same userId), skip entirely.
+                        // A seller who placed their own order receives only the storefront buyer
+                        // confirmation — NOT a "Nouvelle Vente!" seller alert for their own purchase.
+                        if (buyerUserIdForVendorCheck && v.user_id && v.user_id.toString() === buyerUserIdForVendorCheck) {
+                            continue;
                         }
 
-                        for (const vendor of vendorsToNotify.values()) {
-                            const vars = { orderCode: order.code };
-                            const phone = vendor.phoneNumber;
-                            const email = vendor.email;
+                        const vars = { orderCode: order.code };
+                        const phone = v.phone_number;
+                        const email = v.email;
 
+                        if (config?.enabled) {
                             if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
                                 const content = this.smsService.interpolate(config.smsTemplate, vars);
                                 await this.smsService.sendSms(phone, content, settings);
@@ -313,22 +456,23 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                                 const content = this.smsService.interpolate(config.emailTemplate, vars);
                                 await this.smsService.sendTransactionalEmail(email, subject, content, settings);
                             }
-
-                            // Real-time In-App & PWA Push to Seller
-                            const vendorUserId = vendor.user?.id;
-                            if (vendorUserId) {
-                                await this.sendInAppAndPushNotification(
-                                    event.ctx,
-                                    vendorUserId.toString(),
-                                    `Nouvelle Vente !`,
-                                    `Félicitations ! Vous avez reçu une nouvelle commande ${order.code}.`,
-                                    `/dashboard/orders`,
-                                );
-                            }
                         }
-                    } catch (e: any) {
-                        this.logger.error(`Failed to notify sellers for order ${order.code}: ${e.message}`);
+
+                        // Real-time In-App & PWA Push to Seller EXCLUSIVELY for products they own
+                        if (v.user_id) {
+                            await this.sendInAppAndPushNotification(
+                                event.ctx,
+                                v.user_id.toString(),
+                                `Nouvelle Vente !`,
+                                `Félicitations ! Vous avez reçu une nouvelle commande ${order.code}.`,
+                                `/dashboard/orders`,
+                                undefined,
+                                'VENDOR_EVENT',
+                            );
+                        }
                     }
+                } catch (e: any) {
+                    this.logger.error(`Failed to notify sellers for order ${order.code}: ${e.message}`);
                 }
             }
 
@@ -465,18 +609,19 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             if (!vendor) return;
 
             // Inscription Vendeur Reçue
+            // Inscription Vendeur Reçue
             if (event.type === 'created') {
-                const config = settings.channelsConfig?.VendorRegistration;
+                const config = settings.channelsConfig?.VendorRegistration || settings.channelsConfig?.SellerAccountVerification;
                 if (config?.enabled) {
-                    const phone = vendor.phoneNumber || event.input?.phoneNumber;
-                    const email = vendor.email || event.input?.email;
-                    
                     let verificationToken = '';
                     const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
                         where: { id: vendor.id },
                         relations: ['user']
                     });
                     const vendorUser = vWithUser?.user;
+                    const email = vendor.email || event.input?.email || vendorUser?.identifier || '';
+                    const phone = vendor.phoneNumber || event.input?.phoneNumber || '';
+
                     if (vendorUser) {
                         const userWithAuth = await this.connection.getRepository(event.ctx, User).findOne({
                             where: { id: vendorUser.id },
@@ -486,13 +631,22 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         verificationToken = nativeMethod?.verificationToken || '';
                     }
 
+                    const displayName = vendor.name || vendor.businessName || '';
+                    const nameParts = displayName.trim().split(/\s+/);
+                    const firstName = nameParts[0] || '';
+                    const lastName = nameParts.slice(1).join(' ') || '';
+
                     const vars = {
-                        businessName: vendor.businessName || '',
-                        name: vendor.name || '',
-                        email: email || '',
+                        businessName: displayName,
+                        name: displayName,
+                        firstName,
+                        lastName,
+                        email: email,
                         verificationToken,
                         verificationLink: `https://seller.ahizan.com/verify?token=${verificationToken}`,
                     };
+
+                    this.logger.log(`Vendor registration event for vendor "${displayName}" (${email}). Sending notification...`);
 
                     if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
                         const content = this.smsService.interpolate(config.smsTemplate, vars);
@@ -502,6 +656,8 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         const subject = this.smsService.interpolate(config.emailSubject || 'Inscription Reçue', vars);
                         const content = this.smsService.interpolate(config.emailTemplate, vars);
                         await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                    } else if (!email) {
+                        this.logger.warn(`No email address found for vendor ${vendor.id}. Skipping email notification.`);
                     }
                 }
             }
@@ -688,16 +844,44 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
 
             // Check if the user is registering as a vendor/seller to load the appropriate config and verification link
             const req = ctx.req;
-            const registrationRole = req?.get?.('x-ahizan-registration-role') || req?.headers?.['x-ahizan-registration-role'];
-            const isSeller = registrationRole === 'vendor';
+            const headers = req?.headers || {};
+            const registrationRole = req?.get?.('x-ahizan-registration-role') || headers['x-ahizan-registration-role'];
+            const referer = String(headers.referer || headers.origin || '').toLowerCase();
+            const urlStr = String(req?.url || '').toLowerCase();
 
-            const config = isSeller
-                ? settings.channelsConfig?.SellerAccountVerification
-                : settings.channelsConfig?.BuyerRegistration;
+            // Check if user has vendor role in DB
+            const userWithRoles = await this.connection.getRepository(ctx, User).findOne({
+                where: { id: user.id },
+                relations: ['roles']
+            });
+            const hasVendorRole = userWithRoles?.roles?.some(r => r.code === 'vendor' || r.code.toLowerCase().includes('seller')) || false;
+
+            const email = user.identifier;
+
+            // Check if vendor record exists for user or email
+            const VendorEntity = this.connection.rawConnection.entityMetadatas.find(m => m.name === 'Vendor')?.target;
+            let hasVendorRecord = false;
+            if (VendorEntity) {
+                const v = await this.connection.rawConnection.getRepository(VendorEntity).findOne({
+                    where: [
+                        { email: email },
+                        { user: { id: user.id } }
+                    ]
+                });
+                hasVendorRecord = !!v;
+            }
+
+            const isSeller = registrationRole === 'vendor' || 
+                             hasVendorRole || 
+                             hasVendorRecord ||
+                             referer.includes('seller') || 
+                             referer.includes('role=vendor') ||
+                             urlStr.includes('role=vendor');
+
+            const config = settings.channelsConfig?.BuyerRegistration || settings.channelsConfig?.SellerAccountVerification;
 
             if (!config?.enabled) return;
 
-            const email = user.identifier;
             let firstName = '';
             let lastName = '';
             let phone = '';
@@ -722,14 +906,18 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             const nativeMethod = userWithAuth?.getNativeAuthenticationMethod(false);
             token = nativeMethod?.verificationToken || '';
 
+            const verificationLink = isSeller 
+                ? `https://seller.ahizan.com/verify?token=${token}&role=vendor` 
+                : `https://ahizan.com/verify?token=${token}`;
+
             const vars = {
-                firstName,
+                firstName: firstName || email.split('@')[0],
                 lastName,
+                name: `${firstName} ${lastName}`.trim() || email.split('@')[0],
+                businessName: `${firstName} ${lastName}`.trim() || email.split('@')[0],
                 email,
                 verificationToken: token,
-                verificationLink: isSeller 
-                    ? `https://seller.ahizan.com/verify?token=${token}` 
-                    : `https://ahizan.com/verify?token=${token}`,
+                verificationLink,
             };
 
             this.logger.log(`${isSeller ? 'Seller' : 'Buyer'} registration event for ${email}`);

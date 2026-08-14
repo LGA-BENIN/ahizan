@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { registerClientAction, registerVendorAction, checkEmailRolesAction } from './actions';
 
 interface RegisterFormProps {
   redirectTo?: string;
+  defaultEmail?: string;
+  notice?: string;
 }
 
 type EmailCheckState = 'idle' | 'checking' | 'clear' | 'conflict';
@@ -15,10 +17,11 @@ interface EmailRolesResult {
   hasVendorRole: boolean;
 }
 
-export function RegisterForm({ redirectTo }: RegisterFormProps) {
+export function RegisterForm({ redirectTo, defaultEmail, notice }: RegisterFormProps) {
   const [role, setRole] = useState<'client' | 'vendor'>(redirectTo && redirectTo.includes('seller') ? 'vendor' : 'client');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [emailInput, setEmailInput] = useState(defaultEmail || '');
   const [emailCheckState, setEmailCheckState] = useState<EmailCheckState>('idle');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [conflictLoginUrl, setConflictLoginUrl] = useState<string | null>(null);
@@ -26,6 +29,12 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
   const handleEmailBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const email = e.target.value.trim();
     if (!email || !email.includes('@')) return;
+    await performEmailCheck(email);
+  };
+
+  const performEmailCheck = async (email: string) => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes('@')) return;
 
     setEmailCheckState('checking');
     setConflictMessage(null);
@@ -161,6 +170,16 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
             </p>
           </div>
 
+          {notice === 'track-order' && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 text-xs font-semibold flex items-center gap-3 shadow-sm">
+              <span className="text-2xl shrink-0">📦</span>
+              <div>
+                <p className="font-black text-sm text-amber-900 dark:text-amber-100">Suivi de commande</p>
+                <p className="text-xs text-amber-800 dark:text-amber-300/90 mt-0.5 font-medium">Veuillez créer un compte afin de pouvoir suivre votre commande.</p>
+              </div>
+            </div>
+          )}
+
           <div className="flex rounded-xl bg-surface-light p-1 border border-outline-variant/30 mb-6">
             <button
               type="button"
@@ -200,6 +219,7 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
                     name="emailAddress"
                     required
                     disabled={isPending}
+                    value={emailInput}
                     className={`w-full h-12 px-4 rounded-xl border bg-surface-light font-body-md text-body-md transition-all focus:bg-white focus:ring-4 focus:ring-primary/10 outline-none pr-10
                       ${emailCheckState === 'conflict' ? 'border-red-400 focus:border-red-400' : ''}
                       ${emailCheckState === 'clear' ? 'border-green-400 focus:border-green-400' : ''}
@@ -208,7 +228,8 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
                     placeholder="jean.dupont@exemple.com"
                     type="email"
                     onBlur={handleEmailBlur}
-                    onChange={() => {
+                    onChange={(e) => {
+                      setEmailInput(e.target.value);
                       if (emailCheckState !== 'idle') {
                         setEmailCheckState('idle');
                         setConflictMessage(null);

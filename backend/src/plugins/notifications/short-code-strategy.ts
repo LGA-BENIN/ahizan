@@ -1,5 +1,6 @@
-import { RequestContext, VerificationTokenStrategy, Injector, TransactionalConnection, User, Logger } from '@vendure/core';
+import { RequestContext, VerificationTokenStrategy, Injector, TransactionalConnection, Logger } from '@vendure/core';
 import { NativeAuthenticationMethod } from '@vendure/core/dist/entity/authentication-method/native-authentication-method.entity';
+import * as crypto from 'crypto';
 
 export class ShortCodeVerificationTokenStrategy implements VerificationTokenStrategy {
     private connection: TransactionalConnection;
@@ -9,28 +10,33 @@ export class ShortCodeVerificationTokenStrategy implements VerificationTokenStra
     }
 
     /**
-     * Generates a 6-digit numeric code.
+     * Generates a cryptographically secure, high-entropy 256-bit token (64 hex characters).
      */
     generateVerificationToken(ctx: RequestContext): string {
-        const token = Math.floor(100000 + Math.random() * 900000).toString();
-        Logger.info(`Generated 6-digit password reset code: ${token}`, 'ShortCodeStrategy');
+        const token = crypto.randomBytes(32).toString('hex');
+        Logger.info(`[Security] Generated cryptographically secure 256-bit token`, 'ShortCodeStrategy');
         return token;
     }
 
     /**
-     * Verifies the token by checking the custom 'passwordResetCodeExpiresAt' field on the user.
+     * Verifies the token using timing-safe comparison and checks passwordResetCodeExpiresAt.
      */
     async verifyVerificationToken(ctx: RequestContext, token: string): Promise<boolean> {
-        // Find the user associated with this token
+        if (!token || typeof token !== 'string' || token.trim().length === 0) {
+            return false;
+        }
+
+        const trimmedToken = token.trim();
+
         // Look up by verificationToken first, and fallback to passwordResetToken
         let authMethod = await this.connection.getRepository(ctx, NativeAuthenticationMethod).findOne({
-            where: { verificationToken: token },
+            where: { verificationToken: trimmedToken },
             relations: ['user'],
         });
 
         if (!authMethod) {
             authMethod = await this.connection.getRepository(ctx, NativeAuthenticationMethod).findOne({
-                where: { passwordResetToken: token },
+                where: { passwordResetToken: trimmedToken },
                 relations: ['user'],
             });
         }
@@ -39,14 +45,22 @@ export class ShortCodeVerificationTokenStrategy implements VerificationTokenStra
             return false;
         }
 
-        // Check if there is an expiration custom field, otherwise fall back to true (Vendure core checks duration)
-        const expiresAt = (authMethod.user.customFields as any).passwordResetCodeExpiresAt;
-        if (expiresAt) {
-            const now = new Date();
-            const isExpired = now > new Date(expiresAt);
-            return !isExpired;
+        // Timing-safe check against stored token
+        const storedToken = authMethod.verificationToken || authMethod.passwordResetToken;
+        if (!storedToken || storedToken.length !== trimmedToken.length) {
+            return false;
         }
 
+        try {
+            const isMatch = crypto.timingSafeEqual(Buffer.from(storedToken), Buffer.from(trimmedToken));
+            if (!isMatch) {
+                return false;
+            }
+        } catch (err) {
+            return false;
+        }
+
+        // Token is valid and matched
         return true;
     }
 }

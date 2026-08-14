@@ -1,6 +1,6 @@
 import { getAuthToken } from '@/lib/auth';
 import { query } from '@/lib/vendure/api';
-import { GetMyVendorProfileQuery } from '@/lib/vendure/queries';
+import { GetMyVendorProfileQuery, GetActiveCustomerQuery } from '@/lib/vendure/queries';
 import { redirect } from 'next/navigation';
 import { LoginForm } from './login-form';
 import { getUrlContext, sanitizeRedirectUrl } from '@/lib/url-utils';
@@ -20,19 +20,25 @@ export default async function Page({
 
   if (token && !isStale) {
     try {
-      const profileResult = await query(GetMyVendorProfileQuery, {}, { token });
-      const vendor = profileResult.data?.myVendorProfile;
+      const customerResult = await query(GetActiveCustomerQuery, {}, { token });
+      const customer = customerResult.data?.activeCustomer;
 
-      if (vendor) {
-        // Redirige vers la page de choix du portail si l'utilisateur a un profil vendeur
-        redirect('/select-role');
-      } else {
-        // Si l'utilisateur est uniquement acheteur, on ne le redirige pas automatiquement.
-        // On le laisse voir le formulaire de connexion (par exemple pour se connecter avec un autre compte).
+      if (customer) {
+        try {
+          const profileResult = await query(GetMyVendorProfileQuery, {}, { token });
+          const vendor = profileResult.data?.myVendorProfile;
+
+          if (vendor) {
+            // Redirige vers la page de choix du portail si l'utilisateur a un profil vendeur
+            redirect('/select-role');
+          }
+        } catch (e) {
+          if (isRedirectError(e)) throw e;
+          // Si on n'arrive pas à récupérer le profil vendeur, ce n'est pas grave,
+          // c'est peut-être juste un acheteur normal.
+        }
       }
     } catch (e) {
-      // CRITICAL: Next.js redirect() works by throwing a special NEXT_REDIRECT error.
-      // We must re-throw it, otherwise the redirect is swallowed and the login form is shown instead.
       if (isRedirectError(e)) {
         throw e;
       }

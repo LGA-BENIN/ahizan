@@ -1,5 +1,6 @@
 import type {Metadata} from 'next';
 import { getActiveCustomer } from '@/lib/vendure/actions';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
     title: 'Mon Profil',
@@ -10,6 +11,9 @@ import { EditEmailForm } from './edit-email-form';
 
 export default async function ProfilePage(_props: any) {
     const customer = await getActiveCustomer();
+    if (!customer) {
+        redirect('/sign-in');
+    }
 
     return (
         <div className="space-y-6">

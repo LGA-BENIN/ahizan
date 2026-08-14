@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import {Button} from '@/components/ui/button';
 import {Price} from '@/components/commerce/price';
+import {WhatsappOrderButton} from './whatsapp-order-button';
 
 type ActiveOrder = {
     id: string;
@@ -8,13 +9,14 @@ type ActiveOrder = {
     subTotalWithTax: number;
     shippingWithTax: number;
     totalWithTax: number;
+    lines?: any[];
     discounts?: Array<{
         description: string;
         amountWithTax: number;
     }> | null;
 };
 
-export async function OrderSummary({activeOrder}: { activeOrder: ActiveOrder }) {
+export async function OrderSummary({activeOrder, whatsappNumber}: { activeOrder: ActiveOrder, whatsappNumber?: string }) {
     return (
         <div className="border rounded-xl p-6 bg-card sticky top-28 shadow-sm">
             <h2 className="text-lg font-bold mb-5 tracking-tight">Résumé de la commande</h2>
@@ -61,6 +63,8 @@ export async function OrderSummary({activeOrder}: { activeOrder: ActiveOrder }) 
             <Button className="w-full h-11 rounded-lg font-bold text-base shadow-lg shadow-primary/10 transition-all active:scale-[0.98]" size="lg" asChild>
                 <Link href="/checkout">Passer la commande</Link>
             </Button>
+
+            <WhatsappOrderButton activeOrder={activeOrder} whatsappNumber={whatsappNumber} />
 
             <Button variant="ghost" className="w-full mt-4 rounded-xl font-bold text-muted-foreground hover:text-primary transition-colors" asChild>
                 <Link href="/search">Continuer vos achats</Link>

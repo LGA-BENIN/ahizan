@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { GridItemRenderer } from './GridItemRenderer';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 
 interface SmartVisualGridSectionProps {
     config: any;
@@ -13,10 +14,14 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
     try {
         if (typeof config === 'string') {
             parsedConfig = JSON.parse(config);
-        } else if (config.ROOT || config.isGrouped) {
+        } else if (config.ROOT || config.isGrouped || config.tabs) {
             parsedConfig = config;
-        } else if (typeof config.dataJson === 'string') {
-            parsedConfig = JSON.parse(config.dataJson);
+        } else if (config.dataJson) {
+            parsedConfig = typeof config.dataJson === 'string' ? JSON.parse(config.dataJson) : config.dataJson;
+        } else if (config.data) {
+            parsedConfig = typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+        } else {
+            parsedConfig = config;
         }
     } catch (e) {
         console.error("Failed to parse SmartVisualGrid config", e);
@@ -38,17 +43,25 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
 
     let craftState: any = null;
 
-    if (isGrouped) {
+    if (isGrouped && parsedConfig.tabs?.length > 0) {
         const activeTab = parsedConfig.tabs?.find((t: any) => t.id === activeTabId) || parsedConfig.tabs?.[0];
         if (activeTab && activeTab.craftState) {
             try {
                 craftState = typeof activeTab.craftState === 'string' ? JSON.parse(activeTab.craftState) : activeTab.craftState;
             } catch(e) {
-                console.error("Failed to parse tab craft state");
+                console.error("Failed to parse tab craft state", e);
             }
         }
     } else {
-        craftState = parsedConfig;
+        if (parsedConfig.craftState) {
+            try {
+                craftState = typeof parsedConfig.craftState === 'string' ? JSON.parse(parsedConfig.craftState) : parsedConfig.craftState;
+            } catch(e) {
+                console.error("Failed to parse craftState", e);
+            }
+        } else if (parsedConfig.ROOT) {
+            craftState = parsedConfig;
+        }
     }
 
     const rootNode = craftState?.ROOT;
@@ -56,8 +69,8 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
 
     const {
         columnsDesktop = 4,
-        columnsTablet = 2,
-        columnsMobile = 1,
+        columnsTablet,
+        columnsMobile,
         gapX = 16,
         gapY = 16,
         paddingTop = 0,
@@ -75,11 +88,20 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         globalTitle = '',
         globalTitleSize = '24px',
         globalTitleColor = '#0f172a',
+        sectionHeaderAlign = 'center',
+        sectionHeaderCtaEnabled = false,
+        sectionHeaderCtaText = 'Voir Tout',
+        sectionHeaderCtaUrl = '#',
+        sectionHeaderCtaStyle = 'solid',
+
         scrollMode = 'grid',
         carouselArrows = 'circle',
         globalShape = 'circle',
+        globalImageBorderRadius = '',
         globalImageWidth = '120px',
         globalImageHeight = '120px',
+        globalImageFitMode = 'fit',
+        globalImageFit = 'contain',
         globalImagePosX = 0,
         globalImagePosY = 0,
         globalAnimEntrance = 'none',
@@ -88,12 +110,32 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         globalItemAlignment = 'center',
         globalItemTitleSize = '16px',
         globalItemTitleWeight = 'bold',
+        globalItemTitleColor = '#0f172a',
+        globalItemTitleTransform = 'none',
         globalItemDescSize = '14px',
         globalItemDescWeight = 'normal',
+        globalItemDescColor = '#64748b',
+        globalItemDescLines = 2,
+        globalInsideTextPosition = 'center',
+        globalTextPadding = 16,
+        globalTextGap = 6,
+
+        globalCardBorderWidth = 0,
+        globalCardBorderColor = 'transparent',
+        globalCardBorderRadius = '12px',
+        globalCardBgColor = 'transparent',
+        globalCardHoverBgColor = 'transparent',
+
+        globalShowCta = false,
+        globalCtaText = 'Découvrir',
+        globalCtaStyle = 'solid',
         autoplay = false,
         autoplaySpeed = 3000,
         autoplayDirection = 'right',
     } = rootProps;
+
+    const autoTablet = columnsDesktop <= 2 ? columnsDesktop : Math.min(columnsDesktop, Math.max(2, Math.ceil(columnsDesktop / 2)));
+    const autoMobile = columnsDesktop === 1 ? 1 : 2;
 
     const [isHovered, setIsHovered] = useState(false);
 
@@ -129,20 +171,38 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
         return {
             ...itemProps,
             imageShape: globalShape,
+            globalImageBorderRadius,
             imageWidth: itemProps.imageWidth,
             imageHeight: itemProps.imageHeight,
             globalImageWidth,
             globalImageHeight,
+            globalImageFitMode,
+            globalImageFit,
             globalImagePosX,
             globalImagePosY,
             animEntrance: globalAnimEntrance,
             animHover: globalAnimHover,
             itemAlignment: globalItemAlignment,
-            titleFontSize: globalItemTitleSize,
-            titleFontWeight: globalItemTitleWeight,
+            globalInsideTextPosition,
+            globalTextPadding,
+            globalTextGap,
+            globalCardBorderWidth,
+            globalCardBorderColor,
+            globalCardBorderRadius,
+            globalCardBgColor,
+            globalCardHoverBgColor,
+            globalShowCta,
+            globalCtaText,
+            globalCtaStyle,
+            globalItemTitleTransform,
+            globalItemDescLines,
+            globalItemTitleColor,
+            globalItemDescColor,
+            titleFontSize: itemProps.titleFontSize || globalItemTitleSize,
+            titleFontWeight: itemProps.titleFontWeight || globalItemTitleWeight,
             titleAlign: globalItemAlignment,
-            descFontSize: globalItemDescSize,
-            descFontWeight: globalItemDescWeight,
+            descFontSize: itemProps.descFontSize || globalItemDescSize,
+            descFontWeight: itemProps.descFontWeight || globalItemDescWeight,
             descAlign: globalItemAlignment,
         };
     }).filter(Boolean);
@@ -188,24 +248,55 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
 
     return (
         <section 
-            className={`w-full overflow-hidden ${sectionAnimClass}`}
+            className={`w-full overflow-hidden ${sectionAnimClass} my-4 md:my-6`}
             style={{
                 background: bgStyle,
-                paddingTop: `${paddingTop}px`,
-                paddingBottom: `${paddingBottom}px`,
-                paddingLeft: `${paddingLeft}px`,
-                paddingRight: `${paddingRight}px`,
+                paddingTop: `${paddingTop ? paddingTop : 24}px`,
+                paddingBottom: `${paddingBottom ? paddingBottom : 20}px`,
             }}
         >
-            <div className="max-w-[1440px] mx-auto relative group">
+            <div 
+                className="max-w-[1380px] mx-auto relative group px-4 sm:px-6 lg:px-8"
+                style={{
+                    paddingLeft: paddingLeft && paddingLeft > 0 ? `${paddingLeft}px` : undefined,
+                    paddingRight: paddingRight && paddingRight > 0 ? `${paddingRight}px` : undefined,
+                }}
+            >
                 
-                {globalTitle && (
-                    <h2 
-                        className="text-center mb-6" 
-                        style={{ fontSize: globalTitleSize, color: globalTitleColor, fontWeight: 'bold' }}
+                {/* SECTION HEADER: TITLE & CTA */}
+                {(globalTitle || sectionHeaderCtaEnabled) && (
+                    <div 
+                        className="mb-6 w-full flex items-center justify-between flex-wrap gap-3"
                     >
-                        {globalTitle}
-                    </h2>
+                        {globalTitle && (
+                            <h2 
+                                className="m-0" 
+                                style={{ fontSize: globalTitleSize, color: globalTitleColor, fontWeight: 'bold' }}
+                            >
+                                {globalTitle}
+                            </h2>
+                        )}
+
+                        {sectionHeaderCtaEnabled && (
+                            <Link href={sectionHeaderCtaUrl || '#'} className="inline-block no-underline flex-shrink-0 ml-auto">
+                                {sectionHeaderCtaStyle === 'solid' && (
+                                    <span className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-lg shadow-sm transition-colors duration-200">
+                                        {sectionHeaderCtaText || 'Voir Tout'}
+                                    </span>
+                                )}
+                                {sectionHeaderCtaStyle === 'outline' && (
+                                    <span className="px-5 py-2 border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-bold text-sm rounded-lg transition-colors duration-200">
+                                        {sectionHeaderCtaText || 'Voir Tout'}
+                                    </span>
+                                )}
+                                {sectionHeaderCtaStyle === 'link' && (
+                                    <span className="inline-flex items-center gap-1.5 text-blue-600 font-bold text-sm hover:underline">
+                                        {sectionHeaderCtaText || 'Voir Tout'} ➔
+                                    </span>
+                                )}
+                            </Link>
+                        )}
+                    </div>
                 )}
 
                 {/* GROUP TABS SELECTOR */}
@@ -264,12 +355,11 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
 
                 <style dangerouslySetInnerHTML={{__html: `
                     @media (min-width: 640px) {
-                        .${gridColsClass} { --grid-cols: ${columnsTablet}; }
+                        .${gridColsClass} { --grid-cols: ${autoTablet}; }
                     }
                     @media (min-width: 1024px) {
                         .${gridColsClass} { --grid-cols: ${columnsDesktop}; }
                     }
-                    /* Hide scrollbar for carousel */
                     .scrollbar-hide::-webkit-scrollbar {
                         display: none;
                     }
@@ -288,7 +378,8 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                         style={{
                             display: isCarousel ? 'flex' : 'grid',
                             gap: `${gapY}px ${gapX}px`,
-                            gridTemplateColumns: isCarousel ? undefined : `repeat(var(--grid-cols, ${columnsMobile}), minmax(0, 1fr))`,
+                            gridTemplateColumns: isCarousel ? undefined : `repeat(var(--grid-cols, ${autoMobile}), minmax(0, 1fr))`,
+                            gridAutoRows: isCarousel ? undefined : 'minmax(min-content, max-content)',
                             justifyItems: isCarousel ? undefined : getAlignment()
                         }}
                     >
@@ -297,7 +388,9 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                                 key={index} 
                                 className={isCarousel ? 'flex-shrink-0 snap-start h-full' : 'w-full h-full'} 
                                 style={{ 
-                                    width: isCarousel ? `calc(100% / var(--grid-cols, ${columnsMobile}) - ${gapX * (columnsDesktop - 1) / columnsDesktop}px)` : '100%' 
+                                    width: isCarousel ? `calc(100% / var(--grid-cols, ${autoMobile}) - ${gapX * (columnsDesktop - 1) / columnsDesktop}px)` : '100%',
+                                    gridColumn: !isCarousel && itemProps.cardColSpan ? `span ${Math.min(itemProps.cardColSpan, columnsDesktop)}` : undefined,
+                                    gridRow: !isCarousel && itemProps.cardRowSpan ? `span ${itemProps.cardRowSpan}` : undefined,
                                 }}
                             >
                                 <GridItemRenderer 
@@ -307,11 +400,7 @@ export const SmartVisualGridSection = ({ config, siteCategories }: SmartVisualGr
                             </div>
                         ))}
                     </div>
-                ) : (
-                    <div className="py-12 text-center text-gray-500 font-medium">
-                        Aucun élément dans cet onglet.
-                    </div>
-                )}
+                ) : null}
             </div>
         </section>
     );

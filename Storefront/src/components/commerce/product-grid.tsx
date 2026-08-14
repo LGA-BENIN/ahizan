@@ -5,6 +5,7 @@ import {SortDropdown} from './sort-dropdown';
 import {SearchProductsQuery} from "@/lib/vendure/queries";
 import {getActiveChannel} from '@/lib/vendure/actions';
 import {LottieSearchEmpty} from '@/components/shared/animations/LottieSearchEmpty';
+import {priceFromSubunit} from '@/lib/format';
 
 interface ProductGridProps {
     productData?: {
@@ -47,7 +48,7 @@ export async function ProductGrid({productData, productDataPromise, currentPage,
             } else if (p.variants?.[0]?.priceWithTax) {
                 price = p.variants[0].priceWithTax;
             }
-            const userPrice = price / 100;
+            const userPrice = priceFromSubunit(price);
 
             if (minPrice !== undefined && userPrice < minPrice) return false;
             if (maxPrice !== undefined && userPrice > maxPrice) return false;

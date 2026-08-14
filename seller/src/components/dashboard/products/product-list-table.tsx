@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { 
     Search, 
@@ -36,6 +36,9 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
     const [priceMin, setPriceMin] = useState<string>('');
     const [priceMax, setPriceMax] = useState<string>('');
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
+
     // Reset all filters
     const handleResetFilters = () => {
         setSearchQuery('');
@@ -43,8 +46,14 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
         setFilterStatus('all');
         setPriceMin('');
         setPriceMax('');
+        setCurrentPage(1);
         toast.info('Filtres réinitialisés');
     };
+
+    // Reset current page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, filterCategory, filterStatus, priceMin, priceMax]);
 
     // Client-side advanced filtering
     const filteredProducts = useMemo(() => {
@@ -81,9 +90,17 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
             const matchesPriceMin = min === null || price >= min;
             const matchesPriceMax = max === null || price <= max;
 
+            // IMPORTANT: must return the combined boolean
             return matchesSearch && matchesCategory && matchesStatus && matchesPriceMin && matchesPriceMax;
         });
     }, [initialProducts, searchQuery, filterCategory, filterStatus, priceMin, priceMax]);
+
+    // Paginate products
+    const totalPages = Math.ceil(filteredProducts.length / pageSize) || 1;
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredProducts.slice(start, start + pageSize);
+    }, [filteredProducts, currentPage, pageSize]);
 
     // Handle product duplication (simulated client-side)
     const handleDuplicateProduct = (productName: string) => {
@@ -237,8 +254,8 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {filteredProducts.length > 0 ? (
-                                filteredProducts.map((product: any) => {
+                            {paginatedProducts.length > 0 ? (
+                                paginatedProducts.map((product: any) => {
                                     const variant = product.variants?.[0];
                                     const isPublished = product.enabled !== false;
                                     const stockInfo = getStockIndicator(product);
@@ -370,13 +387,30 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                 {/* Pagination */}
                 <div className="px-6 py-4 bg-muted/20 border-t border-border flex justify-between items-center">
                     <p className="text-xs text-muted-foreground">
-                        Affichage de <span className="font-bold text-foreground">{filteredProducts.length}</span> sur <span className="font-bold text-foreground">{initialProducts.length}</span> produits
+                        Affichage de <span className="font-bold text-foreground">
+                            {filteredProducts.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+                        </span> à <span className="font-bold text-foreground">
+                            {Math.min(filteredProducts.length, currentPage * pageSize)}
+                        </span> sur <span className="font-bold text-foreground">{filteredProducts.length}</span> produits
                     </p>
                     <div className="flex items-center gap-2">
-                         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-border bg-card" disabled>
+                         <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-9 w-9 rounded-xl border border-border bg-card cursor-pointer" 
+                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                             disabled={currentPage === 1}
+                         >
                               <ChevronLeft className="h-4 w-4" />
                          </Button>
-                         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-border bg-card" disabled>
+                         <span className="text-xs font-bold px-2">{currentPage} / {totalPages}</span>
+                         <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-9 w-9 rounded-xl border border-border bg-card cursor-pointer" 
+                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                             disabled={currentPage === totalPages}
+                         >
                               <ChevronRight className="h-4 w-4" />
                          </Button>
                     </div>

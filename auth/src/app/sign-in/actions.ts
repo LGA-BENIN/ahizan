@@ -16,8 +16,8 @@ export async function loginAction(formData: FormData) {
     const redirectTo = formData.get('redirectTo') as string | null;
 
     try {
-        // 1. Authentification auprès de Vendure
-        const result = await mutate(LoginMutation, { username, password });
+        // 1. Authentification auprès de Vendure (avec useAuthToken: true pour fusionner le panier invité s'il existe)
+        const result = await mutate(LoginMutation, { username, password }, { useAuthToken: true });
         const loginResult = result.data.login;
 
         if (!loginResult || loginResult.__typename !== 'CurrentUser') {

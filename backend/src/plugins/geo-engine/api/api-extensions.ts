@@ -1,12 +1,60 @@
 import { gql } from 'graphql-tag';
 
 export const commonApiExtensions = gql`
+    type CurrentLocation {
+        geoId: String!
+        hierarchicalCode: String!
+        latitude: Float!
+        longitude: Float!
+        geoZoneId: ID!
+        geoZone: GeoZone
+        marketId: ID
+        marketName: String
+        country: String!
+        department: String!
+        commune: String!
+        arrondissement: String!
+        neighborhood: String!
+        deliveryZoneId: ID
+        deliveryZonePrice: Int
+        displayName: String!
+        formattedAddress: String!
+        confidence: Float!
+        isLearnedLocation: Boolean!
+    }
+
+    type GeoResolutionLog implements Node {
+        id: ID!
+        createdAt: DateTime!
+        latitude: Float!
+        longitude: Float!
+        geoId: String
+        geoZoneId: ID
+        marketId: ID
+        provider: String!
+        confidence: Float!
+        rawAddress: String
+    }
+
+    type GeoUserCorrection implements Node {
+        id: ID!
+        createdAt: DateTime!
+        latitude: Float!
+        longitude: Float!
+        suggestedGeoId: String
+        suggestedGeoZoneId: ID
+        userComment: String
+        status: String!
+    }
+
     type GeoZone implements Node {
         id: ID!
         createdAt: DateTime!
         updatedAt: DateTime!
         name: String!
         slug: String!
+        geoId: String
+        hierarchicalCode: String
         code: String
         type: String!
         status: String!
@@ -47,6 +95,7 @@ export const commonApiExtensions = gql`
         ownerId: String
         name: String
         price: Int!
+        maxPrice: Int
         type: String!
         centerLatitude: Float
         centerLongitude: Float
@@ -125,6 +174,7 @@ export const commonApiExtensions = gql`
         ownerId: String
         name: String
         price: Int!
+        maxPrice: Int
         type: String
         centerLatitude: Float
         centerLongitude: Float
@@ -138,6 +188,7 @@ export const commonApiExtensions = gql`
         ownerId: String
         name: String
         price: Int
+        maxPrice: Int
         type: String
         centerLatitude: Float
         centerLongitude: Float
@@ -158,6 +209,12 @@ export const shopApiExtensions = gql`
         deliveryZones(ownerId: String): [DeliveryZone!]!
         productsInGeoZone(geoZoneId: ID!, limit: Int, offset: Int): [Product!]!
         reverseGeocode(latitude: Float!, longitude: Float!): [GeoZone!]!
+        resolveCoordinates(latitude: Float!, longitude: Float!): CurrentLocation!
+        searchAddress(query: String!): [CurrentLocation!]!
+    }
+
+    extend type Mutation {
+        submitUserCorrection(latitude: Float!, longitude: Float!, suggestedGeoZoneId: ID, userComment: String): GeoUserCorrection!
     }
 `;
 
@@ -171,6 +228,11 @@ export const adminApiExtensions = gql`
         deliveryZones(ownerId: String): [DeliveryZone!]!
         productsInGeoZone(geoZoneId: ID!, limit: Int, offset: Int): [Product!]!
         reverseGeocode(latitude: Float!, longitude: Float!): [GeoZone!]!
+        resolveCoordinates(latitude: Float!, longitude: Float!): CurrentLocation!
+        searchAddress(query: String!): [CurrentLocation!]!
+        geoResolutionLogs(limit: Int, offset: Int): [GeoResolutionLog!]!
+        geoUserCorrections(status: String): [GeoUserCorrection!]!
+        geoCoverageStats: JSON!
     }
 
     extend type Mutation {
@@ -188,5 +250,10 @@ export const adminApiExtensions = gql`
 
         importBoundaryFromOSM(zoneId: ID!, query: String!): GeoZone!
         importMassiveData(base64Content: String!, format: String!, type: String!): JSON!
+
+        splitGeoZone(parentZoneId: ID!, newZoneNames: [String!]!): [GeoZone!]!
+        mergeGeoZones(zoneIds: [ID!]!, mergedName: String!): GeoZone!
+        submitUserCorrection(latitude: Float!, longitude: Float!, suggestedGeoZoneId: ID, userComment: String): GeoUserCorrection!
+        moderateUserCorrection(id: ID!, approve: Boolean!): GeoUserCorrection!
     }
 `;

@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useThemeSettings } from '@/components/providers/theme-provider';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
+import { useLocation } from '@/contexts/location-context';
 
 interface TabConfig {
     id: string;
@@ -24,6 +25,12 @@ interface TabConfig {
 
 interface TabbedProductGridProps {
     title?: string;
+    subtitle?: string;
+    badgeText?: string;
+    badgeBgColor?: string;
+    badgeTextColor?: string;
+    headerStyle?: string;
+    enableTabs?: boolean;
     layout?: string;
     columns?: number;
     cardStyle?: string;
@@ -44,6 +51,7 @@ function formatCFA(price: number): string {
 }
 
 export function TabbedProductGrid(props: TabbedProductGridProps) {
+    const { selectedLocation } = useLocation();
     const [activeTab, setActiveTab] = useState(props.tabs?.[props.defaultTabIndex || 0]?.id || '');
     const [productsMap, setProductsMap] = useState<Record<string, any[]>>({});
     const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({});
@@ -66,6 +74,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         const take = tab.take || 10;
         const collectionSlug = tab.collectionSlug || '';
         const collectionIds = tab.collectionIds || [];
+        const selectionMode = (tab as any).selectionMode || 'COLLECTIONS';
+        const manualProductIds = (tab as any).manualProductIds || [];
 
         const searchQuery = `
             query GetTabProducts($input: SearchInput!) {
@@ -88,15 +98,17 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             }
         `;
 
+        const shopApiUrl = getShopApiUrl();
+
         const fetchForCollection = async (collectionId?: string) => {
             const input: any = {
                 groupByProduct: true,
                 take,
             };
 
-            if (collectionId) {
+            if (collectionId && String(collectionId).trim() !== '' && String(collectionId) !== 'undefined') {
                 input.collectionId = String(collectionId);
-            } else if (collectionSlug) {
+            } else if (collectionSlug && collectionSlug.trim() !== '') {
                 input.collectionSlug = collectionSlug;
             }
 
@@ -109,7 +121,6 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             }
 
             try {
-                const shopApiUrl = getShopApiUrl();
                 const res = await fetch(shopApiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -162,28 +173,187 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             }
         };
 
+        const fetchManualProducts = async () => {
+            if (manualProductIds.length === 0) return [];
+            try {
+                const manualQuery = `
+                    query GetManualProducts($ids: [ID!]!) {
+                        products(options: { filter: { id: { in: $ids } } }) {
+                            items {
+                                id
+                                name
+                                slug
+                                featuredAsset { id preview }
+                                variants {
+                                    id
+                                    priceWithTax
+                                }
+                                customFields {
+                                    vendor {
+                                        id
+                                        name
+                                        physicalMarket { id name }
+                                        location { id name }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                `;
+                const res = await fetch(shopApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: manualQuery, variables: { ids: manualProductIds.map(String) } }),
+                });
+                const data = await res.json();
+                return (data.data?.products?.items || []).map((p: any) => ({
+                    productId: p.id,
+                    productName: p.name,
+                    slug: p.slug,
+                    productAsset: p.featuredAsset,
+                    priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
+                    currencyCode: 'XOF',
+                    inStock: true,
+                    collectionIds: [],
+                    facetValueIds: [],
+                    vendorName: p.customFields?.vendor?.name || null,
+                    marketName: p.customFields?.vendor?.physicalMarket?.name || null,
+                    locationName: p.customFields?.vendor?.location?.name || null
+                }));
+            } catch (err) {
+                console.error('Error fetching manual products for hybrid tab:', err);
+                return [];
+            }
+        };
+
         try {
-            if (collectionIds.length > 0) {
-                const promises = collectionIds.map((id: string) => fetchForCollection(id));
-                const results = await Promise.all(promises);
-                let items = results.flat();
+            if (selectionMode === 'AUTOMATIC') {
+                const marketId = selectedLocation?.type === 'MARKET' ? selectedLocation.id : null;
+                const locationId = selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : null;
+                let items: any[] = [];
                 
-                // Deduplicate
+                if (selectedLocation) {
+                    const localQuery = `
+                        query GetLocalProducts($marketId: ID, $locationId: ID) {
+                            vendors(
+                                marketId: $marketId, 
+                                locationId: $locationId, 
+                                options: { filter: { status: { eq: "APPROVED" } } }
+                            ) {
+                                items {
+                                    id
+                                    name
+                                    physicalMarket { id name }
+                                    location { id name }
+                                    products {
+                                        id
+                                        name
+                                        slug
+                                        featuredAsset { preview }
+                                        variants {
+                                            id
+                                            priceWithTax
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    `;
+                    const res = await fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: localQuery, variables: { marketId, locationId } })
+                    });
+                    const result = await res.json();
+                    const vendorsList = result.data?.vendors?.items || [];
+                    items = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({
+                        productId: p.id,
+                        productName: p.name,
+                        slug: p.slug,
+                        productAsset: p.featuredAsset,
+                        priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
+                        currencyCode: 'XOF',
+                        inStock: true,
+                        collectionIds: [],
+                        facetValueIds: [],
+                        vendorName: v.name,
+                        marketName: v.physicalMarket?.name || null,
+                        locationName: v.location?.name || null
+                    })));
+                }
+
+                if (items.length === 0) {
+                    const fallbackSearchInput = {
+                        groupByProduct: true,
+                        take,
+                        sort: { price: 'DESC' }
+                    };
+                    const resFallback = await fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: searchQuery, variables: { input: fallbackSearchInput } })
+                    });
+                    const resultFallback = await resFallback.json();
+                    items = resultFallback.data?.search?.items || [];
+                }
+
                 const seen = new Set();
                 items = items.filter((item: any) => {
                     if (seen.has(item.productId)) return false;
                     seen.add(item.productId);
                     return true;
                 });
-                setProductsMap(prev => ({ ...prev, [tab.id]: items }));
+                setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+            } else if (selectionMode === 'PRODUCTS') {
+                const items = await fetchManualProducts();
+                setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+            } else if (selectionMode === 'HYBRID') {
+                const [collectionItems, manualItems] = await Promise.all([
+                    (async () => {
+                        if (collectionIds.length > 0) {
+                            const promises = collectionIds.map((id: string) => fetchForCollection(id));
+                            const results = await Promise.all(promises);
+                            return results.flat();
+                        } else {
+                            return await fetchForCollection();
+                        }
+                    })(),
+                    fetchManualProducts()
+                ]);
+                
+                let items = [...manualItems, ...collectionItems];
+                const seen = new Set();
+                items = items.filter((item: any) => {
+                    if (seen.has(item.productId)) return false;
+                    seen.add(item.productId);
+                    return true;
+                });
+                setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
             } else {
-                const items = await fetchForCollection();
-                setProductsMap(prev => ({ ...prev, [tab.id]: items }));
+                // COLLECTIONS
+                if (collectionIds.length > 0) {
+                    const promises = collectionIds.map((id: string) => fetchForCollection(id));
+                    const results = await Promise.all(promises);
+                    let items = results.flat();
+                    
+                    const seen = new Set();
+                    items = items.filter((item: any) => {
+                        if (seen.has(item.productId)) return false;
+                        seen.add(item.productId);
+                        return true;
+                    });
+                    setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                } else {
+                    const items = await fetchForCollection();
+                    setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                }
             }
+        } catch (err) {
+            console.error('Error in fetchProducts workflow:', err);
         } finally {
             setLoadingMap(prev => ({ ...prev, [tab.id]: false }));
         }
-    }, []);
+    }, [selectedLocation]);
 
     // Fetch all tabs on mount, and refetch when tab changes
     useEffect(() => {
@@ -194,7 +364,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 fetchProducts(tab);
             }
         });
-    }, [props.tabs]);
+    }, [JSON.stringify(props.tabs)]);
 
     if (!props.tabs || props.tabs.length === 0) return null;
 
@@ -301,7 +471,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                 {props.cardStyle === 'dense' ? (
                                     <DenseProductCard product={p} />
                                 ) : (
-                                    <ProductCard product={p} />
+                                    <ProductCard product={p} config={props} />
                                 )}
                             </div>
                         ))}
@@ -316,38 +486,67 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     props.cardStyle === 'dense' ? (
                         <DenseProductCard key={p.productId} product={p} />
                     ) : (
-                        <ProductCard key={p.productId} product={p} />
+                        <ProductCard key={p.productId} product={p} config={props} />
                     )
                 )}
             </div>
         );
     };
 
+    const showTabs = props.enableTabs !== false && props.tabs && props.tabs.length > 1;
+    const badgeText = props.badgeText && props.badgeText.trim() !== '' ? props.badgeText : null;
+    const badgeBgColor = props.badgeBgColor || '#e31837';
+    const badgeTextColor = props.badgeTextColor || '#ffffff';
+
     return (
-        <section className="container mx-auto px-4 py-8">
-            {props.title && (
-                <h2 className="text-2xl font-black mb-6 tracking-tight">{props.title}</h2>
+        <section className="container mx-auto px-4 py-2 md:py-3">
+            {(props.title || badgeText || props.subtitle) && (
+                <div className="mb-3 flex flex-col items-start gap-1">
+                    {badgeText && (
+                        <div 
+                            className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm w-fit"
+                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                        >
+                            <span>{badgeText}</span>
+                        </div>
+                    )}
+                    {props.title && props.title.trim() !== '' && (
+                        <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground uppercase leading-tight mt-0.5">
+                            {props.title}
+                        </h2>
+                    )}
+                    {props.subtitle && props.subtitle.trim() !== '' && (
+                        <p className="font-medium text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-2xl">
+                            {props.subtitle}
+                        </p>
+                    )}
+                    {(props.title || badgeText) && (
+                        <div className="h-1 w-12 bg-primary mt-1.5 rounded-full" style={{ backgroundColor: badgeBgColor }} />
+                    )}
+                </div>
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className={`mb-6 ${tabStyle === 'pill' ? 'bg-muted rounded-full h-auto p-1 gap-1' : tabStyle === 'boxed' ? 'bg-transparent h-auto p-0 gap-2' : 'bg-transparent h-auto p-0 border-b rounded-none w-full justify-start gap-0'}`}>
-                    {props.tabs.map((tab) => (
-                        <TabsTrigger
-                            key={tab.id}
-                            value={tab.id}
-                            className={
-                                tabStyle === 'pill'
-                                    ? 'rounded-full data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md font-bold text-sm'
-                                    : tabStyle === 'boxed'
-                                    ? 'rounded-lg border data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary font-bold text-sm'
-                                    : 'rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary font-bold text-sm px-4 py-2'
-                            }
-                        >
-                            {tab.icon && <span>{tab.icon}</span>}
-                            {tab.label}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
+                {showTabs && (
+                    <TabsList className={`mb-3 ${tabStyle === 'pill' ? 'bg-muted rounded-full h-auto p-1 gap-1' : tabStyle === 'boxed' ? 'bg-transparent h-auto p-0 gap-2' : 'bg-transparent h-auto p-0 border-b rounded-none w-full justify-start gap-0'}`}>
+                        {props.tabs.map((tab) => (
+                            <TabsTrigger
+                                key={tab.id}
+                                value={tab.id}
+                                className={
+                                    tabStyle === 'pill'
+                                        ? 'rounded-full data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md font-bold text-sm'
+                                        : tabStyle === 'boxed'
+                                        ? 'rounded-lg border data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary font-bold text-sm'
+                                        : 'rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary font-bold text-sm px-4 py-2'
+                                }
+                            >
+                                {tab.icon && <span>{tab.icon}</span>}
+                                {tab.label}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                )}
 
                 {props.tabs.map((tab) => (
                     <TabsContent key={tab.id} value={tab.id} className="mt-0">

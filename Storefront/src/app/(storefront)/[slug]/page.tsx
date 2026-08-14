@@ -26,8 +26,9 @@ export async function generateMetadata({ params }: any): Promise<Metadata> {
     };
 }
 
-async function CmsPageContent({ slug }: { slug: string }) {
-    // Opt out of caching so CMS updates show immediately
+export default async function CustomCmsPage({ params }: any) {
+    const { slug } = await params;
+    
     noStore();
     const page = await getPageContent(slug);
 
@@ -42,25 +43,13 @@ async function CmsPageContent({ slug }: { slug: string }) {
     const neighborhoodData = neighborhoodSection ? neighborhoodSection.data : null;
 
     return (
-        <>
+        <div className="min-h-screen">
             <AhizanContextExposer 
                 page={page} 
                 market={marketData} 
                 neighborhood={neighborhoodData} 
             />
             <AhizanHome sections={page.sections || []} />
-        </>
-    );
-}
-
-export default async function CustomCmsPage({ params }: any) {
-    const { slug } = await params;
-    
-    return (
-        <div className="min-h-screen">
-            <Suspense fallback={null}>
-                <CmsPageContent slug={slug} />
-            </Suspense>
         </div>
     );
 }

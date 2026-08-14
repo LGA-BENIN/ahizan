@@ -8,6 +8,7 @@ import { priceToSubunit } from '@/lib/format';
 export async function createProductAction(prevState: any, formData: FormData) {
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
+    const shortDescription = formData.get('shortDescription') as string;
     const price = priceToSubunit(parseInt(formData.get('price') as string) || 0);
     const stock = parseInt(formData.get('stock') as string);
     const categoryRaw = formData.get('category') as string;
@@ -35,6 +36,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
             input: {
                 name,
                 description,
+                shortDescription,
                 price,
                 stock,
                 collectionIds,
@@ -59,6 +61,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const variantId = formData.get('variantId') as string;
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
+    const shortDescription = formData.get('shortDescription') as string;
     const price = formData.get('price') ? priceToSubunit(parseInt(formData.get('price') as string)) : undefined;
     const stock = formData.get('stock') ? parseInt(formData.get('stock') as string) : undefined;
     const categoryRaw = formData.get('category') as string;
@@ -87,6 +90,7 @@ export async function updateProductAction(prevState: any, formData: FormData) {
             input: {
                 name,
                 description,
+                shortDescription,
                 collectionIds,
                 facetValueIds,
                 assetIds,

@@ -28,11 +28,41 @@ export function TopFlashBanner({ config }: { config?: any }) {
         link,
         animationType = 'none',
         imageUrl,
+        mobileImageUrl,
         displayMode = 'text'
     } = config;
 
-    const isImageGif = isGif(imageUrl);
+    const desktopImage = imageUrl;
+    const mobileImage = mobileImageUrl || imageUrl;
+
+    const hasImageOrGif = (displayMode === 'image' || displayMode === 'both') && (!!desktopImage || !!mobileImage);
+    const bannerHeight = hasImageOrGif ? (config.imageHeight || '60px') : (height || '36px');
     const animClass = animationType === 'marquee' ? 'animate-[marquee_15s_linear_infinite] whitespace-nowrap' : animationType === 'fade' ? 'animate-pulse' : '';
+
+    const renderMedia = (url: string, className: string) => {
+        if (!url) return null;
+        const isImageGif = isGif(url);
+        return (
+            <div className={`absolute inset-0 w-full h-full z-0 ${className}`}>
+                {isImageGif ? (
+                    <img 
+                        src={getAssetUrl(url)} 
+                        alt="" 
+                        className="w-full h-full object-cover"
+                    />
+                ) : (
+                    <div 
+                        className="w-full h-full"
+                        style={{
+                            backgroundImage: `url(${getAssetUrl(url)})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                        }}
+                    />
+                )}
+            </div>
+        );
+    };
 
     const bannerContent = (
         <div 
@@ -41,28 +71,20 @@ export function TopFlashBanner({ config }: { config?: any }) {
                 backgroundColor: bgColor, 
                 color: textColor, 
                 fontSize: fontSize, 
-                height: height,
-                minHeight: height
+                height: bannerHeight,
+                minHeight: bannerHeight
             }}
         >
-            {/* GIF Background */}
-            {(displayMode === 'image' || displayMode === 'both') && imageUrl && (
+            {/* Background Media (Desktop & Mobile) */}
+            {(displayMode === 'image' || displayMode === 'both') && (
                 <>
-                    {isImageGif ? (
-                        <img 
-                            src={getAssetUrl(imageUrl)} 
-                            alt="" 
-                            className="absolute inset-0 w-full h-full object-cover z-0"
-                        />
+                    {mobileImageUrl ? (
+                        <>
+                            {renderMedia(desktopImage, 'hidden md:block')}
+                            {renderMedia(mobileImage, 'block md:hidden')}
+                        </>
                     ) : (
-                        <div 
-                            className="absolute inset-0 w-full h-full z-0"
-                            style={{
-                                backgroundImage: `url(${getAssetUrl(imageUrl)})`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                            }}
-                        />
+                        renderMedia(desktopImage, 'block')
                     )}
                     <div className="absolute inset-0 bg-black/20 z-0" />
                 </>

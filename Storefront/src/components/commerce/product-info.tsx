@@ -11,6 +11,8 @@ import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
 import { getPromoPriceInfo } from "@/lib/vendure/api-utils";
 import { useThemeSettings } from "@/components/providers/theme-provider";
+import { ProductMobileFixedBar } from './product-mobile-fixed-bar';
+import DOMPurify from 'dompurify';
 
 interface ProductInfoProps {
     product: {
@@ -54,15 +56,20 @@ interface ProductInfoProps {
                 name: string;
             }>;
         }>;
+        customFields?: {
+            shortDescription?: string;
+        } | null;
     };
     searchParams: { [key: string]: string | string[] | undefined };
     config?: any;
+    whatsappNumber?: string;
 }
 
-export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
+export function ProductInfo({product, searchParams, config, whatsappNumber}: ProductInfoProps) {
     const pathname = usePathname();
     const router = useRouter();
     const currentSearchParams = useSearchParams();
+    const themeSettings = useThemeSettings();
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
     const [quantity, setQuantity] = useState(1);
@@ -145,66 +152,55 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
         });
     };
 
-    const isInStock = selectedVariant && selectedVariant.stockLevel !== 'OUT_OF_STOCK';
-    const canAddToCart = selectedVariant && isInStock;
+    const isInStock = Boolean(selectedVariant && selectedVariant.stockLevel !== 'OUT_OF_STOCK');
+    const canAddToCart = Boolean(selectedVariant && isInStock);
+
+    const activeFlash = themeSettings?.activeFlashSale;
+    const applyToProduct = themeSettings?.applyFlashPromoToProducts;
+
+    const priceInfo = useMemo(() => {
+        if (!selectedVariant) return null;
+        return getPromoPriceInfo({
+            price: selectedVariant.priceWithTax,
+            variantCustomFields: selectedVariant.customFields,
+            productId: product.id,
+            collectionIds: product.collections?.map((c: any) => c.id) || [],
+            activeFlash,
+            globalApplySettings: {
+                isProductPage: true,
+                applyToProduct,
+            }
+        });
+    }, [selectedVariant, product.id, product.collections, activeFlash, applyToProduct]);
 
     return (
         <div className="space-y-4 text-foreground">
             {/* Product Title */}
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
-                {selectedVariant && (() => {
-                    const themeSettings = useThemeSettings();
-                    const activeFlash = themeSettings?.activeFlashSale;
-                    const applyToProduct = themeSettings?.applyFlashPromoToProducts;
-
-                    const priceInfo = getPromoPriceInfo({
-                        price: selectedVariant.priceWithTax,
-                        variantCustomFields: selectedVariant.customFields,
-                        productId: product.id,
-                        collectionIds: product.collections?.map((c: any) => c.id) || [],
-                        activeFlash,
-                        globalApplySettings: {
-                            isProductPage: true,
-                            applyToProduct,
-                        }
-                    });
-
-                    return (
-                        <div className="flex items-center gap-4 mt-2">
-                            {priceInfo.hasPromotion ? (
-                                <div className="flex items-center gap-3">
-                                    <p className={`text-2xl font-bold ${priceInfo.showBothPrices ? 'text-red-600' : 'text-primary'}`}>
-                                        <Price value={priceInfo.promotionalPrice} />
-                                    </p>
-                                    {priceInfo.showBothPrices && (
-                                        <>
-                                            <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
-                                                <Price value={priceInfo.originalPrice} />
-                                            </p>
-                                            <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
-                                                -{priceInfo.discountPercentage}%
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            ) : config?.showPromoPrice ? (
-                                <div className="flex items-center gap-3">
-                                    <p className="text-2xl font-bold text-primary">
-                                        <Price value={selectedVariant.priceWithTax} />
-                                    </p>
-                                    <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
-                                        <Price value={selectedVariant.priceWithTax * 1.25} />
-                                    </p>
-                                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
-                                        -20%
-                                    </span>
-                                </div>
-                            ) : (
-                                <p className="text-2xl font-bold text-primary">
-                                    <Price value={selectedVariant.priceWithTax}/>
+                {selectedVariant && priceInfo && (
+                    <div className="flex items-center gap-4 mt-2">
+                        {priceInfo.hasPromotion ? (
+                            <div className="flex items-center gap-3">
+                                <p className={`text-2xl font-bold ${priceInfo.showBothPrices ? 'text-red-600' : 'text-primary'}`}>
+                                    <Price value={priceInfo.promotionalPrice} />
                                 </p>
-                            )}
+                                {priceInfo.showBothPrices && (
+                                    <>
+                                        <p className="text-lg font-medium text-muted-foreground line-through opacity-70">
+                                            <Price value={priceInfo.originalPrice} />
+                                        </p>
+                                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-md">
+                                            -{priceInfo.discountPercentage}%
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="text-2xl font-bold text-primary">
+                                <Price value={selectedVariant.priceWithTax}/>
+                            </p>
+                        )}
                         {isInStock ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -216,14 +212,19 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
                             </span>
                         )}
                     </div>
-                );
-            })()}
+                )}
             </div>
 
-            {/* Product Description */}
-            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed line-clamp-3">
-                <div dangerouslySetInnerHTML={{__html: product.description}}/>
-            </div>
+            {/* Petite Description (Short Description) */}
+            {Boolean(product.customFields?.shortDescription || product.description) && (
+                <div className="text-sm text-muted-foreground leading-relaxed my-3 font-medium">
+                    {product.customFields?.shortDescription || (
+                        typeof window !== 'undefined'
+                            ? DOMPurify.sanitize(product.description || '').replace(/<[^>]*>?/gm, '').slice(0, 180) + '...'
+                            : (product.description || '')
+                    )}
+                </div>
+            )}
 
             {/* Option Groups */}
             {product.optionGroups.length > 0 && (
@@ -289,34 +290,74 @@ export function ProductInfo({product, searchParams, config}: ProductInfoProps) {
                 </div>
             )}
 
-            {/* Add to Cart Button - Sticky on Mobile */}
-            <div className="pt-4 lg:pt-0">
-                <Button
-                    size="lg"
-                    style={{ bottom: 'var(--mobile-nav-offset, 1.5rem)' }}
-                    className="w-[calc(100%-2rem)] max-w-[350px] h-11 rounded-full font-bold text-base shadow-lg transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 fixed left-1/2 -translate-x-1/2 z-50 lg:static lg:z-auto lg:bottom-auto lg:left-auto lg:translate-x-0 lg:w-full lg:max-w-none"
-                    disabled={!canAddToCart || isPending}
-                    onClick={handleAddToCart}
-                >
-                    {isAdded ? (
-                        <>
-                            <CheckCircle2 className="mr-2 h-5 w-5"/>
-                            Ajouté au panier
-                        </>
-                    ) : (
-                        <>
-                            <ShoppingCart className="mr-2 h-5 w-5"/>
-                            {isPending
-                                ? 'Ajout en cours...'
-                                : !selectedVariant && product.optionGroups.length > 0
-                                    ? 'Choisir des options'
-                                    : !isInStock
-                                        ? 'Rupture de stock'
-                                        : 'Ajouter au panier'}
-                        </>
-                    )}
-                </Button>
+            {/* Action Buttons: Inline for Desktop, Fixed Sticky Bar for Mobile until before-last section */}
+            <div className="pt-4 hidden lg:block">
+                <div className="grid grid-cols-2 gap-2 w-full">
+                    {/* Ajouter au panier */}
+                    <Button
+                        size="lg"
+                        className="w-full h-11 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-1.5 px-2"
+                        disabled={!canAddToCart || isPending}
+                        onClick={handleAddToCart}
+                    >
+                        {isAdded ? (
+                            <>
+                                <CheckCircle2 className="h-4 w-4 flex-shrink-0"/>
+                                <span className="truncate">Ajouté</span>
+                            </>
+                        ) : (
+                            <>
+                                <ShoppingCart className="h-4 w-4 flex-shrink-0"/>
+                                <span className="truncate">
+                                    {isPending
+                                        ? 'Ajout...'
+                                        : !selectedVariant && product.optionGroups.length > 0
+                                            ? 'Options'
+                                            : !isInStock
+                                                ? 'Rupture'
+                                                : 'Ajouter au panier'}
+                                </span>
+                            </>
+                        )}
+                    </Button>
+
+                    {/* Commander sur WhatsApp */}
+                    <Button
+                        type="button"
+                        size="lg"
+                        className="w-full h-11 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] bg-[#25D366] text-white hover:bg-[#20bd5a] flex items-center justify-center gap-1.5 px-2"
+                        onClick={() => {
+                            const targetNumber = whatsappNumber || '';
+                            const cleanNumber = targetNumber.replace(/[^0-9+]/g, '');
+                            const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+                            const message = `Bonjour, je souhaite commander ce produit : ${product.name}\n${currentUrl}`;
+
+                            if (cleanNumber) {
+                                const phone = cleanNumber.startsWith('+') ? cleanNumber.slice(1) : cleanNumber;
+                                window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+                            } else {
+                                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
+                            }
+                        }}
+                    >
+                        <svg className="w-4 h-4 fill-current flex-shrink-0" viewBox="0 0 24 24">
+                            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.705 1.754zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+                        </svg>
+                        <span className="truncate">Commander sur WhatsApp</span>
+                    </Button>
+                </div>
             </div>
+
+            {/* Mobile Fixed Sticky Action Bar */}
+            <ProductMobileFixedBar
+                product={product}
+                selectedVariant={selectedVariant}
+                canAddToCart={Boolean(canAddToCart)}
+                isPending={Boolean(isPending)}
+                isAdded={Boolean(isAdded)}
+                handleAddToCart={handleAddToCart}
+                whatsappNumber={whatsappNumber}
+            />
 
             {/* SKU */}
             {selectedVariant && (

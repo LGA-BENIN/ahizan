@@ -12,6 +12,7 @@ export const commonApiExtensions = gql`
         order: Int!
         isActive: Boolean!
         dataJson: String
+        rulesJson: String
         scheduledStart: DateTime
         scheduledEnd: DateTime
     }
@@ -320,8 +321,44 @@ export const adminApiExtensions = gql`
 export const shopApiExtensions = gql`
     ${commonApiExtensions}
 
+    input ExperienceContextInput {
+        geoZoneCode: String
+        marketId: ID
+        userId: ID
+        currentTime: String
+        userSegment: String
+    }
+
+    type RankingFactor {
+        name: String!
+        weight: Float!
+        value: Float!
+    }
+
+    type ProductRankingScore {
+        productId: ID!
+        score: Float!
+        factors: [RankingFactor!]!
+        explanation: [String!]!
+    }
+
+    type ResolvedExperience {
+        slug: String!
+        title: String!
+        sections: [PageSection!]!
+        evaluatedCount: Int!
+    }
+
+    type EmsSearchResult {
+        query: String!
+        expandedTerms: [String!]!
+        items: [JSON!]!
+    }
+
     extend type Query {
         page(slug: String!): Page
+        pageExperience(slug: String!, context: ExperienceContextInput): ResolvedExperience!
+        emsSearch(query: String!, geoZoneId: String): EmsSearchResult!
         previewPreset(presetId: ID!): Page
         previewHabillage(presetId: ID!): HabillagePreview
         activeSeason: SiteSeason

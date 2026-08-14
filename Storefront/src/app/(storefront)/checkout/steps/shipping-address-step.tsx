@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { useCheckout } from '../checkout-provider';
 import { setShippingAddress, createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from '../actions';
 import { CountrySelect } from '@/components/shared/country-select';
+import { useLocation } from '@/contexts/location-context';
 
 interface ShippingAddressStepProps {
   onComplete: () => void;
@@ -54,6 +55,7 @@ interface NominatimSuggestion {
 export default function ShippingAddressStep({ onComplete }: ShippingAddressStepProps) {
   const router = useRouter();
   const { addresses, countries, order, isGuest } = useCheckout();
+  const { selectLocation } = useLocation();
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(() => {
     if (order.shippingAddress) {
       const matchingAddress = addresses.find(
@@ -90,6 +92,16 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
       ? `${order.customer.firstName} ${order.customer.lastName}`.trim()
       : '';
 
+    let storedLocation: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('ahizan_client_location');
+        if (raw) storedLocation = JSON.parse(raw);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
     if (isGuest && order.shippingAddress?.streetLine1) {
       return {
         fullName: order.shippingAddress.fullName || customerFullName,
@@ -103,16 +115,60 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
         company: order.shippingAddress.company || '',
       };
     }
+
+    // Default to stored location from header if available
+    const initialStreet = storedLocation?.name || '';
+    const initialCity = storedLocation?.name || '';
+
     return {
       fullName: customerFullName,
+      streetLine1: initialStreet,
+      city: initialCity,
       countryCode: countries.find(c => c.code.toLowerCase() === 'bj')?.code || countries[0]?.code || 'bj',
       phoneNumber: order.customer?.phoneNumber || '',
     };
   };
 
-  const { register, handleSubmit, formState: { errors }, reset, control, setValue } = useForm<AddressFormData>({
+  const { register, handleSubmit, formState: { errors }, reset, control, setValue, watch } = useForm<AddressFormData>({
     defaultValues: getDefaultFormValues()
   });
+
+  const cityValue = watch('city');
+
+  useEffect(() => {
+    const cityToProvince: Record<string, string> = {
+      'Cotonou': 'Littoral',
+      'Parakou': 'Borgou',
+      'Porto-Novo': 'Ouémé',
+      'Abomey-Calavi': 'Atlantique',
+      'Ouidah': 'Atlantique',
+      'Bohicon': 'Zou',
+      'Abomey': 'Zou',
+      'Djougou': 'Donga',
+      'Natitingou': 'Atacora',
+      'Kandi': 'Alibori',
+      'Lokossa': 'Mono',
+      'Savalou': 'Collines',
+      'Malanville': 'Alibori',
+      'Dassa-Zoumè': 'Collines',
+      'Pobè': 'Plateau',
+      'Allada': 'Atlantique',
+      'Comè': 'Mono',
+      'Sakété': 'Plateau',
+      'Tchaourou': 'Borgou',
+      'Bembèrèkè': 'Borgou',
+      'Nikki': 'Borgou',
+      'Aplahoué': 'Couffo',
+      'Tanguiéta': 'Atacora'
+    };
+
+    if (cityValue && typeof cityValue === 'string') {
+      const matchedCity = Object.keys(cityToProvince).find(c => c.toLowerCase() === cityValue.trim().toLowerCase());
+      if (matchedCity) {
+        setValue('province', cityToProvince[matchedCity]);
+      }
+    }
+  }, [cityValue, setValue]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -169,7 +225,16 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
     if (matchedCountry) setValue('countryCode', matchedCountry.code);
 
     setNominatimQuery(s.display_name);
-    setCoords({ latitude: parseFloat(s.lat), longitude: parseFloat(s.lon) });
+    const lat = parseFloat(s.lat);
+    const lon = parseFloat(s.lon);
+    setCoords({ latitude: lat, longitude: lon });
+    selectLocation({
+      id: 'gps_raw',
+      name: street || s.display_name.split(',')[0],
+      latitude: lat,
+      longitude: lon,
+      type: 'GPS'
+    });
     setSuggestions([]);
     setShowSuggestions(false);
   };
@@ -197,8 +262,8 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
         clearTimeout(fallbackTimer);
         const { latitude, longitude } = position.coords;
         setCoords({ latitude, longitude });
-        setValue('streetLine1', `Position GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
-        setNominatimQuery(`Position GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`);
+        setValue('streetLine1', 'Détection de votre adresse...');
+        setNominatimQuery('Détection de votre adresse...');
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
@@ -207,22 +272,40 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
           if (res.ok) {
             const data = await res.json();
             const addr = data.address || {};
-            const street = [addr.house_number, addr.road].filter(Boolean).join(' ') || addr.suburb || `Position GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
-            const city = addr.city || addr.town || addr.village || addr.suburb || '';
+            const street = [addr.house_number, addr.road].filter(Boolean).join(' ')
+              || addr.suburb
+              || addr.neighbourhood
+              || addr.quarter
+              || addr.city_district
+              || addr.village
+              || addr.town
+              || addr.city;
+            const city = addr.city || addr.town || addr.village || addr.suburb || addr.county || 'Cotonou';
             const province = addr.state || '';
             const postalCode = addr.postcode || '';
             const countryCode = (addr.country_code || 'bj').toUpperCase();
 
-            if (street) setValue('streetLine1', street);
+            const finalName = street || city;
+            if (finalName) setValue('streetLine1', finalName);
             if (city) setValue('city', city);
             if (province) setValue('province', province);
             if (postalCode) setValue('postalCode', postalCode);
             const matchedCountry = countries.find(c => c.code === countryCode);
             if (matchedCountry) setValue('countryCode', matchedCountry.code);
             if (data.display_name) setNominatimQuery(data.display_name);
+
+            selectLocation({
+              id: 'gps_raw',
+              name: finalName,
+              latitude,
+              longitude,
+              type: 'GPS'
+            });
           }
         } catch (e) {
           console.error('Reverse geocode error:', e);
+          setValue('streetLine1', 'Cotonou');
+          setNominatimQuery('Cotonou');
         } finally {
           setGpsLoading(false);
         }
@@ -235,7 +318,7 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
         alert("Impossible d'accéder à votre position GPS. Vérifiez les autorisations du navigateur ou saisissez manuellement votre ville.");
         setGpsLoading(false);
       },
-      { enableHighAccuracy: false, timeout: 6500, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -309,7 +392,6 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
         phoneNumber: selectedAddress.phoneNumber || '',
         customFields: resolvedCoords,
       }, useSameForBilling);
-      router.refresh();
       onComplete();
     } catch (error) {
       console.error('Error setting address:', error);
@@ -330,7 +412,6 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
       reset();
       setCoords(null);
       setNominatimQuery('');
-      router.refresh();
       setSelectedAddressId(newAddress.id);
     } catch (error) {
       console.error('Error creating address:', error);
@@ -348,7 +429,6 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
         ...data,
         customFields: resolvedCoords,
       }, useSameForBilling);
-      router.refresh();
       onComplete();
     } catch (error) {
       console.error('Error setting address:', error);

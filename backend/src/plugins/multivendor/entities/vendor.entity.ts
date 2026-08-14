@@ -68,6 +68,9 @@ export class Vendor extends VendureEntity {
     @Column({ type: 'text', nullable: true })
     rejectionReason: string;
 
+    @Column({ type: 'text', nullable: true })
+    suspensionReason: string;
+
     @Column({ type: 'float', default: 0 })
     commissionRate: number;
 

@@ -562,23 +562,30 @@ export class CMSService {
             }
         }
 
+        // Provision Parallel Worlds first if no presets exist
+        const presetsCount = await this.connection.getRepository(ctx, PagePreset).count();
+        if (presetsCount === 0) {
+            console.log('[CMSService] No habillages found. Creating parallel worlds...');
+            await this.createParallelWorldHabillages(ctx, homepage.id);
+        }
+
         // Mandatory sections for the storefront layout to work correctly
         const mandatoryTypes = ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR', 'FOOTER_CONF'];
         const existingTypes = (homepage.sections || []).map(s => s.type);
         const missingMandatory = mandatoryTypes.some(type => !existingTypes.includes(type));
 
         if (homepage && (!homepage.sections || homepage.sections.length === 0 || missingMandatory)) {
-            console.log(`[CMSService] Home page needs ${missingMandatory ? 'missing mandatory sections' : 'initialization'}. Attempting legacy migration...`);
-            await this.migrateLegacyData(ctx, homepage.id);
+            console.log(`[CMSService] Home page needs initialization. Attempting default habillage publication...`);
+            const defaultPreset = await this.connection.getRepository(ctx, PagePreset).findOne({
+                where: { isDefault: true }
+            });
+            if (defaultPreset) {
+                await this.publishHabillage(ctx, defaultPreset.id, homepage.id);
+            } else {
+                await this.migrateLegacyData(ctx, homepage.id);
+            }
         } else {
             console.log('[CMSService] "home" page already exists and is fully populated.');
-        }
-
-        // Provision Parallel Worlds
-        const presetsCount = await this.connection.getRepository(ctx, PagePreset).count();
-        if (presetsCount === 0) {
-            console.log('[CMSService] No habillages found. Creating parallel worlds...');
-            await this.createParallelWorldHabillages(ctx, homepage.id);
         }
     }
 
@@ -655,6 +662,29 @@ export class CMSService {
             isDraft: false,
             status: 'published'
         });
+
+        // 3. Habillage1 (Default Habillage)
+        let habillage1Sections = [];
+        try {
+            const defaultHabillagePath = path.join(process.cwd(), 'static', 'default-habillage.json');
+            const data = await fs.readFile(defaultHabillagePath, 'utf-8');
+            habillage1Sections = JSON.parse(data);
+        } catch (e) {
+            console.error('[CMSService] Failed to read default-habillage.json, using fallback baseSections:', e);
+            habillage1Sections = baseSections;
+        }
+
+        const preset = await this.createPreset(ctx, {
+            name: "Habillage1",
+            description: "Habillage par défaut d'Ahizan.",
+            sectionsJson: JSON.stringify(habillage1Sections),
+            isBuiltIn: false,
+            isDraft: false,
+            status: 'published'
+        });
+
+        preset.isDefault = true;
+        await this.connection.getRepository(ctx, PagePreset).save(preset);
     }
 
     async migrateLegacyData(ctx: RequestContext, pageId: ID) {

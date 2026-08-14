@@ -3,6 +3,7 @@
 import {mutate} from '@/lib/vendure/api';
 import {
     RemoveFromCartMutation,
+    RemoveAllOrderLinesMutation,
     AdjustCartItemMutation,
     ApplyPromotionCodeMutation,
     RemovePromotionCodeMutation
@@ -13,6 +14,12 @@ import {ensureAddingItems} from '@/app/(storefront)/checkout/actions';
 export async function removeFromCart(lineId: string) {
     await ensureAddingItems();
     await mutate(RemoveFromCartMutation, {lineId}, {useAuthToken: true});
+    updateTag('cart');
+}
+
+export async function emptyCart() {
+    await ensureAddingItems();
+    await mutate(RemoveAllOrderLinesMutation, {}, {useAuthToken: true});
     updateTag('cart');
 }
 

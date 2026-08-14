@@ -207,12 +207,12 @@ export function AhizanNavbar({
     if (isStickySetting) {
         if (stickyStyleSetting === 'transparent-to-solid') {
             positionClass = isScrolled
-                ? `fixed ${topOffset} left-0 w-full z-40 transition-all duration-300`
-                : `absolute ${topOffset} left-0 w-full z-40 transition-all duration-300`;
+                ? `fixed ${topOffset} left-0 w-full z-[100] transition-all duration-300`
+                : `absolute ${topOffset} left-0 w-full z-[100] transition-all duration-300`;
             shadowClass = (headerShadowSetting && isScrolled) ? "shadow-sm" : "";
         } else {
             // 'solid' or 'shrink'
-            positionClass = `sticky ${topOffset} z-40 w-full`;
+            positionClass = `sticky ${topOffset} z-[100] w-full`;
             shadowClass = headerShadowSetting ? "shadow-sm" : "";
         }
     }
@@ -220,8 +220,8 @@ export function AhizanNavbar({
     return (
         <>
             {/* Top Navigation Menu Items */}
-            <div className="w-full font-sans animate-in fade-in duration-700 bg-[#f8f9fa] h-10 border-b border-gray-100 hidden md:block">
-                <div className="max-w-[1440px] mx-auto w-full px-4 md:px-8 lg:px-12 h-full flex items-center justify-between text-[12px] text-gray-600">
+            <div className="w-full font-sans animate-in fade-in duration-700 bg-[#f8f9fa] h-12 border-b border-gray-100 hidden md:block">
+                <div className="max-w-[1440px] mx-auto w-full px-4 md:px-8 lg:px-12 h-full flex items-center justify-between text-[13px] text-gray-600">
                     <div className="flex items-center gap-6">
                         {menuItems.map((item: any, idx: number) => {
                             const isPill = item.style === 'pill';

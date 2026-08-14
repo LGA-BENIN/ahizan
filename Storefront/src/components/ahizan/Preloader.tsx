@@ -6,6 +6,7 @@ import { LottiePreloader } from '@/components/shared/animations/LottiePreloader'
 export function AhizanPreloader({ config }: { config: any }) {
     const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>('drawing');
     const [isPageLoaded, setIsPageLoaded] = useState(false);
+    const hasRunRef = useRef(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
     // 1. Détecter si la page est interactive ou complètement chargée
@@ -33,8 +34,14 @@ export function AhizanPreloader({ config }: { config: any }) {
     useEffect(() => {
         if (config === null) return;
 
+        // Si l'animation a déjà été complétée, on ne la relance pas
+        if (hasRunRef.current || status === 'hidden') {
+            return;
+        }
+
         if (config?.preloader?.type === 'none') {
             setStatus('hidden');
+            hasRunRef.current = true;
             return;
         }
 
@@ -43,8 +50,11 @@ export function AhizanPreloader({ config }: { config: any }) {
             const durationMs = (config?.preloader?.duration || 2) * 1000;
             const timer = setTimeout(() => {
                 setStatus('fading');
-                const hideTimer = setTimeout(() => setStatus('hidden'), 800);
-                return () => clearTimeout(hideTimer);
+                const hideTimer = setTimeout(() => {
+                    setStatus('hidden');
+                    hasRunRef.current = true;
+                }, 800);
+                // Le timeout interne n'est pas facilement nettoyable ici sans une ref, mais c'est acceptable car court.
             }, durationMs);
             return () => clearTimeout(timer);
         }
@@ -92,11 +102,14 @@ export function AhizanPreloader({ config }: { config: any }) {
         if (status === 'pulse-final') {
             const timer = setTimeout(() => {
                 setStatus('fading');
-                const hideTimer = setTimeout(() => {
-                    setStatus('hidden');
-                }, 700);
-                return () => clearTimeout(hideTimer);
             }, 600);
+            return () => clearTimeout(timer);
+        }
+        if (status === 'fading') {
+            const timer = setTimeout(() => {
+                setStatus('hidden');
+                hasRunRef.current = true;
+            }, 700);
             return () => clearTimeout(timer);
         }
     }, [status]);

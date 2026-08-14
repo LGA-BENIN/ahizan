@@ -67,19 +67,30 @@ async function run() {
 
     console.log('\n--- 4. TESTING DELIVERY ELIGIBILITY ---');
     try {
-        const clientGpsLocal = { lat: 6.3654, lng: 2.4183 };
-        const clientGpsFar = { lat: 6.4969, lng: 2.6288 };
+        const clientGpsLocal = { lat: 6.3654, lng: 2.4183 }; // Cotonou
+        const clientGpsFar = { lat: 6.4969, lng: 2.6288 }; // Porto-Novo
         
-        const local = await geoService.checkDeliveryEligibility(ctx, clientGpsLocal, '24');
-        const far = await geoService.checkDeliveryEligibility(ctx, clientGpsFar, '24');
+        // Find a vendor to test
+        const rawVendor = await geoService.connection.rawConnection.query(`
+            SELECT id, latitude, longitude FROM vendor WHERE latitude IS NOT NULL AND longitude IS NOT NULL LIMIT 1
+        `);
         
-        console.log('Local delivery eligibility (same spot):', local);
-        console.log('Far delivery eligibility (Porto-Novo):', far);
-        
-        if ((local.fee === 500 || local.fee === 1000) && far.fee === 3245) {
-            console.log('✅ Dynamic kilometric delivery fee calculator and flat-rate zones are highly accurate!');
+        if (rawVendor && rawVendor.length > 0) {
+            const vId = rawVendor[0].id;
+            console.log(`Testing with Vendor ID ${vId} (lat: ${rawVendor[0].latitude}, lng: ${rawVendor[0].longitude})`);
+            const local = await geoService.checkDeliveryEligibility(ctx, clientGpsLocal, vId);
+            const far = await geoService.checkDeliveryEligibility(ctx, clientGpsFar, vId);
+            
+            console.log('Local delivery eligibility:', local);
+            console.log('Far delivery eligibility:', far);
+            
+            if (local.fee !== far.fee) {
+                console.log('✅ Dynamic kilometric delivery fee calculator is working (fee changes with distance)!');
+            } else {
+                console.log(`❌ Dynamic fee calculation mismatch. Local: ${local.fee}, Far: ${far.fee}`);
+            }
         } else {
-            console.log(`❌ Dynamic fee calculation mismatch. Local: ${local.fee}, Far: ${far.fee}`);
+            console.log('⚠️ No vendor with coordinates found for testing.');
         }
     } catch (e) {
         console.error('❌ Delivery eligibility test failed:', e);

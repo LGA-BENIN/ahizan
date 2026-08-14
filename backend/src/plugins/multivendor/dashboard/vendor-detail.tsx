@@ -213,18 +213,6 @@ export function VendorDetailComponent() {
                             <div className="columns">
                                 <div className="column">
                                     <div className="field">
-                                        <label className="label">Commission Rate (%)</label>
-                                        <input
-                                            className="input"
-                                            type="number"
-                                            step="0.1"
-                                            value={formState.commissionRate}
-                                            onChange={e => setFormState({ ...formState, commissionRate: e.target.value as any })}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="column">
-                                    <div className="field">
                                         <label className="label">Rating (0-5)</label>
                                         <input
                                             className="input"

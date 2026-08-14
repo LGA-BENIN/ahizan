@@ -1,4 +1,4 @@
-import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection } from '@vendure/core';
+import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction } from '@vendure/core';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
@@ -117,13 +117,23 @@ export class VendorResolver {
             throw new Error('No vendor profile found for this user');
         }
 
-        const order = await this.orderService.findOne(ctx, orderId, ['customFields.vendor']);
+        const order = await this.orderService.findOne(ctx, orderId, [
+            'lines.productVariant.product.customFields.vendor',
+            'customFields.vendor'
+        ]);
         if (!order) {
             throw new Error('Order not found');
         }
 
-        const orderVendor = (order.customFields as any).vendor;
-        if (!orderVendor || orderVendor.id !== vendor.id) {
+        const orderVendor = (order.customFields as any)?.vendor;
+        let isVendorOrder = orderVendor && String(orderVendor.id) === String(vendor.id);
+        if (!isVendorOrder && order.lines) {
+            isVendorOrder = order.lines.some(
+                (l: any) => l.productVariant?.product?.customFields?.vendor?.id && String(l.productVariant.product.customFields.vendor.id) === String(vendor.id)
+            );
+        }
+
+        if (!isVendorOrder) {
             throw new Error('You do not have permission to update this order');
         }
 
@@ -142,13 +152,27 @@ export class VendorResolver {
             throw new Error('No vendor profile found for this user');
         }
 
-        const order = await this.orderService.findOne(ctx, orderId, ['customFields.vendor']);
+        const order = await this.orderService.findOne(ctx, orderId, [
+            'lines.productVariant.product.customFields.vendor',
+            'lines.customFields.assignedVendor',
+            'customFields.vendor'
+        ]);
         if (!order) {
             throw new Error('Order not found');
         }
 
-        const orderVendor = (order.customFields as any).vendor;
-        if (!orderVendor || orderVendor.id !== vendor.id) {
+        const orderVendor = (order.customFields as any)?.vendor;
+        let isVendorOrder = orderVendor?.id && String(orderVendor.id) === String(vendor.id);
+        if (!isVendorOrder && order.lines) {
+            isVendorOrder = order.lines.some(
+                (l: any) => (
+                    (l.productVariant?.product?.customFields?.vendor?.id && String(l.productVariant.product.customFields.vendor.id) === String(vendor.id)) ||
+                    (l.customFields?.assignedVendor?.id && String(l.customFields.assignedVendor.id) === String(vendor.id))
+                )
+            );
+        }
+
+        if (!isVendorOrder) {
             throw new Error('You do not have permission to update this order');
         }
 
@@ -157,13 +181,39 @@ export class VendorResolver {
             throw new Error('Invalid seller status');
         }
 
-        await this.connection.getRepository(ctx, Order).update(orderId, {
-            customFields: { sellerStatus: statusCode },
-        });
-        return true;
+        return this.vendorService.updateVendorOrderStatus(
+            ctx,
+            orderId,
+            String(vendor.id),
+            'sellerStatus',
+            statusCode
+        );
     }
 
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async updateMyOrderLineSellerStatus(
+        @Ctx() ctx: RequestContext,
+        @Args('lineId') lineId: string,
+        @Args('statusCode') statusCode: string
+    ): Promise<boolean> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+        
+        // Must be a valid seller state
+        if (!['pending', 'confirmed', 'refused'].includes(statusCode)) {
+            throw new Error('Invalid seller status');
+        }
 
+        return this.vendorService.updateVendorOrderLineStatus(
+            ctx, 
+            lineId, 
+            String(vendor.id), 
+            statusCode
+        );
+    }
 
     @Mutation()
     @Allow(Permission.Authenticated)
@@ -239,6 +289,23 @@ export class VendorResolver {
             return [];
         }
         return this.geoService.getMarketsByIds(ctx, vendor.marketIds);
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myWithdrawals(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) throw new Error('No vendor profile found');
+        return this.vendorService.getWithdrawals(ctx, vendor.id.toString());
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async requestVendorWithdrawal(
+        @Ctx() ctx: RequestContext,
+        @Args('amount') amount: number
+    ): Promise<boolean> {
+        return this.vendorService.requestWithdrawal(ctx, amount);
     }
 }
 
@@ -374,27 +441,13 @@ export class VendorAdminResolver {
     async updateOrderAdminStatus(
         @Ctx() ctx: RequestContext,
         @Args('orderId') orderId: string,
-        @Args('status') status: string
+        @Args('status') status: string,
+        @Args('vendorId') vendorId?: string
     ): Promise<boolean> {
-        // Validate status
         if (!['pending', 'shipped', 'in_transit', 'delivered', 'cancelled'].includes(status)) {
             throw new Error('Invalid admin status');
         }
-
-        const order = await this.connection.getRepository(ctx, Order).findOne({ where: { id: orderId } });
-        if (!order) {
-            throw new Error('Order not found');
-        }
-
-        await this.connection.getRepository(ctx, Order).update(orderId, {
-            customFields: { adminStatus: status },
-        });
-
-        // If admin cancels, we might also want to set sellerStatus to refused if it was pending? 
-        // User said: "superadmin should also have the possibilitu to reject the commande at any level"
-        // If it's cancelled by admin, it's globally cancelled.
-        
-        return true;
+        return this.vendorService.updateVendorOrderStatus(ctx, orderId, vendorId, 'adminStatus', status);
     }
 
     @Mutation()
@@ -402,23 +455,68 @@ export class VendorAdminResolver {
     async updateOrderSellerStatus(
         @Ctx() ctx: RequestContext,
         @Args('orderId') orderId: string,
-        @Args('status') status: string
+        @Args('status') status: string,
+        @Args('vendorId') vendorId?: string
     ): Promise<boolean> {
-        // Validate status
         if (!['pending', 'confirmed', 'refused'].includes(status)) {
             throw new Error('Invalid seller status');
         }
+        return this.vendorService.updateVendorOrderStatus(ctx, orderId, vendorId, 'sellerStatus', status);
+    }
 
-        const order = await this.connection.getRepository(ctx, Order).findOne({ where: { id: orderId } });
-        if (!order) {
-            throw new Error('Order not found');
-        }
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async updateOrderVendorPaymentStatus(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('isPaid') isPaid: boolean,
+        @Args('vendorId') vendorId?: string
+    ): Promise<boolean> {
+        return this.vendorService.updateOrderVendorPaymentStatus(ctx, orderId, isPaid, vendorId);
+    }
 
-        await this.connection.getRepository(ctx, Order).update(orderId, {
-            customFields: { sellerStatus: status },
-        });
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async acceptOrderWithoutCancelledVendor(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('vendorId') vendorId: string
+    ): Promise<boolean> {
+        return this.vendorService.acceptOrderWithoutCancelledVendor(ctx, orderId, vendorId);
+    }
 
-        return true;
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async reassignVendorSubOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('oldVendorId') oldVendorId: string,
+        @Args('newVendorId') newVendorId: string
+    ): Promise<boolean> {
+        return this.vendorService.reassignVendorSubOrder(ctx, orderId, oldVendorId, newVendorId);
+    }
+
+    @Transaction()
+    @Mutation()
+    async reassignOrderLineToProduct(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('lineId') lineId: string,
+        @Args('newPrice') newPrice: number,
+        @Args('newVendorId') newVendorId: string,
+        @Args('newProductId') newProductId?: string,
+        @Args('newProductName') newProductName?: string
+    ): Promise<boolean> {
+        return this.vendorService.reassignOrderLineToProduct(ctx, orderId, lineId, newPrice, newVendorId, newProductId, newProductName);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async deleteVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string
+    ): Promise<boolean> {
+        return this.vendorService.deleteVendorOrder(ctx, orderId);
     }
 
     @ResolveField()
@@ -443,5 +541,39 @@ export class VendorAdminResolver {
             return [];
         }
         return this.geoService.getMarketsByIds(ctx, vendor.marketIds);
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async withdrawalRequests(@Ctx() ctx: RequestContext): Promise<any[]> {
+        return this.vendorService.getWithdrawals(ctx);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async approveWithdrawalRequest(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<boolean> {
+        return this.vendorService.approveWithdrawal(ctx, id);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async rejectWithdrawalRequest(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string,
+        @Args('reason') reason?: string
+    ): Promise<boolean> {
+        return this.vendorService.rejectWithdrawal(ctx, id, reason);
+    }
+
+    @Mutation()
+    @Allow(Permission.SuperAdmin)
+    async deleteOrderAdmin(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<boolean> {
+        return this.vendorService.deleteOrderAdmin(ctx, id);
     }
 }

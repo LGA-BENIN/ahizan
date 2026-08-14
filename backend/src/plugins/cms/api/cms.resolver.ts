@@ -2,6 +2,8 @@ import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { Ctx, RequestContext, Transaction, Allow, Permission, ID, PaginatedList, AssetService, Asset, ChannelService, User, Channel, CollectionService, Collection, TransactionalConnection } from '@vendure/core';
 import { DeletionResponse } from '@vendure/common/lib/generated-types';
 import { CMSService } from '../service/cms.service';
+import { ExperienceEngineService } from '../service/experience-engine.service';
+import { SearchEngineService } from '../service/search-engine.service';
 import { Page } from '../entities/page.entity';
 import { PageSection } from '../entities/section.entity';
 import { PagePreset } from '../entities/page-preset.entity';
@@ -440,6 +442,8 @@ export class CMSShopResolver {
     constructor(
         private cmsService: CMSService,
         private collectionService: CollectionService,
+        private experienceEngine: ExperienceEngineService,
+        private searchEngine: SearchEngineService,
     ) { }
 
     @Query()
@@ -449,6 +453,35 @@ export class CMSShopResolver {
             return this.cmsService.findOne(ctx, args.id);
         }
         return this.cmsService.findOneBySlug(ctx, args.slug || '');
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async pageExperience(@Ctx() ctx: RequestContext, @Args() args: { slug: string, context?: any }): Promise<any> {
+        const page = await this.cmsService.findOneBySlug(ctx, args.slug);
+        if (!page) {
+            return { slug: args.slug, title: '', sections: [], evaluatedCount: 0 };
+        }
+
+        const expContext = args.context || {};
+        const sections = page.sections || [];
+        const filteredSections = sections.filter(s => {
+            if (!s.isActive) return false;
+            return this.experienceEngine.evaluateRules(s.rulesJson, expContext);
+        });
+
+        return {
+            slug: page.slug,
+            title: page.title,
+            sections: filteredSections,
+            evaluatedCount: sections.length
+        };
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async emsSearch(@Ctx() ctx: RequestContext, @Args() args: { query: string, geoZoneId?: string }): Promise<any> {
+        return this.searchEngine.search(args.query, { geoZoneId: args.geoZoneId });
     }
 
     @Query()

@@ -62,7 +62,7 @@ export default function OrderSummary() {
             <>
               {order.discounts.map((discount, index: number) => (
                 <div key={index} className="flex justify-between text-sm text-green-600 font-bold">
-                  <span>{discount.description}</span>
+                  <span>{discount.description ? discount.description.replace(/<[^>]*>/g, '').trim() : ''}</span>
                   <span>
                     <Price value={discount.amountWithTax} currencyCode={order.currencyCode} />
                   </span>

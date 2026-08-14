@@ -29,7 +29,7 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
     const [hoveredCat, setHoveredCat] = useState<any>(null);
     const { setPromoConfig } = useMobileMenu();
 
-    const hClass = "h-[250px] sm:h-[280px] md:h-[340px]";
+    const hClass = "h-[250px] sm:h-[280px] md:h-[320px] lg:h-[320px]";
 
     // Share promoConfig with mobile sidebar via context
     useEffect(() => {
@@ -43,7 +43,7 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
             {/* Left Sidebar - Categories (Desktop only, mobile is in MobileCategorySidebar) */}
             {heroConfig.showSidebar && (
                 <aside 
-                    className={`hidden lg:flex w-60 border border-border/60 rounded-2xl bg-white shadow-sm relative z-50 ${hClass}`}
+                    className={`hidden lg:flex w-60 border border-border/60 rounded-2xl bg-white shadow-sm relative z-20 ${hClass}`}
                     onMouseLeave={() => setHoveredCat(null)}
                 >
                     <div className="flex flex-col w-full h-full relative">
@@ -99,7 +99,7 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
                     </div>
                     {/* Mega-menu style subcategory flyout rendered outside the overflow container */}
                     {hoveredCat && hoveredCat.children?.length > 0 && (
-                        <div className="absolute left-full top-0 ml-2 bg-white border border-border/60 rounded-xl shadow-xl py-4 px-5 min-w-[280px] max-w-[400px] max-h-[500px] overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 z-[100] flex flex-col animate-in fade-in slide-in-from-left-2 duration-200">
+                        <div className="absolute left-full top-0 ml-2 bg-white border border-border/60 rounded-xl shadow-xl py-4 px-5 min-w-[280px] max-w-[400px] max-h-[500px] overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 z-30 flex flex-col animate-in fade-in slide-in-from-left-2 duration-200">
                             <div className="pb-3 border-b border-border/40 mb-3">
                                 <span className="font-bold text-[14px] text-foreground">{hoveredCat.name}</span>
                             </div>
@@ -299,11 +299,12 @@ function SlideContent({ slide, globalConfig, baseConfig, textColorClass }: any) 
 
 function ClassicHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, globalConfig: any, hClass: string }) {
     const slides = globalConfig.useCarousel && globalConfig.slides?.length > 0 ? globalConfig.slides : [baseConfig];
+    const disableSurvol = baseConfig.disableSurvol || globalConfig.disableSurvol || false;
 
     return (
         <div className="flex flex-col xl:flex-row gap-4">
             {/* Main Banner */}
-            <Card className={`flex-grow border-none shadow-sm relative ${hClass} bg-muted/20 group rounded-xl mb-6 md:mb-0`}>
+            <Card className={`flex-grow border-none shadow-sm relative ${hClass} bg-muted/20 group rounded-xl mb-6 md:mb-0 p-0 py-0 overflow-hidden`}>
                 <CarouselWrapper 
                     slides={slides} 
                     options={globalConfig}
@@ -313,42 +314,48 @@ function ClassicHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, gl
 
             {/* Right Sidebar Promo */}
             {baseConfig.showServices !== false && (
-                <div className="hidden lg:flex flex-col gap-3 w-60 flex-shrink-0">
-                    <Card className={`p-4 flex flex-col justify-center gap-4 h-[162px] border-border/40 shadow-sm bg-white`}>
+                <div className={`hidden lg:flex flex-col gap-3 w-60 flex-shrink-0 ${hClass}`}>
+                    <Card className={`p-3.5 flex flex-col justify-center gap-3 flex-1 border-border/40 shadow-sm bg-white rounded-xl`}>
                         {[
-                            { title: baseConfig.assistanceTitle || "Assistance", desc: baseConfig.assistanceDesc, icon: <Headset className="w-5 h-5" />, color: "text-primary", bg: "bg-primary/5", link: baseConfig.assistanceLink || "#" },
-                            { title: baseConfig.whatsappTitle || "WhatsApp", desc: baseConfig.whatsappDesc, icon: <Phone className="w-5 h-5" />, color: "text-green-600", bg: "bg-green-50", link: baseConfig.whatsappLink || "#" },
-                            { title: baseConfig.sellTitle || "Vendre ici", desc: baseConfig.sellDesc, icon: <Store className="w-5 h-5" />, color: "text-secondary", bg: "bg-secondary/5", link: baseConfig.sellLink || "/register" }
+                            { title: baseConfig.assistanceTitle || "Assistance", desc: baseConfig.assistanceDesc, icon: <Headset className="w-4 h-4" />, color: "text-primary", bg: "bg-primary/5", link: baseConfig.assistanceLink || "#" },
+                            { title: baseConfig.whatsappTitle || "WhatsApp", desc: baseConfig.whatsappDesc, icon: <Phone className="w-4 h-4" />, color: "text-green-600", bg: "bg-green-50", link: baseConfig.whatsappLink || "#" },
+                            { title: baseConfig.sellTitle || "Vendre ici", desc: baseConfig.sellDesc, icon: <Store className="w-4 h-4" />, color: "text-secondary", bg: "bg-secondary/5", link: baseConfig.sellLink || "/register" }
                         ].map((box, i) => (
-                            <Link key={i} href={box.link} className="flex items-center gap-3 cursor-pointer group">
-                                <div className={`p-2 ${box.bg} ${box.color} rounded-xl group-hover:scale-110 transition-transform shadow-sm`}>
+                            <Link key={i} href={box.link} className="flex items-center gap-2.5 cursor-pointer group">
+                                <div className={`p-1.5 ${box.bg} ${box.color} rounded-lg ${disableSurvol ? '' : 'group-hover:scale-110'} transition-transform shadow-sm flex-shrink-0`}>
                                     {box.icon}
                                 </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[12px] font-black text-foreground/80 uppercase tracking-tight group-hover:text-primary transition-colors">{box.title}</span>
-                                    {box.desc && <span className="text-[10px] text-muted-foreground">{box.desc}</span>}
+                                <div className="flex flex-col min-w-0">
+                                    <span className={`text-[11px] font-black text-foreground/80 uppercase tracking-tight ${disableSurvol ? '' : 'group-hover:text-primary'} transition-colors truncate`}>{box.title}</span>
+                                    {box.desc && <span className="text-[9px] text-muted-foreground truncate">{box.desc}</span>}
                                 </div>
                             </Link>
                         ))}
                     </Card>
 
                     {baseConfig.showFlashCard !== false && (
-                        <Card className={`h-[162px] rounded-2xl shadow-sm flex items-center justify-center p-6 relative overflow-hidden group border-none bg-secondary`} style={{ backgroundColor: baseConfig.flashBgColor }}>
-                            {baseConfig.flashBgUrl && (
+                        <Card className={`flex-1 rounded-2xl shadow-sm flex items-center justify-center p-4 relative overflow-hidden group border-none ${baseConfig.flashBgType === 'image_only' ? 'bg-transparent' : 'bg-secondary'}`} style={{ backgroundColor: baseConfig.flashBgType === 'image_only' ? 'transparent' : baseConfig.flashBgColor }}>
+                            {baseConfig.flashBgType === 'image_only' && baseConfig.flashBgUrl ? (
+                                <img src={getAssetUrl(baseConfig.flashBgUrl)} className={`absolute inset-0 w-full h-full object-cover transition-transform duration-1000 ${disableSurvol ? '' : 'group-hover:scale-110'}`} alt="" />
+                            ) : (
                                 <>
-                                    {baseConfig.flashBgType === 'image' && (
-                                        <img src={getAssetUrl(baseConfig.flashBgUrl)} className="absolute inset-0 w-full h-full object-cover opacity-60 transition-transform duration-1000 group-hover:scale-110" alt="" />
+                                    {baseConfig.flashBgUrl && (
+                                        <>
+                                            {baseConfig.flashBgType === 'image' && (
+                                                <img src={getAssetUrl(baseConfig.flashBgUrl)} className={`absolute inset-0 w-full h-full object-cover opacity-60 transition-transform duration-1000 ${disableSurvol ? '' : 'group-hover:scale-110'}`} alt="" />
+                                            )}
+                                            {baseConfig.flashBgType === 'video' && (
+                                                <video src={getAssetUrl(baseConfig.flashBgUrl)} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                                            )}
+                                        </>
                                     )}
-                                    {baseConfig.flashBgType === 'video' && (
-                                        <video src={getAssetUrl(baseConfig.flashBgUrl)} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-60" />
-                                    )}
+                                    <div className="absolute inset-0 bg-black/20 z-10" />
+                                    <div className={`relative flex flex-col items-center text-center z-20 text-white`}>
+                                        <Badge className={`text-[10px] font-black tracking-widest uppercase border-white/40 bg-black/30 mb-2`}>{baseConfig.flashTitle || "Ventes Flash"}</Badge>
+                                        {baseConfig.flashDiscount && <span className="text-2xl font-black italic drop-shadow-lg">{baseConfig.flashDiscount}</span>}
+                                    </div>
                                 </>
                             )}
-                            <div className="absolute inset-0 bg-black/20 z-10" />
-                            <div className={`relative flex flex-col items-center text-center z-20 text-white`}>
-                                <Badge className={`text-[10px] font-black tracking-widest uppercase border-white/40 bg-black/30 mb-2`}>{baseConfig.flashTitle || "Ventes Flash"}</Badge>
-                                {baseConfig.flashDiscount && <span className="text-2xl font-black italic drop-shadow-lg">{baseConfig.flashDiscount}</span>}
-                            </div>
                         </Card>
                     )}
                 </div>
@@ -362,7 +369,7 @@ function BentoHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, glob
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-            <Card className={`md:col-span-2 ${hClass} border-none shadow-sm relative group bg-muted/20 rounded-xl mb-6 md:mb-0`}>
+            <Card className={`md:col-span-2 ${hClass} border-none shadow-sm relative group bg-muted/20 rounded-xl mb-6 md:mb-0 p-0 py-0 overflow-hidden`}>
                 <CarouselWrapper 
                     slides={slides} 
                     options={globalConfig}
@@ -445,7 +452,7 @@ function FullWidthHero({ baseConfig, globalConfig, hClass }: { baseConfig: any, 
     const slides = globalConfig.useCarousel && globalConfig.slides?.length > 0 ? globalConfig.slides : [baseConfig];
 
     return (
-        <Card className={`w-full relative ${hClass} border-none shadow-sm flex items-center justify-center group bg-muted/20 animate-in zoom-in-95 duration-1000 rounded-xl mb-6 md:mb-0`}>
+        <Card className={`w-full relative ${hClass} border-none shadow-sm flex items-center justify-center group bg-muted/20 animate-in zoom-in-95 duration-1000 rounded-xl mb-6 md:mb-0 p-0 py-0 overflow-hidden`}>
             <CarouselWrapper 
                 slides={slides} 
                 options={globalConfig}

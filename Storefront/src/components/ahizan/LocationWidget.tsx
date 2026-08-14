@@ -17,7 +17,7 @@ export interface LocationData {
     name: string;
     latitude: number;
     longitude: number;
-    type: 'MARKET' | 'NEIGHBORHOOD' | 'GPS';
+    type: 'MARKET' | 'NEIGHBORHOOD' | 'COMMUNE' | 'GPS';
 }
 
 const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -42,6 +42,7 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
         selectedLocation,
         markets,
         neighborhoods,
+        cities = [],
         loading,
         gpsLoading,
         gpsPermission,
@@ -57,10 +58,13 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
         setIsOpen(true);
     };
 
-    const filteredMarkets = markets.filter(m =>
+    const filteredCities = (cities || []).filter(c =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    const filteredMarkets = (markets || []).filter(m =>
         m.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    const filteredNeighborhoods = neighborhoods.filter(n =>
+    const filteredNeighborhoods = (neighborhoods || []).filter(n =>
         n.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -86,9 +90,9 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                         isMobile ? (
                             <>
                                 <MapPin className="w-3 h-3 text-slate-600 dark:text-slate-300 flex-shrink-0" />
-                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[72px] leading-none">
+                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[85px] leading-none">
                                     {selectedLocation
-                                        ? selectedLocation.name.split(' ')[0]
+                                        ? selectedLocation.name
                                         : 'Ma zone'}
                                 </span>
                                 <ChevronDown className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
@@ -137,7 +141,7 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Rechercher un marché ou quartier..."
+                            placeholder="Rechercher une ville, un marché ou quartier..."
                             className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/25 focus:border-primary transition-all"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -145,7 +149,7 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                     </div>
 
                     {/* List */}
-                    <div className="flex flex-col gap-1 max-h-[250px] overflow-y-auto pr-1">
+                    <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-10 gap-2">
                                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -153,21 +157,23 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                             </div>
                         ) : (
                             <>
-                                {/* Markets Category */}
-                                {filteredMarkets.length > 0 && (
-                                    <div className="mb-2">
-                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-slate-400 px-2.5 mb-1.5">Marchés</h4>
-                                        {filteredMarkets.map(m => {
-                                            const isSelected = selectedLocation?.type === 'MARKET' && selectedLocation.id === m.id;
+                                {/* Villes / Communes Category */}
+                                {filteredCities.length > 0 && (
+                                    <div>
+                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-primary px-2.5 mb-1.5 flex items-center gap-1">
+                                            <span>🏙️</span> Villes & Communes
+                                        </h4>
+                                        {filteredCities.map(c => {
+                                            const isSelected = (selectedLocation?.type === 'COMMUNE' || selectedLocation?.type === 'NEIGHBORHOOD') && selectedLocation.id === c.id;
                                             return (
                                                 <button
-                                                    key={m.id}
-                                                    onClick={() => { selectLocation({ id: m.id, name: m.name, latitude: m.centerLatitude, longitude: m.centerLongitude, type: 'MARKET' }); setIsOpen(false); }}
+                                                    key={c.id}
+                                                    onClick={() => { selectLocation({ id: c.id, name: c.name, latitude: c.centerLatitude, longitude: c.centerLongitude, type: 'COMMUNE' }); setIsOpen(false); }}
                                                     className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
                                                 >
                                                     <span className="flex items-center gap-2">
-                                                        <Landmark className="w-4 h-4 text-primary opacity-80" />
-                                                        {m.name}
+                                                        <MapPin className="w-4 h-4 text-primary font-black" />
+                                                        {c.name}
                                                     </span>
                                                     {isSelected && <Check className="w-4 h-4 text-emerald-600 font-bold" />}
                                                 </button>
@@ -176,10 +182,12 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                                     </div>
                                 )}
 
-                                {/* Neighborhoods Category */}
+                                {/* Neighborhoods & Arrondissements Category */}
                                 {filteredNeighborhoods.length > 0 && (
                                     <div>
-                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-slate-400 px-2.5 mb-1.5">Quartiers / Arrondissements</h4>
+                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-slate-400 px-2.5 mb-1.5 flex items-center gap-1">
+                                            <span>📍</span> Quartiers & Arrondissements
+                                        </h4>
                                         {filteredNeighborhoods.map(n => {
                                             const isSelected = selectedLocation?.type === 'NEIGHBORHOOD' && selectedLocation.id === n.id;
                                             return (
@@ -189,7 +197,7 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                                                     className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
                                                 >
                                                     <span className="flex items-center gap-2">
-                                                        <MapPin className="w-4 h-4 text-primary opacity-80" />
+                                                        <MapPin className="w-4 h-4 text-slate-400 opacity-80" />
                                                         {n.name}
                                                     </span>
                                                     {isSelected && <Check className="w-4 h-4 text-emerald-600 font-bold" />}
@@ -199,9 +207,34 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                                     </div>
                                 )}
 
-                                {filteredMarkets.length === 0 && filteredNeighborhoods.length === 0 && (
+                                {/* Markets Category */}
+                                {filteredMarkets.length > 0 && (
+                                    <div>
+                                        <h4 className="text-[10px] uppercase font-black tracking-widest text-slate-400 px-2.5 mb-1.5 flex items-center gap-1">
+                                            <span>🛍️</span> Marchés
+                                        </h4>
+                                        {filteredMarkets.map(m => {
+                                            const isSelected = selectedLocation?.type === 'MARKET' && selectedLocation.id === m.id;
+                                            return (
+                                                <button
+                                                    key={m.id}
+                                                    onClick={() => { selectLocation({ id: m.id, name: m.name, latitude: m.centerLatitude, longitude: m.centerLongitude, type: 'MARKET' }); setIsOpen(false); }}
+                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <Landmark className="w-4 h-4 text-amber-600 opacity-80" />
+                                                        {m.name}
+                                                    </span>
+                                                    {isSelected && <Check className="w-4 h-4 text-emerald-600 font-bold" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {filteredCities.length === 0 && filteredMarkets.length === 0 && filteredNeighborhoods.length === 0 && (
                                     <div className="text-center py-8">
-                                        <p className="text-xs text-slate-400 font-medium">Aucun marché ni quartier correspondant.</p>
+                                        <p className="text-xs text-slate-400 font-medium">Aucune ville, quartier ni marché correspondant.</p>
                                     </div>
                                 )}
                             </>

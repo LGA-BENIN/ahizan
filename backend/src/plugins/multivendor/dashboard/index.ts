@@ -6,11 +6,26 @@ import { PlatformSettingsComponent } from './platform-settings';
 import { OrderStatusesComponent } from './order-statuses';
 import { DeliveryZonesComponent } from './delivery-zones';
 import { OrdersListComponent } from './orders-list';
+import { PaymentManagementComponent } from './payment-management';
 import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
 import { VendorSelector } from './vendor-selector';
 
 export default defineDashboardExtension({
     routes: [
+        {
+            path: 'gestion-paiement',
+            component: PaymentManagementComponent,
+            navMenuItem: {
+                id: 'gestion-paiement',
+                title: 'Gestion de paiement',
+                sectionId: 'marketplace',
+                url: '/gestion-paiement',
+            },
+        },
+        {
+            path: 'extensions/gestion-paiement',
+            component: PaymentManagementComponent,
+        },
         {
             path: 'vendors',
             component: VendorListComponent,
@@ -22,8 +37,30 @@ export default defineDashboardExtension({
             },
         },
         {
+            path: 'extensions/vendors',
+            component: VendorListComponent,
+        },
+        {
             path: 'vendors/:id',
             component: VendorDetailComponent,
+        },
+        {
+            path: 'extensions/vendors/:id',
+            component: VendorDetailComponent,
+        },
+        {
+            path: 'vendor-orders',
+            component: OrdersListComponent,
+            navMenuItem: {
+                id: 'vendor-orders-list',
+                title: 'Ventes des Vendeurs',
+                sectionId: 'marketplace',
+                url: '/vendor-orders',
+            },
+        },
+        {
+            path: 'extensions/vendor-orders',
+            component: OrdersListComponent,
         },
         {
             path: 'orders',
@@ -40,6 +77,10 @@ export default defineDashboardExtension({
             },
         },
         {
+            path: 'extensions/settings',
+            component: PlatformSettingsComponent,
+        },
+        {
             path: 'order-statuses',
             component: OrderStatusesComponent,
             navMenuItem: {
@@ -48,6 +89,10 @@ export default defineDashboardExtension({
                 sectionId: 'marketplace',
                 url: '/order-statuses',
             },
+        },
+        {
+            path: 'extensions/order-statuses',
+            component: OrderStatusesComponent,
         },
         {
             path: 'delivery-zones',
@@ -60,6 +105,10 @@ export default defineDashboardExtension({
             },
         },
         {
+            path: 'extensions/delivery-zones',
+            component: DeliveryZonesComponent,
+        },
+        {
             path: 'marketplace-products',
             component: ProductListComponent,
             navMenuItem: {
@@ -68,6 +117,10 @@ export default defineDashboardExtension({
                 sectionId: 'marketplace',
                 url: '/marketplace-products',
             },
+        },
+        {
+            path: 'extensions/marketplace-products',
+            component: ProductListComponent,
         },
     ],
     navSections: [

@@ -3,8 +3,16 @@ import { Cloud, Mail, Bell, Send } from 'lucide-react';
 import { NotificationsSettingsComponent } from './pages/notifications-settings';
 import { NotificationLogsComponent } from './pages/notification-logs';
 import { SendNotificationComponent } from './pages/send-notification';
+import { SuperadminNotificationBell } from './components/superadmin-notification-bell';
 
 export default defineDashboardExtension({
+    toolbarItems: [
+        {
+            id: 'superadmin-notification-bell',
+            component: SuperadminNotificationBell,
+            position: { itemId: 'alerts', order: 'replace' },
+        },
+    ],
     navSections: [
         {
             id: 'integrations',

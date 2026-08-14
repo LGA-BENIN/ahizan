@@ -261,7 +261,8 @@ export const FreeformBuilderSection = ({ config }: { config: any }) => {
         if (config && config.ROOT) {
             craftState = config;
         } else {
-            craftState = typeof config.dataJson === 'string' ? JSON.parse(config.dataJson) : config.dataJson;
+            const raw = config.dataJson || config.craftState || config.nodes || config.json || config.data;
+            craftState = typeof raw === 'string' ? JSON.parse(raw) : raw;
         }
     } catch (e) {
         console.error('Failed to parse FreeformBuilder data', e);

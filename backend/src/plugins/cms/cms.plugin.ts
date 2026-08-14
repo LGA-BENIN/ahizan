@@ -9,10 +9,37 @@ import { CMSService } from './service/cms.service';
 import { adminApiExtensions, shopApiExtensions } from './api/api-extensions';
 import { CMSAdminResolver, CMSShopResolver } from './api/cms.resolver';
 
+import { UserProfile } from './entities/user-profile.entity';
+import { CMSEventLog } from './entities/event-log.entity';
+import { FeatureFlagService } from './service/feature-flag.service';
+import { ExperienceEngineService } from './service/experience-engine.service';
+import { ContentResolverService } from './service/content-resolver.service';
+import { FeedAssemblyEngineService } from './service/feed-assembly-engine.service';
+import { UserProfileEngineService } from './service/user-profile-engine.service';
+import { DiscoveryEngineService } from './service/discovery-engine.service';
+import { SearchEngineService } from './service/search-engine.service';
+import { RankingEngineService } from './service/ranking-engine.service';
+import { MerchandisingEngineService } from './service/merchandising-engine.service';
+import { EventTrackerService } from './service/event-tracker.service';
+import { EventCollectorController } from './api/event-collector.controller';
+
 @VendurePlugin({
     imports: [PluginCommonModule],
-    entities: [Page, PageSection, PagePreset, SiteSeason, SeasonSchedule],
-    providers: [CMSService],
+    entities: [Page, PageSection, PagePreset, SiteSeason, SeasonSchedule, UserProfile, CMSEventLog],
+    controllers: [EventCollectorController],
+    providers: [
+        CMSService,
+        FeatureFlagService,
+        ExperienceEngineService,
+        ContentResolverService,
+        FeedAssemblyEngineService,
+        UserProfileEngineService,
+        DiscoveryEngineService,
+        SearchEngineService,
+        RankingEngineService,
+        MerchandisingEngineService,
+        EventTrackerService,
+    ],
     adminApiExtensions: {
         schema: adminApiExtensions,
         resolvers: [CMSAdminResolver],

@@ -1,7 +1,8 @@
 import React from 'react';
 
 export function RichTextSection({ config, wrapper }: { config: any, wrapper: string }) {
-    if (!config.htmlContent) return null;
+    const content = config.htmlContent || config.content || config.value || config.html || config.text;
+    if (!content) return null;
 
     return (
         <section 
@@ -20,7 +21,7 @@ export function RichTextSection({ config, wrapper }: { config: any, wrapper: str
             >
                 <div 
                     className="prose prose-sm md:prose-base lg:prose-lg max-w-none dark:prose-invert"
-                    dangerouslySetInnerHTML={{ __html: config.htmlContent }}
+                    dangerouslySetInnerHTML={{ __html: content }}
                 />
             </div>
         </section>

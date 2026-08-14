@@ -50,6 +50,8 @@ const GetOrderByCodeQuery = graphql(`
     }
 `);
 
+import {OrderStatusBadge} from '@/components/commerce/order-status-badge';
+
 export async function OrderConfirmation({params}: PageProps<'/order-confirmation/[code]'>) {
     const {code} = await params;
     let order;
@@ -75,7 +77,10 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 dark:bg-green-500/20 mb-4 border border-green-500/20">
                         <CheckCircle2 className="h-8 w-8 text-green-500"/>
                     </div>
-                    <h1 className="text-2xl font-bold tracking-tight mb-2">Commande Confirmée !</h1>
+                    <h1 className="text-2xl font-bold tracking-tight mb-2 flex items-center justify-center gap-3">
+                        Commande Confirmée !
+                        <OrderStatusBadge state={order.state} />
+                    </h1>
                     <p className="text-sm text-muted-foreground">
                         Merci pour votre achat. Votre numéro de commande est{' '}
                         <span className="font-bold text-foreground">{order.code}</span>

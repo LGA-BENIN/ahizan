@@ -14,9 +14,8 @@ export default async function ProductListPage() {
     if (!token) {
         redirect('/onboarding');
     }
-
     const [{ data: productData }, collectionsResult] = await Promise.all([
-        query(GetMyVendorProductsQuery, { options: { take: 50 } }, { token }).catch((err) => {
+        query(GetMyVendorProductsQuery, { options: { take: 500 } }, { token }).catch((err) => {
             console.error('[ProductListPage] Failed to fetch products:', err);
             return { data: { myVendorProducts: { items: [], totalItems: 0 } } };
         }),

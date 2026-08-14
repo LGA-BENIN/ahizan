@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { encodeId } from '@/lib/hash-utils';
 import { Star, MapPin, Store } from 'lucide-react';
 
 interface VendorBadgeProps {
@@ -18,7 +19,7 @@ export function VendorBadge({ vendor }: VendorBadgeProps) {
 
     return (
         <Link
-            href={`/vendor/${vendor.id}`}
+            href={`/vendor/${encodeId(vendor.id)}`}
             className="flex items-center gap-2 p-2 rounded-lg border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors group"
         >
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">

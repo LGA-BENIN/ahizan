@@ -38,7 +38,7 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
             .ofType(OrderStateTransitionEvent)
             .pipe(filter(event => event.toState === 'PaymentSettled'))
             .subscribe(async event => {
-                await this.calculateCommission(event.ctx, event.order.id.toString());
+                await this.vendorService.calculateAndSaveOrderCommission(event.ctx, event.order.id.toString());
             });
 
         // Rule: Refund commission if order is Cancelled
@@ -50,51 +50,21 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
             });
     }
 
-    private async calculateCommission(ctx: RequestContext, orderId: string) {
-        const order = await this.orderService.findOne(ctx, orderId, ['lines', 'lines.productVariant', 'lines.productVariant.product', 'lines.productVariant.product.customFields.vendor']);
-        if (!order) return;
-
-        let vendor = null;
-        for (const line of order.lines) {
-            const v = (line.productVariant.product.customFields as any).vendor;
-            if (v) { vendor = v; break; }
-        }
-
-        if (vendor) {
-            const vendorEntity = await this.vendorService.findOne(ctx, vendor.id);
-            if (vendorEntity) {
-                const platformSettings = await this.platformSettingsService.getOrCreateSettings(ctx);
-                const rate = vendorEntity.commissionRate > 0
-                    ? vendorEntity.commissionRate
-                    : platformSettings.defaultCommissionRate;
-                if (rate > 0) {
-                    const total = order.totalWithTax;
-                    const commission = Math.round((total * rate) / 100);
-                    await this.vendorService.setOrderCommission(ctx, orderId, commission);
-                }
-            }
-        }
-    }
-
     /**
      * Deducts the estimated commission from the vendor wallet when the order enters ArrangingPayment.
      * This "reserves" the commission so the vendor cannot spend the balance during fulfillment.
      */
     private async deductCommissionFromWallet(ctx: RequestContext, orderId: string) {
-        const order = await this.orderService.findOne(ctx, orderId, ['lines', 'lines.productVariant', 'lines.productVariant.product', 'lines.productVariant.product.customFields.vendor']);
+        const order = await this.orderService.findOne(ctx, orderId, ['lines', 'lines.productVariant', 'lines.productVariant.product', 'lines.productVariant.product.customFields.vendor', 'customFields.vendor']);
         if (!order) return;
 
-        let vendor = null;
-        for (const line of order.lines) {
-            const v = (line.productVariant.product.customFields as any).vendor;
-            if (v) { vendor = v; break; }
-        }
-        if (!vendor) return;
+        const orderVendor = (order.customFields as any).vendor;
+        if (!orderVendor) return;
 
-        const vendorEntity = await this.vendorService.findOne(ctx, vendor.id);
-        if (!vendorEntity || vendorEntity.commissionRate <= 0) return;
+        const vendorEntity = await this.vendorService.findOne(ctx, orderVendor.id);
+        if (!vendorEntity) return;
 
-        const commission = Math.round((order.totalWithTax * vendorEntity.commissionRate) / 100);
+        const commission = (order.customFields as any)?.commissionAmount || 0;
         if (commission <= 0) return;
 
         await this.vendorService.debitWallet(ctx, vendorEntity.id.toString(), commission);
@@ -108,14 +78,13 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
         const order = await this.orderService.findOne(ctx, orderId, ['lines', 'lines.productVariant', 'lines.productVariant.product', 'lines.productVariant.product.customFields.vendor', 'customFields.vendor']);
         if (!order) return;
 
-        // Only refund if we previously deducted (order must have been in ArrangingPayment or beyond)
         const orderVendor = (order.customFields as any).vendor;
         if (!orderVendor) return;
 
         const vendorEntity = await this.vendorService.findOne(ctx, orderVendor.id);
-        if (!vendorEntity || vendorEntity.commissionRate <= 0) return;
+        if (!vendorEntity) return;
 
-        const commission = Math.round((order.totalWithTax * vendorEntity.commissionRate) / 100);
+        const commission = (order.customFields as any)?.commissionAmount || 0;
         if (commission <= 0) return;
 
         await this.vendorService.creditWallet(ctx, vendorEntity.id.toString(), commission);

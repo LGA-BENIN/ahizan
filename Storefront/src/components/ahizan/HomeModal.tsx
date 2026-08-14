@@ -177,8 +177,8 @@ function SingleModal({ modal, onClose }: { modal: ModalItem; onClose: () => void
 export function HomeModal({ config }: HomeModalProps) {
     // Support both formats: { modals: [...] } and legacy single { enabled, type, value, ... }
     const modals: ModalItem[] = config?.modals
-        ? config.modals.filter((m: any) => m.enabled)
-        : (config?.enabled ? [config] : []);
+        ? config.modals.filter((m: any) => m.enabled && (m.value || m.title))
+        : (config?.enabled && (config.value || config.title) ? [config] : []);
 
     const [activeIndex, setActiveIndex] = useState(-1);
     const [shown, setShown] = useState<Set<number>>(new Set());
@@ -190,7 +190,40 @@ export function HomeModal({ config }: HomeModalProps) {
             setShown(prev => new Set(prev).add(activeIndex));
         }
         setActiveIndex(-1);
+
+        // Clean up any custom HTML injected overlay backdrops from DOM
+        try {
+            const extraBackdrops = document.querySelectorAll('.modal-backdrop, .custom-modal-overlay, .ahizan-modal-backdrop, [data-modal-overlay]');
+            extraBackdrops.forEach(el => el.remove());
+        } catch (e) {}
     }, [activeIndex]);
+
+    // Global listener for custom JS & HTML close triggers
+    useEffect(() => {
+        const handleCustomClose = () => {
+            closeModal();
+        };
+
+        (window as any).closeAhizanModal = handleCustomClose;
+        (window as any).closeModal = handleCustomClose;
+
+        window.addEventListener('ahizan-close-modal', handleCustomClose);
+        window.addEventListener('close-modal', handleCustomClose);
+
+        return () => {
+            window.removeEventListener('ahizan-close-modal', handleCustomClose);
+            window.removeEventListener('close-modal', handleCustomClose);
+        };
+    }, [closeModal]);
+
+    // Intercept clicks on custom HTML close elements
+    const handleContainerClick = (e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target && target.closest('[data-close-modal], .close-modal, .modal-close, .ahizan-modal-close, [href="#close"], [href="javascript:closeAhizanModal()"]')) {
+            e.preventDefault();
+            closeModal();
+        }
+    };
 
     // Timer-based trigger for each modal
     useEffect(() => {
@@ -274,10 +307,11 @@ export function HomeModal({ config }: HomeModalProps) {
                     backgroundColor: overlayColor,
                     backdropFilter: overlayBlur > 0 ? `blur(${overlayBlur}px)` : undefined,
                 }}
+                onClick={activeModal.isClosable !== false ? closeModal : undefined}
             />
 
             {/* Modal Content */}
-            <div className="relative z-10">
+            <div className="relative z-10" onClick={handleContainerClick}>
                 <SingleModal modal={activeModal} onClose={closeModal} />
             </div>
         </div>

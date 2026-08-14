@@ -28,6 +28,9 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
                 if (!active) return;
                 if (res.success) {
                     setStatus('success');
+                    setTimeout(() => {
+                        window.location.href = '/onboarding';
+                    }, 1000);
                 } else {
                     setStatus('error');
                     setErrorMsg(res.error || "Impossible de vérifier votre compte. Le lien a peut-être expiré.");
@@ -73,7 +76,7 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
                     <div className="space-y-2 text-center">
                         <h1 className="text-2xl font-bold">Compte vérifié !</h1>
                         <p className="text-muted-foreground">
-                            Votre adresse e-mail a été vérifiée avec succès. Vous pouvez maintenant créer votre boutique.
+                            Votre adresse e-mail a été vérifiée avec succès. Redirection vers la création de votre boutique...
                         </p>
                     </div>
                     <Link href="/onboarding" className="block">

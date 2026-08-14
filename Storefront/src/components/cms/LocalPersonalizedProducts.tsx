@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getShopApiUrl } from '@/lib/vendure/api-utils';
 import { VendorProductCard } from '@/components/commerce/vendor-product-card';
-import { Sparkles, MapPin, Store } from 'lucide-react';
+import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLocation } from '@/contexts/location-context';
 
 interface LocalPersonalizedProductsProps {
     config?: {
@@ -35,14 +36,34 @@ interface LocalPersonalizedProductsProps {
         mixMode?: string;
         interleaveSchema?: string;
         headerStyle?: string;
+
+        // ESM selection controls
+        selectionMode?: string;
+        collectionIds?: string[];
+        manualProductIds?: string[];
+        collectionDisplayType?: string;
+        experienceStrategy?: string;
+        maxItemsPerVendor?: number;
+        boostCertifiedVendors?: boolean;
+        columns?: number;
     };
 }
 
 export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsProps = {}) {
+    const { selectedLocation } = useLocation();
     const [products, setProducts] = useState<any[]>([]);
     const [locationName, setLocationName] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const [isCmsPreview, setIsCmsPreview] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollContainerRef.current) {
+            const { current } = scrollContainerRef;
+            const scrollAmount = current.clientWidth * 0.8;
+            current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
+        }
+    };
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -51,10 +72,10 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
         }
     }, []);
 
-    const displayTitle = config?.title || "Produits à Proximité";
-    const displayIcon = config?.icon || '🛍️';
-    const displaySubtitle = config?.subtitle || "Découvrez les articles disponibles à l'achat immédiat auprès des marchands de votre secteur.";
-    const displayBadgeText = config?.badgeText || "Recommandation Locale";
+    const displayTitle = config?.title !== undefined && config?.title !== null ? config.title : "Produits à Proximité";
+    const displayIcon = config?.icon ?? '🛍️';
+    const displaySubtitle = config?.subtitle || '';
+    const displayBadgeText = config?.badgeText || '';
     const limit = (config?.limit || config?.take) ? Number(config?.limit || config?.take) : 8;
     const layout = config?.layout || 'grid-4';
     const requireConfirmedLocation = config?.requireConfirmedLocation !== false; // true par défaut
@@ -84,6 +105,10 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 variables = { locationId: locationIdFromConfig };
                 displayName = config?.locationName || '';
             }
+        } else if (selectedLocation) {
+            hasLocation = true;
+            displayName = selectedLocation.name;
+            variables = selectedLocation.type === 'MARKET' ? { marketId: selectedLocation.id } : { locationId: selectedLocation.id };
         } else {
             const saved = typeof window !== 'undefined' ? localStorage.getItem('ahizan_client_location') : null;
             if (saved) {
@@ -124,6 +149,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                                     slug
                                     featuredAsset { preview }
                                     collections { id }
+                                    customFields { approvalStatus }
                                     variants {
                                         id
                                         priceWithTax
@@ -147,128 +173,226 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 const resultLocal = await resLocal.json();
                 const vendorsList = resultLocal.data?.vendors?.items || [];
                 
-                localProductsList = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({
-                    ...p,
-                    vendorName: v.name,
-                    vendorId: v.id,
-                    marketName: v.physicalMarket?.name,
-                    marketId: v.physicalMarket?.id,
-                    locationName: v.location?.name,
-                    locationId: v.location?.id,
-                })));
+                localProductsList = vendorsList.flatMap((v: any) => (v.products || [])
+                    .filter((p: any) => !p.customFields || p.customFields.approvalStatus === 'approved')
+                    .map((p: any) => ({
+                        ...p,
+                        vendorName: v.name,
+                        vendorId: v.id,
+                        marketName: v.physicalMarket?.name,
+                        marketId: v.physicalMarket?.id,
+                        locationName: v.location?.name,
+                        locationId: v.location?.id,
+                    }))
+                );
             }
 
-            // 2. Fetch Collection Products if mixing is requested
-            let collectionProductsList: any[] = [];
-            const mixCollectionId = config?.mixCollectionId;
-            const mixMode = config?.mixMode || 'none';
+            // Filter by Selection Mode (Collections / Products / Hybrid)
+            const selectionMode = config?.selectionMode || 'COLLECTIONS';
+            const manualProductIds = config?.manualProductIds || [];
+            const collectionIds = config?.collectionIds || (config?.mixCollectionId ? [config.mixCollectionId] : []);
 
-            if (mixCollectionId && mixMode !== 'none') {
-                const collectionQuery = `
-                    query GetProductsForMix {
-                        products(options: { take: 100 }) {
-                            items {
-                                id
-                                name
-                                slug
-                                featuredAsset { preview }
-                                collections { id }
-                                variants {
+            // Fetch manual products globally if specified
+            let manualProductsList: any[] = [];
+            if (manualProductIds.length > 0) {
+                try {
+                    const manualQuery = `
+                        query GetManualProducts($ids: [ID!]!) {
+                            products(options: { filter: { id: { in: $ids } } }) {
+                                items {
                                     id
-                                    priceWithTax
-                                    customFields {
-                                        compareAtPrice
-                                        onPromotion
-                                        promotionalPrice
-                                    }
-                                }
-                                customFields {
-                                    vendor {
+                                    name
+                                    slug
+                                    featuredAsset { preview }
+                                    collections { id }
+                                    variants {
                                         id
-                                        name
-                                        physicalMarket { id name }
-                                        location { id name }
+                                        priceWithTax
+                                        customFields {
+                                            compareAtPrice
+                                            onPromotion
+                                            promotionalPrice
+                                        }
+                                    }
+                                    customFields {
+                                        vendor {
+                                            id
+                                            name
+                                            physicalMarket { id name }
+                                            location { id name }
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                `;
-                const resCol = await fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: collectionQuery })
-                });
-                const resultCol = await resCol.json();
-                const allProducts = resultCol.data?.products?.items || [];
-                
-                // Filter products that belong to the collection
-                collectionProductsList = allProducts.filter((p: any) => 
-                    (p.collections || []).some((c: any) => String(c.id) === String(mixCollectionId))
-                ).map((p: any) => ({
-                    ...p,
-                    vendorName: p.customFields?.vendor?.name,
-                    vendorId: p.customFields?.vendor?.id,
-                    marketName: p.customFields?.vendor?.physicalMarket?.name,
-                    marketId: p.customFields?.vendor?.physicalMarket?.id,
-                    locationName: p.customFields?.vendor?.location?.name,
-                    locationId: p.customFields?.vendor?.location?.id,
-                }));
+                    `;
+                    const resManual = await fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            query: manualQuery, 
+                            variables: { ids: manualProductIds.map(String) } 
+                        })
+                    });
+                    const resultManual = await resManual.json();
+                    const manualItems = resultManual.data?.products?.items || [];
+                    manualProductsList = manualItems.map((p: any) => ({
+                        ...p,
+                        vendorName: p.customFields?.vendor?.name,
+                        vendorId: p.customFields?.vendor?.id,
+                        marketName: p.customFields?.vendor?.physicalMarket?.name,
+                        marketId: p.customFields?.vendor?.physicalMarket?.id,
+                        locationName: p.customFields?.vendor?.location?.name,
+                        locationId: p.customFields?.vendor?.location?.id,
+                    }));
+                } catch (e) {
+                    console.error("Error fetching manual products globally:", e);
+                }
             }
 
-            // 3. Process according to mixMode
-            let finalProducts = [];
-            if (mixCollectionId && mixMode !== 'none') {
-                if (mixMode === 'local-only-in-collection') {
-                    // Only keep local products that are in the collection
-                    finalProducts = localProductsList.filter((lp: any) => 
-                        (lp.collections || []).some((c: any) => String(c.id) === String(mixCollectionId))
+            // Apply strategy specific ranking & filtering rules on local products before merging
+            const experienceStrategy = config?.experienceStrategy || 'LOCAL_DISCOVERY';
+            
+            if (experienceStrategy === 'HOME_FEED') {
+                // Quota max of products per merchant
+                const maxItemsPerVendor = config?.maxItemsPerVendor || 3;
+                const vendorCounts: Record<string, number> = {};
+                localProductsList = localProductsList.filter((p: any) => {
+                    const vId = p.vendorId;
+                    if (!vId) return true;
+                    vendorCounts[vId] = (vendorCounts[vId] || 0) + 1;
+                    return vendorCounts[vId] <= maxItemsPerVendor;
+                });
+
+                // Boost certified vendors (Dantokpa/Ganhi)
+                if (config?.boostCertifiedVendors !== false) {
+                    localProductsList.sort((a: any, b: any) => {
+                        const aBoost = (a.marketName?.toLowerCase().includes('dantokpa') || a.marketName?.toLowerCase().includes('ganhi')) ? 1 : 0;
+                        const bBoost = (b.marketName?.toLowerCase().includes('dantokpa') || b.marketName?.toLowerCase().includes('ganhi')) ? 1 : 0;
+                        return bBoost - aBoost;
+                    });
+                }
+            } else if (experienceStrategy === 'TRENDING') {
+                // Sort by promotion or popular criteria
+                localProductsList.sort((a: any, b: any) => {
+                    const valA = a.variants?.[0]?.customFields?.onPromotion ? 1 : 0;
+                    const valB = b.variants?.[0]?.customFields?.onPromotion ? 1 : 0;
+                    return valB - valA;
+                });
+            }
+
+            // Construct final products list according to selectionMode
+            let finalProducts: any[] = [];
+
+            if (selectionMode === 'COLLECTIONS') {
+                if (config?.collectionDisplayType === 'PRODUCTS' && manualProductIds.length > 0) {
+                    finalProducts = localProductsList.filter((p: any) => 
+                        manualProductIds.map(String).includes(String(p.id))
                     );
-                } else if (mixMode === 'fallback') {
-                    // Fallback to collection products if no local products found
-                    finalProducts = localProductsList.length > 0 ? localProductsList : collectionProductsList;
-                } else if (mixMode === 'hybrid') {
-                    // Show local products first, then fill rest with collection products
-                    const localIds = new Set(localProductsList.map((p: any) => p.id));
-                    const filled = [...localProductsList];
-                    for (const cp of collectionProductsList) {
-                        if (filled.length >= limit) break;
-                        if (!localIds.has(cp.id)) {
-                            filled.push(cp);
-                        }
+                } else if (collectionIds.length > 0) {
+                    finalProducts = localProductsList.filter((p: any) => 
+                        (p.collections || []).some((c: any) => collectionIds.map(String).includes(String(c.id)))
+                    );
+                } else {
+                    finalProducts = localProductsList;
+                }
+            } else if (selectionMode === 'PRODUCTS') {
+                // Mode 2: Manual + Local Engine (ESM)
+                const seenIds = new Set<string>();
+                for (const mp of manualProductsList) {
+                    if (!seenIds.has(String(mp.id))) {
+                        finalProducts.push(mp);
+                        seenIds.add(String(mp.id));
                     }
-                    finalProducts = filled;
-                } else if (mixMode === 'mix-interleaved') {
-                    // Interweave them (e.g. 2:1 -> 2 local, 1 collection)
-                    const schema = config?.interleaveSchema || "2:1";
-                    const [localCount, collectionCount] = schema.split(':').map(Number);
-                    const localL = isNaN(localCount) ? 2 : localCount;
-                    const colL = isNaN(collectionCount) ? 1 : collectionCount;
-
-                    let localIdx = 0;
-                    let collectionIdx = 0;
-                    const weaved = [];
-
-                    while (weaved.length < limit && (localIdx < localProductsList.length || collectionIdx < collectionProductsList.length)) {
-                        // Add local products
-                        for (let i = 0; i < localL && localIdx < localProductsList.length && weaved.length < limit; i++) {
-                            weaved.push(localProductsList[localIdx++]);
-                        }
-                        // Add collection products
-                        for (let i = 0; i < colL && collectionIdx < collectionProductsList.length && weaved.length < limit; i++) {
-                            const cp = collectionProductsList[collectionIdx++];
-                            if (!weaved.some(p => p.id === cp.id)) {
-                                weaved.push(cp);
-                            } else {
-                                i--; // skip duplicate and search next
-                            }
-                        }
+                }
+                for (const lp of localProductsList) {
+                    if (finalProducts.length >= limit) break;
+                    if (!seenIds.has(String(lp.id))) {
+                        finalProducts.push(lp);
+                        seenIds.add(String(lp.id));
                     }
-                    finalProducts = weaved;
+                }
+            } else if (selectionMode === 'HYBRID') {
+                // Mode 3: Hybrid
+                const seenIds = new Set<string>();
+                
+                // 1. Products of chosen collection in the local zone
+                const localCollectionProducts = localProductsList.filter((p: any) => 
+                    collectionIds.length > 0 && (p.collections || []).some((c: any) => collectionIds.map(String).includes(String(c.id)))
+                );
+                for (const lcp of localCollectionProducts) {
+                    if (!seenIds.has(String(lcp.id))) {
+                        finalProducts.push(lcp);
+                        seenIds.add(String(lcp.id));
+                    }
+                }
+
+                // 2. Manual products
+                for (const mp of manualProductsList) {
+                    if (finalProducts.length >= limit) break;
+                    if (!seenIds.has(String(mp.id))) {
+                        finalProducts.push(mp);
+                        seenIds.add(String(mp.id));
+                    }
+                }
+
+                // 3. Fallback to remaining local zone products
+                for (const lp of localProductsList) {
+                    if (finalProducts.length >= limit) break;
+                    if (!seenIds.has(String(lp.id))) {
+                        finalProducts.push(lp);
+                        seenIds.add(String(lp.id));
+                    }
                 }
             } else {
-                // Local only
                 finalProducts = localProductsList;
+            }
+
+            if (finalProducts.length === 0) {
+                // Fallback vers le catalogue général si aucun marchand local n'est encore enregistré dans la zone
+                try {
+                    const fallbackRes = await fetch(shopApiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            query: `
+                                query GetFallbackProducts($take: Int!) {
+                                    search(input: { groupByProduct: true, take: $take }) {
+                                        items {
+                                            productId
+                                            productName
+                                            slug
+                                            productAsset { preview }
+                                            priceWithTax {
+                                                __typename
+                                                ... on PriceRange { min max }
+                                                ... on SinglePrice { value }
+                                            }
+                                            currencyCode
+                                            inStock
+                                        }
+                                    }
+                                }
+                            `,
+                            variables: { take: limit }
+                        })
+                    });
+                    const fbData = await fallbackRes.json();
+                    const fbItems = fbData.data?.search?.items || [];
+                    finalProducts = fbItems.map((p: any) => ({
+                        id: p.productId,
+                        productId: p.productId,
+                        productVariantId: p.productId,
+                        productName: p.productName,
+                        slug: p.slug,
+                        productAsset: p.productAsset,
+                        priceWithTax: p.priceWithTax,
+                        currencyCode: p.currencyCode || 'XOF',
+                        inStock: true
+                    }));
+                } catch (e) {
+                    console.error("Fallback fetch error:", e);
+                }
             }
 
             setProducts(finalProducts.slice(0, limit));
@@ -288,66 +412,53 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 window.removeEventListener('ahizan_location_changed', fetchLocalProducts);
             };
         }
-    }, [marketIdFromConfig, locationIdFromConfig, limit, config?.mixCollectionId, config?.mixMode, config?.interleaveSchema]);
-
-    // Show even without location if we have a collection fallback/mix configured
-    const hasCollectionFallback = !!(config?.mixCollectionId && config?.mixMode && config?.mixMode !== 'none');
-
-    // Condition principale requise par le client : s'afficher SI ET SEULEMENT SI la position est confirmée
-    // Sauf en mode prévisualisation CMS où on montre un aperçu à l'administrateur pour qu'il puisse configurer l'endroit et le style
-    if (!locationName && !isOverride && !hasCollectionFallback) {
-        if (isCmsPreview) {
-            return (
-                <section className="py-10 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
-                    <div className="p-8 rounded-[2rem] border-2 border-dashed border-primary/60 bg-primary/5 text-center transition-all">
-                        <div className="flex items-center justify-center gap-2 text-primary font-black uppercase text-xs tracking-wider mb-2">
-                            <Sparkles className="w-4 h-4" />
-                            <span>{displayBadgeText}</span>
-                        </div>
-                        <h2 className="text-xl md:text-2xl font-black tracking-tight uppercase text-foreground">
-                            🛍️ {displayTitle} (Mode Prévisualisation CMS)
-                        </h2>
-                        <p className="text-muted-foreground font-medium text-sm mt-2 max-w-xl mx-auto">
-                            {displaySubtitle}
-                        </p>
-                        <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border text-xs font-bold text-foreground shadow-sm">
-                            <MapPin className="w-4 h-4 text-primary" />
-                            <span>Disposition : <strong className="text-primary uppercase">{layout}</strong> ({limit} produits max)</span>
-                        </div>
-                        <div className="mt-4">
-                            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold bg-amber-500/10 py-2 px-4 rounded-lg inline-block border border-amber-500/20">
-                                🔒 Remarque : Sur le site public, cette section est masquée par défaut et apparaîtra UNIQUEMENT lorsque le client aura confirmé sa position géographique.
-                            </p>
-                        </div>
-                    </div>
-                </section>
-            );
-        }
-        if (requireConfirmedLocation) {
-            return null;
-        }
-    }
+    }, [selectedLocation, marketIdFromConfig, locationIdFromConfig, limit, config?.mixCollectionId, config?.mixMode, config?.interleaveSchema, config?.selectionMode, JSON.stringify(config?.collectionIds), JSON.stringify(config?.manualProductIds), config?.experienceStrategy]);
 
     const renderProductsLayout = () => {
-        let gridClass = "grid gap-6";
-        if (layout === 'grid-3') {
-            gridClass = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6";
-        } else if (layout === 'grid-4') {
-            gridClass = "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6";
-        } else if (layout === 'compact') {
-            gridClass = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3";
-        } else if (layout === 'list-split') {
-            gridClass = "grid grid-cols-1 md:grid-cols-2 gap-4";
-        }
+        const columns = config?.columns || 4;
+        const colClasses: Record<number, string> = {
+            3: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3',
+            4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+            5: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5',
+            6: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
+        };
+        const gridClass = `grid ${colClasses[columns] || colClasses[4]} gap-4 md:gap-6`;
 
         if (layout === 'carousel') {
             return (
-                <div className="flex overflow-x-auto pb-6 gap-4 md:gap-6 custom-scrollbar snap-x snap-mandatory">
-                    {products.map(product => (
-                        <div key={product.id} className="w-[240px] sm:w-[260px] md:w-[280px] shrink-0 snap-start">
-                            <VendorProductCard product={product} config={config} />
-                        </div>
-                    ))}
+                <div className="relative group/carousel">
+                    {/* Left Navigation Arrow */}
+                    <button 
+                        onClick={() => scroll('left')}
+                        className="absolute left-[-16px] top-1/2 -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la gauche"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+
+                    {/* Right Navigation Arrow */}
+                    <button 
+                        onClick={() => scroll('right')}
+                        className="absolute right-[-16px] top-1/2 -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        aria-label="Défiler vers la droite"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+
+                    <div 
+                        ref={scrollContainerRef}
+                        className="flex overflow-x-auto pb-6 gap-4 md:gap-6 custom-scrollbar snap-x snap-mandatory"
+                        style={{
+                            scrollbarWidth: 'none',
+                            msOverflowStyle: 'none',
+                        } as React.CSSProperties}
+                    >
+                        {products.map(product => (
+                            <div key={product.id} className="w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] shrink-0 snap-start">
+                                <VendorProductCard product={product} config={config} />
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }
@@ -365,54 +476,68 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     const headerStyle = config?.headerStyle || 'smart_cart';
 
     return (
-        <section className="py-10 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
+        <section className="py-3 md:py-5 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
             {headerStyle === 'standard' && (
-                <div className={`flex flex-col ${alignClass} mb-8 gap-1`}>
-                    <h2 className="text-2xl md:text-3xl font-black tracking-tight text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
-                        <span>{displayIcon}</span> {displayTitle}
-                    </h2>
-                    {displaySubtitle && (
-                        <p className="font-medium text-sm text-muted-foreground mt-1 max-w-2xl" style={{ color: subtitleColor || undefined }}>
+                <div className={`flex flex-col ${alignClass} mb-4 gap-1`}>
+                    {displayTitle && displayTitle.trim() !== '' && (
+                        <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
+                            {displayIcon && <span>{displayIcon}</span>} {displayTitle}
+                        </h2>
+                    )}
+                    {displaySubtitle && displaySubtitle.trim() !== '' && (
+                        <p className="font-medium text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-2xl" style={{ color: subtitleColor || undefined }}>
                             {displaySubtitle}
                         </p>
                     )}
                 </div>
             )}
             {headerStyle === 'bordered' && (
-                <div className="mb-8 p-5 rounded-2xl bg-card border border-border shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="mb-4 p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-primary/10 text-primary">{displayBadgeText}</span>
-                        </div>
-                        <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
-                            <span>{displayIcon}</span> {displayTitle}
-                        </h2>
-                        {displaySubtitle && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
+                        {displayBadgeText && displayBadgeText.trim() !== '' && (
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-primary/10 text-primary">{displayBadgeText}</span>
+                            </div>
+                        )}
+                        {displayTitle && displayTitle.trim() !== '' && (
+                            <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
+                                {displayIcon && <span>{displayIcon}</span>} {displayTitle}
+                            </h2>
+                        )}
+                        {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
                     </div>
                 </div>
             )}
             {(headerStyle === 'smart_cart' || !['standard', 'bordered'].includes(headerStyle)) && (
-                <div className={`flex flex-col ${alignClass} mb-8 gap-1`}>
-                    <div 
-                        className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm"
-                        style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                    >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{displayBadgeText}</span>
-                    </div>
-                    <h2 
-                        className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-3 flex items-center gap-2"
-                        style={{ color: titleColor || undefined }}
-                    >
-                        <span>{displayIcon}</span> {displayTitle}
-                    </h2>
-                    <p 
-                        className="font-medium text-xs sm:text-sm mt-1 max-w-2xl"
-                        style={{ color: subtitleColor || undefined }}
-                    >
-                        {displaySubtitle}
-                    </p>
-                    <div className="h-1 w-16 bg-primary mt-3 rounded-full" style={{ backgroundColor: badgeBgColor }} />
+                <div className={`flex flex-col ${alignClass} mb-4 gap-1`}>
+                    {displayBadgeText && displayBadgeText.trim() !== '' && (
+                        <div 
+                            className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm w-fit"
+                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                        >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>{displayBadgeText}</span>
+                        </div>
+                    )}
+                    {displayTitle && displayTitle.trim() !== '' && (
+                        <h2 
+                            className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-1 flex items-center gap-2"
+                            style={{ color: titleColor || undefined }}
+                        >
+                            {displayIcon && <span>{displayIcon}</span>} {displayTitle}
+                        </h2>
+                    )}
+                    {displaySubtitle && displaySubtitle.trim() !== '' && (
+                        <p 
+                            className="font-medium text-xs sm:text-sm mt-0.5 max-w-2xl text-muted-foreground"
+                            style={{ color: subtitleColor || undefined }}
+                        >
+                            {displaySubtitle}
+                        </p>
+                    )}
+                    {(displayTitle || displayBadgeText) && (
+                        <div className="h-1 w-12 bg-primary mt-1.5 rounded-full" style={{ backgroundColor: badgeBgColor }} />
+                    )}
                 </div>
             )}
 

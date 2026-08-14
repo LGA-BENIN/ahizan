@@ -35,6 +35,8 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
                 placeholderEmailDomain: 'ahizan.com',
                 deliveryBaseFee: 500,
                 deliveryFeePerKm: 100,
+                commissionMode: 'GENERAL',
+                collectionCommissionRates: {},
             });
             return repo.save(newSettings) as Promise<PlatformSettings>;
         }
@@ -42,9 +44,34 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
     }
 
     async updateSettings(ctx: RequestContext, input: Partial<PlatformSettings>): Promise<PlatformSettings> {
+        console.log('[PlatformSettingsService.updateSettings] Input:', JSON.stringify(input));
         const settings = await this.getOrCreateSettings(ctx);
-        Object.assign(settings, input);
-        return this.connection.getRepository(ctx, PlatformSettings).save(settings);
+        
+        const updateFields: any = {};
+        if (input.platformName !== undefined) updateFields.platformName = input.platformName;
+        if (input.defaultCommissionRate !== undefined) updateFields.defaultCommissionRate = input.defaultCommissionRate;
+        if (input.showVendorContact !== undefined) updateFields.showVendorContact = input.showVendorContact;
+        if (input.vendorContactFields !== undefined) updateFields.vendorContactFields = input.vendorContactFields;
+        if (input.defaultCurrencyCode !== undefined) updateFields.defaultCurrencyCode = input.defaultCurrencyCode;
+        if (input.defaultPhonePrefix !== undefined) updateFields.defaultPhonePrefix = input.defaultPhonePrefix;
+        if (input.emailVerificationRequired !== undefined) updateFields.emailVerificationRequired = input.emailVerificationRequired;
+        if (input.vendorAutoApproval !== undefined) updateFields.vendorAutoApproval = input.vendorAutoApproval;
+        if (input.placeholderEmailDomain !== undefined) updateFields.placeholderEmailDomain = input.placeholderEmailDomain;
+        if (input.deliveryBaseFee !== undefined) updateFields.deliveryBaseFee = input.deliveryBaseFee;
+        if (input.deliveryFeePerKm !== undefined) updateFields.deliveryFeePerKm = input.deliveryFeePerKm;
+        if (input.commissionMode !== undefined) updateFields.commissionMode = input.commissionMode;
+        
+        if (input.collectionCommissionRates !== undefined) {
+            updateFields.collectionCommissionRates = typeof input.collectionCommissionRates === 'string'
+                ? JSON.parse(input.collectionCommissionRates)
+                : input.collectionCommissionRates;
+        }
+
+        console.log('[PlatformSettingsService.updateSettings] Update Fields:', JSON.stringify(updateFields));
+        
+        await this.connection.getRepository(ctx, PlatformSettings).update('platform_settings', updateFields);
+        
+        return this.getOrCreateSettings(ctx);
     }
 
     async onApplicationBootstrap() {

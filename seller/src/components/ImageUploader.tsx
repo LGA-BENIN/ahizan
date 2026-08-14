@@ -1,10 +1,9 @@
 'use client';
 
-import React from 'react';
-import { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { uploadFileAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
-import { Upload, X, Loader2, Star } from 'lucide-react';
+import { Upload, X, Loader2, Star, GripVertical, ImagePlus, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ImageCropModal from './ImageCropModal';
 
@@ -32,234 +31,271 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
     const [uploading, setUploading] = useState(false);
     const [uploadingCount, setUploadingCount] = useState(0);
+    const [isDragOver, setIsDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [cropModalOpen, setCropModalOpen] = useState(false);
     const [currentImageSrc, setCurrentImageSrc] = useState<string>('');
     const [currentFile, setCurrentFile] = useState<File | null>(null);
 
-    const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
+    // Drag-to-reorder state
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [dropIndex, setDropIndex] = useState<number | null>(null);
 
-        const remaining = maxFiles - assets.length;
-        if (remaining <= 0) {
-            toast.warning(`Maximum ${maxFiles} images autorisées`);
-            return;
-        }
-
-        // Take first file for cropping
-        const file = files[0];
+    // ─── File processing ──────────────────────────────────────────────
+    const processFile = (file: File) => {
         if (!file.type.startsWith('image/')) {
             toast.error('Veuillez sélectionner une image');
             return;
         }
-
-        // Create preview URL for cropping
         const reader = new FileReader();
         reader.onload = () => {
             setCurrentImageSrc(reader.result as string);
             setCurrentFile(file);
             setCropModalOpen(true);
         };
-        reader.onerror = () => {
-            toast.error('Erreur lors de la lecture du fichier');
-        };
+        reader.onerror = () => toast.error('Erreur lors de la lecture du fichier');
         reader.readAsDataURL(file);
-
-        // Reset file input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
     };
 
-    // Fallback: upload without cropping if cropping fails
-    const handleDirectUpload = async (file: File) => {
-        setUploading(true);
-        setUploadingCount(1);
-        if (onUploadingChange) onUploadingChange(true);
+    const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        const remaining = maxFiles - assets.length;
+        if (remaining <= 0) { toast.warning(`Maximum ${maxFiles} images autorisées`); return; }
+        processFile(files[0]);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
+    // ─── Drop zone ────────────────────────────────────────────────────
+    const handleDropZoneDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        // Only set isDragOver if dragging files (not reordering)
+        if (dragIndex === null) setIsDragOver(true);
+    };
+    const handleDropZoneDragLeave = () => setIsDragOver(false);
+    const handleDropZoneDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        if (dragIndex !== null) return; // reorder handled by card handlers
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return;
+        const remaining = maxFiles - assets.length;
+        if (remaining <= 0) { toast.warning(`Maximum ${maxFiles} images autorisées`); return; }
+        processFile(files[0]);
+    };
+
+    // ─── Upload (after crop or skip) ─────────────────────────────────
+    const uploadFile = async (file: File) => {
+        setUploading(true); setUploadingCount(1);
+        if (onUploadingChange) onUploadingChange(true);
         try {
             const formData = new FormData();
             formData.append('file', file);
             const result = await uploadFileAction(formData);
-
             if (result.success && result.asset) {
                 const asset = result.asset as any;
                 const updatedAssets = [...assets, { id: asset.id, preview: asset.preview }];
                 onAssetsChange(updatedAssets);
-
-                if (!featuredAssetId && updatedAssets.length > 0) {
-                    onFeaturedChange(updatedAssets[0].id);
-                }
-
-                toast.success('Image ajoutée avec succès');
+                if (!featuredAssetId && updatedAssets.length > 0) onFeaturedChange(updatedAssets[0].id);
+                toast.success('Image ajoutée');
             } else {
                 toast.error('Échec de l\'envoi');
             }
-        } catch {
-            toast.error('Erreur lors de l\'envoi');
-        }
-
-        setUploading(false);
-        setUploadingCount(0);
+        } catch { toast.error('Erreur lors de l\'envoi'); }
+        setUploading(false); setUploadingCount(0);
         if (onUploadingChange) onUploadingChange(false);
-        setCurrentFile(null);
-        setCurrentImageSrc('');
+        setCurrentFile(null); setCurrentImageSrc('');
     };
 
     const handleCropComplete = async (croppedBlob: Blob) => {
         if (!currentFile) return;
+        const croppedFile = new File([croppedBlob], currentFile.name, { type: 'image/jpeg', lastModified: Date.now() });
+        await uploadFile(croppedFile);
+    };
 
-        setUploading(true);
-        setUploadingCount(1);
-        if (onUploadingChange) onUploadingChange(true);
-
-        try {
-            // Create a new File from the cropped blob
-            const croppedFile = new File([croppedBlob], currentFile.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-            });
-
-            const formData = new FormData();
-            formData.append('file', croppedFile);
-            const result = await uploadFileAction(formData);
-
-            if (result.success && result.asset) {
-                const asset = result.asset as any;
-                const updatedAssets = [...assets, { id: asset.id, preview: asset.preview }];
-                onAssetsChange(updatedAssets);
-
-                // Auto-select first image as featured if none selected
-                if (!featuredAssetId && updatedAssets.length > 0) {
-                    onFeaturedChange(updatedAssets[0].id);
-                }
-
-                toast.success('Image ajoutée avec succès');
-            } else {
-                toast.error('Échec de l\'envoi');
-            }
-        } catch {
-            toast.error('Erreur lors de l\'envoi');
-        }
-
-        setUploading(false);
-        setUploadingCount(0);
-        if (onUploadingChange) onUploadingChange(false);
-        setCurrentFile(null);
-        setCurrentImageSrc('');
+    const handleSkipCropping = async () => {
+        if (currentFile) await uploadFile(currentFile);
+        setCropModalOpen(false);
+        setCurrentFile(null); setCurrentImageSrc('');
     };
 
     const removeAsset = (assetId: string) => {
         const updated = assets.filter(a => a.id !== assetId);
         onAssetsChange(updated);
-        
-        if (featuredAssetId === assetId) {
-            onFeaturedChange(updated.length > 0 ? updated[0].id : null);
-        }
+        if (featuredAssetId === assetId) onFeaturedChange(updated.length > 0 ? updated[0].id : null);
     };
+
+    // ─── Drag-to-reorder (card level) ────────────────────────────────
+    const handleCardDragStart = (e: React.DragEvent, idx: number) => {
+        setDragIndex(idx);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+    const handleCardDragOver = (e: React.DragEvent, idx: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDropIndex(idx);
+    };
+    const handleCardDrop = (e: React.DragEvent, idx: number) => {
+        e.preventDefault();
+        if (dragIndex === null || dragIndex === idx) { setDragIndex(null); setDropIndex(null); return; }
+        const reordered = [...assets];
+        const [moved] = reordered.splice(dragIndex, 1);
+        reordered.splice(idx, 0, moved);
+        onAssetsChange(reordered);
+        // Keep featured: if moved was featured, it stays featured
+        setDragIndex(null); setDropIndex(null);
+    };
+    const handleCardDragEnd = () => { setDragIndex(null); setDropIndex(null); };
 
     const canAddMore = assets.length < maxFiles;
 
     return (
-        <div className="w-full space-y-6">
-            {/* Image Grid */}
-            {assets.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {assets.map((asset) => {
-                        const isFeatured = asset.id === featuredAssetId;
-                        return (
-                            <div 
-                                key={asset.id} 
-                                className={cn(
-                                    "relative aspect-[4/3] min-h-[160px] rounded-2xl overflow-hidden border-2 group cursor-pointer transition-all",
-                                    isFeatured 
-                                        ? "border-brand-navy ring-4 ring-brand-navy/30 shadow-xl" 
-                                        : "border-border hover:border-brand-navy/40 shadow-md"
-                                )}
-                            >
-                                <img 
-                                    src={asset.preview} 
-                                    alt="Produit" 
-                                    className="w-full h-full object-cover transition-transform group-hover:scale-110" 
-                                />
-                                
-                                {/* Featured badge */}
-                                {isFeatured && (
-                                    <div className="absolute top-2 left-2 bg-brand-navy text-white rounded-lg px-2 py-0.5 flex items-center gap-1 shadow-lg">
-                                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                        <span className="text-[8px] font-black uppercase tracking-wider">À la une</span>
-                                    </div>
-                                )}
+        <div className="w-full space-y-4">
 
-                                {/* Hover overlay with actions */}
-                                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {!isFeatured && (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); onFeaturedChange(asset.id); }}
-                                            className="bg-white text-brand-navy rounded-full p-2 shadow-lg hover:bg-brand-navy hover:text-white transition-colors"
-                                            title="Définir comme image à la une"
-                                        >
-                                            <Star className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); removeAsset(asset.id); }}
-                                        className="bg-red-500 text-white rounded-full p-2 shadow-lg hover:bg-red-600 transition-colors"
-                                        title="Supprimer"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Upload Button */}
+            {/* ── Upload Drop Zone ──────────────────────────────────── */}
             {canAddMore && (
-                <label className={cn(
-                    "flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed transition-all cursor-pointer p-6",
-                    uploading 
-                        ? "border-brand-navy bg-brand-navy/5" 
-                        : "border-muted-foreground/20 hover:border-brand-navy/40 hover:bg-muted/5"
-                )}>
+                <label
+                    className={cn(
+                        'relative flex flex-col items-center justify-center w-full rounded-2xl border-2 border-dashed transition-all cursor-pointer select-none',
+                        isDragOver
+                            ? 'border-primary bg-primary/5 scale-[1.01]'
+                            : uploading
+                                ? 'border-primary/50 bg-primary/5 cursor-wait'
+                                : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30',
+                        assets.length === 0 ? 'py-14' : 'py-6'
+                    )}
+                    onDragOver={handleDropZoneDragOver}
+                    onDragLeave={handleDropZoneDragLeave}
+                    onDrop={handleDropZoneDrop}
+                >
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*,image/gif"
+                        accept="image/*"
                         multiple
                         onChange={handleFilesChange}
                         className="hidden"
                         disabled={uploading}
                     />
-                    
                     {uploading ? (
                         <div className="flex flex-col items-center gap-3">
-                            <Loader2 className="w-8 h-8 text-brand-navy animate-spin" />
-                            <p className="text-[10px] font-bold text-brand-navy uppercase tracking-widest">
-                                Envoi de {uploadingCount} image(s)...
+                            <Loader2 className="w-9 h-9 text-primary animate-spin" />
+                            <p className="text-[11px] font-bold text-primary uppercase tracking-widest">
+                                Envoi en cours…
                             </p>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-3 text-center">
-                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                                <Upload className="w-5 h-5" />
+                        <div className="flex flex-col items-center gap-3 text-center px-4">
+                            <div className={cn(
+                                'w-14 h-14 rounded-2xl flex items-center justify-center transition-colors',
+                                isDragOver ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                            )}>
+                                <ImagePlus className="w-6 h-6" />
                             </div>
                             <div>
-                                <p className="text-[11px] font-bold uppercase tracking-widest">
-                                    {assets.length === 0 ? 'Ajouter des photos' : 'Ajouter d\'autres photos'}
+                                <p className="text-[12px] font-bold uppercase tracking-widest text-foreground">
+                                    {assets.length === 0 ? 'Ajouter des photos produit' : 'Ajouter d\'autres photos'}
                                 </p>
-                                <p className="text-[9px] text-muted-foreground mt-1 font-medium">
-                                    PNG ou JPG (max. 10MB) • {assets.length}/{maxFiles}
+                                <p className="text-[10px] text-muted-foreground mt-1 font-medium">
+                                    Glisser-déposer ou cliquer · Portrait, paysage ou carré · {assets.length}/{maxFiles}
                                 </p>
                             </div>
                         </div>
                     )}
                 </label>
+            )}
+
+            {/* ── Image Grid ─────────────────────────────────────────── */}
+            {assets.length > 0 && (
+                <div>
+                    <p className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
+                        <GripVertical className="w-3 h-3" />
+                        Glisser pour réorganiser · La 1ère image est la principale
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {assets.map((asset, idx) => {
+                            const isFeatured = asset.id === featuredAssetId;
+                            const isDraggingThis = dragIndex === idx;
+                            const isDropTarget = dropIndex === idx && dragIndex !== null && dragIndex !== idx;
+                            return (
+                                <div
+                                    key={asset.id}
+                                    draggable
+                                    onDragStart={(e) => handleCardDragStart(e, idx)}
+                                    onDragOver={(e) => handleCardDragOver(e, idx)}
+                                    onDrop={(e) => handleCardDrop(e, idx)}
+                                    onDragEnd={handleCardDragEnd}
+                                    className={cn(
+                                        'relative group rounded-2xl overflow-hidden border-2 cursor-grab active:cursor-grabbing transition-all duration-200',
+                                        isFeatured
+                                            ? 'border-primary ring-2 ring-primary/30 shadow-lg'
+                                            : 'border-border hover:border-primary/40 shadow-sm',
+                                        isDraggingThis && 'opacity-40 scale-95',
+                                        isDropTarget && 'ring-2 ring-primary border-primary scale-[1.02]'
+                                    )}
+                                >
+                                    {/* 1:1 Square image container — object-contain, no distortion */}
+                                    <div className="aspect-square bg-muted/30 flex items-center justify-center">
+                                        <img
+                                            src={asset.preview}
+                                            alt="Produit"
+                                            className="w-full h-full object-contain"
+                                            draggable={false}
+                                        />
+                                    </div>
+
+                                    {/* Featured badge */}
+                                    {isFeatured && (
+                                        <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-lg px-2 py-0.5 flex items-center gap-1 shadow-md text-[9px] font-black uppercase tracking-wider">
+                                            <Star className="w-2.5 h-2.5 fill-yellow-300 text-yellow-300" />
+                                            Principale
+                                        </div>
+                                    )}
+
+                                    {/* Position label for non-featured */}
+                                    {!isFeatured && (
+                                        <div className="absolute top-2 left-2 bg-black/40 text-white rounded-md px-1.5 py-0.5 text-[9px] font-bold">
+                                            #{idx + 1}
+                                        </div>
+                                    )}
+
+                                    {/* Drag handle indicator */}
+                                    <div className="absolute top-2 right-2 bg-black/30 text-white rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <GripVertical className="w-3 h-3" />
+                                    </div>
+
+                                    {/* Hover overlay: actions */}
+                                    <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {!isFeatured && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onFeaturedChange(asset.id)}
+                                                className="flex items-center gap-1.5 bg-white text-foreground text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md hover:bg-primary hover:text-white transition-colors uppercase tracking-wide"
+                                            >
+                                                <Star className="w-3 h-3" />
+                                                Mettre en avant
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAsset(asset.id)}
+                                            className="flex items-center gap-1.5 bg-red-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md hover:bg-red-600 transition-colors uppercase tracking-wide"
+                                        >
+                                            <X className="w-3 h-3" />
+                                            Supprimer
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Preview note */}
+                    <p className="text-[9px] text-muted-foreground mt-2 text-center font-medium flex items-center justify-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        Les images apparaissent en format carré 1:1 sur la vitrine AHIZAN
+                    </p>
+                </div>
             )}
 
             {!canAddMore && (
@@ -268,7 +304,7 @@ export default function ImageUploader({
                 </p>
             )}
 
-            {/* Image Crop Modal */}
+            {/* Crop Modal */}
             <ImageCropModal
                 isOpen={cropModalOpen}
                 onClose={() => {
@@ -277,16 +313,9 @@ export default function ImageUploader({
                     setCurrentImageSrc('');
                 }}
                 onCropComplete={handleCropComplete}
-                onSkipCropping={() => {
-                    if (currentFile) {
-                        handleDirectUpload(currentFile);
-                    }
-                    setCropModalOpen(false);
-                    setCurrentFile(null);
-                    setCurrentImageSrc('');
-                }}
+                onSkipCropping={handleSkipCropping}
                 imageSrc={currentImageSrc}
-                aspectRatio={4/3}
+                aspectRatio={1}
             />
         </div>
     );

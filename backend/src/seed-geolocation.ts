@@ -48,21 +48,33 @@ async function seed() {
 
     const citiesMap = new Map<string, GeoZone>();
 
+    let cityCounter = 1;
     for (const city of citiesData) {
         let dbCity = await locationRepo.findOne({ where: { name: city.name, type: GeoZoneType.COMMUNE } });
+        const geoId = `GEO-BJ-${String(cityCounter).padStart(8, '0')}`;
+        const hierarchicalCode = `BJ-${city.name.toUpperCase().substring(0, 6)}`;
+        cityCounter++;
+
         if (!dbCity) {
             dbCity = new GeoZone({
                 name: city.name,
                 slug: slugify(city.name),
+                geoId,
+                hierarchicalCode,
                 type: GeoZoneType.COMMUNE,
                 centerLatitude: city.lat,
                 centerLongitude: city.lng,
                 radiusMeters: city.radius,
             });
             await locationRepo.save(dbCity);
-            console.log(`✅ Created City: ${city.name}`);
+            console.log(`✅ Created City: ${city.name} (${geoId} | ${hierarchicalCode})`);
         } else {
-            console.log(`ℹ️ City already exists: ${city.name}`);
+            if (!dbCity.geoId) {
+                dbCity.geoId = geoId;
+                dbCity.hierarchicalCode = hierarchicalCode;
+                await locationRepo.save(dbCity);
+            }
+            console.log(`ℹ️ City already exists: ${city.name} (${dbCity.geoId})`);
         }
         citiesMap.set(city.name, dbCity);
     }
@@ -92,16 +104,23 @@ async function seed() {
     ];
 
     const neighborhoodMap = new Map<string, GeoZone>();
-
+    let nCounter = 100;
     for (const q of neighborhoodsData) {
         const parentCity = citiesMap.get(q.city);
         if (!parentCity) continue;
 
-        let dbNeighborhood = await locationRepo.findOne({ where: { name: q.name, type: GeoZoneType.NEIGHBORHOOD, parent: { id: parentCity.id } } });
+        const slug = slugify(q.name);
+        const geoId = `GEO-BJ-${String(nCounter).padStart(8, '0')}`;
+        const hierarchicalCode = `${parentCity.hierarchicalCode || 'BJ'}-${q.name.toUpperCase().substring(0, 6)}`;
+        nCounter++;
+
+        let dbNeighborhood = await locationRepo.findOne({ where: { slug } });
         if (!dbNeighborhood) {
             dbNeighborhood = new GeoZone({
                 name: q.name,
-                slug: slugify(q.name),
+                slug,
+                geoId,
+                hierarchicalCode,
                 type: GeoZoneType.NEIGHBORHOOD,
                 centerLatitude: q.lat,
                 centerLongitude: q.lng,
@@ -109,9 +128,14 @@ async function seed() {
                 parent: parentCity,
             });
             await locationRepo.save(dbNeighborhood);
-            console.log(`  ✅ Created Neighborhood: ${q.name} (${q.city})`);
+            console.log(`  ✅ Created Neighborhood: ${q.name} (${q.city} | ${geoId})`);
         } else {
-            console.log(`  ℹ️ Neighborhood already exists: ${q.name} (${q.city})`);
+            if (!dbNeighborhood.geoId) {
+                dbNeighborhood.geoId = geoId;
+                dbNeighborhood.hierarchicalCode = hierarchicalCode;
+                await locationRepo.save(dbNeighborhood);
+            }
+            console.log(`  ℹ️ Neighborhood already exists: ${q.name} (${q.city} | ${dbNeighborhood.geoId})`);
         }
         neighborhoodMap.set(q.name, dbNeighborhood);
     }

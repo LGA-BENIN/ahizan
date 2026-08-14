@@ -45,7 +45,8 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
                 sellTitle: 'VENDRE ICI', sellDesc: 'Boutique en 5 min.', sellLink: '/register', sellIcon: '🏪',
                 showServices: true,
                 flashTitle: 'VENTE FLASH', flashDiscount: '-50%', flashBgType: 'color', flashBgColor: '#002f6c', flashBgUrl: '',
-                showFlashCard: true
+                showFlashCard: true,
+                disableSurvol: false
             },
             bento: {
                 mainTitle: 'BENTO STYLE', mainSubtitle: 'Layout moderne.', mainButtonText: 'Découvrir', mainButtonLink: '/search',
@@ -130,10 +131,14 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
                         }}>{tmpl}</button>
                     ))}
                 </div>
-                <div style={{ marginTop: '1rem', borderTop: '1px solid var(--builder-border)', paddingTop: '1rem' }}>
+                <div style={{ marginTop: '1rem', borderTop: '1px solid var(--builder-border)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
                         <input type="checkbox" checked={config.showSidebar !== false} onChange={(e) => handleChange('showSidebar', e.target.checked)} /> 
                         Afficher la barre latérale des Catégories (À gauche)
+                    </label>
+                    <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                        <input type="checkbox" checked={config.disableSurvol || false} onChange={(e) => { handleChange('disableSurvol', e.target.checked); updateNested(t, 'disableSurvol', e.target.checked); }} /> 
+                        🚫 Désactiver l'effet au survol (Zoom / Scale) sur le Hero
                     </label>
                 </div>
             </div>
@@ -258,6 +263,11 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
                         <input type="range" className="range-pro" min="0" max="0.9" step="0.05" value={config.overlayOpacity} onChange={(e) => handleChange('overlayOpacity', parseFloat(e.target.value))} />
                     </div>
                     <ColorField label="Couleur de superposition" value={config.overlayColor} onChange={(v) => handleChange('overlayColor', v)} />
+                </div>
+                <div className="toggle-row" style={{ marginTop: '1rem' }}>
+                    <label>
+                        <input type="checkbox" checked={td.disableSurvol || false} onChange={(e) => updateNested(t, 'disableSurvol', e.target.checked)} /> Désactiver l'effet au survol (Zoom / Scale au survol)
+                    </label>
                 </div>
             </div>
 
@@ -469,14 +479,21 @@ export const HeroSettings = ({ data, onSave }: HeroSettingsProps) => {
                             <label className="label-pro">Type de fond de carte</label>
                             <select className="input-pro" value={td.flashBgType || 'color'} onChange={(e) => updateNested(t, 'flashBgType', e.target.value)}>
                                 <option value="color">Couleur unie</option>
-                                <option value="image">Image</option>
+                                <option value="image">Image avec texte et couleur</option>
                                 <option value="video">Vidéo</option>
+                                <option value="image_only">🖼️ Image ou GIF uniquement (Sans texte ni couleur dessus)</option>
                             </select>
                         </div>
                         <ColorField label="Couleur de fond de carte" value={td.flashBgColor || '#002f6c'} onChange={(v) => updateNested(t, 'flashBgColor', v)} />
                     </div>
                     <div style={{ marginTop: '1rem' }}>
                         <MediaUploadField label={td.flashBgType === 'video' ? 'URL média vidéo Flash' : 'URL média image Flash'} value={td.flashBgUrl || ''} onChange={(v) => updateNested(t, 'flashBgUrl', v)} />
+                    </div>
+                    <div className="toggle-row" style={{ marginTop: '1rem' }}>
+                        <label>
+                            <input type="checkbox" checked={td.disableSurvol || config.disableSurvol || false} onChange={(e) => { updateNested(t, 'disableSurvol', e.target.checked); handleChange('disableSurvol', e.target.checked); }} /> 
+                            Désactiver l'effet au survol (Zoom / Scale)
+                        </label>
                     </div>
                 </div>
             )}

@@ -29,22 +29,24 @@ export default function ReviewStep({ onEditStep }: ReviewStepProps) {
     try {
       const result = await placeOrderAction(selectedPaymentMethodCode);
       
+      if (result && result.success && (result as any).redirectUrl) {
+         window.location.href = (result as any).redirectUrl;
+         return;
+      }
+
       if (result && !result.success) {
-         if (result.error.includes('NO_ACTIVE_ORDER')) {
+         const errorMsg = result.error || 'Unknown error';
+         if (errorMsg.includes('NO_ACTIVE_ORDER')) {
              console.log('No active order found. Session may have expired or order was already placed. Redirecting to cart.');
-             // Force a full reload to /cart to clear any stale Next.js cache state
              window.location.href = '/cart';
              return;
          }
-         console.error('Error placing order:', result.error);
-         alert(`Payment failed: ${result.error}`); // Simple fallback alert for visibility
+         console.error('Error placing order:', errorMsg);
+         alert(`Payment failed: ${errorMsg}`);
          isSubmitting.current = false;
          setLoading(false);
       }
     } catch (error) {
-      if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
-        throw error; // This is a correct redirect from NextJS
-      }
       console.error('Error placing order:', error);
       isSubmitting.current = false;
       setLoading(false);
@@ -168,7 +170,7 @@ export default function ReviewStep({ onEditStep }: ReviewStepProps) {
                 <p className="font-semibold text-sm leading-tight">{selectedPaymentMethod.name}</p>
                 {selectedPaymentMethod.description && (
                   <p className="font-medium text-muted-foreground mt-1">
-                    {selectedPaymentMethod.description}
+                    {selectedPaymentMethod.description.replace(/<[^>]*>/g, '').trim()}
                   </p>
                 )}
               </div>

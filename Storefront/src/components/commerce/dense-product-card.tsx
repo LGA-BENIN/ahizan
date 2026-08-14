@@ -90,7 +90,7 @@ export function DenseProductCard({
                 } else {
                     toast.info(`${product.productName || product.name} retiré de vos favoris.`);
                 }
-            } else if (res.authenticated === false) {
+            } else if (res.authenticated === false || res.error === 'UNAUTHORIZED') {
                 setIsLoginModalOpen(true);
             } else {
                 toast.error(res.error || "Erreur lors de la mise à jour du favori");

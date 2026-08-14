@@ -21,7 +21,7 @@ const AutoSaver = ({ onSave }: { onSave: (data: string, silent?: boolean) => voi
                 lastSavedRef.current = currentJson;
                 onSave(currentJson, true); // true = silent save
             }
-        }, 1000);
+        }, 300);
 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
@@ -253,31 +253,72 @@ export interface SmartVisualGridSettingsProps {
     onSave: (data: string) => void;
 }
 
-export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSettingsProps) => {
-    // Determine initial state
-    const initData = typeof data === 'string' ? JSON.parse(data || '{}') : data;
-    const isGrouped = initData.isGrouped === true;
-
-    const [config, setConfig] = useState(() => {
-        if (isGrouped) return initData;
+const normalizeGridData = (raw: any) => {
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
+        if (parsed.isGrouped && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+            return parsed;
+        }
         
-        // Migrate legacy to default tab
-        const defaultCraftState = typeof data === 'string' ? data : JSON.stringify(data);
+        let craftState = '';
+        if (parsed.craftState) {
+            craftState = typeof parsed.craftState === 'string' ? parsed.craftState : JSON.stringify(parsed.craftState);
+        } else if (parsed.ROOT || parsed['ROOT']) {
+            craftState = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        }
+
         return {
             isGrouped: true,
             groupStyle: 'pillule',
-            activeColor: '#ef4444', // Default to a brand color, e.g., red
+            activeColor: '#2563eb',
             tabAlignment: 'left',
             tabLayout: 'scroll',
             tabs: [
-                { id: 't_' + Date.now(), label: 'Onglet par défaut', craftState: defaultCraftState && defaultCraftState !== '{}' ? defaultCraftState : '' }
+                {
+                    id: 't_default',
+                    label: 'Onglet principal',
+                    craftState: craftState
+                }
             ]
         };
-    });
+    } catch (e) {
+        return {
+            isGrouped: true,
+            groupStyle: 'pillule',
+            activeColor: '#2563eb',
+            tabAlignment: 'left',
+            tabLayout: 'scroll',
+            tabs: [
+                { id: 't_default', label: 'Onglet principal', craftState: '' }
+            ]
+        };
+    }
+};
 
-    const [activeTabId, setActiveTabId] = useState(config.tabs[0]?.id);
+export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSettingsProps) => {
+    // Determine initial state with robust fallback normalization
+    const [config, setConfig] = useState(() => normalizeGridData(data));
+
+    const [activeTabId, setActiveTabId] = useState(() => config.tabs[0]?.id || 't_default');
     const activeTab = config.tabs.find((t: any) => t.id === activeTabId) || config.tabs[0];
     const lastSavedRef = useRef<string>(JSON.stringify(config));
+
+    // Keep local config in sync with incoming data prop (e.g. after editing in Code mode)
+    useEffect(() => {
+        try {
+            const normalized = normalizeGridData(data);
+            const currentStr = JSON.stringify(normalized);
+            if (currentStr !== lastSavedRef.current) {
+                lastSavedRef.current = currentStr;
+                setConfig(normalized);
+                if (normalized.tabs.length > 0 && !normalized.tabs.some((t: any) => t.id === activeTabId)) {
+                    setActiveTabId(normalized.tabs[0].id);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }, [data]);
 
     // Global Auto-save for the entire configuration
     useEffect(() => {

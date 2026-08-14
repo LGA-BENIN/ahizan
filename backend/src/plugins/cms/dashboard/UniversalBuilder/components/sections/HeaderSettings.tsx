@@ -240,8 +240,9 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                             </div>
                         )}
                         {(config.topBar?.displayMode === 'image' || config.topBar?.displayMode === 'both') && (
-                            <div>
-                                <FileUploadField label="Image/GIF de l'annonce" value={config.topBar?.imageUrl} onChange={(v) => handleNestedChange('topBar', 'imageUrl', v)} accept="image/*,image/gif" />
+                            <div className="grid-2">
+                                <FileUploadField label="Image/GIF de l'annonce (Desktop)" value={config.topBar?.imageUrl} onChange={(v) => handleNestedChange('topBar', 'imageUrl', v)} accept="image/*,image/gif,video/*" />
+                                <FileUploadField label="Image/GIF de l'annonce (Mobile)" value={config.topBar?.mobileImageUrl} onChange={(v) => handleNestedChange('topBar', 'mobileImageUrl', v)} accept="image/*,image/gif,video/*" />
                             </div>
                         )}
                         <div className="grid-3">
@@ -254,6 +255,26 @@ export const HeaderSettings = ({ data, onSave }: HeaderSettingsProps) => {
                                     <option value="12px">12px</option>
                                     <option value="13px">13px</option>
                                     <option value="14px">14px</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="grid-2" style={{ marginTop: '0.5rem' }}>
+                            <div>
+                                <label className="label-pro">Hauteur (Mode Texte)</label>
+                                <select className="input-pro" value={config.topBar?.height || '36px'} onChange={(e) => handleNestedChange('topBar', 'height', e.target.value)}>
+                                    <option value="32px">32px</option>
+                                    <option value="36px">36px (Standard)</option>
+                                    <option value="40px">40px</option>
+                                    <option value="48px">48px</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="label-pro">Hauteur (Mode Image/GIF)</label>
+                                <select className="input-pro" value={config.topBar?.imageHeight || '60px'} onChange={(e) => handleNestedChange('topBar', 'imageHeight', e.target.value)}>
+                                    <option value="48px">48px</option>
+                                    <option value="60px">60px (Confortable)</option>
+                                    <option value="72px">72px (Grand)</option>
+                                    <option value="90px">90px (XL)</option>
                                 </select>
                             </div>
                         </div>

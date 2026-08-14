@@ -76,6 +76,11 @@ export const GetProductsQuery = graphql(`
                     sku
                     priceWithTax
                     stockLevel
+                    customFields {
+                        compareAtPrice
+                        onPromotion
+                        promotionalPrice
+                    }
                 }
                 facetValues {
                     id
@@ -133,6 +138,11 @@ export const GetProductDetailQuery = graphql(`
                 sku
                 priceWithTax
                 stockLevel
+                customFields {
+                    compareAtPrice
+                    onPromotion
+                    promotionalPrice
+                }
                 options {
                     id
                     code
@@ -162,6 +172,9 @@ export const GetProductDetailQuery = graphql(`
                 parent {
                     id
                 }
+            }
+            customFields {
+                shortDescription
             }
         }
     }
@@ -447,6 +460,11 @@ export const GetOrderDetailQuery = graphql(`
             total
             totalWithTax
             currencyCode
+            customFields {
+                sellerStatus
+                adminStatus
+                vendorStatuses
+            }
             customer {
                 id
                 firstName
@@ -509,11 +527,20 @@ export const GetOrderDetailQuery = graphql(`
                             id
                             preview
                         }
+                        customFields {
+                            vendor {
+                                id
+                                name
+                            }
+                        }
                     }
                 }
                 unitPriceWithTax
                 quantity
                 linePriceWithTax
+                customFields {
+                    sellerStatus
+                }
             }
             discounts {
                 description

@@ -1,8 +1,9 @@
 import gql from 'graphql-tag';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
-import { Allow, Permission, Ctx, RequestContext, TransactionalConnection, User } from '@vendure/core';
+import { Allow, Permission, Ctx, RequestContext, TransactionalConnection, User, Customer } from '@vendure/core';
 import { BrevoSmsService } from './brevo-sms.service';
 import { BrevoSettings } from './entities/brevo-settings.entity';
+import { Vendor } from '../multivendor/entities/vendor.entity';
 
 // ─── GraphQL Schema Extension ────────────────────────────────────────────────
 
@@ -79,12 +80,31 @@ export const notificationsAdminApiExtensions = gql`
         failed: Int!
     }
 
+    type TargetEmailRecipient {
+        email: String!
+        name: String
+        role: String!
+    }
+
+    type TargetEmailListResult {
+        target: String!
+        total: Int!
+        recipients: [TargetEmailRecipient!]!
+    }
+
+    type BulkEmailResult {
+        success: Boolean!
+        sentCount: Int!
+        failedCount: Int!
+    }
+
     extend type Query {
         brevoSettings: BrevoSettings
         notificationStats: NotificationStats!
         notificationLogs(options: NotificationLogListOptions): AdminNotificationLogList!
         searchUsers(emailQuery: String, take: Int, skip: Int): AdminUserList!
         vapidPublicKey: String!
+        availableRecipientEmails(target: String!): TargetEmailListResult!
     }
 
     type PushSubscriptionResult {
@@ -107,6 +127,12 @@ export const notificationsAdminApiExtensions = gql`
             channel: String!
             actionUrl: String
         ): BroadcastResult!
+        sendBulkEmail(
+            target: String!
+            subject: String!
+            contentHtml: String!
+            selectedEmails: [String!]
+        ): BulkEmailResult!
         subscribeToPush(endpoint: String!, p256dh: String!, auth: String!, userAgent: String): PushSubscriptionResult!
         unsubscribeFromPush(endpoint: String!): PushSubscriptionResult!
         testSmtpConnection(email: String!): Boolean!
@@ -121,6 +147,7 @@ export const notificationsAdminApiExtensions = gql`
             fromEmail: String
             fromName: String
         ): Boolean!
+        markNotificationsAsRead(ids: [ID!]): Boolean!
     }
 `;
 
@@ -128,6 +155,7 @@ export const notificationsAdminApiExtensions = gql`
 
 import { NotificationsService, NotificationPayload } from './notifications.service';
 import { NotificationLog } from './entities/notification-log.entity';
+import { Not } from 'typeorm';
 
 @Resolver()
 export class NotificationsAdminResolver {
@@ -144,13 +172,13 @@ export class NotificationsAdminResolver {
     }
 
     @Query()
-    @Allow(Permission.Authenticated)
+    @Allow(Permission.Authenticated, Permission.Public)
     async notificationStats(@Ctx() ctx: RequestContext) {
         return this.notificationsService.getStats(ctx);
     }
 
     @Query()
-    @Allow(Permission.Authenticated)
+    @Allow(Permission.Authenticated, Permission.Public)
     async notificationLogs(
         @Ctx() ctx: RequestContext,
         @Args('options') options?: { skip?: number; take?: number },
@@ -158,7 +186,12 @@ export class NotificationsAdminResolver {
         const repo = this.connection.getRepository(ctx, NotificationLog);
         const skip = options?.skip ?? 0;
         const take = options?.take ?? 25;
+        const where: any = { eventType: Not('BUYER_EVENT') };
+        if (ctx.activeUserId) {
+            where.userId = ctx.activeUserId.toString();
+        }
         const [items, totalItems] = await repo.findAndCount({
+            where,
             order: { createdAt: 'DESC' },
             skip,
             take,
@@ -184,6 +217,15 @@ export class NotificationsAdminResolver {
         @Args('input') input: Partial<BrevoSettings>,
     ): Promise<BrevoSettings> {
         return this.smsService.saveSettings(input);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated, Permission.Public)
+    async markNotificationsAsRead(
+        @Ctx() ctx: RequestContext,
+        @Args('ids') ids?: string[],
+    ): Promise<boolean> {
+        return this.notificationsService.markNotificationsAsRead(ctx, ids);
     }
 
     @Mutation()
@@ -336,6 +378,91 @@ export class NotificationsAdminResolver {
             tempSettings,
         );
         return true;
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async availableRecipientEmails(
+        @Ctx() ctx: RequestContext,
+        @Args('target') target: string,
+    ): Promise<{ target: string; total: number; recipients: { email: string; name?: string; role: string }[] }> {
+        const recipientsMap = new Map<string, { email: string; name?: string; role: string }>();
+
+        if (target === 'CUSTOMERS' || target === 'ALL') {
+            const customers = await this.connection.rawConnection.getRepository(Customer).find();
+            for (const c of customers) {
+                if (c.emailAddress && c.emailAddress.includes('@')) {
+                    const name = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.emailAddress;
+                    recipientsMap.set(c.emailAddress.toLowerCase(), {
+                        email: c.emailAddress,
+                        name,
+                        role: 'CLIENT',
+                    });
+                }
+            }
+        }
+
+        if (target === 'SELLERS' || target === 'ALL') {
+            const vendors = await this.connection.rawConnection.getRepository(Vendor).find();
+            for (const v of vendors) {
+                if (v.email && v.email.includes('@')) {
+                    recipientsMap.set(v.email.toLowerCase(), {
+                        email: v.email,
+                        name: v.name || v.email,
+                        role: 'VENDEUR',
+                    });
+                }
+            }
+        }
+
+        const recipients = Array.from(recipientsMap.values());
+        return {
+            target,
+            total: recipients.length,
+            recipients,
+        };
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async sendBulkEmail(
+        @Ctx() ctx: RequestContext,
+        @Args('target') target: string,
+        @Args('subject') subject: string,
+        @Args('contentHtml') contentHtml: string,
+        @Args('selectedEmails', { nullable: true }) selectedEmails?: string[],
+    ): Promise<{ success: boolean; sentCount: number; failedCount: number }> {
+        const settings = await this.smsService.getSettings();
+        if (!settings) {
+            throw new Error('Paramètres Brevo/SMTP introuvables. Veuillez d\'abord enregistrer vos paramètres.');
+        }
+
+        let targetList: string[] = [];
+
+        if (selectedEmails && selectedEmails.length > 0) {
+            targetList = selectedEmails;
+        } else {
+            const available = await this.availableRecipientEmails(ctx, target);
+            targetList = available.recipients.map(r => r.email);
+        }
+
+        let sentCount = 0;
+        let failedCount = 0;
+
+        for (const email of targetList) {
+            try {
+                await this.smsService.sendTransactionalEmail(email, subject, contentHtml, settings);
+                sentCount++;
+            } catch (err) {
+                failedCount++;
+            }
+        }
+
+        return {
+            success: sentCount > 0,
+            sentCount,
+            failedCount,
+        };
     }
 
     // ─────────────────────────────────────────────

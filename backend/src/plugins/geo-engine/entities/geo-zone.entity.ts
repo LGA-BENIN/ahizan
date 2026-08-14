@@ -31,6 +31,13 @@ export class GeoZone extends VendureEntity {
     @Column({ unique: true })
     slug: string;
 
+    @Index({ unique: true })
+    @Column({ unique: true, nullable: true })
+    geoId: string;
+
+    @Column({ nullable: true })
+    hierarchicalCode: string;
+
     @Column({ type: 'varchar', nullable: true })
     code: string;
 

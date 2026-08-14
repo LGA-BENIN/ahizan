@@ -24,6 +24,62 @@ interface Product {
     variants: Array<{ price: number; currencyCode: string; stockLevel: string }>;
 }
 
+// --- Global Settings Queries ---
+const GET_GLOBAL_SETTINGS = `
+    query GetGlobalSettings {
+        globalSettings {
+            customFields {
+                minimumMarketplacePrice
+                whatsappNumber
+            }
+        }
+    }
+`;
+
+const UPDATE_GLOBAL_SETTINGS = `
+    mutation UpdateGlobalSettings($input: UpdateGlobalSettingsInput!) {
+        updateGlobalSettings(input: $input) {
+            ... on GlobalSettings {
+                id
+                customFields {
+                    minimumMarketplacePrice
+                    whatsappNumber
+                }
+            }
+            ... on ErrorResult {
+                errorCode
+                message
+            }
+        }
+    }
+`;
+
+// --- Vendor Queries ---
+const GET_VENDORS_LIST = `
+    query GetVendorsList {
+        vendors(options: { take: 100 }) {
+            items {
+                id
+                name
+            }
+        }
+    }
+`;
+
+const REASSIGN_PRODUCT = `
+    mutation UpdateProductVendor($input: UpdateProductInput!) {
+        updateProduct(input: $input) {
+            id
+            customFields {
+                vendor {
+                    id
+                    name
+                }
+            }
+        }
+    }
+`;
+
 // --- GraphQL Fetcher ---
 async function fetchGraphQL(query: string, variables?: any) {
     const response = await fetch('/admin-api', {
@@ -160,6 +216,107 @@ function CategoryManager() {
     );
 }
 
+// --- Minimal Price & WhatsApp Manager Component ---
+function MinimalPriceManager() {
+    const queryClient = useQueryClient();
+    const [minPrice, setMinPrice] = useState('');
+    const [whatsappNumber, setWhatsappNumber] = useState('');
+    
+    const { data, isLoading } = useQuery({
+        queryKey: ['globalSettings'],
+        queryFn: () => fetchGraphQL(GET_GLOBAL_SETTINGS)
+    });
+
+    React.useEffect(() => {
+        if (data?.globalSettings?.customFields) {
+            if (data.globalSettings.customFields.minimumMarketplacePrice !== undefined) {
+                setMinPrice(data.globalSettings.customFields.minimumMarketplacePrice.toString());
+            }
+            if (data.globalSettings.customFields.whatsappNumber !== undefined) {
+                setWhatsappNumber(data.globalSettings.customFields.whatsappNumber || '');
+            }
+        }
+    }, [data]);
+
+    const updateMutation = useMutation({
+        mutationFn: ({ price, whatsapp }: { price: number; whatsapp: string }) => fetchGraphQL(UPDATE_GLOBAL_SETTINGS, {
+            input: {
+                customFields: {
+                    minimumMarketplacePrice: price,
+                    whatsappNumber: whatsapp
+                }
+            }
+        }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['globalSettings'] });
+            alert('Paramètres de la marketplace mis à jour avec succès!');
+        },
+        onError: (err: any) => alert('Erreur: ' + err.message)
+    });
+
+    const handleSave = (e: React.FormEvent) => {
+        e.preventDefault();
+        const num = parseInt(minPrice, 10);
+        if (isNaN(num) || num < 0) return alert('Veuillez entrer un prix valide');
+        updateMutation.mutate({ price: num, whatsapp: whatsappNumber.trim() });
+    };
+
+    return (
+        <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', marginBottom: '14px', marginTop: 0 }}>⚙️ Configuration de la Marketplace</h2>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>
+                        💰 Configurer le Prix Minimal
+                    </label>
+                    <input 
+                        type="number" 
+                        min="0"
+                        placeholder="Prix minimal (ex: 1000)" 
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                        disabled={isLoading || updateMutation.isPending}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                    />
+                </div>
+                <div style={{ flex: 1, minWidth: '240px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>
+                        💬 Configurer le numéro WhatsApp
+                    </label>
+                    <input 
+                        type="text" 
+                        placeholder="Numéro WhatsApp (ex: +22990000000)" 
+                        value={whatsappNumber}
+                        onChange={(e) => setWhatsappNumber(e.target.value)}
+                        disabled={isLoading || updateMutation.isPending}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                    />
+                </div>
+                <button 
+                    type="submit" 
+                    disabled={isLoading || updateMutation.isPending}
+                    style={{ 
+                        padding: '10px 20px', 
+                        borderRadius: '8px', 
+                        background: '#3b82f6', 
+                        color: 'white', 
+                        border: 'none', 
+                        cursor: (isLoading || updateMutation.isPending) ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap'
+                    }}
+                >
+                    {updateMutation.isPending ? 'Enregistrement...' : 'Enregistrer la configuration'}
+                </button>
+            </form>
+            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '10px', marginBottom: 0 }}>
+                Définissez le prix minimal de publication des produits ainsi que le numéro WhatsApp de contact pour la boutique.
+            </p>
+        </div>
+    );
+}
+
 // --- ProductList Component ---
 export function ProductListComponent() {
     const queryClient = useQueryClient();
@@ -168,6 +325,8 @@ export function ProductListComponent() {
     const [searchTerm, setSearchTerm] = useState('');
     const [vendorFilter, setVendorFilter] = useState('');
     const [togglingId, setTogglingId] = useState<string | null>(null);
+    const [reassigningProductId, setReassigningProductId] = useState<string | null>(null);
+    const [selectedNewVendorId, setSelectedNewVendorId] = useState('');
 
     // Setup Query Variables
     const queryVariables = {
@@ -187,6 +346,12 @@ export function ProductListComponent() {
         queryKey: ['products', page, searchTerm],
         queryFn: () => fetchGraphQL(GET_PRODUCTS, queryVariables),
     });
+
+    const { data: vendorsData } = useQuery({
+        queryKey: ['vendorsList'],
+        queryFn: () => fetchGraphQL(GET_VENDORS_LIST)
+    });
+    const vendorsList = vendorsData?.vendors?.items || [];
 
     // Mutation to update product validation status (approve/reject) using standard UpdateProduct mutation
     const updateProductApprovalMutation = useMutation({
@@ -279,6 +444,27 @@ export function ProductListComponent() {
         deleteProductMutation.mutate({ id: product.id });
     };
 
+    const reassignProductMutation = useMutation({
+        mutationFn: ({ productId, vendorId }: { productId: string; vendorId: string }) => fetchGraphQL(
+            REASSIGN_PRODUCT,
+            { input: { id: productId, customFields: { vendorId: vendorId || null } } }
+        ),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            setReassigningProductId(null);
+            setSelectedNewVendorId('');
+            alert('Produit réassigné avec succès!');
+        },
+        onError: (err: any) => {
+            alert('Erreur: ' + err.message);
+        }
+    });
+
+    const handleReassign = () => {
+        if (!reassigningProductId) return;
+        reassignProductMutation.mutate({ productId: reassigningProductId, vendorId: selectedNewVendorId });
+    };
+
     const { items = [], totalItems = 0 } = data?.products || {};
     const totalPages = Math.ceil(totalItems / pageSize);
 
@@ -288,15 +474,27 @@ export function ProductListComponent() {
         : items;
 
     // Helper to get price range
-    const getPriceDisplay = (variants: Product['variants']) => {
+    const getPriceDisplay = (variants: any[]) => {
         if (!variants || variants.length === 0) return 'N/A';
-        const prices = variants.map(v => v.price);
-        const min = Math.min(...prices);
-        const max = Math.max(...prices);
-        const currency = variants[0].currencyCode;
-        const factor = 100;
-        if (min === max) return `${(min / factor).toFixed(0)} ${currency}`;
-        return `${(min / factor).toFixed(0)} - ${(max / factor).toFixed(0)} ${currency}`;
+        const effectivePrices = variants.map(v => {
+            const onPromo = v.customFields?.onPromotion === true && typeof v.customFields?.promotionalPrice === 'number';
+            return onPromo ? v.customFields.promotionalPrice : v.price;
+        });
+        const min = Math.min(...effectivePrices);
+        const max = Math.max(...effectivePrices);
+        const currency = variants[0].currencyCode || 'XOF';
+        
+        const hasAnyPromo = variants.some(v => v.customFields?.onPromotion === true && typeof v.customFields?.promotionalPrice === 'number');
+
+        if (min === max) {
+            return (
+                <span>
+                    <strong style={{ color: hasAnyPromo ? '#059669' : '#0f172a' }}>{min.toFixed(0)} {currency}</strong>
+                    {hasAnyPromo && <span style={{ fontSize: '11px', color: '#94a3b8', textDecoration: 'line-through', marginLeft: '6px' }}>{variants[0].price.toFixed(0)} {currency}</span>}
+                </span>
+            );
+        }
+        return <strong style={{ color: hasAnyPromo ? '#059669' : '#0f172a' }}>{min.toFixed(0)} - {max.toFixed(0)} {currency}</strong>;
     };
 
     return (
@@ -306,6 +504,9 @@ export function ProductListComponent() {
                 <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0 }}>📦 Produits Marketplace</h1>
                 <p style={{ color: '#6b7280', marginTop: '4px', fontSize: '14px' }}>Visualisez, filtrez, modifiez et modérez les produits de tous les vendeurs.</p>
             </div>
+
+            {/* Minimal Price Manager */}
+            <MinimalPriceManager />
 
             {/* Category Manager Section */}
             <CategoryManager />
@@ -500,6 +701,23 @@ export function ProductListComponent() {
                                                             );
                                                         }
                                                     })()}
+                                                    {/* Bouton de réassignation */}
+                                                    <button
+                                                        onClick={() => setReassigningProductId(product.id)}
+                                                        disabled={togglingId === product.id}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '6px',
+                                                            background: '#f3f4f6',
+                                                            color: '#4b5563',
+                                                            border: '1px solid #d1d5db',
+                                                            fontWeight: 600,
+                                                            fontSize: '12px',
+                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer'
+                                                        }}
+                                                    >
+                                                        Réassigner
+                                                    </button>
                                                     {/* Edit Link to Vendure native product editor */}
                                                     <a
                                                         href={`/admin/products/${product.id}`}
@@ -543,6 +761,41 @@ export function ProductListComponent() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Modal de réassignation */}
+                    {reassigningProductId && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                            <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                                <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '18px', fontWeight: 600 }}>Réassigner ce produit</h3>
+                                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>Sélectionnez un nouveau vendeur pour ce produit. L'ancien vendeur perdra le contrôle de ce produit.</p>
+                                <select 
+                                    value={selectedNewVendorId} 
+                                    onChange={(e) => setSelectedNewVendorId(e.target.value)}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '16px', fontSize: '14px' }}
+                                >
+                                    <option value="">-- Aucun Vendeur (Retirer) --</option>
+                                    {vendorsList.map((v: any) => (
+                                        <option key={v.id} value={v.id}>{v.name}</option>
+                                    ))}
+                                </select>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                    <button 
+                                        onClick={() => { setReassigningProductId(null); setSelectedNewVendorId(''); }}
+                                        style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button 
+                                        onClick={handleReassign}
+                                        disabled={reassignProductMutation.isPending}
+                                        style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', cursor: reassignProductMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '13px' }}
+                                    >
+                                        {reassignProductMutation.isPending ? 'En cours...' : 'Confirmer'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Pagination */}
                     {totalItems > 0 && (

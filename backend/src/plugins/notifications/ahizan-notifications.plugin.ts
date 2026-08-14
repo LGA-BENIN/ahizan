@@ -23,6 +23,8 @@ export const notificationsShopApiExtensions = gql`
     }
 `;
 
+import * as crypto from 'crypto';
+
 @Resolver()
 export class NotificationsShopResolver {
     constructor(private connection: TransactionalConnection) { }
@@ -30,8 +32,11 @@ export class NotificationsShopResolver {
     @Mutation()
     async verifyPasswordResetCode(@Ctx() ctx: RequestContext, @Args() args: any) {
         const { email, code } = args;
-        // Normalizing email comparison
+        if (!email || !code || typeof code !== 'string') return false;
+
+        // Normalizing email and code comparison
         const normalizedEmail = email.toLowerCase().trim();
+        const trimmedCode = code.trim();
 
         const user = await this.connection.getRepository(ctx, User).findOne({
             where: { identifier: normalizedEmail },
@@ -41,12 +46,21 @@ export class NotificationsShopResolver {
         if (!user) return false;
 
         const authMethod = user.getNativeAuthenticationMethod(false);
-        if (!authMethod || authMethod.passwordResetToken !== code) {
+        if (!authMethod || !authMethod.passwordResetToken) {
             return false;
         }
 
-        const expiresAt = (user.customFields as any).passwordResetCodeExpiresAt;
-        if (!expiresAt || new Date() > new Date(expiresAt)) {
+        const storedToken = authMethod.passwordResetToken;
+        if (storedToken.length !== trimmedCode.length) {
+            return false;
+        }
+
+        try {
+            const isMatch = crypto.timingSafeEqual(Buffer.from(storedToken), Buffer.from(trimmedCode));
+            if (!isMatch) {
+                return false;
+            }
+        } catch (err) {
             return false;
         }
 
@@ -86,6 +100,10 @@ export class NotificationsShopResolver {
         BrevoSmsService,
         NotificationEventSubscriber,
         NotificationsService,
+    ],
+    exports: [
+        NotificationsService,
+        BrevoSmsService,
     ],
     compatibility: '^3.0.0',
 })

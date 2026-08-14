@@ -139,15 +139,6 @@ export function PlatformSettingsComponent() {
                     </fieldset>
 
                     <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
-                        <legend style={{ fontWeight: 'bold', padding: '0 8px' }}>Commission</legend>
-                        <label style={{ display: 'block', marginBottom: 8 }}>
-                            <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Taux de commission par défaut (%)</span>
-                            <input type="number" step="0.1" min="0" max="100" value={formData.defaultCommissionRate} onChange={e => setFormData({ ...formData, defaultCommissionRate: parseFloat(e.target.value) || 0 })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
-                            <span style={{ fontSize: 12, color: '#6b7280' }}>Appliqué aux vendeurs sans taux personnalisé</span>
-                        </label>
-                    </fieldset>
-
-                    <fieldset style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
                         <legend style={{ fontWeight: 'bold', padding: '0 8px' }}>Contacts vendeur</legend>
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                             <input type="checkbox" checked={formData.showVendorContact} onChange={e => setFormData({ ...formData, showVendorContact: e.target.checked })} />

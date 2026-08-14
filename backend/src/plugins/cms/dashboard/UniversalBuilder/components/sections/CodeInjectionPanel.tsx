@@ -4,6 +4,7 @@ import { highlight, languages } from 'prismjs';
 import 'prismjs/components/prism-markup';
 import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-javascript';
+import { RuleConditionEditor } from '../RuleConditionEditor';
 
 type CodeTab = 'HTML' | 'CSS' | 'JS';
 
@@ -14,6 +15,7 @@ interface CodeInjectionData {
     _customJS?: string;
     _customHTMLBefore?: string;
     _customHTMLAfter?: string;
+    _rulesJson?: string;
 }
 
 interface CodeInjectionPanelProps {
@@ -31,7 +33,8 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
 };
 
 export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: CodeInjectionPanelProps) => {
-    const [activeView, setActiveView] = useState<'VISUAL' | 'CODE'>('VISUAL');
+    const [activeView, setActiveView] = useState<'VISUAL' | 'CODE' | 'RULES'>('VISUAL');
+    const [rulesJson, setRulesJson] = useState(data._rulesJson || data.rulesJson || '');
     const [activeTab, setActiveTab] = useState<CodeTab>('HTML');
     const [isOverride, setIsOverride] = useState(data._codeOverride || false);
     const [overrideHTML, setOverrideHTML] = useState(data._overrideHTML || '');
@@ -199,6 +202,33 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                         )}
                     </button>
                     
+                    <button
+                        onClick={() => setActiveView('RULES')}
+                        style={{
+                            padding: '8px 20px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: activeView === 'RULES' ? '#fff' : 'transparent',
+                            color: activeView === 'RULES' ? '#2563eb' : '#64748b',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            boxShadow: activeView === 'RULES' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                            transition: 'all 0.15s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                        }}
+                    >
+                        🎯 Règles EMS
+                        {rulesJson && (
+                            <span style={{
+                                width: '7px', height: '7px', borderRadius: '50%',
+                                background: '#2563eb', display: 'inline-block'
+                            }} />
+                        )}
+                    </button>
+                    
                     <div style={{ width: '1px', background: '#cbd5e1', margin: '0 8px' }} />
                     
                     <button
@@ -237,6 +267,20 @@ export const CodeInjectionPanel = ({ data, onSave, sectionType, children }: Code
                     </span>
                 )}
             </div>
+
+            {/* RULES Editor View */}
+            {activeView === 'RULES' && (
+                <div style={{ padding: '1rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <RuleConditionEditor
+                        rulesJson={rulesJson}
+                        onChange={(newRulesJson) => {
+                            setRulesJson(newRulesJson);
+                            const updatedData = { ...data, _rulesJson: newRulesJson, rulesJson: newRulesJson };
+                            onSave(updatedData);
+                        }}
+                    />
+                </div>
+            )}
 
             {/* VISUAL Editor View */}
             {activeView === 'VISUAL' && (

@@ -29,6 +29,9 @@ export class PageSection extends VendureEntity {
     @Column({ type: 'text', nullable: true })
     dataJson: string;
 
+    @Column({ type: 'text', nullable: true })
+    rulesJson: string;
+
     @Column({ type: 'timestamp', nullable: true })
     scheduledStart: Date;
 

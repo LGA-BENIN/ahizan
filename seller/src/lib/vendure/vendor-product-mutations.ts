@@ -49,6 +49,7 @@ export const GetMyVendorProductQuery = graphql(`
             customFields {
                 approvalStatus
                 rejectionReason
+                shortDescription
             }
             collections {
                 id

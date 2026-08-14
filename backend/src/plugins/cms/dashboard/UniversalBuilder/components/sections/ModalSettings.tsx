@@ -47,6 +47,46 @@ export const ModalSettings = ({ data, onSave }: ModalSettingsProps) => {
                 <button className="btn-pro btn-pro-primary" onClick={addModal}>+ Ajouter une fenêtre</button>
             </div>
 
+            {/* Code de fermeture personnalisée pour l'utilisateur */}
+            <div style={{ padding: '1rem', background: 'rgba(37, 99, 235, 0.05)', borderRadius: '10px', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#2563eb', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>💡 Code pour fermer la modale (Bouton / Lien HTML sur-mesure)</span>
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--builder-text)', margin: '0 0 0.75rem', lineHeight: '1.4' }}>
+                    Si vous insérez un bouton ou du code HTML personnalisé dans vos fenêtres popup, voici les méthodes que vous pouvez utiliser dans votre code HTML/JS pour fermer la modale avec succès :
+                </p>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                    <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--builder-border)' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--builder-text-muted)', marginBottom: '3px' }}>Option 1 : Attribut HTML (Recommandé)</div>
+                        <code style={{ fontSize: '0.72rem', color: '#059669', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            &lt;button data-close-modal="true"&gt;Fermer&lt;/button&gt;
+                        </code>
+                    </div>
+                    
+                    <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--builder-border)' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--builder-text-muted)', marginBottom: '3px' }}>Option 2 : Clic JavaScript (onclick)</div>
+                        <code style={{ fontSize: '0.72rem', color: '#2563eb', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            &lt;button onclick="closeAhizanModal()"&gt;Fermer&lt;/button&gt;
+                        </code>
+                    </div>
+
+                    <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--builder-border)' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--builder-text-muted)', marginBottom: '3px' }}>Option 3 : Classe CSS HTML</div>
+                        <code style={{ fontSize: '0.72rem', color: '#d97706', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            &lt;button class="ahizan-modal-close"&gt;Fermer&lt;/button&gt;
+                        </code>
+                    </div>
+
+                    <div style={{ background: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--builder-border)' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--builder-text-muted)', marginBottom: '3px' }}>Option 4 : Lien simple (href)</div>
+                        <code style={{ fontSize: '0.72rem', color: '#7c3aed', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                            &lt;a href="#close"&gt;Fermer la fenêtre&lt;/a&gt;
+                        </code>
+                    </div>
+                </div>
+            </div>
+
             {modals.length === 0 && (
                 <div style={{ padding: '3rem', textAlign: 'center', border: '1px dashed var(--builder-border)', borderRadius: '12px', color: 'var(--builder-text-muted)' }}>
                     Aucune fenêtre pour le moment. Cliquez sur "Ajouter une fenêtre" pour créer un popup.

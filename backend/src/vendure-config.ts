@@ -25,6 +25,7 @@ import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscripti
 import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifications.plugin';
 import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender';
 import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
+import { PromotionalOrderItemPriceCalculationStrategy } from './plugins/multivendor/service/promotional-price.strategy';
 import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
@@ -82,6 +83,9 @@ export const config: VendureConfig = {
             secret: process.env.COOKIE_SECRET,
         },
     },
+    orderOptions: {
+        orderItemPriceCalculationStrategy: new PromotionalOrderItemPriceCalculationStrategy(),
+    },
     dbConnectionOptions: {
         type: 'postgres',
         host: process.env.DB_HOST || '127.0.0.1',
@@ -125,6 +129,9 @@ export const config: VendureConfig = {
             { name: 'onPromotion', type: 'boolean', nullable: true, public: true, defaultValue: false, description: [{ languageCode: LanguageCode.fr, value: 'Indique si le produit est en promotion' }] },
             { name: 'promotionalPrice', type: 'int', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Prix promotionnel en centimes' }] },
         ],
+        Product: [
+            { name: 'shortDescription', type: 'text', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Petite description' }] },
+        ],
         Collection: [
             { name: 'allowedFacetIds', type: 'string', list: true, nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'IDs des facettes autorisées pour cette collection' }] },
         ],
@@ -153,7 +160,7 @@ export const config: VendureConfig = {
             transport: { type: 'none' }, 
             emailSender: emailSenderNode,
             route: 'mailbox',
-            handlers: defaultEmailHandlers.filter(h => h.type !== 'password-reset' && h.type !== 'email-verification'),
+            handlers: defaultEmailHandlers.filter((h: any) => h.code !== 'password-reset' && h.code !== 'email-verification' && h.code !== 'order-confirmation' && h.type !== 'password-reset' && h.type !== 'email-verification' && h.type !== 'order-confirmation'),
             templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
             globalTemplateVars: async (ctx: any) => {
                 const req = ctx?.req;

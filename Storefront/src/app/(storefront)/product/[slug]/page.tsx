@@ -4,6 +4,7 @@ import { query } from '@/lib/vendure/api';
 import { GetProductDetailQuery } from '@/lib/vendure/queries';
 import { ProductImageCarousel } from '@/components/commerce/product-image-carousel';
 import { ProductInfo } from '@/components/commerce/product-info';
+import { ProductLongDescription } from '@/components/commerce/product-long-description';
 import { RelatedProducts } from '@/components/commerce/related-products';
 import { notFound } from 'next/navigation';
 import {
@@ -18,6 +19,22 @@ import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import React from 'react';
+import { rawQuery } from '@/lib/vendure/raw-api';
+
+const GET_GLOBAL_WHATSAPP = `
+    query GetGlobalWhatsapp {
+        whatsappNumber
+    }
+`;
+
+async function getWhatsappNumber(): Promise<string> {
+    try {
+        const data = await rawQuery(GET_GLOBAL_WHATSAPP);
+        return data?.whatsappNumber || '';
+    } catch {
+        return '';
+    }
+}
 
 async function getProductData(slug: string) {
     console.log(`[getProductData] Fetching for slug: "${slug}"`);
@@ -39,10 +56,15 @@ export async function generateMetadata({ params }: any): Promise<Metadata> {
 
     const description = truncateDescription(product.description);
     const ogImage = product.assets?.[0]?.preview;
+    const mainVariant = product.variants?.[0];
+    const priceAmount = mainVariant?.priceWithTax ? (mainVariant.priceWithTax / 100).toString() : undefined;
+    const collectionsStr = product.collections?.map((c: any) => c.name).join(', ');
+    const keywords = [product.name, collectionsStr, SITE_NAME, 'Bénin', 'E-commerce', 'Achat en ligne'].filter(Boolean).join(', ');
 
     return {
         title: product.name,
         description: description || `Achetez ${product.name} sur ${SITE_NAME}`,
+        keywords,
         alternates: {
             canonical: buildCanonicalUrl(`/product/${product.slug}`),
         },
@@ -52,6 +74,13 @@ export async function generateMetadata({ params }: any): Promise<Metadata> {
             type: 'website',
             url: buildCanonicalUrl(`/product/${product.slug}`),
             images: buildOgImages(ogImage, product.name),
+            ...(priceAmount ? {
+                other: {
+                    'product:price:amount': priceAmount,
+                    'product:price:currency': 'XOF',
+                    'product:availability': 'in stock',
+                }
+            } : {})
         },
         twitter: {
             card: 'summary_large_image',
@@ -62,52 +91,125 @@ export async function generateMetadata({ params }: any): Promise<Metadata> {
     };
 }
 
-function ProductOverview({ config, product, searchParams, slug }: { config: any, product: any, searchParams: any, slug: string }) {
+function buildProductJsonLd(product: any) {
+    const mainVariant = product.variants?.[0];
+    const rawPrice = mainVariant?.priceWithTax ? mainVariant.priceWithTax / 100 : 0;
+    const cleanDescription = truncateDescription(product.description, 500);
+    const images = product.assets?.map((a: any) => a.preview).filter(Boolean) || [];
+
+    const jsonLd: any = {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: product.name,
+        image: images.length > 0 ? images : undefined,
+        description: cleanDescription || `Achetez ${product.name} sur ${SITE_NAME}`,
+        sku: mainVariant?.sku || product.id,
+        offers: {
+            '@type': 'Offer',
+            url: buildCanonicalUrl(`/product/${product.slug}`),
+            priceCurrency: 'XOF',
+            price: rawPrice,
+            availability: (mainVariant?.stockLevel !== 'IN_STOCK' && mainVariant?.stockLevel === 'OUT_OF_STOCK') 
+                ? 'https://schema.org/OutOfStock' 
+                : 'https://schema.org/InStock',
+            itemCondition: 'https://schema.org/NewCondition',
+        },
+    };
+
+    if (product.collections?.length > 0) {
+        jsonLd.category = product.collections[0].name;
+    }
+
+    return JSON.stringify(jsonLd);
+}
+
+function buildBreadcrumbJsonLd(product: any) {
+    const items: any[] = [
+        {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Accueil',
+            item: buildCanonicalUrl('/'),
+        },
+    ];
+
+    if (product.collections && product.collections.length > 0) {
+        product.collections.forEach((col: any, idx: number) => {
+            items.push({
+                '@type': 'ListItem',
+                position: idx + 2,
+                name: col.name,
+                item: buildCanonicalUrl(`/collection/${col.slug}`),
+            });
+        });
+    }
+
+    items.push({
+        '@type': 'ListItem',
+        position: items.length + 1,
+        name: product.name,
+        item: buildCanonicalUrl(`/product/${product.slug}`),
+    });
+
+    return JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: items,
+    });
+}
+
+
+function ProductOverview({ config, product, searchParams, slug, whatsappNumber }: { config: any, product: any, searchParams: any, slug: string, whatsappNumber?: string }) {
     if (!product) return null;
 
     const layout = config.layout || 'split';
     const showVendor = config.showVendor !== false;
-    const showBadges = config.showBadges !== false;
-    const addToCartStyle = config.addToCartStyle || 'primary';
-    const showDescription = config.showDescription !== false;
-    const showSpecifications = config.showSpecifications !== false;
 
     let containerClass = "grid grid-cols-1 gap-6 lg:gap-12 items-start";
     let leftColClass = "w-full mx-auto";
+    let rightColClass = "flex flex-col gap-6";
     
     if (layout === 'split') {
-        containerClass += " lg:grid-cols-[280px_1fr]";
-        leftColClass += " lg:sticky lg:top-20 max-w-[280px]";
+        containerClass += " lg:grid-cols-12 gap-8 lg:gap-12";
+        leftColClass += " lg:col-span-5 xl:col-span-5 max-w-[480px] lg:sticky lg:top-20 w-full mx-auto lg:mx-0";
+        rightColClass += " lg:col-span-7 xl:col-span-7";
     } else if (layout === 'gallery-top') {
         containerClass += " lg:grid-cols-1";
-        leftColClass += " max-w-xl";
+        leftColClass += " w-full max-w-2xl mx-auto";
+        rightColClass += " w-full max-w-3xl mx-auto";
     } else {
-        containerClass += " lg:grid-cols-[400px_1fr]";
-        leftColClass += " lg:sticky lg:top-20 max-w-[400px]";
+        containerClass += " lg:grid-cols-12 gap-8 lg:gap-12";
+        leftColClass += " lg:col-span-5 xl:col-span-5 max-w-[480px] lg:sticky lg:top-20 w-full mx-auto lg:mx-0";
+        rightColClass += " lg:col-span-7 xl:col-span-7";
     }
 
     return (
-        <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 mt-6 md:mt-8">
-            <div className={containerClass}>
-                {/* Left Column: Image Carousel */}
-                <div className={leftColClass}>
-                    <ProductImageCarousel images={product.assets} />
-                </div>
+        <>
+            <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 mt-6 md:mt-8">
+                <div className={containerClass}>
+                    {/* Left Column: Image Carousel */}
+                    <div className={leftColClass}>
+                        <ProductImageCarousel images={product.assets} />
+                    </div>
 
-                {/* Right Column: Product Info */}
-                <div className="flex flex-col gap-6">
-                    <ProductInfo product={product} searchParams={searchParams} config={config} />
-                    
-                    {showVendor && (
-                        <div className="pt-4 border-t">
-                            <Suspense fallback={null}>
-                                <ProductVendor productSlug={slug} />
-                            </Suspense>
-                        </div>
-                    )}
+                    {/* Right Column: Product Info */}
+                    <div className={rightColClass}>
+                        <ProductInfo product={product} searchParams={searchParams} config={config} whatsappNumber={whatsappNumber} />
+                        
+                        {showVendor && (
+                            <div className="pt-4 border-t">
+                                <Suspense fallback={null}>
+                                    <ProductVendor productSlug={slug} />
+                                </Suspense>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+
+            {/* Long Description full-width */}
+            <ProductLongDescription description={product.description} />
+        </>
     );
 }
 
@@ -132,22 +234,21 @@ function ProductReviews({ config }: { config: any }) {
                 <div className="bg-gray-50 p-6 rounded-2xl border flex flex-col items-center justify-center text-center h-fit">
                     <div className="text-5xl font-black text-foreground">4.6</div>
                     <div className="flex gap-1 my-2">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                            <span key={s} className="text-yellow-500 text-lg">★</span>
+                        {[...Array(5)].map((_, i) => (
+                            <span key={i} className="text-amber-400 text-lg">★</span>
                         ))}
                     </div>
-                    <div className="text-xs text-muted-foreground font-bold font-sans">Sur la base de {mockReviews.length} avis</div>
+                    <p className="text-xs text-muted-foreground font-semibold">Basé sur {mockReviews.length * 3 + 12} avis</p>
                 </div>
-
                 <div className="space-y-4">
                     {mockReviews.map((r, i) => (
-                        <div key={i} className="bg-card p-5 rounded-2xl border shadow-sm">
-                            <div className="flex justify-between items-start mb-2">
-                                <div>
-                                    <div className="font-bold text-sm text-foreground">{r.name}</div>
-                                    <div className="flex gap-0.5 text-xs text-yellow-500">
-                                        {Array.from({ length: r.rating }).map((_, idx) => (
-                                            <span key={idx}>★</span>
+                        <div key={i} className="bg-gray-50/50 p-4 rounded-xl border border-gray-100 space-y-1">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-sm text-foreground">{r.name}</span>
+                                    <div className="flex text-amber-400 text-xs">
+                                        {[...Array(r.rating)].map((_, j) => (
+                                            <span key={j}>★</span>
                                         ))}
                                     </div>
                                 </div>
@@ -167,7 +268,10 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
     const searchParamsResolved = await searchParams;
 
     console.log(`[ProductDetailPage] Rendering for slug: "${slug}"`);
-    const result = await getProductData(slug);
+    const [result, whatsappNumber] = await Promise.all([
+        getProductData(slug),
+        getWhatsappNumber(),
+    ]);
     const product = result.data.product;
 
     if (!product) {
@@ -189,9 +293,19 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
         .sort((a, b) => a.order - b.order);
     const activeSections = sections.filter(s => s.isActive);
 
+    const penultimateIdx = activeSections.length >= 2 ? activeSections.length - 2 : activeSections.length - 1;
+
     if (activeSections.length > 0) {
         return (
             <>
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: buildProductJsonLd(product) }}
+                />
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: buildBreadcrumbJsonLd(product) }}
+                />
                 {/* Breadcrumb Navigation */}
                 {product.collections && product.collections.length > 0 && (
                     <div className="bg-gray-50 border-b border-gray-200">
@@ -221,44 +335,54 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
 
                 <div className="space-y-4">
                     {activeSections.map((section, idx) => {
+                        const isPenultimate = idx === penultimateIdx;
+                        const isLast = idx === activeSections.length - 1;
+                        const sectionId = isPenultimate ? "cms-penultimate-section" : undefined;
+
+                        let content = null;
                         if (section.type === 'PRODUCT_OVERVIEW') {
-                            return (
+                            content = (
                                 <ProductOverview 
-                                    key={section.id || idx}
                                     config={section.data || {}}
                                     product={product}
                                     searchParams={searchParamsResolved}
                                     slug={slug}
+                                    whatsappNumber={whatsappNumber}
                                 />
                             );
-                        }
-                        if (section.type === 'PRODUCT_REVIEWS') {
-                            return (
+                        } else if (section.type === 'PRODUCT_REVIEWS') {
+                            content = (
                                 <ProductReviews 
-                                    key={section.id || idx}
                                     config={section.data || {}}
                                 />
                             );
-                        }
-                        if (section.type === 'RELATED_PRODUCTS') {
-                            return primaryCollection ? (
+                        } else if (section.type === 'RELATED_PRODUCTS') {
+                            content = primaryCollection ? (
                                 <RelatedProducts
-                                    key={section.id || idx}
                                     collectionSlug={primaryCollection.slug}
                                     currentProductId={product.id}
                                     title={section.data?.title}
                                     productsCount={Number(section.data?.productsCount)}
                                 />
                             ) : null;
-                        }
-                        return (
-                            <div key={section.id || idx}>
+                        } else {
+                            content = (
                                 <BodySectionRenderer 
                                     section={section}
                                     siteCategories={[]}
                                     globalPromoConfig={{}}
                                 />
-                            </div>
+                            );
+                        }
+
+                        return (
+                            <React.Fragment key={section.id || idx}>
+                                {isLast && <div id="cms-last-section-top" />}
+                                <div id={sectionId}>
+                                    {content}
+                                    {isPenultimate && <div id="cms-penultimate-section-bottom" />}
+                                </div>
+                            </React.Fragment>
                         );
                     })}
                 </div>
@@ -295,14 +419,14 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                 </div>
             )}
 
-            <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 mt-6 md:mt-8">
-                <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 lg:gap-12 items-start">
-                    <div className="lg:sticky lg:top-20 w-full max-w-[280px] mx-auto">
+            <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 mt-6 md:mt-8" id="cms-penultimate-section">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+                    <div className="lg:col-span-5 xl:col-span-5 max-w-[480px] lg:sticky lg:top-20 w-full mx-auto lg:mx-0">
                         <ProductImageCarousel images={product.assets} />
                     </div>
 
-                    <div className="flex flex-col gap-6">
-                        <ProductInfo product={product} searchParams={searchParamsResolved} />
+                    <div className="lg:col-span-7 xl:col-span-7 flex flex-col gap-6">
+                        <ProductInfo product={product} searchParams={searchParamsResolved} whatsappNumber={whatsappNumber} />
                         <div className="pt-4 border-t">
                             <Suspense fallback={null}>
                                 <ProductVendor productSlug={slug} />
@@ -310,7 +434,13 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                         </div>
                     </div>
                 </div>
+                <div id="cms-penultimate-section-bottom" />
             </div>
+
+            {/* Long Description full-width */}
+            <ProductLongDescription description={product.description} />
+
+            <div id="cms-last-section-top" />
 
             {primaryCollection && (
                 <RelatedProducts

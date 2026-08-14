@@ -20,6 +20,21 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.hostname === "nominatim.openstreetmap.org",
       handler: new NetworkOnly(),
     },
+    // Bypass service worker caching for GraphQL Shop API
+    {
+      matcher: ({ url }) => url.pathname.includes("/shop-api") || url.pathname.includes("/admin-api"),
+      handler: new NetworkOnly(),
+    },
+    // Bypass service worker caching for Next.js Server Actions
+    {
+      matcher: ({ request }) => request.headers.get("x-next-action") !== null || request.headers.get("next-action") !== null,
+      handler: new NetworkOnly(),
+    },
+    // Bypass service worker caching for Next.js RSC requests
+    {
+      matcher: ({ request, url }) => request.headers.get("rsc") === "1" || url.searchParams.has("_next_rsc"),
+      handler: new NetworkOnly(),
+    },
     ...defaultCache,
   ],
 });
@@ -33,6 +48,11 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
 });
 
 self.addEventListener("fetch", (event: FetchEvent) => {
+  const url = new URL(event.request.url);
+  // Bypass SW event handling for shop-api and admin-api to eliminate idle tab cold-start delays
+  if (url.pathname.includes("/shop-api") || url.pathname.includes("/admin-api")) {
+    return;
+  }
   serwist.handleFetch(event);
 });
 

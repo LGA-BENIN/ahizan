@@ -14,6 +14,8 @@ interface VerifyContentProps {
 export function VerifyContent({searchParams}: VerifyContentProps) {
     const params = use(searchParams);
     const token = params.token;
+    const role = (params as any).role;
+    const isVendor = role === 'vendor' || (params as any).redirectTo?.includes('seller') || (params as any).redirectTo?.includes('onboarding');
 
     const [status, setStatus] = useState<'loading' | 'success' | 'error'>(token ? 'loading' : 'error');
     const [errorMsg, setErrorMsg] = useState<string | null>(token ? null : "Le lien de vérification est invalide ou ne contient pas de jeton.");
@@ -28,6 +30,15 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
                 if (!active) return;
                 if (res.success) {
                     setStatus('success');
+                    if (isVendor) {
+                        setTimeout(() => {
+                            window.location.href = 'https://seller.ahizan.com/onboarding';
+                        }, 1500);
+                    } else {
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 1500);
+                    }
                 } else {
                     setStatus('error');
                     setErrorMsg(res.error || "Impossible de vérifier votre compte. Le lien a peut-être expiré.");
@@ -43,7 +54,7 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
         return () => {
             active = false;
         };
-    }, [token]);
+    }, [token, isVendor]);
 
     if (status === 'loading') {
         return (
@@ -73,14 +84,24 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
                     <div className="space-y-2 text-center">
                         <h1 className="text-2xl font-bold">Compte vérifié !</h1>
                         <p className="text-muted-foreground">
-                            Votre adresse e-mail a été vérifiée avec succès. Bienvenue sur Ahizan.
+                            {isVendor
+                                ? "Votre adresse e-mail a été vérifiée avec succès. Redirection vers la création de votre boutique..."
+                                : "Votre adresse e-mail a été vérifiée avec succès. Bienvenue sur Ahizan."}
                         </p>
                     </div>
-                    <Link href="/" className="block">
-                        <Button className="w-full bg-[#0d213d] hover:bg-[#0d213d]/90 text-white">
-                            Continuer vers la boutique
-                        </Button>
-                    </Link>
+                    {isVendor ? (
+                        <a href="https://seller.ahizan.com/onboarding" className="block">
+                            <Button className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold">
+                                Créer ma boutique
+                            </Button>
+                        </a>
+                    ) : (
+                        <Link href="/" className="block">
+                            <Button className="w-full bg-[#0d213d] hover:bg-[#0d213d]/90 text-white">
+                                Continuer vers la boutique
+                            </Button>
+                        </Link>
+                    )}
                 </CardContent>
             </Card>
         );

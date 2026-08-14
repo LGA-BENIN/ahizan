@@ -36,6 +36,8 @@ export const GET_VENDOR_DETAIL = `
             ratingCount
             type
             verificationStatus
+            rejectionReason
+            suspensionReason
             walletBalance
             allowNegativeBalance
             logo {
@@ -117,6 +119,11 @@ export const GET_PRODUCTS = `
                     price
                     currencyCode
                     stockLevel
+                    customFields {
+                        onPromotion
+                        promotionalPrice
+                        compareAtPrice
+                    }
                 }
             }
             totalItems

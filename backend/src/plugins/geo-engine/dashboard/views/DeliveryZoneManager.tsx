@@ -29,15 +29,17 @@ interface MapPickerProps {
     lng?: number;
     radius?: number;
     boundary?: any;
+    otherZones?: any[];
     onChange: (lat: number, lng: number) => void;
 }
 
-function MapPicker({ lat, lng, radius, boundary, onChange }: MapPickerProps) {
+function MapPicker({ lat, lng, radius, boundary, otherZones, onChange }: MapPickerProps) {
     const isLoaded = useLeaflet();
     const mapRef = React.useRef<any>(null);
     const markerRef = React.useRef<any>(null);
     const circleRef = React.useRef<any>(null);
     const boundaryLayerRef = React.useRef<any>(null);
+    const otherZonesLayerRef = React.useRef<any>(null);
     const containerId = React.useMemo(() => `map-${Math.random().toString(36).substr(2, 9)}`, []);
 
     useEffect(() => {
@@ -115,10 +117,10 @@ function MapPicker({ lat, lng, radius, boundary, onChange }: MapPickerProps) {
             mapRef.current.removeLayer(boundaryLayerRef.current);
             boundaryLayerRef.current = null;
         }
-
         if (boundary) {
             try {
-                const geoJsonLayer = L.geoJSON(boundary, {
+                const parsedBoundary = typeof boundary === 'string' ? JSON.parse(boundary) : boundary;
+                const geoJsonLayer = L.geoJSON(parsedBoundary, {
                     style: {
                         color: '#ef4444',
                         weight: 3,
@@ -141,6 +143,48 @@ function MapPicker({ lat, lng, radius, boundary, onChange }: MapPickerProps) {
         }
     }, [isLoaded, boundary, lat, lng]);
 
+    useEffect(() => {
+        if (!isLoaded || !mapRef.current) return;
+        const L = (window as any).L;
+        if (!L) return;
+
+        if (otherZonesLayerRef.current) {
+            mapRef.current.removeLayer(otherZonesLayerRef.current);
+            otherZonesLayerRef.current = null;
+        }
+
+        if (otherZones && otherZones.length > 0) {
+            const layerGroup = L.layerGroup();
+            otherZones.forEach(z => {
+                let zBoundary = z.polygonGeometry || z.geoZone?.boundary;
+                if (typeof zBoundary === 'string') {
+                    try { zBoundary = JSON.parse(zBoundary); } catch (e) {}
+                }
+                const zRadius = z.radiusMeters || z.geoZone?.radiusMeters;
+                const zLat = z.centerLatitude || z.geoZone?.centerLatitude;
+                const zLng = z.centerLongitude || z.geoZone?.centerLongitude;
+                
+                if (zBoundary) {
+                    try {
+                        L.geoJSON(zBoundary, {
+                            style: { color: '#94a3b8', weight: 2, opacity: 0.5, fillColor: '#94a3b8', fillOpacity: 0.1 }
+                        }).addTo(layerGroup);
+                    } catch (e) {}
+                } else if (zLat && zLng && zRadius) {
+                    L.circle([zLat, zLng], {
+                        radius: zRadius,
+                        color: '#94a3b8',
+                        weight: 2,
+                        fillColor: '#94a3b8',
+                        fillOpacity: 0.1
+                    }).addTo(layerGroup);
+                }
+            });
+            layerGroup.addTo(mapRef.current);
+            otherZonesLayerRef.current = layerGroup;
+        }
+    }, [isLoaded, otherZones]);
+
     return (
         <div style={{ position: 'relative', height: '220px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
             {!isLoaded && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f1f5f9', color: '#64748b' }}>Chargement de la carte...</div>}
@@ -151,11 +195,15 @@ function MapPicker({ lat, lng, radius, boundary, onChange }: MapPickerProps) {
 
 const FETCH_DELIVERY_ZONES = `
   query GetDeliveryZones {
-    deliveryZones(ownerId: "1") {
+    deliveryZones {
       id
       price
+      maxPrice
       isActive
       ownerId
+      centerLatitude
+      centerLongitude
+      radiusMeters
       geoZone {
         id
         name
@@ -188,6 +236,7 @@ const UPDATE_DELIVERY_ZONE = `
     updateDeliveryZone(id: $id, input: $input) {
       id
       price
+      maxPrice
     }
   }
 `;
@@ -197,6 +246,7 @@ const CREATE_DELIVERY_ZONE = `
     createDeliveryZone(input: $input) {
       id
       price
+      maxPrice
     }
   }
 `;
@@ -222,8 +272,12 @@ export function DeliveryZoneManager() {
     const [createForm, setCreateForm] = useState<any>({
         ownerId: '',
         price: 1000,
+        maxPrice: 3000,
         isActive: true,
-        geoZoneId: ''
+        geoZoneId: '',
+        centerLatitude: 6.3654,
+        centerLongitude: 2.4183,
+        radiusMeters: 5000
     });
     const [createStatus, setCreateStatus] = useState('');
 
@@ -257,9 +311,13 @@ export function DeliveryZoneManager() {
                 id: editForm.id,
                 input: {
                     price: editForm.price ? parseInt(editForm.price, 10) : 0,
+                    maxPrice: editForm.maxPrice ? parseInt(editForm.maxPrice, 10) : null,
                     isActive: editForm.isActive === true || editForm.isActive === 'true',
                     geoZoneId: editForm.geoZoneId ? String(editForm.geoZoneId) : null,
-                    ownerId: editForm.ownerId ? String(editForm.ownerId) : null
+                    ownerId: editForm.ownerId ? String(editForm.ownerId) : null,
+                    centerLatitude: editForm.centerLatitude ? parseFloat(editForm.centerLatitude) : null,
+                    centerLongitude: editForm.centerLongitude ? parseFloat(editForm.centerLongitude) : null,
+                    radiusMeters: editForm.radiusMeters ? parseFloat(editForm.radiusMeters) : null,
                 }
             });
             setSaveStatus('✅ Enregistré avec succès !');
@@ -271,26 +329,30 @@ export function DeliveryZoneManager() {
     };
 
     const handleCreate = async () => {
-        if (!createForm.geoZoneId) {
-            setCreateStatus('❌ Erreur : Veuillez sélectionner une zone géographique.');
-            return;
-        }
         try {
             setCreateStatus('⏳ Création...');
             await fetchGraphQL(CREATE_DELIVERY_ZONE, {
                 input: {
                     ownerId: createForm.ownerId ? String(createForm.ownerId) : null,
                     price: createForm.price ? parseInt(createForm.price, 10) : 0,
+                    maxPrice: createForm.maxPrice ? parseInt(createForm.maxPrice, 10) : null,
                     isActive: createForm.isActive === true || createForm.isActive === 'true',
-                    geoZoneId: String(createForm.geoZoneId)
+                    geoZoneId: createForm.geoZoneId ? String(createForm.geoZoneId) : null,
+                    centerLatitude: createForm.centerLatitude ? parseFloat(createForm.centerLatitude) : null,
+                    centerLongitude: createForm.centerLongitude ? parseFloat(createForm.centerLongitude) : null,
+                    radiusMeters: createForm.radiusMeters ? parseFloat(createForm.radiusMeters) : null,
                 }
             });
             setCreateStatus('✅ Zone créée avec succès !');
             setCreateForm({
                 ownerId: '',
                 price: 1000,
+                maxPrice: 3000,
                 isActive: true,
-                geoZoneId: ''
+                geoZoneId: '',
+                centerLatitude: 6.3654,
+                centerLongitude: 2.4183,
+                radiusMeters: 5000
             });
             setShowCreate(false);
             loadZones();
@@ -351,10 +413,11 @@ export function DeliveryZoneManager() {
                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>
                                         {z.geoZone ? `Livraison ${z.geoZone.name} (${z.geoZone.type})` : `Zone ID: ${z.id}`}
                                     </div>
-                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px', display: 'flex', gap: '10px' }}>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                         <span>Frais : <b>{z.price} FCFA</b></span>
-                                        <span>Vendeur ID: {z.ownerId}</span>
-                                        {z.geoZone?.radiusMeters && <span>Rayon: {(z.geoZone.radiusMeters / 1000).toFixed(1)} km</span>}
+                                        {z.maxPrice != null && <span style={{ color: '#4f46e5', fontWeight: 800 }}>Prix Max Région : {z.maxPrice} FCFA</span>}
+                                        <span>Vendeur ID: {z.ownerId || 'Globale (Admin)'}</span>
+                                        {(z.radiusMeters || z.geoZone?.radiusMeters) && <span>Rayon: {((z.radiusMeters || z.geoZone?.radiusMeters) / 1000).toFixed(1)} km</span>}
                                         <span style={{ color: z.isActive ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{z.isActive ? 'Actif' : 'Inactif'}</span>
                                     </div>
                                 </div>
@@ -379,7 +442,7 @@ export function DeliveryZoneManager() {
             </div>
 
             {/* Right Panel: Creation / Editor Panel */}
-            <div style={{ width: '400px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+            <div style={{ width: '420px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                 {showCreate ? (
                     // Create Form
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -387,20 +450,10 @@ export function DeliveryZoneManager() {
                             🚚 Nouvelle Zone de Livraison
                         </h3>
                         <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>ID du Vendeur (laisser vide pour zone Globale)</label>
-                            <input 
-                                type="text" 
-                                className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem' }}
-                                value={createForm.ownerId} 
-                                onChange={e => setCreateForm((prev: any) => ({ ...prev, ownerId: e.target.value }))} 
-                            />
-                        </div>
-                        <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>Rattaché à la Zone</label>
+                            <label className="label-pro" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Rattaché à la Zone administrative</label>
                             <select 
                                 className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto' }}
+                                style={{ padding: '6px 10px', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                                 value={createForm.geoZoneId || ''} 
                                 onChange={e => setCreateForm((prev: any) => ({ ...prev, geoZoneId: e.target.value }))}
                             >
@@ -411,21 +464,60 @@ export function DeliveryZoneManager() {
                             </select>
                         </div>
                         <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>Frais de Livraison (FCFA)</label>
+                            <label className="label-pro" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5' }}>Prix Max Région / Plafond (FCFA)</label>
                             <input 
                                 type="number" 
                                 className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem' }}
-                                value={createForm.price} 
-                                onChange={e => setCreateForm((prev: any) => ({ ...prev, price: parseFloat(e.target.value) }))} 
+                                style={{ padding: '6px 10px', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '2px solid #6366f1', fontWeight: 800 }}
+                                value={createForm.maxPrice ?? ''} 
+                                onChange={e => setCreateForm((prev: any) => ({ ...prev, maxPrice: e.target.value ? parseFloat(e.target.value) : null }))} 
+                                placeholder="ex: 1500"
+                            />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div>
+                                <label className="label-pro" style={{ fontSize: '0.7rem' }}>Latitude Centre</label>
+                                <input 
+                                    type="number" 
+                                    step="0.0001"
+                                    className="input-pro" 
+                                    style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                    value={createForm.centerLatitude ?? ''} 
+                                    onChange={e => setCreateForm((prev: any) => ({ ...prev, centerLatitude: e.target.value }))} 
+                                />
+                            </div>
+                            <div>
+                                <label className="label-pro" style={{ fontSize: '0.7rem' }}>Longitude Centre</label>
+                                <input 
+                                    type="number" 
+                                    step="0.0001"
+                                    className="input-pro" 
+                                    style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                    value={createForm.centerLongitude ?? ''} 
+                                    onChange={e => setCreateForm((prev: any) => ({ ...prev, centerLongitude: e.target.value }))} 
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="label-pro" style={{ fontSize: '0.7rem' }}>Rayon personnalisé (Mètres)</label>
+                            <input 
+                                type="number" 
+                                className="input-pro" 
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                value={createForm.radiusMeters ?? ''} 
+                                onChange={e => setCreateForm((prev: any) => ({ ...prev, radiusMeters: e.target.value }))} 
+                                placeholder="ex: 5000"
                             />
                         </div>
                         <MapPicker 
-                            lat={selectedCreateZone?.centerLatitude}
-                            lng={selectedCreateZone?.centerLongitude}
-                            radius={selectedCreateZone?.radiusMeters}
+                            lat={Number(createForm.centerLatitude) || selectedCreateZone?.centerLatitude}
+                            lng={Number(createForm.centerLongitude) || selectedCreateZone?.centerLongitude}
+                            radius={Number(createForm.radiusMeters) || selectedCreateZone?.radiusMeters}
                             boundary={selectedCreateZone?.boundary}
-                            onChange={(lat, lng) => {}}
+                            otherZones={zones}
+                            onChange={(lat, lng) => {
+                                setCreateForm((prev: any) => ({ ...prev, centerLatitude: lat, centerLongitude: lng }));
+                            }}
                         />
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: createStatus.startsWith('❌') ? '#ef4444' : '#10b981' }}>{createStatus}</span>
@@ -445,20 +537,10 @@ export function DeliveryZoneManager() {
                             📝 Modifier la Zone de Livraison
                         </h3>
                         <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>ID du Vendeur (laisser vide pour zone Globale)</label>
-                            <input 
-                                type="text" 
-                                className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem' }}
-                                value={editForm.ownerId || ''} 
-                                onChange={e => handleEditInputChange('ownerId', e.target.value)} 
-                            />
-                        </div>
-                        <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>Rattaché à la Zone</label>
+                            <label className="label-pro" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Rattaché à la Zone administrative</label>
                             <select 
                                 className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto' }}
+                                style={{ padding: '6px 10px', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                                 value={editForm.geoZoneId || ''} 
                                 onChange={e => handleEditInputChange('geoZoneId', e.target.value)}
                             >
@@ -469,20 +551,56 @@ export function DeliveryZoneManager() {
                             </select>
                         </div>
                         <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>Frais de Livraison (FCFA)</label>
+                            <label className="label-pro" style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5' }}>Prix Max Région / Plafond (FCFA)</label>
                             <input 
                                 type="number" 
                                 className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem' }}
-                                value={editForm.price ?? ''} 
-                                onChange={e => handleEditInputChange('price', e.target.value)} 
+                                style={{ padding: '6px 10px', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '2px solid #6366f1', fontWeight: 800 }}
+                                value={editForm.maxPrice ?? ''} 
+                                onChange={e => handleEditInputChange('maxPrice', e.target.value)} 
+                                placeholder="ex: 1500"
+                            />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div>
+                                <label className="label-pro" style={{ fontSize: '0.7rem' }}>Latitude Centre</label>
+                                <input 
+                                    type="number" 
+                                    step="0.0001"
+                                    className="input-pro" 
+                                    style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                    value={editForm.centerLatitude ?? ''} 
+                                    onChange={e => handleEditInputChange('centerLatitude', e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className="label-pro" style={{ fontSize: '0.7rem' }}>Longitude Centre</label>
+                                <input 
+                                    type="number" 
+                                    step="0.0001"
+                                    className="input-pro" 
+                                    style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                    value={editForm.centerLongitude ?? ''} 
+                                    onChange={e => handleEditInputChange('centerLongitude', e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="label-pro" style={{ fontSize: '0.7rem' }}>Rayon personnalisé (Mètres)</label>
+                            <input 
+                                type="number" 
+                                className="input-pro" 
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                                value={editForm.radiusMeters ?? ''} 
+                                onChange={e => handleEditInputChange('radiusMeters', e.target.value)} 
+                                placeholder="ex: 5000"
                             />
                         </div>
                         <div>
-                            <label className="label-pro" style={{ fontSize: '0.75rem' }}>Status</label>
+                            <label className="label-pro" style={{ fontSize: '0.75rem', fontWeight: 700 }}>Status</label>
                             <select 
                                 className="input-pro" 
-                                style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto' }}
+                                style={{ padding: '6px 10px', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                                 value={editForm.isActive === true || editForm.isActive === 'true' ? 'true' : 'false'} 
                                 onChange={e => handleEditInputChange('isActive', e.target.value === 'true')}
                             >
@@ -491,11 +609,15 @@ export function DeliveryZoneManager() {
                             </select>
                         </div>
                         <MapPicker 
-                            lat={selectedEditZone?.centerLatitude || editForm.centerLatitude}
-                            lng={selectedEditZone?.centerLongitude || editForm.centerLongitude}
-                            radius={selectedEditZone?.radiusMeters || editForm.radiusMeters}
+                            lat={Number(editForm.centerLatitude) || selectedEditZone?.centerLatitude}
+                            lng={Number(editForm.centerLongitude) || selectedEditZone?.centerLongitude}
+                            radius={Number(editForm.radiusMeters) || selectedEditZone?.radiusMeters}
                             boundary={selectedEditZone?.boundary || editForm.geoZone?.boundary}
-                            onChange={(lat, lng) => {}}
+                            otherZones={zones.filter(z => z.id !== editForm.id)}
+                            onChange={(lat, lng) => {
+                                handleEditInputChange('centerLatitude', lat);
+                                handleEditInputChange('centerLongitude', lng);
+                            }}
                         />
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: saveStatus.startsWith('❌') ? '#ef4444' : '#10b981' }}>{saveStatus}</span>

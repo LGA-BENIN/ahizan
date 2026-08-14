@@ -49,4 +49,10 @@ export class PlatformSettings extends VendureEntity {
 
     @Column({ type: 'int', default: 100 })
     deliveryFeePerKm: number;
+
+    @Column({ type: 'varchar', default: 'GENERAL' })
+    commissionMode: 'GENERAL' | 'COLLECTION' | 'BOTH';
+
+    @Column('simple-json', { nullable: true })
+    collectionCommissionRates: Record<string, number>;
 }

@@ -152,4 +152,48 @@ export class NotificationsSseController {
     stream(@Param('userId') userId: string): Observable<any> {
         return this.notificationsService.registerSseClient(userId);
     }
+
+    @Get('sw.js')
+    getServiceWorker(@Res() res: any) {
+        const swCode = `
+self.addEventListener('push', function(event) {
+    if (!event.data) return;
+    try {
+        const data = event.data.json();
+        const title = data.title || 'Notification Ahizan 🔔';
+        const options = {
+            body: data.body || 'Nouvelle mise à jour disponible.',
+            icon: data.icon || '/assets/logo.png',
+            badge: '/assets/logo.png',
+            data: data,
+            vibrate: [200, 100, 200],
+        };
+        event.waitUntil(self.registration.showNotification(title, options));
+    } catch (e) {
+        console.error('Error handling push event:', e);
+    }
+});
+
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    const urlToOpen = (event.notification.data && (event.notification.data.url || event.notification.data.actionUrl)) || '/admin';
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+            for (let i = 0; i < clientList.length; i++) {
+                let client = clientList[i];
+                if (client.url.includes(urlToOpen) && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
+});
+`;
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Service-Worker-Allowed', '/');
+        return res.send(swCode);
+    }
 }

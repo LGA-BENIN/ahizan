@@ -1,0 +1,619 @@
+[
+  {
+    "type": "THEME_SETTINGS",
+    "title": "🎨 Thème & Couleurs",
+    "description": "Configuration globale de la charte graphique et du style",
+    "layout": "grid",
+    "order": 0,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "primaryColor": "#0f172a",
+      "secondaryColor": "#f59e0b",
+      "accentColor": "#d8263e",
+      "successColor": "#059669",
+      "warningColor": "#d97706",
+      "dangerColor": "#dc2626",
+      "backgroundColor": "#fafafa",
+      "surfaceColor": "#f8fafc",
+      "textColor": "#1e293b",
+      "textMutedColor": "#64748b",
+      "borderColor": "#e2e8f0",
+      "fontFamily": "'Outfit', sans-serif",
+      "headingFontFamily": "Inter, sans-serif",
+      "baseFontSize": "16px",
+      "headingFontWeight": "800",
+      "bodyLineHeight": "1.6",
+      "borderRadius": "8px",
+      "buttonRadius": "8px",
+      "cardRadius": "12px",
+      "inputRadius": "8px",
+      "layoutMode": "boxed",
+      "maxWidth": "1280px",
+      "sectionSpacing": "48px",
+      "containerPadding": "16px",
+      "backgroundType": "color",
+      "backgroundImageUrl": "",
+      "backgroundOverlay": 0.85,
+      "backgroundFixed": true,
+      "backgroundBlur": 0,
+      "buttonStyle": "filled",
+      "buttonSize": "md",
+      "buttonTextTransform": "uppercase",
+      "shadowIntensity": "medium",
+      "animationSpeed": "normal",
+      "enableAnimations": true,
+      "enableHoverEffects": true,
+      "enableSmoothScroll": true,
+      "scrollToTop": {
+        "enabled": true,
+        "style": "circle",
+        "color": "#0f172a"
+      },
+      "favicon": "https://api.ahizan.com/assets/preview/28/whatsapp-image-2026-07-10-at-5.44.08-pm__02__preview.jpeg",
+      "defaultProductImage": "https://api.ahizan.com/assets/preview/f8/whatsapp-image-2026-07-10-at-5.44.08-pm__preview.jpeg"
+    }
+  },
+  {
+    "type": "HEADER_CONF",
+    "title": "Header & Navigation",
+    "description": "Barre de navigation principale et en-tête",
+    "layout": "grid",
+    "order": 1,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "siteName": "AHIZAN",
+      "logoUrl": "https://api.ahizan.com/assets/preview/78/logo-temp-01__preview.png",
+      "logoWidth": "120px",
+      "logoHeight": "auto",
+      "sticky": true,
+      "stickyStyle": "solid",
+      "headerBgColor": "#ffffff",
+      "headerTextColor": "#1e293b",
+      "headerBorderColor": "#e2e8f0",
+      "headerShadow": true,
+      "headerHeight": "64px",
+      "headerPadding": "0 16px",
+      "layoutType": "standard",
+      "showSearch": true,
+      "searchPlaceholder": "Rechercher un produit, alimentation, maison...",
+      "searchStyle": "rounded",
+      "searchBgColor": "#f1f5f9",
+      "showCartIcon": true,
+      "showWishlistIcon": true,
+      "showAccountIcon": true,
+      "cartBadgeColor": "#d8263e",
+      "showVendorLink": true,
+      "vendorLinkText": "Vendre sur Ahizan",
+      "vendorLinkUrl": "https://seller.ahizan.com/",
+      "vendorLinkStyle": "button",
+      "menuItems": [
+        {
+          "label": "Accueil",
+          "link": "/",
+          "style": "text",
+          "bgColor": "",
+          "textColor": "#0f172a"
+        },
+        {
+          "label": "Alimentation",
+          "link": "/collection/alimentation-a-1",
+          "style": "text",
+          "bgColor": "",
+          "textColor": "#0f172a"
+        },
+        {
+          "label": "Maison & Bureau",
+          "link": "/collection/meubles-b-4-1",
+          "style": "text",
+          "bgColor": "",
+          "textColor": "#0f172a"
+        },
+        {
+          "label": "Boutiques",
+          "link": "/vendors",
+          "style": "text",
+          "bgColor": "",
+          "textColor": "#0f172a"
+        }
+      ],
+      "topBar": {
+        "enabled": true,
+        "text": "⚡ Bienvenue sur Ahizan - La marketplace N°1 au Bénin !",
+        "bgColor": "#d8263e",
+        "textColor": "#ffffff",
+        "fontSize": "12px",
+        "height": "36px",
+        "link": "https://seller.ahizan.com/",
+        "fontWeight": "600",
+        "textAlign": "center"
+      }
+    }
+  },
+  {
+    "type": "HERO",
+    "title": "🚀 Section Héro Principal",
+    "description": "Bannière carrousel principale",
+    "layout": "grid",
+    "order": 2,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "selectedTemplate": "classic",
+      "showSidebar": true,
+      "useCarousel": true,
+      "slides": [
+        {
+          "type": "image",
+          "bgUrl": "https://api.ahizan.com/assets/preview/64/t0vh5ul7nv1ixgb89leqnnwr6uk5jbvhqi6smdw8uhutjooxve5l_d-h1r3rvbaysvqmxxsjm0lot3k_otv1_kedpizfrsogoccqjdrfon-pbemj4dkw6xrio3topiamv9pm74dcj9aaub2xf-sqqqwqz9_anikutqbf31fxnjz1jtnwdf0aq28gd0t5_fqa__preview.jpg",
+          "title": "Tout le marché béninois, au même endroit.",
+          "subtitle": "Alimentation, maison, bureau et électronique livrés chez vous.",
+          "buttonText": "Découvrir maintenant",
+          "buttonLink": "/search"
+        },
+        {
+          "type": "image",
+          "bgUrl": "https://api.ahizan.com/assets/preview/75/kn0fwdys3ajflle7natwecbs-xfcymvndubk135cofdrr4elw8zx5hcbgpgmavgm8xt1sg8nq8bl12nh4vgkrbozyzqdasyi_e8qfqrpvniz3r5gs2mcxd1bva4f2wytmg1vvylknmtyuxg48i-bjnijba4uqa1gyrcyvmjx9ihlkuqiy3fhb0lpq36n93bc__preview.jpg",
+          "title": "Offres exclusives Maison & Bureau.",
+          "subtitle": "Équipements et mobilier de qualité supérieure.",
+          "buttonText": "Explorer les offres",
+          "buttonLink": "/collection/meubles-b-4-1"
+        }
+      ],
+      "autoplay": true,
+      "autoplaySpeed": 5000,
+      "showArrows": true,
+      "showDots": true,
+      "arrowStyle": "circle",
+      "dotStyle": "line",
+      "overlayOpacity": 0.35,
+      "overlayColor": "#000000"
+    }
+  },
+  {
+    "type": "SMART_VISUAL_GRID",
+    "title": "Grille Intelligente - Offres Cdiscount",
+    "description": "Grille d'offres avec 3 onglets aux contenus distincts (Alertes, Bons plans, Jeux)",
+    "layout": "grid",
+    "order": 3,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "isGrouped": true,
+      "groupStyle": "pillule",
+      "activeColor": "#2563eb",
+      "tabAlignment": "left",
+      "tabLayout": "scroll",
+      "tabs": [
+        {
+          "id": "t_alertes_1",
+          "label": "Alertes 📢",
+          "craftState": "{\"ROOT\": {\"type\": {\"resolvedName\": \"GridRoot\"}, \"isCanvas\": true, \"props\": {\"columnsDesktop\": 4, \"columnsTablet\": 2, \"columnsMobile\": 1, \"gapX\": 16, \"gapY\": 16, \"paddingTop\": 16, \"paddingBottom\": 16, \"paddingLeft\": 24, \"paddingRight\": 24, \"bgColor\": \"transparent\", \"bgImage\": \"\", \"bgGradient\": \"\", \"contentSource\": \"manual\", \"selectedCollections\": [], \"sectionAnimation\": \"none\", \"contentLayout\": \"image-above-text\", \"gridAlignment\": \"center\", \"globalTitle\": \"Nos meilleures offres\", \"globalTitleSize\": \"24px\", \"globalTitleColor\": \"#0f172a\", \"sectionHeaderAlign\": \"between\", \"sectionHeaderCtaEnabled\": true, \"sectionHeaderCtaText\": \"Voir Tout\", \"sectionHeaderCtaUrl\": \"/search\", \"sectionHeaderCtaStyle\": \"outline\", \"scrollMode\": \"grid\", \"carouselArrows\": \"circle\", \"globalShape\": \"rounded-square\", \"globalImageBorderRadius\": \"16px\", \"globalImageWidth\": \"120px\", \"globalImageHeight\": \"120px\", \"globalImageFitMode\": \"fit\", \"globalImageFit\": \"contain\", \"globalImagePosX\": 0, \"globalImagePosY\": 0, \"globalAnimEntrance\": \"none\", \"globalAnimHover\": \"scale\", \"globalItemAlignment\": \"left\", \"globalItemTitleSize\": \"14px\", \"globalItemTitleWeight\": \"bold\", \"globalItemTitleColor\": \"#0f172a\", \"globalItemTitleTransform\": \"none\", \"globalItemDescSize\": \"13px\", \"globalItemDescWeight\": \"normal\", \"globalItemDescColor\": \"#64748b\", \"globalItemDescLines\": 2, \"globalTextPadding\": 16, \"globalTextGap\": 6, \"globalCardBorderWidth\": 1, \"globalCardBorderColor\": \"#e2e8f0\", \"globalCardBorderRadius\": \"16px\", \"globalCardBgColor\": \"#ffffff\", \"globalCardHoverBgColor\": \"#ffffff\", \"globalShowCta\": false, \"globalCtaText\": \"D\\u00e9couvrir\", \"globalCtaStyle\": \"solid\", \"autoplay\": false, \"autoplaySpeed\": 3000, \"autoplayDirection\": \"right\"}, \"displayName\": \"GridRoot\", \"custom\": {}, \"hidden\": false, \"nodes\": [\"sg1_t1_1\", \"sg1_t1_2\", \"sg1_t1_3\", \"sg1_t1_4\", \"sg1_t1_5\", \"sg1_t1_6\"], \"linkedNodes\": {}}, \"sg1_t1_1\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#2563eb\", \"hoverBgColor\": \"#1d4ed8\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://api.ahizan.com/assets/preview/6f/chatgpt-image-may-28-2026-10_44_15-am__preview.png\", \"overlayEnabled\": true, \"overlayColor\": \"#1e3a8a\", \"overlayOpacity\": 0.3, \"titleText\": \"ALERTE PROMOTIONS\", \"titleColor\": \"#ffffff\", \"titleFontSize\": \"22px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"uppercase\", \"descText\": \"D\\u00e9couvrez nos offres vedettes de la semaine\", \"descColor\": \"#e0e7ff\", \"descFontSize\": \"14px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 2, \"cardMinHeight\": \"340px\", \"cardContentLayout\": \"image-overlay\", \"promoCardEnabled\": true, \"promoCardText\": \"MEILLEUR PRIX\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"bottom-left\", \"showCta\": true, \"ctaText\": \"D\\u00e9couvrir la s\\u00e9lection\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t1_2\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://api.ahizan.com/assets/preview/ef/yjqix49ergofz7rpij1db5p8wwoa0psidu1iawejzaf02cnkeu22_j-mcr5sauhp4cfinjpnoqb3k6tv_ladvm4potwlvmegodb6_nabigs2eijdtzmuefeiphrf325jzl2rt2m1zjcrpuxpdolq8ghjvphfsrpc4kj_w33b0cnweouqy-nydx-m_nxodpfi-removeb-1__03__preview.png\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"SOULET Station balan\\u00e7oire 3 agr\\u00e8s\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"314,99\\u20ac\", \"oldPriceText\": \"389,90\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Top Vente\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t1_3\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1607082349566-187342175e2f?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Salon de jardin 5 personnes r\\u00e9sine\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"479,99\\u20ac\", \"oldPriceText\": \"499,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Promo\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t1_4\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Pergola bioclimatique aluminium 3x3m\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"739,99\\u20ac\", \"oldPriceText\": \"749,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Design\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#059669\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t1_5\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Chaise suspension design \\u0153uf rotin\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"129,99\\u20ac\", \"oldPriceText\": \"159,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Nouveau\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#2563eb\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t1_6\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Matelas Emma Hybride 140x190\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"399,00\\u20ac\", \"oldPriceText\": \"599,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"-33%\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#d8263e\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}}"
+        },
+        {
+          "id": "t_bonsplans_2",
+          "label": "Bons plans 💎",
+          "craftState": "{\"ROOT\": {\"type\": {\"resolvedName\": \"GridRoot\"}, \"isCanvas\": true, \"props\": {\"columnsDesktop\": 4, \"columnsTablet\": 2, \"columnsMobile\": 1, \"gapX\": 16, \"gapY\": 16, \"paddingTop\": 16, \"paddingBottom\": 16, \"paddingLeft\": 24, \"paddingRight\": 24, \"bgColor\": \"transparent\", \"bgImage\": \"\", \"bgGradient\": \"\", \"contentSource\": \"manual\", \"selectedCollections\": [], \"sectionAnimation\": \"none\", \"contentLayout\": \"image-above-text\", \"gridAlignment\": \"center\", \"globalTitle\": \"Bons plans \\u00c9lectronique & Tech\", \"globalTitleSize\": \"24px\", \"globalTitleColor\": \"#0f172a\", \"sectionHeaderAlign\": \"between\", \"sectionHeaderCtaEnabled\": true, \"sectionHeaderCtaText\": \"Voir Tout\", \"sectionHeaderCtaUrl\": \"/search\", \"sectionHeaderCtaStyle\": \"outline\", \"scrollMode\": \"grid\", \"carouselArrows\": \"circle\", \"globalShape\": \"rounded-square\", \"globalImageBorderRadius\": \"16px\", \"globalImageWidth\": \"120px\", \"globalImageHeight\": \"120px\", \"globalImageFitMode\": \"fit\", \"globalImageFit\": \"contain\", \"globalImagePosX\": 0, \"globalImagePosY\": 0, \"globalAnimEntrance\": \"none\", \"globalAnimHover\": \"scale\", \"globalItemAlignment\": \"left\", \"globalItemTitleSize\": \"14px\", \"globalItemTitleWeight\": \"bold\", \"globalItemTitleColor\": \"#0f172a\", \"globalItemTitleTransform\": \"none\", \"globalItemDescSize\": \"13px\", \"globalItemDescWeight\": \"normal\", \"globalItemDescColor\": \"#64748b\", \"globalItemDescLines\": 2, \"globalTextPadding\": 16, \"globalTextGap\": 6, \"globalCardBorderWidth\": 1, \"globalCardBorderColor\": \"#e2e8f0\", \"globalCardBorderRadius\": \"16px\", \"globalCardBgColor\": \"#ffffff\", \"globalCardHoverBgColor\": \"#ffffff\", \"globalShowCta\": false, \"globalCtaText\": \"D\\u00e9couvrir\", \"globalCtaStyle\": \"solid\", \"autoplay\": false, \"autoplaySpeed\": 3000, \"autoplayDirection\": \"right\"}, \"displayName\": \"GridRoot\", \"custom\": {}, \"hidden\": false, \"nodes\": [\"sg1_t2_1\", \"sg1_t2_2\", \"sg1_t2_3\", \"sg1_t2_4\", \"sg1_t2_5\", \"sg1_t2_6\"], \"linkedNodes\": {}}, \"sg1_t2_1\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#0f172a\", \"hoverBgColor\": \"#1e293b\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600\", \"overlayEnabled\": true, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.4, \"titleText\": \"BONS PLANS TECH\", \"titleColor\": \"#ffffff\", \"titleFontSize\": \"22px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"uppercase\", \"descText\": \"Les p\\u00e9pites de la t\\u00e9l\\u00e9phonie et du son\", \"descColor\": \"#94a3b8\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 2, \"cardMinHeight\": \"340px\", \"cardContentLayout\": \"image-overlay\", \"promoCardEnabled\": true, \"promoCardText\": \"TECH DEALS\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#f59e0b\", \"promoCardTextColor\": \"#000000\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"bottom-left\", \"showCta\": true, \"ctaText\": \"Voir les bons plans\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t2_2\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Smartphone Apple iPhone 15 Pro 128Go\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"1.049,00\\u20ac\", \"oldPriceText\": \"1.229,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"High-Tech\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#2563eb\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t2_3\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Samsung Galaxy S24 Ultra 256Go 5G\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"1.199,00\\u20ac\", \"oldPriceText\": \"1.469,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Bestseller\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#059669\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t2_4\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Apple MacBook Air 13 M3 8Go 256Go\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"1.099,00\\u20ac\", \"oldPriceText\": \"1.299,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Incontournable\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#d8263e\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t2_5\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Casque Sans Fil R\\u00e9duction de Bruit\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"329,99\\u20ac\", \"oldPriceText\": \"419,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"-21%\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t2_6\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Montre connect\\u00e9e GPS & Sant\\u00e9\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"499,00\\u20ac\", \"oldPriceText\": \"649,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Sport\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#059669\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}}"
+        },
+        {
+          "id": "t_jeux_3",
+          "label": "Jeux & Gaming 🍀",
+          "craftState": "{\"ROOT\": {\"type\": {\"resolvedName\": \"GridRoot\"}, \"isCanvas\": true, \"props\": {\"columnsDesktop\": 4, \"columnsTablet\": 2, \"columnsMobile\": 1, \"gapX\": 16, \"gapY\": 16, \"paddingTop\": 16, \"paddingBottom\": 16, \"paddingLeft\": 24, \"paddingRight\": 24, \"bgColor\": \"transparent\", \"bgImage\": \"\", \"bgGradient\": \"\", \"contentSource\": \"manual\", \"selectedCollections\": [], \"sectionAnimation\": \"none\", \"contentLayout\": \"image-above-text\", \"gridAlignment\": \"center\", \"globalTitle\": \"Univers Gaming, Consoles & Loisirs\", \"globalTitleSize\": \"24px\", \"globalTitleColor\": \"#0f172a\", \"sectionHeaderAlign\": \"between\", \"sectionHeaderCtaEnabled\": true, \"sectionHeaderCtaText\": \"Voir Tout\", \"sectionHeaderCtaUrl\": \"/search\", \"sectionHeaderCtaStyle\": \"outline\", \"scrollMode\": \"grid\", \"carouselArrows\": \"circle\", \"globalShape\": \"rounded-square\", \"globalImageBorderRadius\": \"16px\", \"globalImageWidth\": \"120px\", \"globalImageHeight\": \"120px\", \"globalImageFitMode\": \"fit\", \"globalImageFit\": \"contain\", \"globalImagePosX\": 0, \"globalImagePosY\": 0, \"globalAnimEntrance\": \"none\", \"globalAnimHover\": \"scale\", \"globalItemAlignment\": \"left\", \"globalItemTitleSize\": \"14px\", \"globalItemTitleWeight\": \"bold\", \"globalItemTitleColor\": \"#0f172a\", \"globalItemTitleTransform\": \"none\", \"globalItemDescSize\": \"13px\", \"globalItemDescWeight\": \"normal\", \"globalItemDescColor\": \"#64748b\", \"globalItemDescLines\": 2, \"globalTextPadding\": 16, \"globalTextGap\": 6, \"globalCardBorderWidth\": 1, \"globalCardBorderColor\": \"#e2e8f0\", \"globalCardBorderRadius\": \"16px\", \"globalCardBgColor\": \"#ffffff\", \"globalCardHoverBgColor\": \"#ffffff\", \"globalShowCta\": false, \"globalCtaText\": \"D\\u00e9couvrir\", \"globalCtaStyle\": \"solid\", \"autoplay\": false, \"autoplaySpeed\": 3000, \"autoplayDirection\": \"right\"}, \"displayName\": \"GridRoot\", \"custom\": {}, \"hidden\": false, \"nodes\": [\"sg1_t3_1\", \"sg1_t3_2\", \"sg1_t3_3\", \"sg1_t3_4\", \"sg1_t3_5\", \"sg1_t3_6\"], \"linkedNodes\": {}}, \"sg1_t3_1\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#7c3aed\", \"hoverBgColor\": \"#6d28d9\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1607082349566-187342175e2f?w=600\", \"overlayEnabled\": true, \"overlayColor\": \"#4c1d95\", \"overlayOpacity\": 0.35, \"titleText\": \"GAMING & JEUX\", \"titleColor\": \"#ffffff\", \"titleFontSize\": \"22px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"uppercase\", \"descText\": \"Plongez dans l'univers du jeu vid\\u00e9o et des loisirs\", \"descColor\": \"#ddd6fe\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 2, \"cardMinHeight\": \"340px\", \"cardContentLayout\": \"image-overlay\", \"promoCardEnabled\": true, \"promoCardText\": \"OFFRE GAME\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#10b981\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"bottom-left\", \"showCta\": true, \"ctaText\": \"D\\u00e9couvrir le catalogue\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t3_2\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1607082349566-187342175e2f?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Console PlayStation 5 Slim Edition\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"499,99\\u20ac\", \"oldPriceText\": \"549,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Gamers\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#7c3aed\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t3_3\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Console Portable Nintendo Switch OLED\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"319,99\\u20ac\", \"oldPriceText\": \"349,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Stock Limit\\u00e9\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t3_4\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Manette sans fil DualSense White\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"59,99\\u20ac\", \"oldPriceText\": \"69,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Accessoire\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#2563eb\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t3_5\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Jeu de Construction & Maquette 75257\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"149,99\\u20ac\", \"oldPriceText\": \"169,99\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Jouet\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#f59e0b\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg1_t3_6\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Fauteuil Gaming Ergonomique Racing\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"179,00\\u20ac\", \"oldPriceText\": \"229,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": true, \"promoCardText\": \"Confort\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#059669\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}}"
+        }
+      ]
+    }
+  },
+  {
+    "type": "FLASH_DEALS",
+    "title": "⚡ Ventes Flash du Jour",
+    "description": "Campagne Vente Flash avec compte à rebours",
+    "layout": "grid",
+    "order": 4,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "flashVersions": [
+        {
+          "id": "v1",
+          "name": "Vente Flash du Jour",
+          "isActive": true,
+          "isSimpleMode": false,
+          "title": "VENTES FLASH DU JOUR",
+          "subtitle": "Profitez de réductions exclusives pendant les prochaines heures !",
+          "selectionType": "FILTER",
+          "filterCriteria": {
+            "minPrice": 0,
+            "maxPrice": 0,
+            "minDiscount": 0,
+            "take": 10,
+            "onlyInStock": true,
+            "collectionIds": []
+          },
+          "bgColor": "#e31837",
+          "accentColor": "#ffffff",
+          "textColor": "#ffffff",
+          "startTime": "2026-08-06T00:00:00.000Z",
+          "endTime": "2026-08-12T23:59:59.000Z",
+          "titleFontSize": "24px",
+          "titleFontWeight": "900",
+          "showCountdown": true,
+          "countdownStyle": "boxes",
+          "cardStyle": "standard",
+          "showBadge": true,
+          "badgeText": "FLASH -20%",
+          "displayLayout": "horizontal_scroll",
+          "showPromotionalPrice": true,
+          "icon": "⚡"
+        }
+      ]
+    }
+  },
+  {
+    "type": "PRODUCT_COLLECTION",
+    "title": "🥖 Collection Alimentation",
+    "description": "Sélection des meilleurs produits alimentaires",
+    "layout": "grid",
+    "order": 5,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Univers Alimentation & Boissons",
+      "subtitle": "Jus, eaux minérales, céréales et produits frais",
+      "badgeText": "ALIMENTATION",
+      "experienceStrategy": "CATALOG",
+      "layout": "carousel",
+      "columns": 4,
+      "limit": 8,
+      "textAlign": "left",
+      "headerStyle": "bordered",
+      "titleColor": "#0f172a",
+      "subtitleColor": "#475569",
+      "badgeBgColor": "#059669",
+      "badgeTextColor": "#ffffff",
+      "cardTheme": "flat",
+      "mixCollectionId": "2152",
+      "filterType": "LATEST",
+      "boostCertifiedVendors": true,
+      "topLeftBadge": "vendor_name",
+      "topRightBadge": "like_button",
+      "selectionMode": "AUTOMATIC"
+    }
+  },
+  {
+    "type": "SMART_VISUAL_GRID",
+    "title": "Grille Intelligente 2 - Catégories Incontournables",
+    "description": "Carrousel de catégories avec macarons circulaires",
+    "layout": "grid",
+    "order": 6,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "isGrouped": true,
+      "groupStyle": "pillule",
+      "activeColor": "#2563eb",
+      "tabAlignment": "left",
+      "tabLayout": "scroll",
+      "tabs": [
+        {
+          "id": "t_inc_1",
+          "label": "Incontournables",
+          "craftState": "{\"ROOT\": {\"type\": {\"resolvedName\": \"GridRoot\"}, \"isCanvas\": true, \"props\": {\"columnsDesktop\": 6, \"columnsTablet\": 4, \"columnsMobile\": 3, \"gapX\": 16, \"gapY\": 16, \"paddingTop\": 16, \"paddingBottom\": 16, \"paddingLeft\": 24, \"paddingRight\": 24, \"bgColor\": \"transparent\", \"bgImage\": \"\", \"bgGradient\": \"\", \"contentSource\": \"manual\", \"selectedCollections\": [], \"sectionAnimation\": \"none\", \"contentLayout\": \"image-on-shape\", \"gridAlignment\": \"center\", \"globalTitle\": \"Les Incontournables de la Saison\", \"globalTitleSize\": \"22px\", \"globalTitleColor\": \"#0f172a\", \"sectionHeaderAlign\": \"between\", \"sectionHeaderCtaEnabled\": true, \"sectionHeaderCtaText\": \"Voir Tout\", \"sectionHeaderCtaUrl\": \"/search\", \"sectionHeaderCtaStyle\": \"outline\", \"scrollMode\": \"carousel\", \"carouselArrows\": \"circle\", \"globalShape\": \"circle\", \"globalImageBorderRadius\": \"16px\", \"globalImageWidth\": \"110px\", \"globalImageHeight\": \"110px\", \"globalImageFitMode\": \"fit\", \"globalImageFit\": \"contain\", \"globalImagePosX\": 0, \"globalImagePosY\": 0, \"globalAnimEntrance\": \"none\", \"globalAnimHover\": \"scale\", \"globalItemAlignment\": \"center\", \"globalItemTitleSize\": \"14px\", \"globalItemTitleWeight\": \"bold\", \"globalItemTitleColor\": \"#0f172a\", \"globalItemTitleTransform\": \"none\", \"globalItemDescSize\": \"13px\", \"globalItemDescWeight\": \"normal\", \"globalItemDescColor\": \"#64748b\", \"globalItemDescLines\": 2, \"globalTextPadding\": 16, \"globalTextGap\": 6, \"globalCardBorderWidth\": 1, \"globalCardBorderColor\": \"#e2e8f0\", \"globalCardBorderRadius\": \"16px\", \"globalCardBgColor\": \"#ffffff\", \"globalCardHoverBgColor\": \"#ffffff\", \"globalShowCta\": false, \"globalCtaText\": \"D\\u00e9couvrir\", \"globalCtaStyle\": \"solid\", \"autoplay\": false, \"autoplaySpeed\": 3000, \"autoplayDirection\": \"right\"}, \"displayName\": \"GridRoot\", \"custom\": {}, \"hidden\": false, \"nodes\": [\"sg2_1\", \"sg2_2\", \"sg2_3\", \"sg2_4\", \"sg2_5\", \"sg2_6\"], \"linkedNodes\": {}}, \"sg2_1\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"transparent\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Mode & Chaussures\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#fee2e2\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg2_2\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"transparent\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Smartphones & Tech\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#dbeafe\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg2_3\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"transparent\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Audio & \\u00c9lectronique\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#e0e7ff\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg2_4\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"transparent\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Beaut\\u00e9 & Soins\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#fce7f3\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg2_5\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"transparent\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1607082349566-187342175e2f?w=200\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Maison & D\\u00e9co\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#dcfce7\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg2_6\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"transparent\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Alimentation\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"14px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#fef3c7\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-above-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": false, \"ctaText\": \"D\\u00e9couvrir\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}}"
+        }
+      ]
+    }
+  },
+  {
+    "type": "FLASH_DEALS",
+    "title": "💥 Super Offres Spéciales",
+    "description": "Campagne Vente Flash Style Néon",
+    "layout": "grid",
+    "order": 7,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "flashVersions": [
+        {
+          "id": "v2",
+          "name": "Super Offres Spéciales",
+          "isActive": true,
+          "isSimpleMode": false,
+          "title": "SUPER OFFRES DE LA SEMAINE",
+          "subtitle": "Prix cassés garantis par Ahizan Marketplace",
+          "selectionType": "FILTER",
+          "filterCriteria": {
+            "minPrice": 0,
+            "maxPrice": 0,
+            "minDiscount": 0,
+            "take": 8,
+            "onlyInStock": true,
+            "collectionIds": []
+          },
+          "bgColor": "#0f172a",
+          "accentColor": "#f59e0b",
+          "textColor": "#ffffff",
+          "startTime": "2026-08-06T00:00:00.000Z",
+          "endTime": "2026-08-12T23:59:59.000Z",
+          "showCountdown": true,
+          "countdownStyle": "neon_timer",
+          "cardStyle": "compact",
+          "showBadge": true,
+          "badgeText": "PROMO SPÉCIALE",
+          "displayLayout": "horizontal_scroll",
+          "showPromotionalPrice": true,
+          "icon": "🔥"
+        }
+      ]
+    }
+  },
+  {
+    "type": "PRODUCT_COLLECTION",
+    "title": "🛋️ Collection Maison & Bureau",
+    "description": "Meubles, décoration, électroménager et matériel de bureau",
+    "layout": "grid",
+    "order": 8,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Univers Maison & Bureau",
+      "subtitle": "Meubles, électroménager et rangement pour votre espace",
+      "badgeText": "MAISON & BUREAU",
+      "experienceStrategy": "CATALOG",
+      "layout": "grid",
+      "columns": 4,
+      "limit": 8,
+      "textAlign": "left",
+      "headerStyle": "simple",
+      "titleColor": "#0f172a",
+      "badgeBgColor": "#2563eb",
+      "badgeTextColor": "#ffffff",
+      "cardTheme": "elevated",
+      "mixCollectionId": "1961",
+      "filterType": "LATEST",
+      "selectionMode": "AUTOMATIC"
+    }
+  },
+  {
+    "type": "SMART_VISUAL_GRID",
+    "title": "Grille Intelligente 3 - Bento Showcase",
+    "description": "Bannières d'univers Bento avec appel à l'action",
+    "layout": "grid",
+    "order": 9,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "isGrouped": true,
+      "groupStyle": "pillule",
+      "activeColor": "#2563eb",
+      "tabAlignment": "left",
+      "tabLayout": "scroll",
+      "tabs": [
+        {
+          "id": "t_bento_1",
+          "label": "Univers",
+          "craftState": "{\"ROOT\": {\"type\": {\"resolvedName\": \"GridRoot\"}, \"isCanvas\": true, \"props\": {\"columnsDesktop\": 3, \"columnsTablet\": 2, \"columnsMobile\": 1, \"gapX\": 16, \"gapY\": 16, \"paddingTop\": 16, \"paddingBottom\": 16, \"paddingLeft\": 24, \"paddingRight\": 24, \"bgColor\": \"transparent\", \"bgImage\": \"\", \"bgGradient\": \"\", \"contentSource\": \"manual\", \"selectedCollections\": [], \"sectionAnimation\": \"none\", \"contentLayout\": \"image-overlay\", \"gridAlignment\": \"center\", \"globalTitle\": \"Univers & Tendances Ahizan\", \"globalTitleSize\": \"24px\", \"globalTitleColor\": \"#0f172a\", \"sectionHeaderAlign\": \"between\", \"sectionHeaderCtaEnabled\": true, \"sectionHeaderCtaText\": \"Voir Tout\", \"sectionHeaderCtaUrl\": \"/search\", \"sectionHeaderCtaStyle\": \"outline\", \"scrollMode\": \"grid\", \"carouselArrows\": \"circle\", \"globalShape\": \"rounded-square\", \"globalImageBorderRadius\": \"16px\", \"globalImageWidth\": \"120px\", \"globalImageHeight\": \"120px\", \"globalImageFitMode\": \"fit\", \"globalImageFit\": \"contain\", \"globalImagePosX\": 0, \"globalImagePosY\": 0, \"globalAnimEntrance\": \"none\", \"globalAnimHover\": \"scale\", \"globalItemAlignment\": \"left\", \"globalItemTitleSize\": \"14px\", \"globalItemTitleWeight\": \"bold\", \"globalItemTitleColor\": \"#0f172a\", \"globalItemTitleTransform\": \"none\", \"globalItemDescSize\": \"13px\", \"globalItemDescWeight\": \"normal\", \"globalItemDescColor\": \"#64748b\", \"globalItemDescLines\": 2, \"globalTextPadding\": 16, \"globalTextGap\": 6, \"globalCardBorderWidth\": 1, \"globalCardBorderColor\": \"#e2e8f0\", \"globalCardBorderRadius\": \"16px\", \"globalCardBgColor\": \"#ffffff\", \"globalCardHoverBgColor\": \"#ffffff\", \"globalShowCta\": false, \"globalCtaText\": \"D\\u00e9couvrir\", \"globalCtaStyle\": \"solid\", \"autoplay\": false, \"autoplaySpeed\": 3000, \"autoplayDirection\": \"right\"}, \"displayName\": \"GridRoot\", \"custom\": {}, \"hidden\": false, \"nodes\": [\"sg3_1\", \"sg3_2\", \"sg3_3\"], \"linkedNodes\": {}}, \"sg3_1\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#d8263e\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600\", \"overlayEnabled\": true, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.35, \"titleText\": \"ALIMENTATION & BIO\", \"titleColor\": \"#ffffff\", \"titleFontSize\": \"20px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"Boissons, jus et \\u00e9picerie fine de qualit\\u00e9\", \"descColor\": \"#ffffff\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"260px\", \"cardContentLayout\": \"image-overlay\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"bottom-left\", \"showCta\": true, \"ctaText\": \"Voir l'Alimentation\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg3_2\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#0d213d\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600\", \"overlayEnabled\": true, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.4, \"titleText\": \"MAISON & BUREAU\", \"titleColor\": \"#ffffff\", \"titleFontSize\": \"20px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"Meubles, \\u00e9lectrom\\u00e9nager et organisation\", \"descColor\": \"#ffffff\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"260px\", \"cardContentLayout\": \"image-overlay\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"bottom-left\", \"showCta\": true, \"ctaText\": \"Explorer Maison & Bureau\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg3_3\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#059669\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1607082349566-187342175e2f?w=600\", \"overlayEnabled\": true, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.35, \"titleText\": \"HIGH-TECH & MOBILES\", \"titleColor\": \"#ffffff\", \"titleFontSize\": \"20px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"Smartphones iPhone, Samsung et TV\", \"descColor\": \"#ffffff\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"\", \"oldPriceText\": \"\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"260px\", \"cardContentLayout\": \"image-overlay\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"bottom-left\", \"showCta\": true, \"ctaText\": \"D\\u00e9couvrir la Tech\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}}"
+        }
+      ]
+    }
+  },
+  {
+    "type": "FLASH_DEALS",
+    "title": "⚡ Vente Flash High-Tech & Téléphonie",
+    "description": "Ventes flash spécialisées High-Tech",
+    "layout": "grid",
+    "order": 10,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "flashVersions": [
+        {
+          "id": "v3",
+          "name": "Flash High-Tech",
+          "isActive": true,
+          "isSimpleMode": false,
+          "title": "VENTES FLASH HIGH-TECH & MOBILES",
+          "subtitle": "Offres à durée ultra-limitée sur les smartphones et téléviseurs",
+          "selectionType": "FILTER",
+          "filterCriteria": {
+            "minPrice": 0,
+            "maxPrice": 0,
+            "minDiscount": 0,
+            "take": 6,
+            "collectionIds": []
+          },
+          "bgColor": "#1e293b",
+          "accentColor": "#3b82f6",
+          "textColor": "#ffffff",
+          "startTime": "2026-08-06T00:00:00.000Z",
+          "endTime": "2026-08-09T23:59:59.000Z",
+          "showCountdown": true,
+          "countdownStyle": "boxes",
+          "cardStyle": "standard",
+          "showBadge": true,
+          "badgeText": "TECH FLASH",
+          "displayLayout": "horizontal_scroll",
+          "showPromotionalPrice": true,
+          "icon": "📱"
+        }
+      ]
+    }
+  },
+  {
+    "type": "PRODUCT_COLLECTION",
+    "title": "🏪 Boutiques Certifiées Béninoises",
+    "description": "Sélection des vendeurs certifiés de la plateforme",
+    "layout": "grid",
+    "order": 11,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Boutiques Partenaires Certifiées",
+      "subtitle": "Achetez en toute sécurité auprès des meilleurs commerçants locaux",
+      "badgeText": "VERIFIÉ",
+      "experienceStrategy": "CATALOG",
+      "layout": "carousel",
+      "columns": 4,
+      "limit": 8,
+      "headerStyle": "bordered",
+      "titleColor": "#0f172a",
+      "badgeBgColor": "#2563eb",
+      "badgeTextColor": "#ffffff",
+      "boostCertifiedVendors": true,
+      "topLeftBadge": "vendor_name",
+      "topRightBadge": "like_button",
+      "selectionMode": "AUTOMATIC"
+    }
+  },
+  {
+    "type": "SMART_VISUAL_GRID",
+    "title": "Grille Intelligente 4 - Horizontale Coups de Cœur",
+    "description": "Cartes horizontales côte à côte avec image à gauche",
+    "layout": "grid",
+    "order": 12,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "isGrouped": true,
+      "groupStyle": "pillule",
+      "activeColor": "#2563eb",
+      "tabAlignment": "left",
+      "tabLayout": "scroll",
+      "tabs": [
+        {
+          "id": "t_horiz_1",
+          "label": "Coups de Cœur",
+          "craftState": "{\"ROOT\": {\"type\": {\"resolvedName\": \"GridRoot\"}, \"isCanvas\": true, \"props\": {\"columnsDesktop\": 2, \"columnsTablet\": 1, \"columnsMobile\": 1, \"gapX\": 16, \"gapY\": 16, \"paddingTop\": 16, \"paddingBottom\": 16, \"paddingLeft\": 24, \"paddingRight\": 24, \"bgColor\": \"transparent\", \"bgImage\": \"\", \"bgGradient\": \"\", \"contentSource\": \"manual\", \"selectedCollections\": [], \"sectionAnimation\": \"none\", \"contentLayout\": \"image-left-text\", \"gridAlignment\": \"center\", \"globalTitle\": \"Coups de C\\u0153ur Ahizan\", \"globalTitleSize\": \"24px\", \"globalTitleColor\": \"#0f172a\", \"sectionHeaderAlign\": \"between\", \"sectionHeaderCtaEnabled\": true, \"sectionHeaderCtaText\": \"Voir Tout\", \"sectionHeaderCtaUrl\": \"/search\", \"sectionHeaderCtaStyle\": \"outline\", \"scrollMode\": \"grid\", \"carouselArrows\": \"circle\", \"globalShape\": \"rounded-square\", \"globalImageBorderRadius\": \"16px\", \"globalImageWidth\": \"120px\", \"globalImageHeight\": \"120px\", \"globalImageFitMode\": \"fit\", \"globalImageFit\": \"contain\", \"globalImagePosX\": 0, \"globalImagePosY\": 0, \"globalAnimEntrance\": \"none\", \"globalAnimHover\": \"scale\", \"globalItemAlignment\": \"left\", \"globalItemTitleSize\": \"14px\", \"globalItemTitleWeight\": \"bold\", \"globalItemTitleColor\": \"#0f172a\", \"globalItemTitleTransform\": \"none\", \"globalItemDescSize\": \"13px\", \"globalItemDescWeight\": \"normal\", \"globalItemDescColor\": \"#64748b\", \"globalItemDescLines\": 2, \"globalTextPadding\": 16, \"globalTextGap\": 6, \"globalCardBorderWidth\": 1, \"globalCardBorderColor\": \"#e2e8f0\", \"globalCardBorderRadius\": \"16px\", \"globalCardBgColor\": \"#ffffff\", \"globalCardHoverBgColor\": \"#ffffff\", \"globalShowCta\": false, \"globalCtaText\": \"D\\u00e9couvrir\", \"globalCtaStyle\": \"solid\", \"autoplay\": false, \"autoplaySpeed\": 3000, \"autoplayDirection\": \"right\"}, \"displayName\": \"GridRoot\", \"custom\": {}, \"hidden\": false, \"nodes\": [\"sg4_1\", \"sg4_2\"], \"linkedNodes\": {}}, \"sg4_1\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"Pack Audio & \\u00c9lectronique Premium\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"16px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"R\\u00e9duction de bruit active et son haute-fid\\u00e9lit\\u00e9\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"199,00\\u20ac\", \"oldPriceText\": \"249,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-left-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": true, \"ctaText\": \"Acheter maintenant\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}, \"sg4_2\": {\"type\": {\"resolvedName\": \"GridItem\"}, \"isCanvas\": false, \"props\": {\"bgColor\": \"#ffffff\", \"hoverBgColor\": \"#ffffff\", \"borderWidth\": 1, \"borderColor\": \"#e2e8f0\", \"imageUrl\": \"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400\", \"overlayEnabled\": false, \"overlayColor\": \"#000000\", \"overlayOpacity\": 0.5, \"titleText\": \"\\u00c9quipement Maison & Bureau Connect\\u00e9\", \"titleColor\": \"#0f172a\", \"titleFontSize\": \"16px\", \"titleFontWeight\": \"bold\", \"titleTransform\": \"none\", \"descText\": \"Organisation intelligente pour votre quotidien\", \"descColor\": \"#64748b\", \"descFontSize\": \"13px\", \"descFontWeight\": \"normal\", \"descLines\": 2, \"priceText\": \"149,00\\u20ac\", \"oldPriceText\": \"189,00\\u20ac\", \"priceColor\": \"#ef4444\", \"oldPriceColor\": \"#94a3b8\", \"priceFontSize\": \"16px\", \"linkUrl\": \"\", \"linkNewTab\": false, \"imageWidth\": \"\", \"imageHeight\": \"\", \"imageFitMode\": \"\", \"imageFit\": \"\", \"shapeBgColor\": \"#f8fafc\", \"shapeBgImage\": \"\", \"imagePosX\": 0, \"imagePosY\": 0, \"imageSize\": 100, \"cardColSpan\": 1, \"cardRowSpan\": 1, \"cardMinHeight\": \"\", \"cardContentLayout\": \"image-left-text\", \"promoCardEnabled\": false, \"promoCardText\": \"PROMO\", \"promoCardPosition\": \"top-left\", \"promoCardBgColor\": \"#ef4444\", \"promoCardTextColor\": \"#ffffff\", \"promoCardStyle\": \"solid\", \"insideTextPosition\": \"center\", \"showCta\": true, \"ctaText\": \"D\\u00e9couvrir la s\\u00e9lection\", \"ctaStyle\": \"solid\"}, \"displayName\": \"GridItem\", \"custom\": {}, \"parent\": \"ROOT\", \"hidden\": false, \"nodes\": [], \"linkedNodes\": {}}}"
+        }
+      ]
+    }
+  },
+  {
+    "type": "FLASH_DEALS",
+    "title": "⚡ Vente Flash Express",
+    "description": "Campagne Flash avec chronomètre serré",
+    "layout": "grid",
+    "order": 13,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "flashVersions": [
+        {
+          "id": "v4",
+          "name": "Flash Express",
+          "isActive": true,
+          "isSimpleMode": true,
+          "title": "DERNIÈRES HEURES : VENTES FLASH EXPRESS",
+          "subtitle": "Dépêchez-vous ! Les stocks s'épuisent rapidement",
+          "selectionType": "FILTER",
+          "filterCriteria": {
+            "minPrice": 0,
+            "maxPrice": 0,
+            "take": 10,
+            "onlyInStock": true,
+            "collectionIds": []
+          },
+          "bgColor": "#d8263e",
+          "accentColor": "#ffffff",
+          "textColor": "#ffffff",
+          "startTime": "2026-08-06T00:00:00.000Z",
+          "endTime": "2026-08-07T23:59:59.000Z",
+          "showCountdown": true,
+          "countdownStyle": "boxes",
+          "cardStyle": "standard",
+          "showBadge": true,
+          "badgeText": "EXPRESS",
+          "displayLayout": "horizontal_scroll",
+          "showPromotionalPrice": true,
+          "icon": "⏳",
+          "cardWidth": "140px"
+        }
+      ]
+    }
+  },
+  {
+    "type": "PRODUCT_COLLECTION",
+    "title": "🎁 Offres Exclusives de la Semaine",
+    "description": "Offres exclusives sélectionnées pour les clients Ahizan",
+    "layout": "grid",
+    "order": 14,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Offres Exclusives de la Semaine",
+      "subtitle": "Économisez sur une sélection d'articles incontournables",
+      "badgeText": "EXCLUSIF",
+      "experienceStrategy": "CATALOG",
+      "layout": "grid",
+      "columns": 4,
+      "limit": 8,
+      "headerStyle": "bordered",
+      "titleColor": "#0f172a",
+      "badgeBgColor": "#f59e0b",
+      "badgeTextColor": "#000000",
+      "cardTheme": "flat",
+      "filterType": "LATEST",
+      "selectionMode": "AUTOMATIC"
+    }
+  },
+  {
+    "type": "CUSTOM",
+    "title": "Bannière Engagement Ahizan",
+    "description": "Bannière HTML personnalisée avec arguments de réassurance",
+    "layout": "grid",
+    "order": 15,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "htmlContent": "<style>\n.ahizan-banner{\n    max-width:1280px;\n    margin:30px auto;\n    padding:30px;\n    border-radius:20px;\n    background:linear-gradient(135deg,#0d213d,#18375f);\n    font-family:Inter,sans-serif;\n    display:grid;\n    grid-template-columns:repeat(auto-fit,minmax(320px,1fr));\n    gap:30px;\n    align-items:center;\n}\n.ahizan-products{\n    display:grid;\n    grid-template-columns:repeat(auto-fit,minmax(110px,1fr));\n    gap:14px;\n}\n.product-card-mini{\n    background:white;\n    border-radius:14px;\n    padding:10px;\n    text-align:center;\n    font-size:12px;\n    font-weight:bold;\n    color:#0d213d;\n}\n.product-card-mini img{\n    width:100%;\n    height:90px;\n    object-fit:contain;\n}\n</style>\n\n<div class=\"ahizan-banner\">\n    <div>\n        <span style=\"background:#d8263e;color:white;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:bold;\">AHIZAN MARKETPLACE</span>\n        <h2 style=\"color:white;font-size:36px;margin:16px 0 12px;line-height:1.2;\">Le commerce local<br>au bout des doigts</h2>\n        <p style=\"color:#d8e2ef;font-size:15px;line-height:1.6;margin-bottom:24px;\">Trouvez tout ce dont vous avez besoin auprès des commerçants et vendeurs certifiés au Bénin.</p>\n        <div style=\"display:flex;flex-wrap:wrap;gap:10px;\">\n            <div style=\"background:white;padding:10px 14px;border-radius:10px;font-weight:bold;font-size:13px;color:#0d213d;\">✔ Vendeurs Vérifiés</div>\n            <div style=\"background:white;padding:10px 14px;border-radius:10px;font-weight:bold;font-size:13px;color:#0d213d;\">🚚 Livraison Rapide</div>\n            <div style=\"background:white;padding:10px 14px;border-radius:10px;font-weight:bold;font-size:13px;color:#0d213d;\">🔒 Paiement Sécurisé</div>\n        </div>\n    </div>\n    <div class=\"ahizan-products\">\n        <div class=\"product-card-mini\"><img src=\"https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200\">Mode</div>\n        <div class=\"product-card-mini\"><img src=\"https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200\">Tech</div>\n        <div class=\"product-card-mini\"><img src=\"https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200\">Audio</div>\n        <div class=\"product-card-mini\"><img src=\"https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200\">Montres</div>\n    </div>\n</div>",
+      "fullWidth": true,
+      "padding": "32px 0"
+    }
+  },
+  {
+    "type": "RICH_TEXT",
+    "title": "Message d'Information Ahizan",
+    "description": "Texte d'information et référencement SEO",
+    "layout": "grid",
+    "order": 16,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "htmlContent": "<div style=\"max-width:1280px;margin:36px auto;padding:32px 28px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.03);color:#475569;font-size:14px;line-height:1.75;\"><h2 style=\"color:#0f172a;font-size:22px;font-weight:800;margin-top:0;margin-bottom:16px;letter-spacing:-0.02em;border-bottom:2px solid #f1f5f9;padding-bottom:10px;\">Ahizan : La Marketplace N°1 qui rapproche acheteurs et vendeurs au Bénin</h2><p>Bienvenue sur <strong>Ahizan</strong>, la première marketplace conçue pour simplifier le commerce en ligne au Bénin. Notre plateforme réunit les acheteurs à la recherche de produits de qualité et les commerçants locaux souhaitant développer leur activité à travers une vitrine numérique moderne, fiable et accessible.</p><p>Que vous recherchiez les produits de la collection <strong>Alimentation</strong> (jus, eaux minérales, biscuits), l'univers <strong>Maison & Bureau</strong> (meubles, électroménager), ou les derniers équipements <strong>High-Tech</strong>, AHIZAN vous garantit une expérience d'achat fluide, des paiements sécurisés et une livraison efficace à votre porte.</p></div>"
+    }
+  },
+  {
+    "type": "FOOTER_CONF",
+    "title": "🗺️ Pied de page",
+    "description": "Configuration du pied de page et liens utiles",
+    "layout": "grid",
+    "order": 17,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "about": "AHIZAN - Votre Marketplace de confiance au Bénin.",
+      "copyrightText": "© 2026 AHIZAN. Tous droits réservés.",
+      "bgColor": "#0f172a",
+      "textColor": "#94a3b8",
+      "headingColor": "#ffffff",
+      "borderColor": "#1e293b",
+      "accentColor": "#3b82f6",
+      "fontSize": "14px",
+      "padding": "48px 16px",
+      "columnsLayout": "4",
+      "showNewsletter": true,
+      "newsletterTitle": "ABONNEZ-VOUS À NOTRE NEWSLETTER",
+      "newsletterSubtitle": "Recevez nos meilleures ventes flash et offres exclusives chaque semaine.",
+      "newsletterBtnText": "S'inscrire",
+      "newsletterBtnColor": "#d8263e",
+      "paymentMethods": [
+        "Mobile Money",
+        "Cash sur livraison",
+        "Visa / Mastercard"
+      ],
+      "showPaymentIcons": true,
+      "bottomBarBg": "#020617",
+      "bottomBarText": "#64748b",
+      "showBackToTop": true
+    }
+  }
+]

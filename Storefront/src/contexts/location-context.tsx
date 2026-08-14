@@ -10,13 +10,14 @@ export interface LocationData {
     name: string;
     latitude: number;
     longitude: number;
-    type: 'MARKET' | 'NEIGHBORHOOD' | 'GPS';
+    type: 'MARKET' | 'NEIGHBORHOOD' | 'COMMUNE' | 'GPS';
 }
 
 interface LocationContextType {
     selectedLocation: LocationData | null;
     markets: any[];
     neighborhoods: any[];
+    cities: any[];
     loading: boolean;
     gpsLoading: boolean;
     gpsPermission: PermissionState | null;
@@ -55,18 +56,25 @@ const FALLBACK_MARKETS = [
 ];
 
 const FALLBACK_NEIGHBORHOODS = [
-    { id: "nz1", name: "Cotonou - Centre / Littoral", centerLatitude: 6.3654, centerLongitude: 2.4183 },
-    { id: "nz2", name: "Abomey-Calavi - Centre", centerLatitude: 6.4485, centerLongitude: 2.3556 },
-    { id: "nz3", name: "Porto-Novo - Ouando / Centre", centerLatitude: 6.4969, centerLongitude: 2.6289 },
-    { id: "nz4", name: "Parakou - Albarika / Centre", centerLatitude: 9.3371, centerLongitude: 2.6303 },
-    { id: "nz5", name: "Ouidah - Centre / Pahou", centerLatitude: 6.3631, centerLongitude: 2.0851 },
-    { id: "nz6", name: "Bohicon - Centre", centerLatitude: 7.1783, centerLongitude: 2.0667 }
+    { id: "14", name: "Tokpota", slug: "tokpota", type: "NEIGHBORHOOD", centerLatitude: 6.515, centerLongitude: 2.632 },
+    { id: "13", name: "Ahouangbo", slug: "ahouangbo", type: "NEIGHBORHOOD", centerLatitude: 6.488, centerLongitude: 2.628 },
+    { id: "12", name: "Ouando", slug: "ouando", type: "NEIGHBORHOOD", centerLatitude: 6.505, centerLongitude: 2.618 },
+    { id: "17", name: "Cococodji", slug: "cococodji", type: "NEIGHBORHOOD", centerLatitude: 6.425, centerLongitude: 2.298 },
+    { id: "15", name: "Zogbadjè", slug: "zogbadje", type: "NEIGHBORHOOD", centerLatitude: 6.4236, centerLongitude: 2.3347 },
+    { id: "16", name: "Godomey", slug: "godomey", type: "NEIGHBORHOOD", centerLatitude: 6.3854, centerLongitude: 2.3432 }
+];
+
+const FALLBACK_CITIES = [
+    { id: "18", name: "Cotonou", slug: "cotonou", type: "COMMUNE", centerLatitude: 6.3654, centerLongitude: 2.4183 },
+    { id: "3", name: "Abomey-Calavi", slug: "abomey-calavi", type: "COMMUNE", centerLatitude: 6.5109, centerLongitude: 2.3303 },
+    { id: "2", name: "Porto-Novo", slug: "porto-novo", type: "COMMUNE", centerLatitude: 6.4935, centerLongitude: 2.6247 }
 ];
 
 export function LocationProvider({ children }: { children: ReactNode }) {
     const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
     const [markets, setMarkets] = useState<any[]>(FALLBACK_MARKETS);
     const [neighborhoods, setNeighborhoods] = useState<any[]>(FALLBACK_NEIGHBORHOODS);
+    const [cities, setCities] = useState<any[]>(FALLBACK_CITIES);
     const [loading, setLoading] = useState(false);
     const [gpsLoading, setGpsLoading] = useState(false);
     const [gpsPermission, setGpsPermission] = useState<PermissionState | null>(null);
@@ -84,7 +92,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    // 2. Load markets & neighborhoods from API (with instant fallback & strict timeout)
+    // 2. Load markets & geoZones (Cities + Neighborhoods) from API
     const refreshLocations = async () => {
         setLoading(true);
         const apiUrl = getShopApiUrl();
@@ -98,9 +106,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                     centerLongitude
                     radiusMeters
                 }
-                geoZones(type: "NEIGHBORHOOD") {
+                geoZones {
                     id
                     name
+                    slug
+                    type
                     centerLatitude
                     centerLongitude
                 }
@@ -121,7 +131,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             const fetchedMarkets = result.data?.markets || [];
             const fetchedZones = result.data?.geoZones || [];
             if (fetchedMarkets.length > 0) setMarkets(fetchedMarkets);
-            if (fetchedZones.length > 0) setNeighborhoods(fetchedZones);
+            if (fetchedZones.length > 0) {
+                const fetchedCities = fetchedZones.filter((z: any) => z.type === 'COMMUNE' || z.type === 'CITY');
+                const fetchedNeighborhoods = fetchedZones.filter((z: any) => z.type !== 'COMMUNE' && z.type !== 'CITY');
+                setCities(fetchedCities.length > 0 ? fetchedCities : FALLBACK_CITIES);
+                setNeighborhoods(fetchedNeighborhoods.length > 0 ? fetchedNeighborhoods : fetchedZones);
+            }
         } catch (err) {
             clearTimeout(timeoutId);
             console.warn('Locations fetch timed out or failed, using fast fallback list:', err);
@@ -134,68 +149,60 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         refreshLocations();
     }, []);
 
-    // 3. Reverse geocode: PostGIS first, then Nominatim fallback (with strict timeouts)
+    // 3. Centralized resolveCoordinates query calling PostGIS (Single Source of Truth)
     const reverseGeocode = async (latitude: number, longitude: number): Promise<LocationData> => {
         const apiUrl = getShopApiUrl();
-        const reverseQuery = `
-            query ReverseGeocode($lat: Float!, $lng: Float!) {
-                reverseGeocode(latitude: $lat, longitude: $lng) {
-                    id
-                    name
-                    centerLatitude
-                    centerLongitude
+        const queryStr = `
+            query ResolveCoordinates($lat: Float!, $lng: Float!) {
+                resolveCoordinates(latitude: $lat, longitude: $lng) {
+                    geoId
+                    hierarchicalCode
+                    latitude
+                    longitude
+                    geoZoneId
+                    displayName
+                    country
+                    department
+                    commune
+                    arrondissement
+                    neighborhood
+                    marketId
+                    marketName
+                    deliveryZonePrice
+                    confidence
                 }
             }
         `;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         try {
             const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: reverseQuery, variables: { lat: latitude, lng: longitude } }),
+                body: JSON.stringify({ query: queryStr, variables: { lat: latitude, lng: longitude } }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
             const result = await res.json();
-            const matchedZones = result.data?.reverseGeocode || [];
-            if (matchedZones.length > 0) {
-                const zone = matchedZones[0];
+            const loc = result.data?.resolveCoordinates;
+            if (loc) {
                 return {
-                    id: zone.id,
-                    name: zone.name,
-                    latitude: zone.centerLatitude || latitude,
-                    longitude: zone.centerLongitude || longitude,
-                    type: 'NEIGHBORHOOD'
+                    id: loc.geoId || String(loc.geoZoneId || 'gps_raw'),
+                    name: loc.displayName || loc.neighborhood || 'Cotonou',
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                    type: loc.marketId ? 'MARKET' : 'NEIGHBORHOOD'
                 };
             }
         } catch (err) {
             clearTimeout(timeoutId);
-            console.warn('PostGIS reverse geocode error or timeout:', err);
-        }
-
-        // Nominatim fallback with strict timeout
-        const osmController = new AbortController();
-        const osmTimeout = setTimeout(() => osmController.abort(), 3500);
-        try {
-            const osmRes = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-                { headers: { 'Accept-Language': 'fr' }, signal: osmController.signal }
-            );
-            clearTimeout(osmTimeout);
-            const osmData = await osmRes.json();
-            const address = osmData.address || {};
-            const name = address.suburb || address.neighbourhood || address.city_district || address.city || 'Ma position GPS';
-            return { id: 'gps_raw', name, latitude, longitude, type: 'GPS' };
-        } catch (err) {
-            clearTimeout(osmTimeout);
-            console.warn('Nominatim fallback error or timeout:', err);
+            console.warn('GeoEngine resolveCoordinates call timeout or error:', err);
         }
 
         return {
             id: 'gps_raw',
-            name: `GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+            name: 'Cotonou',
             latitude,
             longitude,
             type: 'GPS'
@@ -271,11 +278,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 console.warn('watchPosition error:', error);
                 watchIdRef.current = null;
             },
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
         );
     };
 
-    // 7. Manual GPS trigger (with loading UI)
+    // 7. Manual GPS trigger (with resilient 2-stage fallback)
     const useGps = async (): Promise<void> => {
         if (!navigator.geolocation) {
             toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
@@ -285,51 +292,49 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         setGpsLoading(true);
         toast.loading('Recherche de votre position GPS...', { id: 'gps-locate' });
 
-        let isDone = false;
-        const watchdog = setTimeout(() => {
-            if (!isDone) {
-                isDone = true;
-                setGpsLoading(false);
-                toast.dismiss('gps-locate');
-                toast.error("Le délai d'attente GPS a expiré. Veuillez choisir manuellement votre zone dans la liste ci-dessous.");
-            }
-        }, 6500);
-
         return new Promise((resolve) => {
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    if (isDone) { resolve(); return; }
-                    const { latitude, longitude } = position.coords;
-                    try {
-                        const loc = await reverseGeocode(latitude, longitude);
-                        if (isDone) { resolve(); return; }
-                        isDone = true;
-                        clearTimeout(watchdog);
-                        _applyLocation(loc);
-                        toast.success(`Position détectée : ${loc.name}`, { id: 'gps-locate' });
-                        lastAutoUpdateRef.current = { lat: latitude, lon: longitude };
-                        startWatchPosition();
-                    } catch (err) {
-                        if (isDone) { resolve(); return; }
-                        isDone = true;
-                        clearTimeout(watchdog);
-                        console.error('useGps error:', err);
-                        toast.error('Erreur lors de la détection de zone.', { id: 'gps-locate' });
-                    } finally {
-                        setGpsLoading(false);
-                        resolve();
-                    }
-                },
-                (error) => {
-                    if (isDone) { resolve(); return; }
-                    isDone = true;
-                    clearTimeout(watchdog);
-                    console.error('GPS error:', error);
-                    toast.error("Impossible d'accéder à votre position GPS. Veuillez autoriser l'accès ou choisir dans la liste.", { id: 'gps-locate' });
+            const handleSuccess = async (position: GeolocationPosition) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const loc = await reverseGeocode(latitude, longitude);
+                    _applyLocation(loc);
+                    toast.success(`Position détectée : ${loc.name}`, { id: 'gps-locate' });
+                    lastAutoUpdateRef.current = { lat: latitude, lon: longitude };
+                    startWatchPosition();
+                } catch (err) {
+                    console.error('useGps error:', err);
+                    toast.error('Erreur lors de la détection de zone.', { id: 'gps-locate' });
+                } finally {
                     setGpsLoading(false);
                     resolve();
-                },
-                { enableHighAccuracy: false, timeout: 5500, maximumAge: 60000 }
+                }
+            };
+
+            const handleError = (error: GeolocationPositionError, isRetry = false) => {
+                console.warn('GPS error:', error);
+                if (!isRetry && error.code !== 1) {
+                    // If high accuracy timed out or unavailable, retry with network location
+                    navigator.geolocation.getCurrentPosition(
+                        handleSuccess,
+                        (fallbackErr) => handleError(fallbackErr, true),
+                        { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 }
+                    );
+                    return;
+                }
+
+                if (error.code === 1) {
+                    toast.error("Accès GPS refusé. Veuillez autoriser la géolocalisation dans votre navigateur.", { id: 'gps-locate' });
+                } else {
+                    toast.error("Impossible d'accéder à votre position GPS. Veuillez choisir dans la liste.", { id: 'gps-locate' });
+                }
+                setGpsLoading(false);
+                resolve();
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                handleSuccess,
+                (err) => handleError(err, false),
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
             );
         });
     };
@@ -369,7 +374,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 geo.getCurrentPosition(
                     async (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, true),
                     (err) => console.warn('Silent GPS init failed:', err),
-                    { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }
+                    { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
                 );
             } else if (permState === 'prompt' && !stored) {
                 // Not yet asked AND no saved location → trigger native browser prompt automatically
@@ -463,8 +468,6 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             }
         };
 
-        checkGpsAndUpdate();
-
         const handleFocus = () => {
             checkGpsAndUpdate();
         };
@@ -472,7 +475,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         return () => {
             window.removeEventListener('focus', handleFocus);
         };
-    }, [pathname]);
+    }, []);
 
 
     return (
@@ -480,6 +483,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             selectedLocation,
             markets,
             neighborhoods,
+            cities,
             loading,
             gpsLoading,
             gpsPermission,

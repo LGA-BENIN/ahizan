@@ -34,19 +34,22 @@ export class ShortCodeVerificationTokenStrategy implements VerificationTokenStra
             relations: ['user'],
         });
 
+        let matchedField: 'verificationToken' | 'passwordResetToken' = 'verificationToken';
+
         if (!authMethod) {
             authMethod = await this.connection.getRepository(ctx, NativeAuthenticationMethod).findOne({
                 where: { passwordResetToken: trimmedToken },
                 relations: ['user'],
             });
+            matchedField = 'passwordResetToken';
         }
 
         if (!authMethod || !authMethod.user) {
             return false;
         }
 
-        // Timing-safe check against stored token
-        const storedToken = authMethod.verificationToken || authMethod.passwordResetToken;
+        // Use the SAME field that was matched to avoid cross-field comparison bugs
+        const storedToken = authMethod[matchedField];
         if (!storedToken || storedToken.length !== trimmedToken.length) {
             return false;
         }

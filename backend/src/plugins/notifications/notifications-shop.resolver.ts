@@ -29,8 +29,8 @@ export const notificationsShopApiExtensionsV2 = gql`
     }
 
     extend type Query {
-        myNotifications(take: Int, skip: Int): NotificationList!
-        myUnreadCount: Int!
+        myNotifications(take: Int, skip: Int, portal: String): NotificationList!
+        myUnreadCount(portal: String): Int!
         vapidPublicKey: String!
     }
 
@@ -58,6 +58,7 @@ export class NotificationsShopResolverV2 {
         @Ctx() ctx: RequestContext,
         @Args('take') take?: number,
         @Args('skip') skip?: number,
+        @Args('portal') portal?: string,
     ) {
         if (!ctx.activeUserId) return { items: [], unreadCount: 0 };
         return this.notificationsService.getNotificationsForUser(
@@ -65,18 +66,23 @@ export class NotificationsShopResolverV2 {
             ctx.activeUserId.toString(),
             take ?? 20,
             skip ?? 0,
+            portal,
         );
     }
 
     @Query()
     @Allow(Permission.Authenticated)
-    async myUnreadCount(@Ctx() ctx: RequestContext): Promise<number> {
+    async myUnreadCount(
+        @Ctx() ctx: RequestContext,
+        @Args('portal') portal?: string,
+    ): Promise<number> {
         if (!ctx.activeUserId) return 0;
         const { unreadCount } = await this.notificationsService.getNotificationsForUser(
             ctx,
             ctx.activeUserId.toString(),
             0,
             0,
+            portal,
         );
         return unreadCount;
     }

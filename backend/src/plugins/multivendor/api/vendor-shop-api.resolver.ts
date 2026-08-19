@@ -80,7 +80,14 @@ export class VendorShopApiResolver {
         @Ctx() ctx: RequestContext,
         @Args('input') input: any
     ): Promise<Vendor> {
-        return this.vendorService.create(ctx, input);
+        const userId = ctx.activeUserId;
+        if (userId) {
+            return this.vendorService.create(ctx, { ...input, userId: userId.toString() });
+        } else if (input.password) {
+            return this.vendorService.create(ctx, input);
+        } else {
+            throw new Error('Either authenticate or provide a password to create vendor account');
+        }
     }
 
     /**

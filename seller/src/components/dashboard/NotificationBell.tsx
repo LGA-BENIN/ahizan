@@ -40,6 +40,21 @@ export function NotificationBell({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
 
+    // Sync unread notification count with PWA App Badge
+    useEffect(() => {
+        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+            if (unreadCount > 0) {
+                (navigator as any).setAppBadge(unreadCount).catch((err: any) => {
+                    console.error("Failed to set app badge:", err);
+                });
+            } else {
+                (navigator as any).clearAppBadge().catch((err: any) => {
+                    console.error("Failed to clear app badge:", err);
+                });
+            }
+        }
+    }, [unreadCount]);
+
     // ────────────────────────────────────────────
     // GraphQL helpers
     // ────────────────────────────────────────────
@@ -62,7 +77,7 @@ export function NotificationBell({
         try {
             const { data } = await gqlFetch(`
                 query {
-                    myNotifications(take: 20) {
+                    myNotifications(take: 20, portal: "seller") {
                         unreadCount
                         items {
                             id createdAt eventType title body actionUrl iconUrl isRead
@@ -124,6 +139,11 @@ export function NotificationBell({
                 try {
                     const payload = JSON.parse(event.data);
                     
+                    // Filter: Only display notifications meant for the seller dashboard
+                    if (!payload.actionUrl || !payload.actionUrl.startsWith('/dashboard')) {
+                        return;
+                    }
+
                     // Filter: Only display in-app notifications
                     const channels = payload.channels || ['IN_APP'];
                     if (!channels.includes('IN_APP') && !channels.includes('ALL')) {
@@ -143,29 +163,6 @@ export function NotificationBell({
                     };
                     setNotifications(prev => [newNotif, ...prev].slice(0, 50));
                     setUnreadCount(prev => prev + 1);
-
-                    // Browser notification if tab is hidden or visible
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        if ('serviceWorker' in navigator) {
-                            navigator.serviceWorker.ready.then((registration) => {
-                                registration.showNotification(payload.title || 'Ahizan', {
-                                    body: payload.body,
-                                    icon: payload.iconUrl || '/icon.png',
-                                    data: { url: payload.actionUrl || '/' }
-                                });
-                            }).catch(() => {
-                                new Notification(payload.title || 'Ahizan', {
-                                    body: payload.body,
-                                    icon: payload.iconUrl || '/icon.png',
-                                });
-                            });
-                        } else {
-                            new Notification(payload.title || 'Ahizan', {
-                                body: payload.body,
-                                icon: payload.iconUrl || '/icon.png',
-                            });
-                        }
-                    }
                 } catch {
                     // Ignore parse errors
                 }

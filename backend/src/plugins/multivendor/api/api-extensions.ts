@@ -296,19 +296,30 @@ export const commonApiExtensions = `
         id: ID!
         createdAt: DateTime!
         updatedAt: DateTime!
-        vendor: Vendor!
-        customer: Customer!
+        vendor: Vendor
+        customer: Customer
         sender: String!
         content: String!
+        deleted: Boolean!
+        modified: Boolean!
+        seen: Boolean!
     }
 
     type Conversation {
         customer: Customer!
         lastMessage: ChatMessage!
+        unreadCount: Int!
     }
 
     type CustomerConversation {
         vendor: Vendor!
+        lastMessage: ChatMessage!
+        unreadCount: Int!
+    }
+
+    type AdminConversation {
+        customer: Customer
+        vendor: Vendor
         lastMessage: ChatMessage!
     }
 
@@ -378,8 +389,8 @@ export const shopApiExtensions = `
         myConversations: [Conversation!]!
         myCustomerConversations: [CustomerConversation!]!
         conversationHistoryWithCustomer(customerId: ID!): [ChatMessage!]!
-
-
+        isTyping(targetId: ID!, targetType: String!): Boolean!
+        userOnlineStatus(targetId: ID!, targetType: String!): String!
     }
 
     extend type Mutation {
@@ -411,6 +422,10 @@ export const shopApiExtensions = `
         # Chat system mutations (Shop API)
         sendChatMessageToVendor(vendorId: ID!, content: String!): ChatMessage!
         replyToCustomer(customerId: ID!, content: String!): ChatMessage!
+        deleteChatMessage(id: ID!): ChatMessage!
+        modifyChatMessage(id: ID!, content: String!): ChatMessage!
+        markChatMessageAsSeen(id: ID!): ChatMessage!
+        setTyping(targetId: ID!, targetType: String!, typing: Boolean!): Boolean!
     }
 `;
 
@@ -431,6 +446,11 @@ export const adminApiExtensions = `
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
+
+        # Superadmin Chat Monitoring
+        adminConversations: [AdminConversation!]!
+        adminChatHistory(customerId: ID!, vendorId: ID!): [ChatMessage!]!
+        adminDirectChatHistory(targetId: ID!, targetType: String!): [ChatMessage!]!
 
 
     }
@@ -482,5 +502,12 @@ export const adminApiExtensions = `
         approveWithdrawalRequest(id: ID!): Boolean!
         rejectWithdrawalRequest(id: ID!, reason: String): Boolean!
         deleteOrderAdmin(id: ID!): Boolean!
+
+        # Superadmin Chat Monitoring Mutations
+        adminReplyToConversation(customerId: ID!, vendorId: ID!, content: String!): ChatMessage!
+        adminSendDirectMessage(targetId: ID!, targetType: String!, content: String!): ChatMessage!
+        deleteChatMessage(id: ID!): ChatMessage!
+        modifyChatMessage(id: ID!, content: String!): ChatMessage!
+        markChatMessageAsSeen(id: ID!): ChatMessage!
     }
 `;

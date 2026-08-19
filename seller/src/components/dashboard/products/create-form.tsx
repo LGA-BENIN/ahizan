@@ -16,7 +16,7 @@ import {
     X,
     ImageIcon,
     Tag,
-    DollarSign,
+    Coins,
     Loader2,
     Percent,
     AlignLeft
@@ -52,7 +52,7 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
         description: '',
         shortDescription: '',
         price: 0,
-        stock: 100,
+        stock: 5,
         parentCategory: '',
         category: '',
         onPromotion: false,
@@ -78,7 +78,7 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
             description: '',
             shortDescription: '',
             price: 0,
-            stock: 100,
+            stock: 5,
             parentCategory: '',
             category: '',
             onPromotion: false,
@@ -381,7 +381,7 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                     {/* Section: Pricing & Inventory */}
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                         <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-primary" />
+                            <Coins className="w-4 h-4 text-primary" />
                             <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Tarification & Stock</h3>
                         </div>
                         <div className="p-6 sm:p-8 space-y-6">
@@ -390,8 +390,9 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix (CFA) *</Label>
                                     <Input
                                         type="number"
+                                        min="0"
                                         value={formData.price || ''}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, price: Math.max(0, parseInt(e.target.value) || 0) })}
                                         className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2 focus-visible:ring-primary/10 transition-all"
                                         autoComplete="off"
                                         name={`price-${formKey}`}
@@ -401,8 +402,9 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                     <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stock initial</Label>
                                     <Input
                                         type="number"
+                                        min="0"
                                         value={formData.stock || ''}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value) || 0) })}
                                         className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2 focus-visible:ring-primary/10 transition-all"
                                         autoComplete="off"
                                         name={`stock-${formKey}`}
@@ -429,9 +431,10 @@ export default function CreateProductForm({ collectionTree, onSuccess, className
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Soldé (CFA)</Label>
                                             <Input
                                                 type="number"
+                                                min="0"
                                                 value={formData.promotionalPrice || ''}
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                    const value = parseInt(e.target.value) || 0;
+                                                    const value = Math.max(0, parseInt(e.target.value) || 0);
                                                     if (value > formData.price) {
                                                         return; // Prevent promotional price from being higher than original price
                                                     }

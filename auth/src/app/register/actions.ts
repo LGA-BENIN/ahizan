@@ -64,7 +64,10 @@ export async function registerClientAction(formData: FormData) {
         const registerResult = result.data.registerCustomerAccount;
 
         if (registerResult.__typename !== 'Success') {
-            return { error: registerResult.message || 'Une erreur est survenue lors de l\'inscription.' };
+            const errorMsg = (registerResult.__typename === 'PasswordValidationError' && registerResult.validationErrorMessage)
+                ? registerResult.validationErrorMessage
+                : (registerResult.message || 'Une erreur est survenue lors de l\'inscription.');
+            return { error: errorMsg };
         }
 
         const safeRedirect = redirectTo && !redirectTo.includes('seller') ? redirectTo : undefined;
@@ -120,7 +123,9 @@ export async function registerVendorAction(formData: FormData) {
         const regData = registerResult.data.registerCustomerAccount;
 
         if (regData.__typename !== 'Success') {
-            const errorMsg = regData.message || '';
+            const errorMsg = (regData.__typename === 'PasswordValidationError' && regData.validationErrorMessage)
+                ? regData.validationErrorMessage
+                : (regData.message || '');
             // Reconnaissance d'adresse e-mail existante (#Auth 1)
             if (errorMsg.toLowerCase().includes('conflict') || errorMsg.toLowerCase().includes('utilis') || errorMsg.toLowerCase().includes('already')) {
                 return { 
@@ -140,7 +145,7 @@ export async function registerVendorAction(formData: FormData) {
 
             if (loginResult.data.login?.__typename === 'CurrentUser' && loginResult.token) {
                 await setAuthToken(loginResult.token);
-                return { success: true, redirectUrl: `${sellerUrl}/onboarding` };
+                return { success: true, redirectUrl: `${sellerUrl}/onboarding?email=${encodeURIComponent(email)}` };
             }
         } catch (loginErr) {
             console.warn('Auto-login failed after vendor registration:', loginErr);

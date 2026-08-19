@@ -1,5 +1,5 @@
 import { OnboardingForm } from "./onboarding-form";
-import { getMyVendorProfile, getActiveCustomer } from "@/lib/vendure/actions";
+import { getMyVendorProfile, getActiveCustomer, getRegistrationFields } from "@/lib/vendure/actions";
 import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from 'next/cache';
 import { getAuthToken } from "@/lib/auth";
@@ -8,7 +8,7 @@ import { logoutAction } from "@/app/sign-in/actions";
 export default async function OnboardingPage({
     searchParams
 }: {
-    searchParams: Promise<{ notice?: string }>;
+    searchParams: Promise<{ notice?: string; email?: string }>;
 }) {
     noStore();
     const resolvedSearchParams = await searchParams;
@@ -18,12 +18,16 @@ export default async function OnboardingPage({
     if (!token) {
         const ssoUrl = process.env.NEXT_PUBLIC_SSO_REGISTER_URL || 'https://auth.ahizan.com/register';
         const returnUrl = process.env.NEXT_PUBLIC_SELLER_URL ? `${process.env.NEXT_PUBLIC_SELLER_URL}/onboarding` : 'https://seller.ahizan.com/onboarding';
-        redirect(`${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}`);
+        const redirectUrl = resolvedSearchParams?.email 
+            ? `${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}&email=${encodeURIComponent(resolvedSearchParams.email)}`
+            : `${ssoUrl}?redirectTo=${encodeURIComponent(returnUrl)}`;
+        redirect(redirectUrl);
     }
 
-    const [vendor, customer] = await Promise.all([
+    const [vendor, customer, fields] = await Promise.all([
         getMyVendorProfile(),
-        getActiveCustomer()
+        getActiveCustomer(),
+        getRegistrationFields()
     ]);
 
     // Si l'utilisateur a déjà un profil vendeur, le rediriger selon son statut
@@ -75,7 +79,12 @@ export default async function OnboardingPage({
                     </p>
                 </div>
             </div>
-            <OnboardingForm customer={customer} isRecognized={resolvedSearchParams?.notice === 'recognized'} />
+            <OnboardingForm 
+                customer={customer} 
+                isRecognized={resolvedSearchParams?.notice === 'recognized'} 
+                initialEmail={resolvedSearchParams?.email}
+                initialFields={fields}
+            />
         </div>
     );
 }

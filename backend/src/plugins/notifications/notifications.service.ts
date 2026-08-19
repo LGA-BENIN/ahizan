@@ -141,19 +141,28 @@ export class NotificationsService {
         userId: string,
         take = 20,
         skip = 0,
+        portal?: string,
     ): Promise<{ items: NotificationLog[]; unreadCount: number }> {
-        const repo = this.connection.getRepository(ctx, NotificationLog);
+        const qb = this.connection.getRepository(ctx, NotificationLog)
+            .createQueryBuilder('log')
+            .where('log.userId = :userId', { userId })
+            .andWhere('log.channel LIKE :channel', { channel: '%IN_APP%' });
 
-        const [items] = await repo.findAndCount({
-            where: { userId, channel: Like('%IN_APP%') },
-            order: { createdAt: 'DESC' },
-            take,
-            skip,
-        });
+        if (portal === 'seller') {
+            qb.andWhere('log.actionUrl LIKE :dashboardPattern', { dashboardPattern: '/dashboard%' });
+        } else if (portal === 'shop' || portal === 'storefront') {
+            qb.andWhere('(log.actionUrl IS NULL OR log.actionUrl NOT LIKE :dashboardPattern)', { dashboardPattern: '/dashboard%' });
+        }
 
-        const unreadCount = await repo.count({
-            where: { userId, isRead: false, channel: Like('%IN_APP%') },
-        });
+        const countQb = qb.clone().andWhere('log.isRead = :isRead', { isRead: false });
+
+        const items = await qb
+            .orderBy('log.createdAt', 'DESC')
+            .take(take)
+            .skip(skip)
+            .getMany();
+
+        const unreadCount = await countQb.getCount();
 
         return { items, unreadCount };
     }
@@ -183,9 +192,32 @@ export class NotificationsService {
     async savePushSubscription(
         ctx: RequestContext,
         userId: string,
-        subscription: { endpoint: string; p256dh: string; auth: string; userAgent?: string },
+        subscription: { endpoint: string; p256dh: string; auth: string; userAgent?: string; portal?: string },
     ): Promise<PushSubscription> {
         const repo = this.connection.getRepository(ctx, PushSubscription);
+
+        let portal = subscription.portal;
+        if (!portal) {
+            const origin = ctx.req?.headers.origin || '';
+            const referer = ctx.req?.headers.referer || '';
+            if (
+                origin.includes('seller') || 
+                origin.includes('localhost:3002') || 
+                referer.includes('seller') || 
+                referer.includes('localhost:3002')
+            ) {
+                portal = 'seller';
+            } else {
+                portal = 'storefront';
+            }
+        }
+
+        // Deactivate all other active subscriptions for this user and portal to prevent duplicate notifications
+        const { Not } = require('typeorm');
+        await repo.update(
+            { userId, portal, isActive: true, endpoint: Not(subscription.endpoint) },
+            { isActive: false }
+        );
 
         // Check if already exists (update) 
         let existing = await repo.findOne({ where: { endpoint: subscription.endpoint } });
@@ -193,12 +225,14 @@ export class NotificationsService {
             existing.userId = userId;
             existing.p256dh = subscription.p256dh;
             existing.auth = subscription.auth;
+            existing.portal = portal;
             existing.isActive = true;
             return repo.save(existing);
         }
 
         const entity = new PushSubscription();
         entity.userId = userId;
+        entity.portal = portal;
         entity.endpoint = subscription.endpoint;
         entity.p256dh = subscription.p256dh;
         entity.auth = subscription.auth;
@@ -234,8 +268,11 @@ export class NotificationsService {
 
         webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey);
 
+        const isSellerNotification = payload.actionUrl?.startsWith('/dashboard');
+        const targetPortal = isSellerNotification ? 'seller' : 'storefront';
+
         const subscriptions = await this.connection.getRepository(ctx, PushSubscription).find({
-            where: { userId: payload.userId, isActive: true },
+            where: { userId: payload.userId, isActive: true, portal: targetPortal },
         });
 
         const pushPayload = JSON.stringify({

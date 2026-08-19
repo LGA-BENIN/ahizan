@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { unstable_noStore as noStore } from 'next/cache';
 import { AhizanPreloader } from "@/components/shared/Preloader";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const VENDURE_API_URL = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://localhost:3000/shop-api';
 
 async function getSellerDashboardConfig(): Promise<{ walletPageEnabled: boolean }> {

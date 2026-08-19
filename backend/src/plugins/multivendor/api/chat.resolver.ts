@@ -78,4 +78,72 @@ export class ChatResolver {
         }
         return this.chatService.getConversationsForCustomer(ctx, ctx.activeUserId);
     }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async deleteChatMessage(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: ID
+    ): Promise<ChatMessage> {
+        if (!ctx.activeUserId) {
+            throw new Error('Non autorisé');
+        }
+        return this.chatService.deleteMessage(ctx, ctx.activeUserId, id);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async modifyChatMessage(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: ID,
+        @Args('content') content: string
+    ): Promise<ChatMessage> {
+        if (!ctx.activeUserId) {
+            throw new Error('Non autorisé');
+        }
+        return this.chatService.modifyMessage(ctx, ctx.activeUserId, id, content);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async markChatMessageAsSeen(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: ID
+    ): Promise<ChatMessage> {
+        if (!ctx.activeUserId) {
+            throw new Error('Non autorisé');
+        }
+        return this.chatService.markAsSeen(ctx, id);
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async isTyping(
+        @Ctx() ctx: RequestContext,
+        @Args('targetId') targetId: ID,
+        @Args('targetType') targetType: string
+    ): Promise<boolean> {
+        return this.chatService.isTyping(String(targetId), targetType);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async setTyping(
+        @Ctx() ctx: RequestContext,
+        @Args('targetId') targetId: ID,
+        @Args('targetType') targetType: string,
+        @Args('typing') typing: boolean
+    ): Promise<boolean> {
+        return this.chatService.setTyping(String(targetId), targetType, typing);
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async userOnlineStatus(
+        @Ctx() ctx: RequestContext,
+        @Args('targetId') targetId: ID,
+        @Args('targetType') targetType: string
+    ): Promise<string> {
+        return this.chatService.getUserOnlineStatus(ctx, String(targetId), targetType);
+    }
 }

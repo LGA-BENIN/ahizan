@@ -1,4 +1,4 @@
-import { Package, ShoppingBag, DollarSign, Activity, ArrowRight, TrendingUp, Users, Percent, Truck, AlertTriangle, Wallet } from "lucide-react";
+import { Package, ShoppingBag, Coins, Activity, ArrowRight, TrendingUp, Users, Percent, Truck, AlertTriangle, Wallet } from "lucide-react";
 import { query } from "@/lib/vendure/api";
 import { GetMyVendorProfileQuery } from "@/lib/vendure/queries";
 import { GetMyVendorProductsQuery } from "@/lib/vendure/vendor-product-mutations";
@@ -29,8 +29,8 @@ export default async function DashboardPage() {
     const vendorName = vendor?.name || 'Vendeur';
     const totalProducts = (productsData as any)?.myVendorProducts?.totalItems || 0;
     const rawOrders = (ordersData as any)?.myVendorOrders?.items || [];
-    // N'afficher chez le vendeur que les commandes payees ou validees (exclure l'etat de brouillon de paiement)
-    const recentOrders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment');
+    // N'afficher chez le vendeur que les commandes payees ou validees (exclure l'etat de brouillon de paiement et annulees)
+    const recentOrders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment' && o.state !== 'Cancelled');
     const products = [...((productsData as any)?.myVendorProducts?.items || [])].sort((a: any, b: any) => {
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
@@ -65,8 +65,9 @@ export default async function DashboardPage() {
     const hasPrevOrders = prevOrdersCount > 0;
     const ordersGrowth = hasPrevOrders ? Math.round(((monthlyOrdersCount - prevOrdersCount) / prevOrdersCount) * 100) : (monthlyOrdersCount > 0 ? 100 : 0);
 
-    // Real total orders count
-    const totalOrdersCount = (allOrdersData as any)?.myVendorOrders?.totalItems || 0;
+    // Real total orders count (excluding draft and cancelled orders)
+    const activeAllOrders = rawAllOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment' && o.state !== 'Cancelled');
+    const totalOrdersCount = activeAllOrders.length;
 
     // Real likes count
     const likesList = (likesData as any) || [];
@@ -148,7 +149,7 @@ export default async function DashboardPage() {
                     <div>
                         <div className="flex justify-between items-start mb-4">
                             <div className="p-2.5 bg-primary/5 text-primary rounded-xl group-hover:scale-110 transition-transform">
-                                <DollarSign className="w-5 h-5" />
+                                <Coins className="w-5 h-5" />
                             </div>
                             <span className="text-[10px] font-black text-green-600 bg-green-50 dark:bg-green-950/20 px-2.5 py-1 rounded-full flex items-center gap-1">
                                 {hasPrevRevenue ? (

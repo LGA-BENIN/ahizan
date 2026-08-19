@@ -325,6 +325,11 @@ export const RegisterCustomerAccountMutation = graphql(`
             ... on Success {
                 success
             }
+            ... on PasswordValidationError {
+                errorCode
+                message
+                validationErrorMessage
+            }
             ... on ErrorResult {
                 errorCode
                 message
@@ -372,6 +377,11 @@ export const ResetPasswordMutation = graphql(`
                 id
                 identifier
             }
+            ... on PasswordValidationError {
+                errorCode
+                message
+                validationErrorMessage
+            }
             ... on ErrorResult {
                 errorCode
                 message
@@ -386,6 +396,11 @@ export const UpdateCustomerPasswordMutation = graphql(`
             __typename
             ... on Success {
                 success
+            }
+            ... on PasswordValidationError {
+                errorCode
+                message
+                validationErrorMessage
             }
             ... on ErrorResult {
                 errorCode

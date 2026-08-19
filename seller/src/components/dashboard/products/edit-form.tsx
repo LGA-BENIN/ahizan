@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, ImageIcon, Save, X, Trash2, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon, AlignLeft, DollarSign, Loader2 } from 'lucide-react';
+import { Package, ImageIcon, Save, X, Trash2, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon, AlignLeft, Coins, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { priceFromSubunit } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -427,7 +427,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                     {/* Section: Tarification & Stock */}
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                         <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-primary" />
+                            <Coins className="w-4 h-4 text-primary" />
                             <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Tarification & Stock</h3>
                         </div>
                         <div className="p-6 sm:p-8 space-y-6">
@@ -437,10 +437,11 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                     <Input
                                         id="price"
                                         type="number"
+                                        min="0"
                                         required
                                         className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2"
                                         value={formData.price}
-                                        onChange={e => setFormData({ ...formData, price: parseInt(e.target.value) || 0 })}
+                                        onChange={e => setFormData({ ...formData, price: Math.max(0, parseInt(e.target.value) || 0) })}
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -448,10 +449,11 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                     <Input
                                         id="stock"
                                         type="number"
+                                        min="0"
                                         required
                                         className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2"
                                         value={formData.stock}
-                                        onChange={e => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                                        onChange={e => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value) || 0) })}
                                     />
                                 </div>
                             </div>
@@ -475,9 +477,10 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Promotionnel (CFA)</Label>
                                             <Input
                                                 type="number"
+                                                min="0"
                                                 value={formData.promotionalPrice || ''}
                                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                    const value = parseInt(e.target.value) || 0;
+                                                    const value = Math.max(0, parseInt(e.target.value) || 0);
                                                     if (value > formData.price) {
                                                         return; // Prevent promotional price from being higher than original price
                                                     }

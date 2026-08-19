@@ -21,6 +21,11 @@ export const RegisterCustomerAccountMutation = `
             ... on Success {
                 success
             }
+            ... on PasswordValidationError {
+                errorCode
+                message
+                validationErrorMessage
+            }
             ... on ErrorResult {
                 errorCode
                 message
@@ -72,6 +77,11 @@ export const ResetPasswordMutation = `
             ... on CurrentUser {
                 id
                 identifier
+            }
+            ... on PasswordValidationError {
+                errorCode
+                message
+                validationErrorMessage
             }
             ... on ErrorResult {
                 errorCode

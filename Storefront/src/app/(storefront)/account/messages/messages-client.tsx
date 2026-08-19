@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Store, Send, ChevronLeft, Loader2, ArrowRight, Info } from 'lucide-react';
-import { getMyConversationsAction, getChatHistoryAction, sendChatMessageAction } from '@/app/(storefront)/likes-actions';
+import { MessageSquare, Store, Send, ChevronLeft, Loader2, ArrowRight, Info, Pencil, Trash2, Paperclip, Image, X, CornerUpLeft } from 'lucide-react';
+import { getMyConversationsAction, getChatHistoryAction, sendChatMessageAction, deleteChatMessageAction, modifyChatMessageAction, setTypingAction, isTypingAction, userOnlineStatusAction } from '@/app/(storefront)/likes-actions';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { encodeId } from '@/lib/hash-utils';
@@ -18,13 +18,17 @@ interface Vendor {
 interface ChatMessage {
     id: string;
     createdAt: string;
-    sender: 'CUSTOMER' | 'VENDOR';
+    sender: 'CUSTOMER' | 'VENDOR' | 'SUPERADMIN';
     content: string;
+    deleted?: boolean;
+    modified?: boolean;
+    seen?: boolean;
 }
 
 interface Conversation {
     vendor: Vendor;
     lastMessage: ChatMessage;
+    unreadCount: number;
 }
 
 interface Props {
@@ -41,6 +45,17 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [isMobileChatActive, setIsMobileChatActive] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState('');
+    const [isOtherPartyTyping, setIsOtherPartyTyping] = useState(false);
+    const [onlineStatus, setOnlineStatus] = useState<string>('Hors ligne');
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string; type: string } | null>(null);
+    const [replyToMsg, setReplyToMsg] = useState<ChatMessage | null>(null);
+
+    const sentTypingRef = useRef<boolean>(false);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -119,10 +134,12 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
     }, [messages]);
 
     // Handle chat selection and setup polling
-    const handleSelectConversation = (conv: Conversation) => {
+    const handleSelectConversation = async (conv: Conversation) => {
         setSelectedConv(conv);
         setIsMobileChatActive(true);
         setMessages([]); // Reset messages array when switching conversations
+        setReplyToMsg(null);
+        setUploadedFile(null);
         
         // Clear previous polling
         if (pollingIntervalRef.current) {
@@ -131,9 +148,23 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
 
         loadChatHistory(conv.vendor.id, false);
 
-        // Setup polling every 4 seconds for new messages
-        pollingIntervalRef.current = setInterval(() => {
+        // Fetch online status immediately
+        const onlineRes = await userOnlineStatusAction(conv.vendor.id, 'VENDOR');
+        if (onlineRes.success) {
+            setOnlineStatus(onlineRes.status || 'Hors ligne');
+        }
+
+        // Setup polling every 4 seconds for new messages, typing status, and online status
+        pollingIntervalRef.current = setInterval(async () => {
             loadChatHistory(conv.vendor.id, true);
+            const typingRes = await isTypingAction(conv.vendor.id, 'VENDOR');
+            if (typingRes.success) {
+                setIsOtherPartyTyping(typingRes.isTyping || false);
+            }
+            const onlineRes = await userOnlineStatusAction(conv.vendor.id, 'VENDOR');
+            if (onlineRes.success) {
+                setOnlineStatus(onlineRes.status || 'Hors ligne');
+            }
         }, 4000);
     };
 
@@ -145,28 +176,154 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
         };
     }, []);
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const shopApiUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || '';
+            const uploadUrl = shopApiUrl.replace('/shop-api', '/banner/upload');
+            
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData,
+            });
+            if (!response.ok) throw new Error('Upload failed');
+            const data = await response.json();
+            
+            setUploadedFile({
+                url: data.url,
+                name: file.name,
+                type: file.type
+            });
+            toast.success("Fichier téléversé !");
+        } catch (err: any) {
+            toast.error("Erreur de téléversement : " + err.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleDeleteMessage = async (messageId: string) => {
+        if (!window.confirm("Voulez-vous supprimer ce message ?")) return;
+        try {
+            const result = await deleteChatMessageAction(messageId);
+            if (result.success) {
+                setMessages(prev => prev.map(m => m.id === messageId ? { ...m, deleted: true, content: 'Ce message a été supprimé' } : m));
+                toast.success("Message supprimé");
+            } else {
+                toast.error(result.error || "Impossible de supprimer");
+            }
+        } catch (error) {
+            toast.error("Erreur de connexion");
+        }
+    };
+
+    const handleEditMessage = async (messageId: string, newContent: string) => {
+        if (!newContent.trim()) return;
+
+        const msg = messages.find(m => m.id === messageId);
+        if (!msg) return;
+
+        let contentPayload = newContent;
+        if (msg.content.trim().startsWith('{')) {
+            try {
+                const parsed = JSON.parse(msg.content);
+                if (parsed.type === 'rich') {
+                    parsed.text = newContent;
+                    contentPayload = JSON.stringify(parsed);
+                }
+            } catch {}
+        }
+
+        try {
+            const result = await modifyChatMessageAction(messageId, contentPayload);
+            if (result.success) {
+                setMessages(prev => prev.map(m => m.id === messageId ? { ...m, modified: true, content: contentPayload } : m));
+                setEditingId(null);
+                setEditValue('');
+                toast.success("Message modifié");
+            } else {
+                toast.error(result.error || "Impossible de modifier");
+            }
+        } catch (error) {
+            toast.error("Erreur de connexion");
+        }
+    };
+
+    useEffect(() => {
+        if (!selectedConv) return;
+        const targetId = selectedConv.vendor.id;
+        const targetType = 'CUSTOMER';
+
+        if (inputValue.trim().length > 0) {
+            if (!sentTypingRef.current) {
+                sentTypingRef.current = true;
+                setTypingAction(targetId, targetType, true);
+            }
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => {
+                sentTypingRef.current = false;
+                setTypingAction(targetId, targetType, false);
+            }, 3000);
+        } else {
+            if (sentTypingRef.current) {
+                sentTypingRef.current = false;
+                setTypingAction(targetId, targetType, false);
+            }
+        }
+    }, [inputValue, selectedConv]);
+
     // Send a message
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedConv || !inputValue.trim() || isSending) return;
+        if (!selectedConv || isSending) return;
 
-        const content = inputValue.trim();
+        const contentText = inputValue.trim();
+        if (!contentText && !uploadedFile) return;
+
         setInputValue('');
         setIsSending(true);
 
+        let contentPayload = contentText;
+        if (uploadedFile || replyToMsg) {
+            contentPayload = JSON.stringify({
+                type: 'rich',
+                text: contentText,
+                replyTo: replyToMsg ? {
+                    id: replyToMsg.id,
+                    sender: replyToMsg.sender,
+                    content: replyToMsg.content
+                } : null,
+                attachment: uploadedFile ? {
+                    url: uploadedFile.url,
+                    name: uploadedFile.name,
+                    mimeType: uploadedFile.type
+                } : null
+            });
+        }
+
+        // Reset previews
+        setUploadedFile(null);
+        setReplyToMsg(null);
+
         try {
-            const result = await sendChatMessageAction(selectedConv.vendor.id, content);
+            const result = await sendChatMessageAction(selectedConv.vendor.id, contentPayload);
             if (result.success && result.message) {
                 setMessages(prev => [...prev, result.message as ChatMessage]);
                 // Silently refresh conversations list to update previews
                 loadConversations(true);
             } else {
                 toast.error("Impossible d'envoyer le message.");
-                setInputValue(content);
+                setInputValue(contentText);
             }
         } catch (err) {
             toast.error("Erreur de connexion.");
-            setInputValue(content);
+            setInputValue(contentText);
         } finally {
             setIsSending(false);
         }
@@ -211,7 +368,7 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
     }
 
     return (
-        <div className="flex flex-col lg:flex-row rounded-2xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm h-[600px]">
+        <div className="flex flex-col lg:flex-row rounded-2xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm h-[calc(100vh-120px)] lg:h-[650px]">
             {/* Conversations List */}
             <div className={`w-full lg:w-1/3 border-r border-slate-150 dark:border-slate-800 flex flex-col h-full ${isMobileChatActive ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="p-4 border-b border-slate-150 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
@@ -239,13 +396,20 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
                                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate uppercase tracking-wide">
                                             {conv.vendor.name}
                                         </h4>
-                                        <span className="text-[9px] text-slate-400 shrink-0">
-                                            {conv.lastMessage ? formatDate(conv.lastMessage.createdAt) : ''}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-1 shrink-0">
+                                            <span className="text-[9px] text-slate-400">
+                                                {conv.lastMessage ? formatDate(conv.lastMessage.createdAt) : ''}
+                                            </span>
+                                            {conv.unreadCount > 0 && (
+                                                <span className="h-4.5 min-w-[18px] px-1 bg-orange-500 text-[9px] font-black text-white rounded-full flex items-center justify-center animate-pulse shadow-sm">
+                                                    {conv.unreadCount}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <p className={`text-xs mt-1 truncate ${isSelected ? 'text-slate-700 dark:text-slate-300' : 'text-slate-500'}`}>
                                         {isLastMsgFromMe && <span className="font-semibold text-primary mr-1">Vous:</span>}
-                                        {conv.lastMessage?.content || 'Aucun message'}
+                                        {conv.lastMessage?.content?.trim().startsWith('{') ? (JSON.parse(conv.lastMessage.content).text || '📎 Fichier joint') : (conv.lastMessage?.content || 'Aucun message')}
                                     </p>
                                 </div>
                             </button>
@@ -280,8 +444,8 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
                                         {selectedConv.vendor.name}
                                     </h4>
                                     <div className="flex items-center gap-1.5 mt-0.5">
-                                        <span className="h-1.5 w-1.5 bg-green-500 rounded-full" />
-                                        <span className="text-[10px] text-slate-400 font-semibold">Discussion avec le vendeur</span>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${onlineStatus === 'En ligne' ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
+                                        <span className="text-[10px] text-slate-400 font-semibold">{onlineStatus}</span>
                                     </div>
                                 </div>
                             </div>
@@ -296,6 +460,19 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
 
                         {/* Chat Messages */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/60 dark:bg-slate-900/40">
+                            {/* Security Notice Banner */}
+                            <div className="p-3 bg-amber-50 dark:bg-amber-955/20 border border-amber-100 dark:border-amber-900/30 rounded-xl flex items-start gap-2.5 text-amber-800 dark:text-amber-300 text-xs font-medium">
+                                <Info className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                                <div className="flex flex-col">
+                                    <span className="font-bold flex items-center gap-1 text-amber-900 dark:text-amber-105">
+                                        🔒 Sécurité — Ahizan Marketplace
+                                    </span>
+                                    <span className="mt-0.5">
+                                        Ne partagez jamais de mot de passe, code, données bancaires, numéro de carte, téléphone ou e-mail dans cette discussion.
+                                    </span>
+                                </div>
+                            </div>
+
                             {isLoadingHistory ? (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
                                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -305,53 +482,253 @@ export function MessagesClient({ authToken, shopApiUrl }: Props) {
                                 <>
                                     {messages.map((msg) => {
                                         const isMe = msg.sender === 'CUSTOMER';
+                                        const isEditing = editingId === msg.id;
+                                        
+                                        // Parse rich message content
+                                        let text = msg.content;
+                                        let replyTo = null;
+                                        let attachment = null;
+                                        if (msg.content.trim().startsWith('{')) {
+                                            try {
+                                                const parsed = JSON.parse(msg.content);
+                                                if (parsed.type === 'rich') {
+                                                    text = parsed.text || '';
+                                                    replyTo = parsed.replyTo || null;
+                                                    attachment = parsed.attachment || null;
+                                                }
+                                            } catch {}
+                                        }
+
+                                        // Check if this is the latest CUSTOMER message in the array
+                                        const lastCustomerMsg = [...messages].reverse().find(m => m.sender === 'CUSTOMER');
+                                        const isLatestCustomerMsg = lastCustomerMsg?.id === msg.id;
+
                                         return (
                                             <div
                                                 key={msg.id}
-                                                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                                                className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}
                                             >
-                                                <div className={`max-w-[80%] sm:max-w-[70%] rounded-2xl px-3.5 py-2.5 text-xs font-medium shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-850 dark:text-slate-200 border border-slate-100 dark:border-slate-750 rounded-tl-none'}`}>
-                                                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                                                    <div className={`text-[9px] mt-1.5 text-right font-semibold ${isMe ? 'text-white/70' : 'text-slate-400'}`}>
-                                                        {new Date(msg.createdAt).toLocaleTimeString('fr-FR', {
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
+                                                <div className="flex flex-col max-w-[80%] sm:max-w-[70%] animate-in fade-in duration-200">
+                                                    {msg.sender === 'SUPERADMIN' && (
+                                                        <span className="text-[10px] text-amber-600 dark:text-amber-455 font-extrabold mb-1 ml-1 uppercase tracking-wide flex items-center gap-1 select-none">
+                                                            <Info className="h-3 w-3" /> Message de l'administrateur
+                                                        </span>
+                                                    )}
+                                                    <div className={`rounded-2xl px-3.5 py-2.5 text-xs font-medium shadow-sm leading-relaxed ${isMe ? 'bg-primary text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-850 dark:text-slate-200 border border-slate-100 dark:border-slate-750 rounded-tl-none'}`}>
+                                                        {/* Quoted message preview inside the bubble */}
+                                                        {replyTo && (
+                                                            <div className="mb-2 p-2 bg-slate-100/80 dark:bg-slate-700/50 border-l-4 border-slate-400 dark:border-slate-500 rounded text-[10px] text-slate-600 dark:text-slate-300 select-none">
+                                                                <div className="font-extrabold text-[9px] text-slate-500 dark:text-slate-450 mb-0.5 uppercase">
+                                                                    {replyTo.sender === 'CUSTOMER' ? 'Client' : replyTo.sender === 'VENDOR' ? 'Vendeur' : 'Administrateur'}
+                                                                </div>
+                                                                <div className="truncate">
+                                                                    {replyTo.content.startsWith('{') ? (JSON.parse(replyTo.content).text || '📎 Fichier joint') : replyTo.content}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Attachment preview inside the bubble */}
+                                                        {attachment && (
+                                                            <div className="mb-2 max-w-[200px] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm bg-slate-50 dark:bg-slate-900">
+                                                                {attachment.mimeType?.startsWith('image/') ? (
+                                                                    <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+                                                                        <img src={attachment.url} alt={attachment.name} className="max-h-[120px] w-full object-cover hover:opacity-90 transition" />
+                                                                    </a>
+                                                                ) : (
+                                                                    <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="p-2 flex items-center gap-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-primary">
+                                                                        <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-450" />
+                                                                        <span className="truncate flex-1">{attachment.name}</span>
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {msg.deleted ? (
+                                                            <span className="italic text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                                                🚫 Ce message a été supprimé
+                                                            </span>
+                                                        ) : isEditing ? (
+                                                            <div className="flex flex-col gap-1.5 w-[200px] sm:w-[250px]">
+                                                                <input
+                                                                    type="text"
+                                                                    value={editValue}
+                                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                                    className="px-2.5 py-1.5 border border-white/20 bg-white/10 text-white rounded-lg focus:outline-none text-xs w-full text-slate-900"
+                                                                    autoFocus
+                                                                />
+                                                                <div className="flex gap-2 justify-end">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingId(null)}
+                                                                        className="text-[10px] text-white/80 hover:text-white font-bold"
+                                                                    >
+                                                                        Annuler
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleEditMessage(msg.id, editValue)}
+                                                                        className="text-[10px] bg-white text-primary font-bold px-2 py-0.5 rounded animate-pulse"
+                                                                    >
+                                                                        Enregistrer
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="whitespace-pre-wrap break-words">{text}</p>
+                                                        )}
+                                                        <div className={`text-[9px] mt-1.5 text-right font-semibold ${isMe ? 'text-white/70' : 'text-slate-400'} flex items-center justify-end gap-1`}>
+                                                            {msg.modified && !msg.deleted && <span className="opacity-80 italic">(modifié)</span>}
+                                                            <span>
+                                                                {new Date(msg.createdAt).toLocaleTimeString('fr-FR', {
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </span>
+                                                        </div>
                                                     </div>
+
+                                                    {/* Actions below bubble */}
+                                                    {!msg.deleted && (
+                                                        <div className={`flex gap-3 mt-1 px-1 text-[10px] text-slate-400 dark:text-slate-500 font-semibold select-none ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setReplyToMsg(msg)}
+                                                                className="hover:text-primary transition-colors flex items-center gap-0.5"
+                                                                title="Répondre"
+                                                            >
+                                                                <CornerUpLeft className="h-2.5 w-2.5" /> Répondre
+                                                            </button>
+                                                            {isMe && !msg.seen && (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setEditingId(msg.id);
+                                                                            setEditValue(text);
+                                                                        }}
+                                                                        className="hover:text-primary transition-colors flex items-center gap-0.5"
+                                                                        title="Modifier"
+                                                                    >
+                                                                        <Pencil className="h-2.5 w-2.5" /> Modifier
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDeleteMessage(msg.id)}
+                                                                        className="hover:text-red-500 transition-colors flex items-center gap-0.5"
+                                                                        title="Supprimer"
+                                                                    >
+                                                                        <Trash2 className="h-2.5 w-2.5" /> Supprimer
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Seen status for the latest sent message */}
+                                                    {isMe && isLatestCustomerMsg && (
+                                                        <div className="text-right pr-1">
+                                                            {msg.seen ? (
+                                                                <span className="text-blue-500 text-[10px] font-black select-none">✓✓</span>
+                                                            ) : (
+                                                                <span className="text-slate-400 text-[10px] font-black select-none">✓</span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
                                     })}
+                                    {isOtherPartyTyping && (
+                                        <div className="flex justify-start items-center gap-2 px-2">
+                                            <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-750 rounded-2xl rounded-tl-none px-4 py-2.5 flex items-center gap-1.5 shadow-sm">
+                                                <span className="h-1.5 w-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></span>
+                                                <span className="h-1.5 w-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></span>
+                                                <span className="h-1.5 w-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></span>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div ref={messagesEndRef} />
                                 </>
                             )}
                         </div>
 
-                        {/* Input form */}
-                        <form
-                            onSubmit={handleSendMessage}
-                            className="p-3.5 border-t border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-950 flex gap-2 items-center"
-                        >
-                            <input
-                                type="text"
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                placeholder="Écrire votre message..."
-                                disabled={isLoadingHistory}
-                                className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-800 dark:bg-slate-900 rounded-xl text-xs font-medium focus:outline-none focus:border-primary transition-colors text-slate-850 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
-                            />
-                            <button
-                                type="submit"
-                                disabled={!inputValue.trim() || isSending || isLoadingHistory}
-                                className="p-2.5 bg-primary hover:bg-red-750 text-white rounded-xl disabled:bg-slate-100 dark:disabled:bg-slate-850 disabled:text-slate-400 transition shadow-md shadow-primary/10 flex-shrink-0"
-                            >
-                                {isSending ? (
-                                    <Loader2 className="h-4.5 w-4.5 animate-spin" />
-                                ) : (
-                                    <Send className="h-4.5 w-4.5" />
-                                )}
-                            </button>
-                        </form>
+                        {/* Previews and Input Form */}
+                        <div className="border-t border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-950 p-2.5 space-y-2">
+                            {/* Reply Quote Preview */}
+                            {replyToMsg && (
+                                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-350">
+                                    <div className="flex items-center gap-2 truncate">
+                                        <CornerUpLeft className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                        <div className="truncate">
+                                            <span className="font-extrabold uppercase text-[10px] text-slate-500 mr-1.5">
+                                                Répondre à {replyToMsg.sender === 'CUSTOMER' ? 'Vous' : 'Vendeur'}:
+                                            </span>
+                                            {replyToMsg.content.startsWith('{') ? (JSON.parse(replyToMsg.content).text || 'Fichier joint') : replyToMsg.content}
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={() => setReplyToMsg(null)} className="p-1 hover:bg-slate-150 dark:hover:bg-slate-800 rounded-lg">
+                                        <X className="h-3.5 w-3.5 text-slate-450" />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* File Upload Preview */}
+                            {uploadedFile && (
+                                <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-350">
+                                    <div className="flex items-center gap-2 truncate">
+                                        <Paperclip className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                        <span className="truncate font-bold">{uploadedFile.name}</span>
+                                    </div>
+                                    <button type="button" onClick={() => setUploadedFile(null)} className="p-1 hover:bg-slate-150 dark:hover:bg-slate-800 rounded-lg">
+                                        <X className="h-3.5 w-3.5 text-slate-455" />
+                                    </button>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isUploading || isLoadingHistory}
+                                    className="p-2.5 bg-slate-100 hover:bg-slate-150 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl transition flex-shrink-0"
+                                    title="Ajouter un fichier"
+                                >
+                                    {isUploading ? (
+                                        <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                                    ) : (
+                                        <Paperclip className="h-4.5 w-4.5" />
+                                    )}
+                                </button>
+
+                                <input
+                                    type="text"
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    placeholder="Écrire votre message..."
+                                    disabled={isLoadingHistory}
+                                    className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-800 dark:bg-slate-900 rounded-xl text-xs font-medium focus:outline-none focus:border-primary transition-colors text-slate-850 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                                />
+                                
+                                <button
+                                    type="submit"
+                                    disabled={(!inputValue.trim() && !uploadedFile) || isSending || isLoadingHistory}
+                                    className="p-2.5 bg-primary hover:bg-red-750 text-white rounded-xl disabled:bg-slate-100 dark:disabled:bg-slate-850 disabled:text-slate-400 transition shadow-md shadow-primary/10 flex-shrink-0"
+                                >
+                                    {isSending ? (
+                                        <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                                    ) : (
+                                        <Send className="h-4.5 w-4.5" />
+                                    )}
+                                </button>
+                            </form>
+                        </div>
                     </>
                 ) : (
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 gap-3">

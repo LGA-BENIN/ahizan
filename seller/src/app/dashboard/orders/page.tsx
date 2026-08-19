@@ -32,8 +32,8 @@ export default async function VendorOrdersPage({ searchParams }: { searchParams?
     });
     
     const rawOrders = (data as any)?.myVendorOrders?.items || [];
-    // N'afficher chez le vendeur que les commandes payees ou validees (exclure l'etat de brouillon de paiement)
-    const orders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment');
+    // N'afficher chez le vendeur que les commandes payees ou validees (exclure l'etat de brouillon de paiement et les commandes annulees)
+    const orders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment' && o.state !== 'Cancelled');
 
     return (
         <div className="w-full">

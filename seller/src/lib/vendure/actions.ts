@@ -85,7 +85,11 @@ const MY_CONVERSATIONS = `
                 createdAt
                 sender
                 content
+                deleted
+                modified
+                seen
             }
+            unreadCount
         }
     }
 `;
@@ -97,6 +101,9 @@ const CONVERSATION_HISTORY_WITH_CUSTOMER = `
             createdAt
             sender
             content
+            deleted
+            modified
+            seen
         }
     }
 `;
@@ -314,4 +321,149 @@ export async function getPublicPlatformStatsAction() {
         return { visitors: 150, orders: 0, vendors: 0, products: 0 };
     }
 }
+
+const DELETE_CHAT_MESSAGE = `
+    mutation DeleteChatMessage($id: ID!) {
+        deleteChatMessage(id: $id) {
+            id
+            deleted
+            content
+        }
+    }
+`;
+
+const MODIFY_CHAT_MESSAGE = `
+    mutation ModifyChatMessage($id: ID!, $content: String!) {
+        modifyChatMessage(id: $id, content: $content) {
+            id
+            content
+            modified
+        }
+    }
+`;
+
+export async function deleteChatMessageAction(id: string) {
+    const token = await getAuthToken();
+    if (!token) return { success: false, error: 'Non authentifié' };
+    
+    try {
+        const { data } = await query(DELETE_CHAT_MESSAGE, { id }, {
+            token,
+            useAuthToken: true
+        });
+        return { success: true, message: data?.deleteChatMessage };
+    } catch (error: any) {
+        return { success: false, error: error.message || 'Erreur lors de la suppression' };
+    }
+}
+
+export async function modifyChatMessageAction(id: string, content: string) {
+    const token = await getAuthToken();
+    if (!token) return { success: false, error: 'Non authentifié' };
+    
+    try {
+        const { data } = await query(MODIFY_CHAT_MESSAGE, { id, content }, {
+            token,
+            useAuthToken: true
+        });
+        return { success: true, message: data?.modifyChatMessage };
+    } catch (error: any) {
+        return { success: false, error: error.message || 'Erreur lors de la modification' };
+    }
+}
+
+const SET_TYPING = `
+    mutation SetTyping($targetId: ID!, $targetType: String!, $typing: Boolean!) {
+        setTyping(targetId: $targetId, targetType: $targetType, typing: $typing)
+    }
+`;
+
+const IS_TYPING = `
+    query IsTyping($targetId: ID!, $targetType: String!) {
+        isTyping(targetId: $targetId, targetType: $targetType)
+    }
+`;
+
+export async function setTypingAction(targetId: string, targetType: string, typing: boolean) {
+    const token = await getAuthToken();
+    if (!token) return { success: false, error: 'Non authentifié' };
+    
+    try {
+        const { data } = await query(SET_TYPING, { targetId, targetType, typing }, {
+            token,
+            useAuthToken: true
+        });
+        return { success: true, typing: data?.setTyping };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+export async function isTypingAction(targetId: string, targetType: string) {
+    const token = await getAuthToken();
+    if (!token) return { success: false, error: 'Non authentifié' };
+    
+    try {
+        const { data } = await query(IS_TYPING, { targetId, targetType }, {
+            token,
+            useAuthToken: true
+        });
+        return { success: true, isTyping: data?.isTyping };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+const USER_ONLINE_STATUS = `
+    query UserOnlineStatus($targetId: ID!, $targetType: String!) {
+        userOnlineStatus(targetId: $targetId, targetType: $targetType)
+    }
+`;
+
+export async function userOnlineStatusAction(targetId: string, targetType: string) {
+    const token = await getAuthToken();
+    if (!token) return { success: false, error: 'Non authentifié' };
+    
+    try {
+        const { data } = await query(USER_ONLINE_STATUS, { targetId, targetType }, {
+            token,
+            useAuthToken: true
+        });
+        return { success: true, status: data?.userOnlineStatus };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+export async function getRegistrationFields() {
+    try {
+        const { data } = await query(`
+            query GetRegistrationFields {
+                registrationFields {
+                    id
+                    name
+                    label
+                    type
+                    options {
+                        label
+                        value
+                    }
+                    required
+                    order
+                    enabled
+                    description
+                    placeholder
+                    config {
+                        showDetectPositionButton
+                    }
+                }
+            }
+        `, undefined);
+        return data?.registrationFields || [];
+    } catch (err) {
+        console.error('[getRegistrationFields] Error fetching fields:', err);
+        return [];
+    }
+}
+
 

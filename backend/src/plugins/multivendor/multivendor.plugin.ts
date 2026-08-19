@@ -21,6 +21,7 @@ import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './a
 import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-status.resolver';
 import { LikeShopResolver, LikeAdminResolver } from './api/like.resolver';
 import { ChatResolver } from './api/chat.resolver';
+import { ChatAdminResolver } from './api/chat-admin.resolver';
 import { gql } from 'graphql-tag';
 import { GeoEnginePlugin } from '../geo-engine/geo-engine.plugin';
 import { AhizanNotificationsPlugin } from '../notifications/ahizan-notifications.plugin';
@@ -49,7 +50,7 @@ ${commonApiExtensions}
 
 ${adminApiExtensions}
         `,
-        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver],
+        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver],
     },
 
     shopApiExtensions: {

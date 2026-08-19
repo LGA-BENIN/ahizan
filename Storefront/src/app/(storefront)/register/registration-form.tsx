@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -23,7 +23,7 @@ const registrationSchema = z.object({
     firstName: z.string().min(1, 'Le prénom est requis'),
     lastName: z.string().min(1, 'Le nom est requis'),
     phoneNumber: z.string().optional(),
-    password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères'),
+    password: z.string().min(4, 'Le mot de passe doit contenir au moins 4 caractères'),
     confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
     message: "Les mots de passe ne correspondent pas",
@@ -39,6 +39,8 @@ interface RegistrationFormProps {
 export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
     const [isPending, startTransition] = useTransition();
     const [serverError, setServerError] = useState<string | null>(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const form = useForm<RegistrationFormData>({
         resolver: zodResolver(registrationSchema),
@@ -51,6 +53,9 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
             confirmPassword: '',
         },
     });
+
+    const passwordValue = form.watch('password');
+    const confirmPasswordValue = form.watch('confirmPassword');
 
     const onSubmit = (data: RegistrationFormData) => {
         setServerError(null);
@@ -172,15 +177,33 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Mot de passe</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="password"
-                                                placeholder="••••••••"
-                                                disabled={isPending}
-                                                className="h-10 rounded-lg"
-                                                {...field}
-                                            />
-                                        </FormControl>
+                                        <div className="relative">
+                                            <FormControl>
+                                                <Input
+                                                    type={showPassword ? "text" : "password"}
+                                                    placeholder="••••••••"
+                                                    disabled={isPending}
+                                                    className="h-10 rounded-lg pr-10"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                                            >
+                                                {showPassword ? (
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
                                         <FormMessage className="font-bold text-xs" />
                                     </FormItem>
                                 )}
@@ -191,25 +214,45 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
                                 name="confirmPassword"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Confirmation</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="password"
-                                                placeholder="••••••••"
-                                                disabled={isPending}
-                                                className="h-10 rounded-lg"
-                                                {...field}
-                                            />
-                                        </FormControl>
+                                        <FormLabel className="font-black text-xs uppercase tracking-widest text-muted-foreground">Confirmer le mot de passe</FormLabel>
+                                        <div className="relative">
+                                            <FormControl>
+                                                <Input
+                                                    type={showConfirmPassword ? "text" : "password"}
+                                                    placeholder="••••••••"
+                                                    disabled={isPending}
+                                                    className="h-10 rounded-lg pr-10"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                                            >
+                                                {showConfirmPassword ? (
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                )}
+                                            </button>
+                                        </div>
                                         <FormMessage className="font-bold text-xs" />
                                     </FormItem>
                                 )}
                             />
                         </div>
 
+
                         {serverError && (
-                            <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/10 text-sm text-destructive">
-                                {serverError}
+                            <div className="p-3 rounded-lg bg-red-50 border-2 border-red-350 text-sm font-bold text-red-900 flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
+                                <span className="text-lg">⚠️</span>
+                                <span>{serverError}</span>
                             </div>
                         )}
 
@@ -230,3 +273,4 @@ export function RegistrationForm({ redirectTo }: RegistrationFormProps) {
         </Card>
     );
 }
+

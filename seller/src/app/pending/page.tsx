@@ -3,6 +3,9 @@ import { getMyVendorProfile } from "@/lib/vendure/actions";
 import PendingContent from "./PendingContent";
 import { unstable_noStore as noStore } from 'next/cache';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function PendingPage() {
     noStore();
     let profile: any = null;

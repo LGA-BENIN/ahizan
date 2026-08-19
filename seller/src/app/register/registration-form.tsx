@@ -52,7 +52,7 @@ const GET_REGISTRATION_FIELDS = gql`
 
 const registrationSchema = z.object({
     emailAddress: z.string().email('Please enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(4, 'Password must be at least 4 characters'),
     confirmPassword: z.string(),
     sellerType: z.enum(['ONLINE', 'SHOP', 'ENTERPRISE']),
     dynamicDetails: z.record(z.any()).optional(),

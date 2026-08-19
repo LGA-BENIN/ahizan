@@ -44,6 +44,21 @@ export function NotificationsClient({ authToken, shopApiUrl }: Props) {
     const [isLoading, setIsLoading] = useState(true);
     const [isMarkingAll, setIsMarkingAll] = useState(false);
 
+    // Sync unread notification count with PWA App Badge
+    useEffect(() => {
+        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+            if (unreadCount > 0) {
+                (navigator as any).setAppBadge(unreadCount).catch((err: any) => {
+                    console.error("Failed to set app badge:", err);
+                });
+            } else {
+                (navigator as any).clearAppBadge().catch((err: any) => {
+                    console.error("Failed to clear app badge:", err);
+                });
+            }
+        }
+    }, [unreadCount]);
+
     const gqlFetch = useCallback(async (query: string, variables?: any) => {
         const res = await fetch(shopApiUrl, {
             method: 'POST',
@@ -62,7 +77,7 @@ export function NotificationsClient({ authToken, shopApiUrl }: Props) {
         try {
             const { data } = await gqlFetch(`
                 query($take: Int, $skip: Int) {
-                    myNotifications(take: $take, skip: $skip) {
+                    myNotifications(take: $take, skip: $skip, portal: "storefront") {
                         unreadCount
                         items {
                             id createdAt eventType title body actionUrl iconUrl isRead channel

@@ -34,7 +34,10 @@ export async function updatePasswordAction(prevState: { error?: string; success?
         const updateResult = result.data.updateCustomerPassword;
 
         if (updateResult.__typename !== 'Success') {
-            return {error: updateResult.message};
+            const errorMsg = (updateResult.__typename === 'PasswordValidationError' && (updateResult as any).validationErrorMessage)
+                ? (updateResult as any).validationErrorMessage
+                : (updateResult.message || 'Une erreur est survenue.');
+            return {error: errorMsg};
         }
 
         return {success: true};

@@ -4,12 +4,13 @@
  * @param currencyCode Currency code, defaults to XOF
  */
 export function formatPrice(price: number, currencyCode: string = 'XOF'): string {
+    const activeCurrency = 'XOF';
     const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
-    const divisor = zeroDecimalCurrencies.includes(currencyCode.toUpperCase()) ? 1 : 100;
+    const divisor = zeroDecimalCurrencies.includes(activeCurrency.toUpperCase()) ? 1 : 100;
 
     return new Intl.NumberFormat('fr-FR', {
         style: 'currency',
-        currency: currencyCode,
+        currency: activeCurrency,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
     }).format(price / divisor);
@@ -33,12 +34,14 @@ export function formatDate(dateString: string, format: DateFormat = 'short'): st
 const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
 
 export function priceToSubunit(amount: number, currencyCode: string = 'XOF'): number {
-    const isZeroDecimal = zeroDecimalCurrencies.includes(currencyCode.toUpperCase());
+    const activeCurrency = 'XOF';
+    const isZeroDecimal = zeroDecimalCurrencies.includes(activeCurrency.toUpperCase());
     return isZeroDecimal ? amount : amount * 100;
 }
 
 export function priceFromSubunit(subunitAmount: number, currencyCode: string = 'XOF'): number {
-    const isZeroDecimal = zeroDecimalCurrencies.includes(currencyCode.toUpperCase());
+    const activeCurrency = 'XOF';
+    const isZeroDecimal = zeroDecimalCurrencies.includes(activeCurrency.toUpperCase());
     return isZeroDecimal ? subunitAmount : subunitAmount / 100;
 }
 

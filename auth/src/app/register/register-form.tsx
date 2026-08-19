@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { registerClientAction, registerVendorAction, checkEmailRolesAction } from './actions';
 
 interface RegisterFormProps {
@@ -25,6 +25,10 @@ export function RegisterForm({ redirectTo, defaultEmail, notice }: RegisterFormP
   const [emailCheckState, setEmailCheckState] = useState<EmailCheckState>('idle');
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [conflictLoginUrl, setConflictLoginUrl] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleEmailBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const email = e.target.value.trim();
@@ -170,6 +174,8 @@ export function RegisterForm({ redirectTo, defaultEmail, notice }: RegisterFormP
             </p>
           </div>
 
+
+
           {notice === 'track-order' && (
             <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 text-xs font-semibold flex items-center gap-3 shadow-sm">
               <span className="text-2xl shrink-0">📦</span>
@@ -290,25 +296,65 @@ export function RegisterForm({ redirectTo, defaultEmail, notice }: RegisterFormP
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="group">
                   <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5 ml-1">Mot de passe</label>
-                  <input
-                    name="password"
-                    required
-                    disabled={isPending}
-                    className="w-full h-12 px-4 rounded-xl border border-border bg-surface-light font-body-md text-body-md transition-all focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none"
-                    placeholder="••••••••"
-                    type="password"
-                  />
+                  <div className="relative">
+                    <input
+                      name="password"
+                      required
+                      disabled={isPending}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full h-12 pl-4 pr-10 rounded-xl border border-border bg-surface-light font-body-md text-body-md transition-all focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none"
+                      placeholder="••••••••"
+                      type={showPassword ? "text" : "password"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                    >
+                      {showPassword ? (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="group">
                   <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5 ml-1">Confirmation</label>
-                  <input
-                    name="confirmPassword"
-                    required
-                    disabled={isPending}
-                    className="w-full h-12 px-4 rounded-xl border border-border bg-surface-light font-body-md text-body-md transition-all focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none"
-                    placeholder="••••••••"
-                    type="password"
-                  />
+                  <div className="relative">
+                    <input
+                      name="confirmPassword"
+                      required
+                      disabled={isPending}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full h-12 pl-4 pr-10 rounded-xl border border-border bg-surface-light font-body-md text-body-md transition-all focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none"
+                      placeholder="••••••••"
+                      type={showConfirmPassword ? "text" : "password"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                    >
+                      {showConfirmPassword ? (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -320,9 +366,15 @@ export function RegisterForm({ redirectTo, defaultEmail, notice }: RegisterFormP
               </label>
             </div>
 
+
+
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
-                {error}
+              <div className="mb-4 p-4 rounded-xl bg-red-50 border-2 border-red-300 text-red-950 text-xs font-semibold flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+                <span className="text-xl shrink-0">⚠️</span>
+                <div>
+                  <p className="font-black text-sm text-red-900">Erreur d'inscription</p>
+                  <p className="text-xs text-red-800 mt-0.5 font-medium">{error}</p>
+                </div>
               </div>
             )}
 
@@ -345,3 +397,4 @@ export function RegisterForm({ redirectTo, defaultEmail, notice }: RegisterFormP
     </main>
   );
 }
+

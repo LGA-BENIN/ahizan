@@ -31,7 +31,10 @@ export async function registerAction(prevState: { error?: string } | undefined, 
     const registerResult = result.data.registerCustomerAccount;
 
     if (registerResult.__typename !== 'Success') {
-        return { error: registerResult.message };
+        const errorMsg = (registerResult.__typename === 'PasswordValidationError' && (registerResult as any).validationErrorMessage)
+            ? (registerResult as any).validationErrorMessage
+            : (registerResult.message || 'Une erreur est survenue.');
+        return { error: errorMsg };
     }
 
     // Redirect to verification pending page, preserving redirectTo if present

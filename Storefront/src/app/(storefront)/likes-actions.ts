@@ -126,6 +126,9 @@ const MY_CHAT_HISTORY_WITH_VENDOR = `
             createdAt
             sender
             content
+            deleted
+            modified
+            seen
         }
     }
 `;
@@ -228,7 +231,11 @@ const MY_CUSTOMER_CONVERSATIONS = `
                 createdAt
                 sender
                 content
+                deleted
+                modified
+                seen
             }
+            unreadCount
         }
     }
 `;
@@ -245,6 +252,104 @@ export async function getMyConversationsAction() {
             return { success: false, authenticated: false };
         }
         return { success: false, error: errorMessage || 'Erreur lors de la récupération des conversations' };
+    }
+}
+
+const DELETE_CHAT_MESSAGE = `
+    mutation DeleteChatMessage($id: ID!) {
+        deleteChatMessage(id: $id) {
+            id
+            deleted
+            content
+        }
+    }
+`;
+
+const MODIFY_CHAT_MESSAGE = `
+    mutation ModifyChatMessage($id: ID!, $content: String!) {
+        modifyChatMessage(id: $id, content: $content) {
+            id
+            content
+            modified
+        }
+    }
+`;
+
+export async function deleteChatMessageAction(id: string) {
+    try {
+        const data = await rawQuery(DELETE_CHAT_MESSAGE, {
+            useAuthToken: true,
+            variables: { id },
+        });
+        return { success: true, message: data.deleteChatMessage };
+    } catch (e: any) {
+        return { success: false, error: e.message || 'Erreur lors de la suppression du message' };
+    }
+}
+
+export async function modifyChatMessageAction(id: string, content: string) {
+    try {
+        const data = await rawQuery(MODIFY_CHAT_MESSAGE, {
+            useAuthToken: true,
+            variables: { id, content },
+        });
+        return { success: true, message: data.modifyChatMessage };
+    } catch (e: any) {
+        return { success: false, error: e.message || 'Erreur lors de la modification du message' };
+    }
+}
+
+const SET_TYPING = `
+    mutation SetTyping($targetId: ID!, $targetType: String!, $typing: Boolean!) {
+        setTyping(targetId: $targetId, targetType: $targetType, typing: $typing)
+    }
+`;
+
+const IS_TYPING = `
+    query IsTyping($targetId: ID!, $targetType: String!) {
+        isTyping(targetId: $targetId, targetType: $targetType)
+    }
+`;
+
+export async function setTypingAction(targetId: string, targetType: string, typing: boolean) {
+    try {
+        const data = await rawQuery(SET_TYPING, {
+            useAuthToken: true,
+            variables: { targetId, targetType, typing },
+        });
+        return { success: true, typing: data.setTyping };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function isTypingAction(targetId: string, targetType: string) {
+    try {
+        const data = await rawQuery(IS_TYPING, {
+            useAuthToken: true,
+            variables: { targetId, targetType },
+        });
+        return { success: true, isTyping: data.isTyping };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+const USER_ONLINE_STATUS = `
+    query UserOnlineStatus($targetId: ID!, $targetType: String!) {
+        userOnlineStatus(targetId: $targetId, targetType: $targetType)
+    }
+`;
+
+export async function userOnlineStatusAction(targetId: string, targetType: string) {
+    try {
+        const data = await rawQuery(USER_ONLINE_STATUS, {
+            useAuthToken: true,
+            variables: { targetId, targetType },
+        });
+        return { success: true, status: data.userOnlineStatus };
+    } catch (e: any) {
+        return { success: false, error: e.message };
     }
 }
 

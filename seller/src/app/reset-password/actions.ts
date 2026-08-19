@@ -27,7 +27,10 @@ export async function resetPasswordAction(prevState: { error?: string } | undefi
     const resetResult = result.data.resetPassword;
 
     if (resetResult.__typename !== 'CurrentUser') {
-        return {error: resetResult.message};
+        const errorMsg = (resetResult.__typename === 'PasswordValidationError' && (resetResult as any).validationErrorMessage)
+            ? (resetResult as any).validationErrorMessage
+            : (resetResult.message || 'Une erreur est survenue.');
+        return {error: errorMsg};
     }
 
     // Store the token in a cookie if returned

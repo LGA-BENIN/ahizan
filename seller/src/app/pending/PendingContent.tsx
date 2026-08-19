@@ -1,31 +1,37 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Clock } from "lucide-react";
+import { Clock, RefreshCw } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { logoutAction } from "@/app/sign-in/actions";
 import { getMyVendorProfile } from "@/lib/vendure/actions";
 
 export default function PendingContent() {
     const router = useRouter();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const checkStatus = async () => {
+        setIsRefreshing(true);
+        try {
+            const profile = await getMyVendorProfile();
+            const status = profile?.status;
+
+            if (status === 'APPROVED') {
+                router.refresh();
+                router.push('/dashboard');
+            } else if (status === 'REJECTED') {
+                router.refresh();
+                router.push('/rejected');
+            }
+        } catch (e) {
+            console.error("Failed to check vendor status", e);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     useEffect(() => {
-        const checkStatus = async () => {
-            try {
-                const profile = await getMyVendorProfile();
-                const status = profile?.status;
-
-                if (status === 'APPROVED') {
-                    router.push('/dashboard');
-                } else if (status === 'REJECTED') {
-                    router.push('/rejected');
-                }
-            } catch (e) {
-                console.error("Failed to check vendor status", e);
-            }
-        };
-
         // Check every 30 seconds
         const interval = setInterval(checkStatus, 30000);
         return () => clearInterval(interval);
@@ -79,9 +85,18 @@ export default function PendingContent() {
                         Vous recevrez une notification par e-mail dès la validation finale de votre espace. Cette opération prend habituellement entre <strong>24 et 48 heures</strong>.
                     </p>
 
-                    <div className="bg-[#E31E24]/5 border border-[#E31E24]/10 dark:bg-[#E31E24]/10 dark:border-[#E31E24]/20 rounded-2xl p-4 text-xs text-[#E31E24] font-semibold flex items-center justify-center gap-2 shadow-sm">
+                    <div className="bg-[#E31E24]/5 border border-[#E31E24]/10 dark:bg-[#E31E24]/10 dark:border-[#E31E24]/20 rounded-2xl p-4 text-xs text-[#E31E24] font-semibold flex items-center justify-center gap-2 shadow-sm mb-6">
                         💡 Pensez à vérifier votre boîte e-mail (et vos spams).
                     </div>
+
+                    <Button 
+                        onClick={checkStatus} 
+                        disabled={isRefreshing}
+                        className="w-full bg-[#E31E24] hover:bg-red-700 text-white font-bold rounded-2xl py-3 shadow-md shadow-red-500/10 flex items-center justify-center gap-2 transition-all duration-300"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? 'Vérification...' : 'Actualiser le statut'}
+                    </Button>
                 </div>
             </div>
         </div>

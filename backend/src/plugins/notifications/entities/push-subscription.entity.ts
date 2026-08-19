@@ -16,6 +16,10 @@ export class PushSubscription extends VendureEntity {
     @Index()
     userId: string;
 
+    /** The portal this subscription was registered on ('seller' or 'storefront') */
+    @Column({ nullable: true })
+    portal: string;
+
     /** Browser Push API endpoint URL */
     @Column({ type: 'text' })
     endpoint: string;

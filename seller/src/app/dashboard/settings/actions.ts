@@ -37,7 +37,10 @@ export async function changePasswordAction(
         const updateResult = (result.data as any).updateCustomerPassword;
 
         if (updateResult.__typename !== 'Success') {
-            return { error: updateResult.message || 'Échec de la mise à jour du mot de passe.' };
+            const errorMsg = (updateResult.__typename === 'PasswordValidationError' && (updateResult as any).validationErrorMessage)
+                ? (updateResult as any).validationErrorMessage
+                : (updateResult.message || 'Échec de la mise à jour du mot de passe.');
+            return { error: errorMsg };
         }
 
         revalidatePath('/dashboard/settings');

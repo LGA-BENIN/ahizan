@@ -137,7 +137,7 @@ export default async function ProductDetailPage({params, searchParams}: PageProp
                         <AccordionItem value="shipping">
                             <AccordionTrigger>What are your shipping options?</AccordionTrigger>
                             <AccordionContent>
-                                We offer standard shipping (5-7 business days), express shipping (2-3 business days), and next-day delivery for select areas. Free standard shipping is available on orders over $50.
+                                We offer standard shipping (5-7 business days), express shipping (2-3 business days), and next-day delivery for select areas. Free standard shipping is available on orders over 30 000 FCFA.
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="returns">

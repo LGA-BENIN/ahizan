@@ -40,6 +40,21 @@ export function NotificationBell({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
 
+    // Sync unread notification count with PWA App Badge
+    useEffect(() => {
+        if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+            if (unreadCount > 0) {
+                (navigator as any).setAppBadge(unreadCount).catch((err: any) => {
+                    console.error("Failed to set app badge:", err);
+                });
+            } else {
+                (navigator as any).clearAppBadge().catch((err: any) => {
+                    console.error("Failed to clear app badge:", err);
+                });
+            }
+        }
+    }, [unreadCount]);
+
     // ────────────────────────────────────────────
     // GraphQL helpers
     // ────────────────────────────────────────────
@@ -62,7 +77,7 @@ export function NotificationBell({
         try {
             const { data } = await gqlFetch(`
                 query {
-                    myNotifications(take: 20) {
+                    myNotifications(take: 20, portal: "storefront") {
                         unreadCount
                         items {
                             id createdAt eventType title body actionUrl iconUrl isRead
@@ -124,8 +139,8 @@ export function NotificationBell({
                 try {
                     const payload = JSON.parse(event.data);
                     
-                    // Storefront Bell MUST ONLY display client buyer notifications (BUYER_EVENT)
-                    if (payload.type && payload.type !== 'BUYER_EVENT') {
+                    // Ignore notifications belonging to the seller dashboard portal
+                    if (payload.actionUrl && payload.actionUrl.startsWith('/dashboard')) {
                         return;
                     }
 

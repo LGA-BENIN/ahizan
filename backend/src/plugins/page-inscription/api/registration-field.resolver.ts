@@ -4,7 +4,9 @@ import { RegistrationFieldService } from '../service/registration-field.service'
 
 @Resolver()
 export class RegistrationFieldShopResolver {
-    constructor(private registrationFieldService: RegistrationFieldService) { }
+    constructor(
+        private registrationFieldService: RegistrationFieldService,
+    ) { }
 
     @Query()
     @Allow(Permission.Public)
@@ -20,10 +22,6 @@ export class RegistrationFieldShopResolver {
     }
 
     @Mutation()
-    // @Allow(Permission.Owner) // Owner permission usually requires a resource to check against. 
-    // For submitting own data, usually Authenticated is enough or Owner if checking an ID.
-    // Since we check ctx.activeUser in service, Allow(Permission.Authenticated) or Public if we handle auth check manually.
-    // Service throws if not logged in.
     @Allow(Permission.Authenticated)
     async submitRegistrationResponses(@Ctx() ctx: RequestContext, @Args('input') input: any[]) {
         return this.registrationFieldService.submitResponses(ctx, input);
@@ -53,7 +51,9 @@ export class RegistrationFieldShopResolver {
 
 @Resolver()
 export class RegistrationFieldAdminResolver {
-    constructor(private registrationFieldService: RegistrationFieldService) { }
+    constructor(
+        private registrationFieldService: RegistrationFieldService,
+    ) { }
 
     @Query()
     @Allow(Permission.Public)
@@ -89,7 +89,7 @@ export class RegistrationFieldAdminResolver {
     }
 
     @Query()
-    @Allow(Permission.Public) // Should be restricted to SuperAdmin or similar in production
+    @Allow(Permission.Public)
     async vendorRegistrationResponses(@Ctx() ctx: RequestContext, @Args() args: { vendorId: string }) {
         return this.registrationFieldService.getVendorResponses(ctx, args.vendorId);
     }

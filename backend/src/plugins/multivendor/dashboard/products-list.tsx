@@ -323,7 +323,8 @@ export function ProductListComponent() {
     const [page, setPage] = useState(1);
     const pageSize = 10;
     const [searchTerm, setSearchTerm] = useState('');
-    const [vendorFilter, setVendorFilter] = useState('');
+    const [selectedVendorId, setSelectedVendorId] = useState('');
+    const [approvalFilter, setApprovalFilter] = useState('');
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [reassigningProductId, setReassigningProductId] = useState<string | null>(null);
     const [selectedNewVendorId, setSelectedNewVendorId] = useState('');
@@ -341,9 +342,15 @@ export function ProductListComponent() {
     if (searchTerm) {
         queryVariables.options.filter.name = { contains: searchTerm };
     }
+    if (approvalFilter) {
+        queryVariables.options.filter.approvalStatus = { eq: approvalFilter };
+    }
+    if (selectedVendorId) {
+        queryVariables.options.filter.vendorId = { eq: selectedVendorId };
+    }
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['products', page, searchTerm],
+        queryKey: ['products', page, searchTerm, approvalFilter, selectedVendorId],
         queryFn: () => fetchGraphQL(GET_PRODUCTS, queryVariables),
     });
 
@@ -468,10 +475,7 @@ export function ProductListComponent() {
     const { items = [], totalItems = 0 } = data?.products || {};
     const totalPages = Math.ceil(totalItems / pageSize);
 
-    // Client-side filtering for vendor
-    const displayItems = vendorFilter
-        ? items.filter((p: Product) => p.customFields?.vendor?.name.toLowerCase().includes(vendorFilter.toLowerCase()))
-        : items;
+    const displayItems = items;
 
     // Helper to get price range
     const getPriceDisplay = (variants: any[]) => {
@@ -519,19 +523,44 @@ export function ProductListComponent() {
                         type="text"
                         placeholder="Nom du produit..."
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
+                        onChange={e => {
+                            setSearchTerm(e.target.value);
+                            setPage(1);
+                        }}
                         style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
                     />
                 </div>
-                <div style={{ flex: 1, minWidth: '240px' }}>
+                <div style={{ flex: 1, minWidth: '200px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Filtrer par Vendeur</label>
-                    <input
-                        type="text"
-                        placeholder="Nom du vendeur..."
-                        value={vendorFilter}
-                        onChange={e => setVendorFilter(e.target.value)}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
-                    />
+                    <select
+                        value={selectedVendorId}
+                        onChange={e => {
+                            setSelectedVendorId(e.target.value);
+                            setPage(1);
+                        }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', background: 'white' }}
+                    >
+                        <option value="">Tous les vendeurs</option>
+                        {vendorsList.map((v: any) => (
+                            <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Statut de validation</label>
+                    <select
+                        value={approvalFilter}
+                        onChange={e => {
+                            setApprovalFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', background: 'white' }}
+                    >
+                        <option value="">Tous les statuts</option>
+                        <option value="pending">En attente (Non approuvé)</option>
+                        <option value="approved">Approuvé</option>
+                        <option value="rejected">Rejeté</option>
+                    </select>
                 </div>
             </div>
 

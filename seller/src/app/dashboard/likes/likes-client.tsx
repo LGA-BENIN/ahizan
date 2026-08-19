@@ -97,6 +97,19 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
         }
     };
 
+    // Helper to format liker name to show family name + truncated first name
+    const formatLikerName = (firstName: string, lastName: string) => {
+        if (!lastName && !firstName) return "Client Anonyme";
+        const cleanLast = (lastName || '').trim().toUpperCase();
+        const cleanFirst = (firstName || '').trim();
+        
+        if (cleanFirst && cleanFirst.length > 0) {
+            const truncatedFirst = cleanFirst.substring(0, 3) + '.';
+            return `${cleanLast} ${truncatedFirst}`;
+        }
+        return cleanLast;
+    };
+
     // Helper for avatar initials
     const getInitials = (firstName: string, lastName: string) => {
         const first = firstName ? firstName.charAt(0).toUpperCase() : '';
@@ -266,8 +279,8 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
                                     <thead>
                                         <tr className="border-b border-slate-100 dark:border-slate-850 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                             <th className="py-3.5 pl-2">Abonné</th>
-                                            <th className="py-3.5">Date d'abonnement</th>
-                                            <th className="py-3.5 pr-2 text-right">Statut</th>
+                                            <th className="py-3.5 hidden sm:table-cell">Date d'abonnement</th>
+                                            <th className="py-3.5 pr-2 text-right hidden xs:table-cell">Statut</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-850 text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -280,7 +293,7 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
                                                         </div>
                                                         <div>
                                                             <p className="font-bold text-slate-900 dark:text-white">
-                                                                {liker.firstName ? `${liker.firstName} ${liker.lastName}` : "Client Anonyme"}
+                                                                {formatLikerName(liker.firstName, liker.lastName)}
                                                             </p>
                                                             <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                                                                 ID Membre: #{liker.id}
@@ -288,13 +301,13 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-3">
+                                                <td className="py-3 hidden sm:table-cell">
                                                     <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                                                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
                                                         <span>{formatDate(liker.createdAt)}</span>
                                                     </div>
                                                 </td>
-                                                <td className="py-3 pr-2 text-right">
+                                                <td className="py-3 pr-2 text-right hidden xs:table-cell">
                                                     <span className="inline-flex items-center gap-1 bg-green-50 dark:bg-green-950/35 border border-green-100 dark:border-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase">
                                                         <UserCheck className="h-3 w-3" />
                                                         Abonné
@@ -322,8 +335,8 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
                                     <thead>
                                         <tr className="border-b border-slate-100 dark:border-slate-850 text-[10px] font-black uppercase tracking-wider text-slate-400">
                                             <th className="py-3.5 pl-2">Produit</th>
-                                            <th className="py-3.5">Prix unitaire</th>
-                                            <th className="py-3.5 text-center">Popularité</th>
+                                            <th className="py-3.5 hidden xs:table-cell">Prix unitaire</th>
+                                            <th className="py-3.5 text-center hidden sm:table-cell">Popularité</th>
                                             <th className="py-3.5 pr-2 text-right">Nombre de Likes</th>
                                         </tr>
                                     </thead>
@@ -352,10 +365,10 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="py-3 font-bold text-slate-900 dark:text-white">
+                                                    <td className="py-3 font-bold text-slate-900 dark:text-white hidden xs:table-cell">
                                                         {formatPrice(price)}
                                                     </td>
-                                                    <td className="py-3 text-center">
+                                                    <td className="py-3 text-center hidden sm:table-cell">
                                                         {/* Visual popularity rank indicator */}
                                                         {idx === 0 && (
                                                             <span className="inline-flex items-center bg-amber-50 dark:bg-amber-950/35 border border-amber-200/40 text-amber-700 dark:text-amber-400 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">

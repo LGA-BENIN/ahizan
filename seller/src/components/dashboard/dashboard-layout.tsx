@@ -11,7 +11,7 @@ import {
     Home,
     ShoppingBag,
     Package,
-    DollarSign,
+    Wallet,
     MoreHorizontal,
     Settings,
     ChevronLeft,
@@ -152,7 +152,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
         { name: 'Produits', href: '/dashboard/products', icon: Package },
         { name: 'Abonnés & Likes', href: '/dashboard/likes', icon: Heart },
         { name: 'Messagerie', href: '/dashboard/messages', icon: MessageSquare },
-        { name: 'Portefeuille', href: '/dashboard/wallet', icon: DollarSign, key: 'wallet' },
+        { name: 'Portefeuille', href: '/dashboard/wallet', icon: Wallet, key: 'wallet' },
         { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
     ];
 

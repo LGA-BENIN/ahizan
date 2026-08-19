@@ -33,7 +33,7 @@ export function RegistrationFieldsListComponent() {
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
     };
 
-    const { data, isLoading, error } = useQuery({
+    const { data, isLoading } = useQuery({
         queryKey: ['registrationFields'],
         queryFn: () => fetchGraphQL(GET_REGISTRATION_FIELDS),
     });

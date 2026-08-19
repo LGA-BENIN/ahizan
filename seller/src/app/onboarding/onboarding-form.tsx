@@ -39,8 +39,18 @@ const DEFAULT_REGISTRATION_FIELDS = [
     { name: 'description', label: 'Présentation de vos produits', type: 'string', required: false, order: 5, enabled: true, placeholder: 'Décrivez brièvement les articles que vous vendez...' },
 ];
 
-export function OnboardingForm({ customer, isRecognized }: { customer?: any; isRecognized?: boolean }) {
-    const [dynamicFields, setDynamicFields] = useState<any[]>([]);
+export function OnboardingForm({ 
+    customer, 
+    isRecognized, 
+    initialEmail, 
+    initialFields 
+}: { 
+    customer?: any; 
+    isRecognized?: boolean; 
+    initialEmail?: string;
+    initialFields?: any[];
+}) {
+    const [dynamicFields, setDynamicFields] = useState<any[]>(initialFields && initialFields.length > 0 ? initialFields : DEFAULT_REGISTRATION_FIELDS);
     const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
     const [sellerType, setSellerType] = useState<string>('ONLINE');
     const [isPending, startTransition] = useTransition();
@@ -178,13 +188,15 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
     // Charger les champs d'inscription configurés (ou fallback)
     useEffect(() => {
         const fetchFields = async () => {
+            if (initialFields && initialFields.length > 0) return;
             try {
                 const result = await query(GetRegistrationFieldsQuery, undefined);
                 const fields = (result.data as any)?.registrationFields || [];
-                setDynamicFields(fields.length > 0 ? fields : DEFAULT_REGISTRATION_FIELDS);
+                if (fields.length > 0) {
+                    setDynamicFields(fields);
+                }
             } catch (err) {
-                console.error('Failed to load dynamic fields, using fallback:', err);
-                setDynamicFields(DEFAULT_REGISTRATION_FIELDS);
+                console.error('Failed to load dynamic fields:', err);
             }
         };
         const fetchNeighborhoods = async () => {
@@ -513,7 +525,7 @@ export function OnboardingForm({ customer, isRecognized }: { customer?: any; isR
 
                                 // Inputs classiques (texte, nombre)
                                 const getDefaultValue = (fieldName: string) => {
-                                    if (fieldName === 'email') return customer?.emailAddress || '';
+                                    if (fieldName === 'email') return customer?.emailAddress || initialEmail || '';
                                     if (fieldName === 'firstName') return customer?.firstName || '';
                                     if (fieldName === 'lastName') return customer?.lastName || '';
                                     if (fieldName === 'phoneNumber') return customer?.phoneNumber || '';

@@ -17,8 +17,17 @@ export class ChatMessage extends VendureEntity {
     vendor: Vendor;
 
     @Column()
-    sender: 'CUSTOMER' | 'VENDOR';
+    sender: 'CUSTOMER' | 'VENDOR' | 'SUPERADMIN';
 
     @Column({ type: 'text' })
     content: string;
+
+    @Column({ default: false })
+    deleted: boolean;
+
+    @Column({ default: false })
+    modified: boolean;
+
+    @Column({ default: false })
+    seen: boolean;
 }

@@ -9,6 +9,7 @@ import { OrdersListComponent } from './orders-list';
 import { PaymentManagementComponent } from './payment-management';
 import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
 import { VendorSelector } from './vendor-selector';
+import { SuivreDiscussionsComponent } from './suivre-discussions';
 
 export default defineDashboardExtension({
     routes: [
@@ -121,6 +122,20 @@ export default defineDashboardExtension({
         {
             path: 'extensions/marketplace-products',
             component: ProductListComponent,
+        },
+        {
+            path: 'suivre-discussions',
+            component: SuivreDiscussionsComponent,
+            navMenuItem: {
+                id: 'suivre-discussions',
+                title: 'Suivre les discussions',
+                sectionId: 'marketplace',
+                url: '/suivre-discussions',
+            },
+        },
+        {
+            path: 'extensions/suivre-discussions',
+            component: SuivreDiscussionsComponent,
         },
     ],
     navSections: [

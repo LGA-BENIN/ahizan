@@ -19,6 +19,7 @@ import { BrevoSmsService } from './brevo-sms.service';
 import { BrevoSettings } from './entities/brevo-settings.entity';
 import { VendorEvent } from '../multivendor/events/vendor-event';
 import { Vendor } from '../multivendor/entities/vendor.entity';
+import { ChatMessage } from '../multivendor/entities/chat-message.entity';
 import { ChatMessageEvent } from '../multivendor/events/chat-message-event';
 import { NotificationsService } from './notifications.service';
 
@@ -199,35 +200,102 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
     private subscribeToChatEvents() {
         this.eventBus.ofType(ChatMessageEvent).subscribe(async (event) => {
             const { ctx, message } = event;
-            const actionUrl = 'https://ahizan.com/account/messages';
             
-            if (message.sender === 'CUSTOMER') {
-                const vendor = await this.connection.getRepository(ctx, Vendor).findOne({
-                    where: { id: message.vendor.id },
-                    relations: ['user']
-                });
-                if (vendor?.user) {
-                    await this.sendInAppAndPushNotification(
-                        ctx,
-                        String(vendor.user.id),
-                        'Nouveau message',
-                        `Vous avez reçu un nouveau message de ${message.customer?.firstName || 'un client'}.`,
-                        actionUrl
-                    );
+            // Reload message to ensure relations are fully loaded (critical for direct admin messages with null entities)
+            const dbMessage = await this.connection.getRepository(ctx, ChatMessage).findOne({
+                where: { id: message.id },
+                relations: ['customer', 'vendor']
+            }) || message;
+            
+            if (dbMessage.sender === 'CUSTOMER') {
+                if (dbMessage.vendor) {
+                    const vendor = await this.connection.getRepository(ctx, Vendor).findOne({
+                        where: { id: dbMessage.vendor.id },
+                        relations: ['user']
+                    });
+                    if (vendor?.user) {
+                        await this.sendInAppAndPushNotification(
+                            ctx,
+                            String(vendor.user.id),
+                            'Nouveau message',
+                            `Vous avez reçu un nouveau message de ${dbMessage.customer?.firstName || 'un client'}.`,
+                            '/dashboard/messages'
+                        );
+                    }
                 }
-            } else if (message.sender === 'VENDOR') {
-                const customer = await this.connection.getRepository(ctx, Customer).findOne({
-                    where: { id: message.customer.id },
-                    relations: ['user']
-                });
-                if (customer?.user) {
-                    await this.sendInAppAndPushNotification(
-                        ctx,
-                        String(customer.user.id),
-                        'Nouveau message',
-                        `${message.vendor?.name || 'Une boutique'} vous a envoyé un message.`,
-                        actionUrl
-                    );
+            } else if (dbMessage.sender === 'VENDOR') {
+                if (dbMessage.customer) {
+                    const customer = await this.connection.getRepository(ctx, Customer).findOne({
+                        where: { id: dbMessage.customer.id },
+                        relations: ['user']
+                    });
+                    if (customer?.user) {
+                        await this.sendInAppAndPushNotification(
+                            ctx,
+                            String(customer.user.id),
+                            'Nouveau message',
+                            `${dbMessage.vendor?.name || 'Une boutique'} vous a envoyé un message.`,
+                            '/account/messages'
+                        );
+                    }
+                }
+            } else if (dbMessage.sender === 'SUPERADMIN') {
+                if (dbMessage.customer && dbMessage.vendor) {
+                    // Intervention in a monitored client-seller conversation: notify both
+                    const vendor = await this.connection.getRepository(ctx, Vendor).findOne({
+                        where: { id: dbMessage.vendor.id },
+                        relations: ['user']
+                    });
+                    if (vendor?.user) {
+                        await this.sendInAppAndPushNotification(
+                            ctx,
+                            String(vendor.user.id),
+                            'Message de l\'administrateur',
+                            `L'administrateur a envoyé un message dans votre discussion.`,
+                            '/dashboard/messages'
+                        );
+                    }
+                    const customer = await this.connection.getRepository(ctx, Customer).findOne({
+                        where: { id: dbMessage.customer.id },
+                        relations: ['user']
+                    });
+                    if (customer?.user) {
+                        await this.sendInAppAndPushNotification(
+                            ctx,
+                            String(customer.user.id),
+                            'Message de l\'administrateur',
+                            `L'administrateur a envoyé un message dans votre discussion.`,
+                            '/account/messages'
+                        );
+                    }
+                } else if (dbMessage.vendor) {
+                    const vendor = await this.connection.getRepository(ctx, Vendor).findOne({
+                        where: { id: dbMessage.vendor.id },
+                        relations: ['user']
+                    });
+                    if (vendor?.user) {
+                        await this.sendInAppAndPushNotification(
+                            ctx,
+                            String(vendor.user.id),
+                            'Message de l\'administrateur',
+                            `L'administrateur vous a envoyé un message.`,
+                            '/dashboard/messages'
+                        );
+                    }
+                } else if (dbMessage.customer) {
+                    const customer = await this.connection.getRepository(ctx, Customer).findOne({
+                        where: { id: dbMessage.customer.id },
+                        relations: ['user']
+                    });
+                    if (customer?.user) {
+                        await this.sendInAppAndPushNotification(
+                            ctx,
+                            String(customer.user.id),
+                            'Message de l\'administrateur',
+                            `L'administrateur vous a envoyé un message.`,
+                            '/account/messages'
+                        );
+                    }
                 }
             }
         });

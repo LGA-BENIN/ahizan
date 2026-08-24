@@ -6,6 +6,7 @@ import * as LucideIcons from "lucide-react";
 import Link from "next/link";
 import { ProductCard } from "@/components/commerce/product-card";
 import { getAssetUrl, getShopApiUrl, getPromoPriceInfo } from "@/lib/vendure/api-utils";
+import { fetchWithClientCache } from "@/lib/vendure/client-cache";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -154,38 +155,33 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 }
             `;
             const shopApiUrl = getShopApiUrl();
-            fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: localQuery, variables })
-            })
-            .then(res => res.json())
-            .then(data => {
-                const vendorsList = data.data?.vendors?.items || [];
-                let items = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({
-                    productId: p.id,
-                    productVariantId: p.variants?.[0]?.id || p.id,
-                    variants: p.variants,
-                    productName: p.name,
-                    slug: p.slug,
-                    productAsset: p.featuredAsset || null,
-                    priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
-                    currencyCode: 'XOF',
-                    inStock: true,
-                    collectionIds: [],
-                    facetValueIds: [],
-                    vendorName: v.name,
-                    marketName: v.physicalMarket?.name || null,
-                    locationName: v.location?.name || null
-                })));
-                const limit = activeFlashObj.filterCriteria?.take || 12;
-                setFlashProducts(items.slice(0, limit));
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error('Fetch error for local flash:', err);
-                setLoading(false);
-            });
+            fetchWithClientCache(shopApiUrl, localQuery, variables)
+                .then(data => {
+                    const vendorsList = data?.vendors?.items || [];
+                    let items = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({
+                        productId: p.id,
+                        productVariantId: p.variants?.[0]?.id || p.id,
+                        variants: p.variants,
+                        productName: p.name,
+                        slug: p.slug,
+                        productAsset: p.featuredAsset || null,
+                        priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
+                        currencyCode: 'XOF',
+                        inStock: true,
+                        collectionIds: [],
+                        facetValueIds: [],
+                        vendorName: v.name,
+                        marketName: v.physicalMarket?.name || null,
+                        locationName: v.location?.name || null
+                    })));
+                    const limit = activeFlashObj.filterCriteria?.take || 12;
+                    setFlashProducts(items.slice(0, limit));
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error('Fetch error for local flash:', err);
+                    setLoading(false);
+                });
             return;
         }
         
@@ -193,7 +189,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             const collectionIds = activeFlashObj.filterCriteria?.collectionIds || [];
             const shopApiUrl = getShopApiUrl();
 
-            const fetchForCollection = (collectionId?: string) => {
+            const fetchForCollection = async (collectionId?: string) => {
                 const take = activeFlashObj.filterCriteria?.take || 50;
                 
                 if (collectionId) {
@@ -230,22 +226,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             }
                         }
                     `;
-                    return fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            query: collectionQuery, 
-                            variables: { id: String(collectionId), take } 
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.errors) {
-                            console.error('GraphQL errors:', data.errors);
-                            throw new Error(data.errors[0]?.message || 'GraphQL Error');
-                        }
-                        if (!data.data?.collection?.productVariants?.items) return [];
-                        const items = data.data.collection.productVariants.items;
+                    try {
+                        const data = await fetchWithClientCache(shopApiUrl, collectionQuery, { id: String(collectionId), take });
+                        if (!data?.collection?.productVariants?.items) return [];
+                        const items = data.collection.productVariants.items;
                         const seen = new Set();
                         return items.reduce((acc: any[], item: any) => {
                             if (!seen.has(item.product.id)) {
@@ -265,12 +249,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             }
                             return acc;
                         }, []);
-                    })
-                    .catch(err => {
+                    } catch (err) {
                         console.error('Fetch error:', err);
-                        setErrorMsg('Connexion instable. Veuillez vérifier votre connexion internet et actualiser la page.');
                         return [];
-                    });
+                    }
                 } else {
                     const productsQuery = `
                         query GetProducts($options: ProductListOptions) {
@@ -299,22 +281,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             }
                         }
                     `;
-                    return fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            query: productsQuery, 
-                            variables: { 
-                                options: { 
-                                    take
-                                } 
-                            } 
-                        })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.errors || !data.data?.products?.items) return [];
-                        return data.data.products.items.map((prod: any) => ({
+                    try {
+                        const data = await fetchWithClientCache(shopApiUrl, productsQuery, { options: { take } });
+                        if (!data?.products?.items) return [];
+                        return data.products.items.map((prod: any) => ({
                             productId: prod.id,
                             productVariantId: prod.variants?.[0]?.id || prod.id,
                             variants: prod.variants,
@@ -326,11 +296,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             marketName: prod.customFields?.vendor?.physicalMarket?.name || null,
                             locationName: prod.customFields?.vendor?.location?.name || null
                         }));
-                    })
-                    .catch(err => {
+                    } catch (err) {
                         console.error('Fetch error:', err);
                         return [];
-                    });
+                    }
                 }
             };
 
@@ -389,54 +358,47 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
 
         } else if (activeFlashObj.selectionType === 'MANUAL' && activeFlashObj.manualProductIds?.length > 0) {
             const shopApiUrl = getShopApiUrl();
-            fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    query: `
-                        query GetFlashProducts($options: ProductListOptions) {
-                            products(options: $options) {
-                                items {
+            const manualQuery = `
+                query GetFlashProducts($options: ProductListOptions) {
+                    products(options: $options) {
+                        items {
+                            id
+                            name
+                            slug
+                            variants {
+                                id
+                                price
+                                priceWithTax
+                                stockLevel
+                                customFields {
+                                    compareAtPrice
+                                    onPromotion
+                                    promotionalPrice
+                                }
+                            }
+                            assets {
+                                preview
+                            }
+                            customFields {
+                                vendor {
                                     id
                                     name
-                                    slug
-                                    variants {
-                                        id
-                                        price
-                                        priceWithTax
-                                        stockLevel
-                                        customFields {
-                                            compareAtPrice
-                                            onPromotion
-                                            promotionalPrice
-                                        }
-                                    }
-                                    assets {
-                                        preview
-                                    }
-                                    customFields {
-                                        vendor {
-                                            id
-                                            name
-                                            location { name }
-                                            physicalMarket { name }
-                                        }
-                                    }
+                                    location { name }
+                                    physicalMarket { name }
                                 }
                             }
                         }
-                    `, 
-                    variables: { 
-                        options: { 
-                            filter: { id: { in: activeFlashObj.manualProductIds } },
-                            take: activeFlashObj.filterCriteria?.take || 12
-                        } 
-                    } 
-                })
+                    }
+                }
+            `;
+            fetchWithClientCache(shopApiUrl, manualQuery, {
+                options: { 
+                    filter: { id: { in: activeFlashObj.manualProductIds } },
+                    take: activeFlashObj.filterCriteria?.take || 12
+                } 
             })
-            .then(res => res.json())
             .then(data => {
-                const items = data.data?.products?.items || [];
+                const items = data?.products?.items || [];
                 setFlashProducts(items.map((p: any) => ({
                     productId: p.id,
                     productVariantId: p.variants?.[0]?.id || p.id,
@@ -455,9 +417,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 })));
                 setLoading(false);
             })
-            .catch(err => { console.error('Error fetching manual products:', err); setLoading(false); });
-        } else {
-            setLoading(false);
+            .catch(err => {
+                console.error('Fetch error for manual flash products:', err);
+                setLoading(false);
+            });
         }
     }, [activeFlashStr]);
 

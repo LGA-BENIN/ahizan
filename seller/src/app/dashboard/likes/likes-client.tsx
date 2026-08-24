@@ -123,7 +123,7 @@ export function LikesClient({ initialLikers, productLikesStats }: LikesClientPro
             style: 'currency',
             currency: 'XOF',
             minimumFractionDigits: 0
-        }).format(priceInCents / 100);
+        }).format(priceInCents);
     };
 
     // Safe asset URL helper

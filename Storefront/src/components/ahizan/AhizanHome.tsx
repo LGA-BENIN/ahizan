@@ -7,6 +7,7 @@ import { BodySectionRenderer } from "./BodySectionRenderer";
 import { SectionCodeWrapper } from "./SectionCodeWrapper";
 import { CmsSection } from "@/lib/vendure/cms-queries";
 import { getShopApiUrl } from "@/lib/vendure/api-utils";
+import { fetchWithClientCache } from "@/lib/vendure/client-cache";
 
 export function AhizanHome({ sections }: { sections: CmsSection[] }) {
     const [siteCategories, setSiteCategories] = useState<any[]>([]);
@@ -26,20 +27,8 @@ export function AhizanHome({ sections }: { sections: CmsSection[] }) {
             `;
             try {
                 const shopApiUrl = getShopApiUrl();
-                const res = await fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: gqlQuery })
-                });
-
-                const contentType = res.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    console.error('API returned non-JSON response:', contentType);
-                    return;
-                }
-
-                const data = await res.json();
-                const tree = data.data?.cmsCollectionsTree || [];
+                const data = await fetchWithClientCache(shopApiUrl, gqlQuery);
+                const tree = data?.cmsCollectionsTree || [];
 
                 if (tree && Array.isArray(tree)) {
                     // Keep tree structure so Hero sidebar can show sub-collections on hover

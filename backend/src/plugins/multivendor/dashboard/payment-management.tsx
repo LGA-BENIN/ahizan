@@ -403,6 +403,14 @@ export function PaymentManagementComponent() {
                 </div>
             </div>
 
+            {/* Commission Settings Highlight Banner */}
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '16px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '20px' }}>💡</span>
+                <div style={{ fontSize: '13px', color: '#1e40af' }}>
+                    <strong>Note d'utilisation :</strong> La configuration de la stratégie de commission générale (taux global, par collection, etc.) se trouve désormais sous l'onglet <strong><a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('commission'); }} style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 'bold' }}>Configuration Commission</a></strong> ci-dessous.
+                </div>
+            </div>
+
             {/* Tab Navigation */}
             <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', gap: '8px', marginBottom: '28px' }}>
                 <button

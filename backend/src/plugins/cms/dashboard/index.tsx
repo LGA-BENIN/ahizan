@@ -25,6 +25,7 @@ export default defineDashboardExtension({
             component: WrappedBuilder,
             navMenuItem: {
                 id: 'cms-builder',
+                title: 'Constructeur CMS',
                 sectionId: 'cms-section',
                 url: '/builder',
             },

@@ -39,6 +39,7 @@ const GET_VENDOR_PROFILE = `
                 slug
                 description
                 enabled
+                createdAt
                 featuredAsset {
                     id
                     preview

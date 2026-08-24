@@ -1,6 +1,7 @@
 import {
     defaultShippingCalculator,
     defaultCollectionFilters, 
+    defaultOrderProcess,
     DefaultJobQueuePlugin,
     DefaultSchedulerPlugin,
     DefaultSearchPlugin,
@@ -26,6 +27,8 @@ import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifi
 import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender';
 import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
 import { PromotionalOrderItemPriceCalculationStrategy } from './plugins/multivendor/service/promotional-price.strategy';
+import { AhizanOrderSellerStrategy } from './plugins/multivendor/service/ahizan-order-seller.strategy';
+import { multivendorOrderProcess } from './plugins/multivendor/service/multivendor-order.process';
 import { CMSPlugin } from './plugins/cms/cms.plugin';
 import { BannerManagerPlugin } from './plugins/banner-manager/banner-manager.plugin';
 import { CollectionFacetMapPlugin } from './plugins/collection-facet-map/collection-facet-map.plugin';
@@ -85,6 +88,8 @@ export const config: VendureConfig = {
     },
     orderOptions: {
         orderItemPriceCalculationStrategy: new PromotionalOrderItemPriceCalculationStrategy(),
+        orderSellerStrategy: new AhizanOrderSellerStrategy(),
+        process: [defaultOrderProcess, multivendorOrderProcess],
     },
     dbConnectionOptions: {
         type: 'postgres',
@@ -131,6 +136,9 @@ export const config: VendureConfig = {
         ],
         Product: [
             { name: 'shortDescription', type: 'text', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Petite description' }] },
+            { name: 'weight', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Poids (kg)' }] },
+            { name: 'width', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Largeur (cm)' }] },
+            { name: 'height', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Hauteur (cm)' }] },
         ],
         Collection: [
             { name: 'allowedFacetIds', type: 'string', list: true, nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'IDs des facettes autorisées pour cette collection' }] },

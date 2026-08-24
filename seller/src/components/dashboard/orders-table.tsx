@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
     Search, 
     Printer, 
@@ -29,14 +30,9 @@ interface OrdersTableProps {
 
 export default function OrdersTable({ initialOrders }: OrdersTableProps) {
     const [orders, setOrders] = useState(initialOrders);
-    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'attente' | 'completed'>('all');
     const [isPending, startTransition] = useTransition();
-
-    // Find currently selected order details
-    const selectedOrder = useMemo(() => {
-        return orders.find(o => o.id === selectedOrderId) || null;
-    }, [orders, selectedOrderId]);
+    const router = useRouter();
 
     // Tab filtering logic matching Vendure states
     const filteredOrders = useMemo(() => {
@@ -91,14 +87,14 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
             return;
         }
         
-        const headers = ['ID Commande', 'Client', 'Email', 'Date', 'Total', 'Devise', 'Statut Vendeur', 'Statut Général'];
+        const headers = ['ID Commande', 'Client', 'Email', 'Date', 'Total (FCFA)', 'Devise', 'Statut Vendeur', 'Statut Général'];
         const rows = filteredOrders.map(o => [
             o.code,
             `${o.customer?.firstName || ''} ${o.customer?.lastName || ''}`,
             o.customer?.emailAddress || '',
             new Date(o.updatedAt).toLocaleDateString('fr-FR'),
-            (o.totalWithTax / 100).toFixed(2),
-            o.currencyCode,
+            Number(o.totalWithTax || 0).toFixed(0),
+            o.currencyCode || 'XOF',
             o.customFields?.sellerStatus || 'pending',
             o.state
         ]);
@@ -157,10 +153,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
     };
 
     return (
-        <div className="flex flex-col xl:flex-row gap-6 w-full items-start">
-            
-            {/* Table Column (Left) */}
-            <div className="flex-1 w-full min-w-0 space-y-6">
+        <div className="w-full space-y-6">
                 
                 {/* Header & CSV Export */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -242,17 +235,11 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                             <tbody className="divide-y divide-border">
                                 {filteredOrders.length > 0 ? (
                                     filteredOrders.map((order: any) => {
-                                        const isSelected = order.id === selectedOrderId;
                                         return (
                                             <tr 
                                                 key={order.id} 
-                                                onClick={() => setSelectedOrderId(order.id)}
-                                                className={cn(
-                                                    "cursor-pointer transition-all hover:bg-muted/20 border-l-4",
-                                                    isSelected 
-                                                        ? "bg-primary/5 border-primary font-bold" 
-                                                        : "border-transparent"
-                                                )}
+                                                onClick={() => router.push(`/dashboard/orders/${order.id}`)}
+                                                className="cursor-pointer transition-all hover:bg-muted/20 border-l-4 border-transparent"
                                             >
                                                 <td className="px-6 py-5 whitespace-nowrap font-mono text-xs text-primary font-bold">
                                                     {order.code}
@@ -282,6 +269,9 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-transparent ${getStatusStyles(order.state, order.customFields?.sellerStatus)}`}>
                                                         {getStatusLabel(order.state, order.customFields?.sellerStatus)}
                                                     </span>
+                                                    <div className="text-[10px] text-muted-foreground font-bold mt-1">
+                                                        {order.lines?.filter((l: any) => l.customFields?.sellerStatus === 'confirmed').length || 0} / {order.lines?.length || 0} validés
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-1.5">
@@ -337,190 +327,5 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                     </div>
                 </div>
             </div>
-
-            {/* Sidebar Column (Right) */}
-            <aside className="w-full xl:w-[360px] bg-card border border-border rounded-[2.5rem] p-6 shadow-sm sticky top-24 transition-all duration-500 overflow-hidden">
-                
-                {/* Empty State */}
-                {!selectedOrder ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-center space-y-5 animate-in fade-in duration-300">
-                        <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center text-muted-foreground border border-border/50 shadow-inner">
-                            <Inbox className="w-8 h-8" />
-                        </div>
-                        <div>
-                            <h3 className="text-base font-serif font-black text-foreground">Détails de commande</h3>
-                            <p className="text-xs text-muted-foreground mt-2 max-w-[280px] mx-auto leading-relaxed">
-                                Sélectionnez une commande dans la liste pour voir les informations détaillées, le suivi client et le récapitulatif des articles.
-                            </p>
-                        </div>
-                        <div className="pt-2">
-                            <span className="text-[9px] uppercase font-black text-muted-foreground tracking-widest bg-muted/60 border border-border/60 px-3 py-1.5 rounded-full">
-                                En attente de sélection
-                            </span>
-                        </div>
-                    </div>
-                ) : (
-                    
-                    /* Selected Order Details */
-                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                        
-                        {/* Header details */}
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <h3 className="text-lg font-serif font-black text-primary leading-none">
-                                    {selectedOrder.code}
-                                </h3>
-                                <p className="text-[10px] text-muted-foreground font-medium mt-1.5 flex items-center gap-1">
-                                    <Clock className="w-3 h-3" /> Passée le {new Date(selectedOrder.createdAt).toLocaleDateString('fr-FR')}
-                                </p>
-                            </div>
-                            <button 
-                                onClick={() => setSelectedOrderId(null)}
-                                className="p-1.5 hover:bg-muted rounded-full border border-transparent hover:border-border transition-colors text-muted-foreground hover:text-foreground"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {/* Customer Card */}
-                        <div className="p-4 bg-muted/40 rounded-2xl border border-border/50 space-y-3">
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                                <User className="w-3.5 h-3.5 text-primary" /> Informations Client
-                            </p>
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs shadow-inner">
-                                    {getInitials(selectedOrder.customer?.firstName, selectedOrder.customer?.lastName)}
-                                </div>
-                                <span className="font-bold text-sm text-foreground">
-                                    {selectedOrder.customer?.firstName} {selectedOrder.customer?.lastName}
-                                </span>
-                            </div>
-                            <div className="space-y-1 text-xs text-muted-foreground font-medium">
-                                <p className="truncate underline decoration-primary/10">{selectedOrder.customer?.emailAddress}</p>
-                                {selectedOrder.customer?.phoneNumber && (
-                                    <p className="font-bold text-foreground mt-1">{selectedOrder.customer.phoneNumber}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Shipping Address */}
-                        <div className="p-4 bg-muted/40 rounded-2xl border border-border/50 space-y-2.5">
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-primary" /> Adresse de livraison
-                            </p>
-                            {selectedOrder.shippingAddress && selectedOrder.shippingAddress.streetLine1 ? (
-                                <div className="text-xs text-foreground font-medium leading-relaxed">
-                                    {selectedOrder.shippingAddress.fullName && (
-                                        <p className="font-bold text-sm mb-1">{selectedOrder.shippingAddress.fullName}</p>
-                                    )}
-                                    <p>{selectedOrder.shippingAddress.streetLine1}</p>
-                                    {selectedOrder.shippingAddress.streetLine2 && (
-                                        <p>{selectedOrder.shippingAddress.streetLine2}</p>
-                                    )}
-                                    <p className="font-bold mt-1">
-                                        {[selectedOrder.shippingAddress.city, selectedOrder.shippingAddress.province, selectedOrder.shippingAddress.postalCode]
-                                            .filter(Boolean).join(', ')}
-                                    </p>
-                                    {selectedOrder.shippingAddress.country && (
-                                        <p className="text-[9px] font-black uppercase text-muted-foreground mt-2 bg-muted/80 w-fit px-2 py-0.5 rounded border border-border">
-                                            {selectedOrder.shippingAddress.country}
-                                        </p>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="text-xs text-muted-foreground italic">Non renseignée</p>
-                            )}
-                        </div>
-
-                        {/* Order Items */}
-                        <div className="space-y-3">
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                                <Package className="w-3.5 h-3.5 text-primary" /> Articles Commandés
-                            </p>
-                            
-                            <div className="divide-y divide-border/55 max-h-[160px] overflow-y-auto custom-scrollbar pr-1">
-                                {selectedOrder.lines?.map((line: any) => (
-                                    <div key={line.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0 group">
-                                        <div className="flex items-center gap-3">
-                                            {line.productVariant?.featuredAsset?.preview ? (
-                                                <img 
-                                                    src={line.productVariant.featuredAsset.preview} 
-                                                    alt={line.productVariant.name}
-                                                    className="w-10 h-10 rounded-lg object-cover border border-border/80 bg-muted group-hover:scale-105 transition-transform"
-                                                />
-                                            ) : (
-                                                <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center text-muted-foreground font-black text-[9px] border">
-                                                    IMG
-                                                </div>
-                                            )}
-                                            <div>
-                                                <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors max-w-[150px] truncate">
-                                                    {line.productVariant?.name}
-                                                </p>
-                                                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                                                    Quantité: {line.quantity}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <span className="text-xs font-bold text-foreground">
-                                            {formatPrice(line.linePriceWithTax, selectedOrder.currencyCode)}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Order Calculations */}
-                        <div className="pt-3 border-t border-border space-y-2">
-                            <div className="flex justify-between text-xs font-medium text-muted-foreground">
-                                <span>Sous-total</span>
-                                <span className="text-foreground">{formatPrice(selectedOrder.subTotalWithTax || selectedOrder.totalWithTax, selectedOrder.currencyCode)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs font-medium text-muted-foreground">
-                                <span>Livraison</span>
-                                <span className="text-foreground">Gratuit</span>
-                            </div>
-                            
-                            <div className="flex justify-between items-center pt-3 border-t border-dashed border-border">
-                                <span className="text-xs font-black text-foreground uppercase">Total</span>
-                                <span className="text-lg font-serif font-black text-primary underline decoration-primary/10 decoration-2">
-                                    {formatPrice(selectedOrder.totalWithTax, selectedOrder.currencyCode)}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Actions in Sidebar */}
-                        <div className="pt-4 grid grid-cols-2 gap-3">
-                            <Button 
-                                onClick={() => {
-                                    toast.success('Bordereau envoyé à l\'impression');
-                                    window.print();
-                                }}
-                                variant="outline"
-                                className="h-12 rounded-xl text-xs font-bold uppercase tracking-wider border-border bg-card hover:bg-muted"
-                            >
-                                Imprimer
-                            </Button>
-                            
-                            {selectedOrder.customFields?.sellerStatus !== 'confirmed' ? (
-                                <Button 
-                                    onClick={() => handleConfirmShipment(selectedOrder.id)}
-                                    className="h-12 rounded-xl text-xs font-bold uppercase tracking-wider bg-primary hover:bg-primary/90 text-white"
-                                    disabled={isPending}
-                                >
-                                    {isPending ? 'Envoi...' : 'Confirmer Envoi'}
-                                </Button>
-                            ) : (
-                                <div className="h-12 rounded-xl bg-green-50 dark:bg-green-950/20 border border-green-200/50 flex items-center justify-center gap-1.5 text-green-700 dark:text-green-400">
-                                    <CheckCircle2 className="w-4 h-4" />
-                                    <span className="text-[10px] font-black uppercase tracking-wider">Déjà Expédié</span>
-                                </div>
-                            )}
-                        </div>
-
-                    </div>
-                )}
-            </aside>
-        </div>
     );
 }

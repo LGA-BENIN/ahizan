@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, ImageIcon, Save, X, Trash2, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon, AlignLeft, Coins, Loader2 } from 'lucide-react';
+import { Package, ImageIcon, Save, X, Trash2, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon, AlignLeft, Coins, Loader2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { priceFromSubunit } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,11 +23,36 @@ interface EditProductFormProps {
     collectionTree: any[];
 }
 
+interface VariantRow {
+    id: string;
+    name: string;
+    sku: string;
+    price: number;
+    stock: number;
+    onPromotion: boolean;
+    promotionalPrice: number;
+}
+
 export default function EditProductForm({ product, collectionTree }: EditProductFormProps) {
     const router = useRouter();
-    const variant = product.variants[0]; // Assuming single variant for now
+    const variant = product.variants?.[0];
 
     const initialCategoryIds = (product.collections || []).map((coll: any) => String(coll.id));
+
+    const initialVariants: VariantRow[] = (product.variants && product.variants.length > 0)
+        ? product.variants.map((v: any, index: number) => ({
+            id: String(v.id),
+            name: v.name || `${product.name} - Option ${index + 1}`,
+            sku: v.sku || '',
+            price: v.priceWithTax ? priceFromSubunit(v.priceWithTax, v.currencyCode) : 0,
+            stock: v.stockOnHand ?? 0,
+            onPromotion: (v.customFields as any)?.onPromotion || false,
+            promotionalPrice: (v.customFields as any)?.promotionalPrice ? priceFromSubunit((v.customFields as any).promotionalPrice, v.currencyCode) : 0,
+        }))
+        : [{ id: 'new_1', name: product.name, sku: '', price: 0, stock: 5, onPromotion: false, promotionalPrice: 0 }];
+
+    const [hasMultipleVariants, setHasMultipleVariants] = useState(initialVariants.length > 1);
+    const [variants, setVariants] = useState<VariantRow[]>(initialVariants);
 
     const [formData, setFormData] = useState({
         name: product.name,
@@ -35,6 +60,10 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         shortDescription: product.customFields?.shortDescription || '',
         price: variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode) : 0,
         stock: variant?.stockOnHand !== undefined && variant?.stockOnHand !== null ? variant.stockOnHand : 0,
+        sku: variant?.sku || '',
+        weight: product.customFields?.weight !== undefined && product.customFields?.weight !== null ? String(product.customFields.weight) : '',
+        width: product.customFields?.width !== undefined && product.customFields?.width !== null ? String(product.customFields.width) : '',
+        height: product.customFields?.height !== undefined && product.customFields?.height !== null ? String(product.customFields.height) : '',
         parentCategory: '',
         category: JSON.stringify(initialCategoryIds),
         enabled: product.enabled !== false || product.customFields?.approvalStatus === 'pending' || product.customFields?.approvalStatus === 'rejected',
@@ -53,6 +82,33 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     );
     const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
     const [loadingFacets, setLoadingFacets] = useState(false);
+
+    const handleAddVariant = () => {
+        setVariants(prev => [
+            ...prev,
+            {
+                id: `new_${Date.now()}`,
+                name: '',
+                sku: '',
+                price: formData.price,
+                stock: formData.stock,
+                onPromotion: false,
+                promotionalPrice: 0,
+            }
+        ]);
+    };
+
+    const handleRemoveVariant = (id: string) => {
+        if (variants.length <= 1) {
+            toast.warning('Le produit doit avoir au moins une déclinaison');
+            return;
+        }
+        setVariants(prev => prev.filter(v => v.id !== id));
+    };
+
+    const handleVariantChange = (id: string, field: keyof VariantRow, value: any) => {
+        setVariants(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
+    };
 
     // Fetch allowed facets for a collection
     const fetchAllowedFacets = async (collectionIds: string[]) => {
@@ -112,6 +168,10 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             data.append('shortDescription', formData.shortDescription);
             data.append('price', formData.price.toString());
             data.append('stock', formData.stock.toString());
+            data.append('sku', formData.sku);
+            data.append('weight', formData.weight);
+            data.append('width', formData.width);
+            data.append('height', formData.height);
             data.append('category', formData.category);
             data.append('enabled', formData.enabled.toString());
             data.append('assetIds', JSON.stringify(assetIds));
@@ -119,6 +179,9 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             data.append('facetValueIds', JSON.stringify(facetValueIds));
             data.append('onPromotion', formData.onPromotion.toString());
             data.append('promotionalPrice', formData.promotionalPrice.toString());
+            if (hasMultipleVariants && variants.length > 0) {
+                data.append('variants', JSON.stringify(variants));
+            }
 
             const result = await updateProductAction(null, data);
 
@@ -278,6 +341,171 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                 />
                             </div>
                         </div>
+                    </div>
+
+                    {/* Section: Logistique & Dimensions */}
+                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
+                            <Package className="w-4 h-4 text-primary" />
+                            <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Logistique & Dimensions (Optionnel)</h3>
+                        </div>
+                        <div className="p-6 sm:p-8 space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Code Article (SKU)</Label>
+                                    <Input
+                                        value={formData.sku}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, sku: e.target.value })}
+                                        placeholder="Ex: PRD-TSHIRT-001"
+                                        className="h-11 rounded-xl bg-card border-border font-mono text-sm"
+                                        autoComplete="off"
+                                    />
+                                    <p className="text-[9px] text-muted-foreground">Généré automatiquement si laissé vide.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Poids (kg)</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={formData.weight}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, weight: e.target.value })}
+                                        placeholder="Ex: 0.5"
+                                        className="h-11 rounded-xl bg-card border-border text-sm"
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Largeur (cm)</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={formData.width}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, width: e.target.value })}
+                                        placeholder="Ex: 20"
+                                        className="h-11 rounded-xl bg-card border-border text-sm"
+                                        autoComplete="off"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hauteur (cm)</Label>
+                                    <Input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        value={formData.height}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, height: e.target.value })}
+                                        placeholder="Ex: 15"
+                                        className="h-11 rounded-xl bg-card border-border text-sm"
+                                        autoComplete="off"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Déclinaisons & Variantes Multiples */}
+                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Tag className="w-4 h-4 text-primary" />
+                                <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Déclinaisons & Variantes ({variants.length})</h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="hasMultipleVariants"
+                                    checked={hasMultipleVariants}
+                                    onChange={(e) => setHasMultipleVariants(e.target.checked)}
+                                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
+                                />
+                                <Label htmlFor="hasMultipleVariants" className="text-xs font-bold text-foreground cursor-pointer">
+                                    Plusieurs options (Tailles, Couleurs...)
+                                </Label>
+                            </div>
+                        </div>
+                        {hasMultipleVariants && (
+                            <div className="p-6 space-y-4 animate-in fade-in duration-300">
+                                <p className="text-xs text-muted-foreground font-medium">
+                                    Définissez les différentes options pour ce produit avec leur prix et stock respectifs.
+                                </p>
+                                <div className="space-y-3">
+                                    {variants.map((v: VariantRow, index: number) => (
+                                        <div key={v.id} className="p-4 rounded-xl border border-border bg-muted/10 space-y-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-xs font-black text-foreground">Déclinaison #{index + 1}</span>
+                                                {variants.length > 1 && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleRemoveVariant(v.id)}
+                                                        className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                                                    >
+                                                        Supprimer
+                                                    </Button>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Nom / Option (ex: XL - Bleu)</Label>
+                                                    <Input
+                                                        value={v.name}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'name', e.target.value)}
+                                                        placeholder="Ex: Taille XL"
+                                                        className="h-10 rounded-lg text-sm mt-1"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">SKU (Code Article)</Label>
+                                                    <Input
+                                                        value={v.sku}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'sku', e.target.value)}
+                                                        placeholder="Optionnel"
+                                                        className="h-10 rounded-lg font-mono text-sm mt-1"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Prix (CFA) *</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        value={v.price || ''}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'price', Math.max(0, parseInt(e.target.value) || 0))}
+                                                        placeholder="0"
+                                                        className="h-10 rounded-lg font-bold text-sm mt-1"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Stock *</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        value={v.stock || ''}
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'stock', Math.max(0, parseInt(e.target.value) || 0))}
+                                                        placeholder="5"
+                                                        className="h-10 rounded-lg font-bold text-sm mt-1"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleAddVariant}
+                                    className="w-full rounded-xl border-dashed h-11 text-xs font-bold uppercase tracking-wider"
+                                >
+                                    + Ajouter une déclinaison
+                                </Button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Section: Caractéristiques (Facet Values) */}

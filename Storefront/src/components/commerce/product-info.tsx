@@ -58,6 +58,10 @@ interface ProductInfoProps {
         }>;
         customFields?: {
             shortDescription?: string;
+            weight?: number;
+            width?: number;
+            height?: number;
+            vendor?: any;
         } | null;
     };
     searchParams: { [key: string]: string | string[] | undefined };
@@ -73,6 +77,9 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
     const [quantity, setQuantity] = useState(1);
+    const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
+        return product.variants[0]?.id || '';
+    });
 
     // Initialize selected options from URL
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
@@ -93,24 +100,29 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         return initialOptions;
     });
 
-    // Find the matching variant based on selected options
+    // Find the matching variant based on selected options or selected variant id
     const selectedVariant = useMemo(() => {
+        if (product.variants.length === 0) return null;
         if (product.variants.length === 1) {
             return product.variants[0];
         }
 
-        // If not all option groups have a selection, return null
-        if (Object.keys(selectedOptions).length !== product.optionGroups.length) {
-            return null;
+        // If product has option groups
+        if (product.optionGroups.length > 0) {
+            if (Object.keys(selectedOptions).length !== product.optionGroups.length) {
+                return null;
+            }
+
+            return product.variants.find((variant) => {
+                const variantOptionIds = variant.options.map((opt) => opt.id);
+                const selectedOptionIds = Object.values(selectedOptions);
+                return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
+            }) || null;
         }
 
-        // Find variant that matches all selected options
-        return product.variants.find((variant) => {
-            const variantOptionIds = variant.options.map((opt) => opt.id);
-            const selectedOptionIds = Object.values(selectedOptions);
-            return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
-        });
-    }, [selectedOptions, product.variants, product.optionGroups]);
+        // If product has direct variants without option groups
+        return product.variants.find(v => v.id === selectedVariantId) || product.variants[0];
+    }, [selectedOptions, product.variants, product.optionGroups, selectedVariantId]);
 
     const handleOptionChange = (groupId: string, optionId: string) => {
         setSelectedOptions((prev) => ({
@@ -258,6 +270,57 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                             </RadioGroup>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Direct Variants Selector (if no optionGroups but multiple variants exist) */}
+            {product.optionGroups.length === 0 && product.variants.length > 1 && (
+                <div className="space-y-2 pt-4 border-t">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
+                        Déclinaisons disponibles ({product.variants.length})
+                    </Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {product.variants.map((v) => {
+                            const isSelected = selectedVariant?.id === v.id;
+                            return (
+                                <button
+                                    key={v.id}
+                                    type="button"
+                                    onClick={() => setSelectedVariantId(v.id)}
+                                    className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20 shadow-sm' : 'border-input hover:border-slate-300 dark:hover:border-slate-600 bg-background text-foreground'}`}
+                                >
+                                    <span className="truncate max-w-full">{v.name}</span>
+                                    <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                                        <Price value={v.priceWithTax} />
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Dimensions & Logistics Info */}
+            {Boolean(product.customFields?.weight || product.customFields?.width || product.customFields?.height) && (
+                <div className="flex flex-wrap gap-4 py-2.5 px-3.5 bg-muted/40 rounded-xl text-xs font-semibold text-muted-foreground border border-border/50">
+                    {Boolean(product.customFields?.weight) && (
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-foreground font-bold">Poids:</span>
+                            <span>{product.customFields?.weight} kg</span>
+                        </div>
+                    )}
+                    {Boolean(product.customFields?.width) && (
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-foreground font-bold">Largeur:</span>
+                            <span>{product.customFields?.width} cm</span>
+                        </div>
+                    )}
+                    {Boolean(product.customFields?.height) && (
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-foreground font-bold">Hauteur:</span>
+                            <span>{product.customFields?.height} cm</span>
+                        </div>
+                    )}
                 </div>
             )}
 

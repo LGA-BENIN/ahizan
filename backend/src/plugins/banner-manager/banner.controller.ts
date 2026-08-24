@@ -80,10 +80,8 @@ export class BannerAdminController {
 
         const uploadDir = path.join(process.cwd(), 'static', 'assets', 'banners');
         
-        // Ensure directory exists
-        await fs.mkdir(uploadDir, { recursive: true });
-
-        const fileName = `${Date.now()}-${file.originalname}`;
+        const sanitizedOriginal = (file.originalname || 'banner.png').replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${Date.now()}-${sanitizedOriginal}`;
         const filePath = path.join(uploadDir, fileName);
 
         await fs.writeFile(filePath, file.buffer);

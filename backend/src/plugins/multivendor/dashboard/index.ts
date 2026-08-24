@@ -18,7 +18,7 @@ export default defineDashboardExtension({
             component: PaymentManagementComponent,
             navMenuItem: {
                 id: 'gestion-paiement',
-                title: 'Gestion de paiement',
+                title: 'Commissions & Règlements',
                 sectionId: 'marketplace',
                 url: '/gestion-paiement',
             },

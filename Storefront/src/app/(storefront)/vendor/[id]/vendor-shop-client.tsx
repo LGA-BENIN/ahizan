@@ -25,7 +25,9 @@ interface Product {
     id: string;
     name: string;
     slug: string;
+    description?: string;
     enabled?: boolean;
+    createdAt?: string;
     featuredAsset?: { preview: string } | null;
     customFields?: { approvalStatus?: string } | null;
     collections?: Collection[];
@@ -72,6 +74,13 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [loginModalTitle, setLoginModalTitle] = useState("S'abonner à la boutique");
     const [loginModalDescription, setLoginModalDescription] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12;
+
+    // Reset page to 1 when filters or tabs change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeTab, searchTerm, selectedCollections, sortBy]);
 
     // Load initial follow status
     useEffect(() => {
@@ -120,21 +129,31 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
 
         // 1. Filter by Tab
         if (activeTab === 'deals') {
-            // Faux deals or products with high original price/compareAt
+            // Real promotions and deals filter
             list = list.filter(p => {
-                const price = p.variants?.[0]?.priceWithTax || 0;
-                // Just as a filter, show products that are "promoted" or arbitrarily select some for demo
-                return price > 0 && parseInt(p.id) % 2 === 0;
+                const v = p.variants?.[0];
+                if (!v) return false;
+                const onPromo = (v.customFields as any)?.onPromotion === true;
+                const compareAt = (v.customFields as any)?.compareAtPrice;
+                const promoPrice = (v.customFields as any)?.promotionalPrice;
+                const hasCompareAt = compareAt && compareAt > (v.priceWithTax || 0);
+                const hasPromoPrice = promoPrice && promoPrice > 0 && promoPrice < (v.priceWithTax || 0);
+                return onPromo || hasCompareAt || hasPromoPrice;
             });
         } else if (activeTab === 'new') {
-            // New arrivals, show last added or arbitrary subset
-            list = list.slice(-6);
+            // New arrivals sorted by createdAt descending
+            list = [...list].sort((a: any, b: any) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id) || 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id) || 0;
+                return dateB - dateA;
+            });
         }
 
         // 2. Filter by Search Term
         if (searchTerm) {
+            const term = searchTerm.toLowerCase();
             list = list.filter(p => 
-                p.name.toLowerCase().includes(searchTerm.toLowerCase())
+                p.name.toLowerCase().includes(term) || (p.description && p.description.toLowerCase().includes(term))
             );
         }
 
@@ -151,11 +170,21 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
         } else if (sortBy === 'priceDesc') {
             list.sort((a, b) => (b.variants?.[0]?.priceWithTax || 0) - (a.variants?.[0]?.priceWithTax || 0));
         } else if (sortBy === 'newest') {
-            list.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+            list.sort((a: any, b: any) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id) || 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id) || 0;
+                return dateB - dateA;
+            });
         }
 
         return list;
     }, [productsList, activeTab, searchTerm, selectedCollections, sortBy]);
+
+    const totalPages = Math.ceil(processedProducts.length / ITEMS_PER_PAGE);
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return processedProducts.slice(start, start + ITEMS_PER_PAGE);
+    }, [processedProducts, currentPage]);
 
     // Follow action
     const handleFollowToggle = async () => {
@@ -482,51 +511,91 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
 
                             {/* Products Grid or List */}
                             {processedProducts.length > 0 ? (
-                                viewMode === 'grid' ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {processedProducts.map(product => (
-                                            <VendorProductCard key={product.id} product={product} />
-                                        ))}
-                                    </div>
-                                ) : (
-                                    /* List view (simple row design) */
-                                    <div className="space-y-4">
-                                        {processedProducts.map(product => {
-                                            const price = product.variants?.[0]?.priceWithTax || 0;
-                                            const featuredImageUrl = product.featuredAsset?.preview ? getAssetUrl(product.featuredAsset.preview) : null;
-                                            return (
-                                                <Link 
-                                                    key={product.id} 
-                                                    href={`/product/${product.slug}`}
-                                                    className="flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 hover:shadow-md transition-shadow group no-underline text-inherit"
-                                                >
-                                                    <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                                        {featuredImageUrl ? (
-                                                            <img src={featuredImageUrl} alt={product.name} className="w-full h-full object-contain p-1" />
-                                                        ) : (
-                                                            <Package className="h-8 w-8 text-slate-300" />
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
-                                                        <div>
-                                                            <h3 className="font-bold text-sm md:text-base text-slate-950 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
-                                                                {product.name}
-                                                            </h3>
-                                                            {product.collections && product.collections.length > 0 && (
-                                                                <p className="text-xs text-slate-400 font-semibold mt-1">
-                                                                    {product.collections[0].name}
-                                                                </p>
+                                <>
+                                    {viewMode === 'grid' ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {paginatedProducts.map(product => (
+                                                <VendorProductCard key={product.id} product={product} />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        /* List view (simple row design) */
+                                        <div className="space-y-4">
+                                            {paginatedProducts.map(product => {
+                                                const price = product.variants?.[0]?.priceWithTax || 0;
+                                                const featuredImageUrl = product.featuredAsset?.preview ? getAssetUrl(product.featuredAsset.preview) : null;
+                                                return (
+                                                    <Link 
+                                                        key={product.id} 
+                                                        href={`/product/${product.slug}`}
+                                                        className="flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 hover:shadow-md transition-shadow group no-underline text-inherit"
+                                                    >
+                                                        <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                                            {featuredImageUrl ? (
+                                                                <img src={featuredImageUrl} alt={product.name} className="w-full h-full object-contain p-1" />
+                                                            ) : (
+                                                                <Package className="h-8 w-8 text-slate-300" />
                                                             )}
                                                         </div>
-                                                        <div className="text-base font-black text-primary">
-                                                            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(price)}
+                                                        <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                                                            <div>
+                                                                <h3 className="font-bold text-sm md:text-base text-slate-950 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
+                                                                    {product.name}
+                                                                </h3>
+                                                                {product.collections && product.collections.length > 0 && (
+                                                                    <p className="text-xs text-slate-400 font-semibold mt-1">
+                                                                        {product.collections[0].name}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-base font-black text-primary">
+                                                                {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(price)}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </Link>
-                                            );
-                                        })}
-                                    </div>
-                                )
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* Pagination Controls */}
+                                    {totalPages > 1 && (
+                                        <div className="flex items-center justify-center gap-2 mt-10">
+                                            <button
+                                                disabled={currentPage === 1}
+                                                onClick={() => {
+                                                    setCurrentPage(p => Math.max(1, p - 1));
+                                                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                                                }}
+                                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                            >
+                                                Précédent
+                                            </button>
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                                <button
+                                                    key={page}
+                                                    onClick={() => {
+                                                        setCurrentPage(page);
+                                                        window.scrollTo({ top: 300, behavior: 'smooth' });
+                                                    }}
+                                                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-colors ${currentPage === page ? 'bg-primary text-white shadow-sm' : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            ))}
+                                            <button
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => {
+                                                    setCurrentPage(p => Math.min(totalPages, p + 1));
+                                                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                                                }}
+                                                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                            >
+                                                Suivant
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
                             ) : (
                                 <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 p-8 shadow-sm">
                                     <Package className="h-12 w-12 text-slate-400 mx-auto mb-4" />

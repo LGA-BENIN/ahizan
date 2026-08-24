@@ -20,7 +20,7 @@ export function WhatsappOrderButton({ activeOrder, whatsappNumber }: { activeOrd
                     style: 'currency',
                     currency: activeOrder.currencyCode || 'XOF',
                     maximumFractionDigits: 0,
-                }).format(amount / 100);
+                }).format(amount);
             };
 
             let message = `🛒 *NOUVELLE COMMANDE AHIZAN*\n`;

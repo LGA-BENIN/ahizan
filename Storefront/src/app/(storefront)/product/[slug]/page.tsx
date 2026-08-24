@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: any): Promise<Metadata> {
     const description = truncateDescription(product.description);
     const ogImage = product.assets?.[0]?.preview;
     const mainVariant = product.variants?.[0];
-    const priceAmount = mainVariant?.priceWithTax ? (mainVariant.priceWithTax / 100).toString() : undefined;
+    const priceAmount = mainVariant?.priceWithTax ? (mainVariant.priceWithTax).toString() : undefined;
     const collectionsStr = product.collections?.map((c: any) => c.name).join(', ');
     const keywords = [product.name, collectionsStr, SITE_NAME, 'Bénin', 'E-commerce', 'Achat en ligne'].filter(Boolean).join(', ');
 
@@ -93,7 +93,7 @@ export async function generateMetadata({ params }: any): Promise<Metadata> {
 
 function buildProductJsonLd(product: any) {
     const mainVariant = product.variants?.[0];
-    const rawPrice = mainVariant?.priceWithTax ? mainVariant.priceWithTax / 100 : 0;
+    const rawPrice = mainVariant?.priceWithTax ? mainVariant.priceWithTax : 0;
     const cleanDescription = truncateDescription(product.description, 500);
     const images = product.assets?.map((a: any) => a.preview).filter(Boolean) || [];
 

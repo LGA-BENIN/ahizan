@@ -4,11 +4,12 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { useMemo } from 'react';
 
 interface RevenueChartProps {
-    orders: any[];
+    orders?: any[];
+    initialData?: any[];
     currencyCode: string;
 }
 
-export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
+export function RevenueChart({ orders = [], initialData, currencyCode }: RevenueChartProps) {
     const settledStates = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
     const settledOrders = useMemo(() => {
         return orders.filter((o: any) => settledStates.includes(o.state));
@@ -16,6 +17,10 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
 
     // Generate last 30 days data
     const chartData = useMemo(() => {
+        if (initialData && initialData.length > 0) {
+            return initialData;
+        }
+
         const last30Days: Record<string, number> = {};
         const now = new Date();
         
@@ -42,9 +47,9 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
         return Object.entries(last30Days).map(([date, total]) => ({
             date: new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
             rawDate: date,
-            revenue: Math.round(total / 100), // convert centimes to main currency unit
+            revenue: Math.round(total),
         }));
-    }, [settledOrders]);
+    }, [initialData, settledOrders]);
 
     const formatTooltip = (value: number) => {
         return new Intl.NumberFormat('fr-FR', {
@@ -55,7 +60,7 @@ export function RevenueChart({ orders, currencyCode }: RevenueChartProps) {
         }).format(value);
     };
 
-    const hasNoSales = settledOrders.length === 0;
+    const hasNoSales = chartData.length === 0 || chartData.every(d => (d.revenue || 0) === 0);
 
     return (
         <div className="relative w-full h-[240px]">

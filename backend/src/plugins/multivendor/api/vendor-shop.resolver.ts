@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService, ChannelService } from '@vendure/core';
 import { In } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
@@ -21,6 +21,7 @@ export class VendorShopResolver {
         private collectionService: CollectionService,
         private searchService: SearchService,
         private globalSettingsService: GlobalSettingsService,
+        private channelService: ChannelService,
     ) { }
 
     /**
@@ -118,6 +119,62 @@ export class VendorShopResolver {
         return this.vendorService.findOrdersForVendor(ctx, vendor.id.toString(), options);
     }
 
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.findOrderForVendor(ctx, vendor.id.toString(), id);
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myVendorWalletStats(
+        @Ctx() ctx: RequestContext
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.getVendorWalletStats(ctx, vendor.id.toString());
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myVendorDashboardStats(
+        @Ctx() ctx: RequestContext
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.getMyVendorDashboardStats(ctx, vendor.id.toString());
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async fulfillMyVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('trackingCode') trackingCode?: string,
+        @Args('carrier') carrier?: string
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.fulfillOrderForVendor(ctx, vendor.id.toString(), orderId, trackingCode, carrier);
+    }
+
 
 
     /**
@@ -129,9 +186,14 @@ export class VendorShopResolver {
         @Ctx() ctx: RequestContext,
         @Args('input') input: { name: string, description: string, shortDescription?: string, price: number, stock: number, collectionIds?: string[], facetValueIds?: string[], assetIds?: string[], featuredAssetId?: string, onPromotion?: boolean, promotionalPrice?: number }
     ): Promise<Product> {
-        const vendor = await this.myVendorProfile(ctx);
+        let vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
             throw new Error('No vendor profile found for this user');
+        }
+
+        // Ensure native Seller & Channel exist for this vendor
+        if (!vendor.channelId || !vendor.sellerId) {
+            vendor = await this.vendorService.ensureNativeSellerAndChannel(ctx, vendor);
         }
 
         console.log(`createMyProduct: Input collectionIds:`, input.collectionIds);
@@ -146,9 +208,11 @@ export class VendorShopResolver {
             throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
         }
 
+        // Get superadmin elevated context to execute core Vendure product creation
+        const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
 
-        // 1. Create Product with Collections and Assets
-        const product = await this.productService.create(ctx, {
+        // 1. Create Product with Translations, Assets, and Vendor customField
+        const product = await this.productService.create(adminCtx, {
             translations: [{
                 languageCode: ctx.languageCode,
                 name: input.name,
@@ -158,70 +222,114 @@ export class VendorShopResolver {
                     shortDescription: input.shortDescription || '',
                 },
             }],
-            enabled: false,
+            enabled: (input as any).enabled ?? false,
             assetIds: input.assetIds,
             facetValueIds: finalFacetValueIds,
             featuredAssetId: input.featuredAssetId,
             customFields: {
                 vendor: { id: vendor.id },
                 shortDescription: input.shortDescription || '',
+                approvalStatus: 'pending',
+                weight: (input as any).weight,
+                width: (input as any).width,
+                height: (input as any).height,
             }
         });
 
-        // Collections will be assigned after the variant is created.
+        // 2. Create Variants (Multiple or Single)
+        const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
+        const variantInputs: any[] = [];
 
-        // 2. Create Default Variant with Price & Stock
-        const variantInput: any = {
-            productId: product.id,
-            sku: `${vendor.name.substring(0, 3).toUpperCase()}-${Date.now()}`,
-            price: input.price,
-            stockOnHand: input.stock,
-            translations: [{
-                languageCode: ctx.languageCode,
-                name: input.name,
-            }]
-        };
-
-        // Add promotional price fields if provided
-        if (input.onPromotion !== undefined) {
-            variantInput.customFields = { onPromotion: input.onPromotion };
+        if ((input as any).variants && (input as any).variants.length > 0) {
+            for (let i = 0; i < (input as any).variants.length; i++) {
+                const v = (input as any).variants[i];
+                const vName = v.name || `${input.name} - Option ${i + 1}`;
+                const vSku = v.sku || `${vendorPrefix}-${Date.now()}-${i + 1}`;
+                const vInput: any = {
+                    productId: product.id,
+                    sku: vSku,
+                    price: v.price,
+                    stockOnHand: v.stock,
+                    featuredAssetId: v.featuredAssetId || input.featuredAssetId,
+                    translations: [{
+                        languageCode: ctx.languageCode,
+                        name: vName,
+                    }],
+                    customFields: {}
+                };
+                if (v.onPromotion !== undefined) {
+                    vInput.customFields.onPromotion = v.onPromotion;
+                }
+                if (v.promotionalPrice !== undefined) {
+                    vInput.customFields.promotionalPrice = v.promotionalPrice;
+                }
+                variantInputs.push(vInput);
+            }
+        } else {
+            const singleSku = (input as any).sku || `${vendorPrefix}-${Date.now()}`;
+            const singleInput: any = {
+                productId: product.id,
+                sku: singleSku,
+                price: input.price,
+                stockOnHand: input.stock,
+                featuredAssetId: input.featuredAssetId,
+                translations: [{
+                    languageCode: ctx.languageCode,
+                    name: input.name,
+                }],
+                customFields: {}
+            };
+            if (input.onPromotion !== undefined) {
+                singleInput.customFields.onPromotion = input.onPromotion;
+            }
+            if (input.promotionalPrice !== undefined) {
+                singleInput.customFields.promotionalPrice = input.promotionalPrice;
+            }
+            variantInputs.push(singleInput);
         }
-        if (input.promotionalPrice !== undefined) {
-            variantInput.customFields = { ...variantInput.customFields, promotionalPrice: input.promotionalPrice };
+
+        const variants = await this.productVariantService.create(adminCtx, variantInputs);
+
+        // 3. Assign Product, Variants and Assets to Vendor's native Channel and default channel
+        if (vendor.channelId) {
+            try {
+                await this.channelService.assignToChannels(adminCtx, Product, product.id, [vendor.channelId]);
+                for (const variant of variants) {
+                    await this.channelService.assignToChannels(adminCtx, ProductVariant, variant.id, [vendor.channelId]);
+                }
+                if (input.assetIds && input.assetIds.length > 0) {
+                    for (const assetId of input.assetIds) {
+                        await this.channelService.assignToChannels(adminCtx, Asset, assetId, [vendor.channelId]).catch(() => null);
+                    }
+                }
+            } catch (chanErr) {
+                console.error(`createMyProduct: Channel assignment error:`, chanErr);
+            }
         }
 
-        const variants = await this.productVariantService.create(ctx, [variantInput]);
-        const variant = variants[0];
-
-        // 3. Trigger product update FIRST to force Vendure's internal collection re-evaluation
-        await this.productService.update(ctx, {
+        // 4. Update facet values & custom fields
+        await this.productService.update(adminCtx, {
             id: product.id,
             facetValueIds: finalFacetValueIds,
             customFields: {
                 shortDescription: input.shortDescription || '',
+                approvalStatus: 'pending',
+                weight: (input as any).weight,
+                width: (input as any).width,
+                height: (input as any).height,
             }
         });
 
-        // 4. Assign product to collections AFTER update so INSERTs aren't overwritten
-        console.log(`createMyProduct: Assigning variant ${variant.id} to collections:`, input.collectionIds);
+        // 5. Assign to collections if provided
         if (input.collectionIds && input.collectionIds.length > 0) {
-            await this.addVariantsToCollections(ctx, [String(variant.id)], input.collectionIds);
-
-            // Verify the join table state for debugging
-            try {
-                const rows = await this.connection.rawConnection.query(
-                    `SELECT "collectionId", "productVariantId" FROM collection_product_variants_product_variant WHERE "productVariantId" = $1`,
-                    [String(variant.id)]
-                );
-                console.log(`createMyProduct: Join table final state for variant ${variant.id}:`, JSON.stringify(rows));
-            } catch (e) {
-                console.error('createMyProduct: Failed to verify join table:', e);
-            }
+            const variantIds = variants.map(v => String(v.id));
+            console.log(`createMyProduct: Assigning variants ${variantIds.join(', ')} to collections:`, input.collectionIds);
+            await this.addVariantsToCollections(adminCtx, variantIds, input.collectionIds);
         }
 
-        // 5. Re-fetch and emit event so the search index is updated via Job Queue
-        const finalProduct = await this.productService.findOne(ctx, product.id) as Product;
-        this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id: product.id }));
+        // 6. Publish ProductEvent for automatic search indexing and cache invalidation
+        const finalProduct = await this.productService.findOne(adminCtx, product.id) as Product;
+        this.eventBus.publish(new ProductEvent(adminCtx, finalProduct, 'created', { id: product.id }));
         return finalProduct;
     }
 
@@ -235,19 +343,23 @@ export class VendorShopResolver {
         @Args('id') id: string,
         @Args('input') input: any
     ): Promise<Product> {
-        const vendor = await this.myVendorProfile(ctx);
+        let vendor = await this.myVendorProfile(ctx);
         if (!vendor) {
             throw new Error('No vendor profile found for this user');
         }
 
         // Verify ownership
         const productVendor = await this.vendorService.getVendorByProductId(ctx, id);
-        if (!productVendor || productVendor.id !== vendor.id) {
+        if (!productVendor || productVendor.id.toString() !== vendor.id.toString()) {
             throw new Error('You do not have permission to update this product');
         }
 
-        // Handle collectionIds and facetValueIds separately
-        const { collectionIds, facetValueIds, name, description, shortDescription, ...productInput } = input;
+        if (!vendor.channelId || !vendor.sellerId) {
+            vendor = await this.vendorService.ensureNativeSellerAndChannel(ctx, vendor);
+        }
+
+        // Handle collectionIds, facetValueIds, variants separately
+        const { collectionIds, facetValueIds, name, description, shortDescription, variants, ...productInput } = input;
 
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
@@ -261,11 +373,16 @@ export class VendorShopResolver {
                 approvalStatus: 'pending',
                 rejectionReason: '',
                 ...(shortDescription !== undefined ? { shortDescription } : {}),
+                ...(input.weight !== undefined ? { weight: input.weight } : {}),
+                ...(input.width !== undefined ? { width: input.width } : {}),
+                ...(input.height !== undefined ? { height: input.height } : {}),
             }
         };
 
+        const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
+
         if (name !== undefined || description !== undefined || shortDescription !== undefined) {
-            const existingProduct = await this.productService.findOne(ctx, id, ['translations']);
+            const existingProduct = await this.productService.findOne(adminCtx, id, ['translations']);
             const existingTranslation = existingProduct?.translations.find(t => t.languageCode === ctx.languageCode);
             
             updateData.translations = [{
@@ -281,20 +398,92 @@ export class VendorShopResolver {
             }];
         }
 
-        // Enforce Minimum Marketplace Price if variant is passed
-        // We will do the variant check in the next step, but let's just make sure updateMyProduct is clean.
-        // Actually, updateMyProduct only updates the Product (name, description), not the price!
-        // Wait, price is on the Variant! Let's find updateMyProductVariant.
+        // 1. Update the product (facets, name, description, assets, logistics)
+        const updated = await this.productService.update(adminCtx, updateData);
 
-        // 1. Update the product FIRST (facets, name, description, assets)
-        // This triggers Vendure's internal collection re-evaluation
-        // We force enabled to false and reset validation status to pending
-        const updated = await this.productService.update(ctx, updateData);
+        // 2. Ensure product is assigned to vendor channel
+        if (vendor.channelId) {
+            await this.channelService.assignToChannels(adminCtx, Product, id, [vendor.channelId]).catch(() => null);
+        }
 
-        // 2. Get variants AFTER update (Vendure may have re-evaluated collections here)
+        // 3. Handle Variants (Native Vendure ProductVariantService create/update/delete)
+        if (variants && Array.isArray(variants) && variants.length > 0) {
+            const currentProduct = await this.productService.findOne(adminCtx, id, ['variants']);
+            const existingVariants = currentProduct?.variants || [];
+            const existingMap = new Map(existingVariants.map(v => [String(v.id), v]));
+            const incomingIds = new Set(variants.filter((v: any) => v.id && !String(v.id).startsWith('new_')).map((v: any) => String(v.id)));
+
+            // 3a. Update existing variants
+            const toUpdate: any[] = [];
+            for (const v of variants) {
+                if (v.id && existingMap.has(String(v.id))) {
+                    const updateItem: any = {
+                        id: v.id,
+                        ...(v.sku !== undefined ? { sku: v.sku } : {}),
+                        ...(v.price !== undefined ? { price: v.price } : {}),
+                        ...(v.stock !== undefined ? { stockOnHand: v.stock } : {}),
+                        translations: [{
+                            languageCode: ctx.languageCode,
+                            name: v.name || input.name || updated.name,
+                        }],
+                        customFields: {}
+                    };
+                    if (v.onPromotion !== undefined) updateItem.customFields.onPromotion = v.onPromotion;
+                    if (v.promotionalPrice !== undefined) updateItem.customFields.promotionalPrice = v.promotionalPrice;
+                    toUpdate.push(updateItem);
+                }
+            }
+            if (toUpdate.length > 0) {
+                await this.productVariantService.update(adminCtx, toUpdate);
+            }
+
+            // 3b. Create new variants
+            const toCreate: any[] = [];
+            const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
+            for (let i = 0; i < variants.length; i++) {
+                const v = variants[i];
+                if (!v.id || String(v.id).startsWith('new_') || !existingMap.has(String(v.id))) {
+                    const vSku = v.sku || `${vendorPrefix}-${Date.now()}-${i + 1}`;
+                    const createItem: any = {
+                        productId: id,
+                        sku: vSku,
+                        price: v.price,
+                        stockOnHand: v.stock ?? 0,
+                        featuredAssetId: v.featuredAssetId || input.featuredAssetId,
+                        translations: [{
+                            languageCode: ctx.languageCode,
+                            name: v.name || `${input.name || updated.name} - Option ${i + 1}`,
+                        }],
+                        customFields: {}
+                    };
+                    if (v.onPromotion !== undefined) createItem.customFields.onPromotion = v.onPromotion;
+                    if (v.promotionalPrice !== undefined) createItem.customFields.promotionalPrice = v.promotionalPrice;
+                    toCreate.push(createItem);
+                }
+            }
+            if (toCreate.length > 0) {
+                const newCreatedVariants = await this.productVariantService.create(adminCtx, toCreate);
+                if (vendor.channelId) {
+                    for (const nv of newCreatedVariants) {
+                        await this.channelService.assignToChannels(adminCtx, ProductVariant, nv.id, [vendor.channelId]).catch(() => null);
+                    }
+                }
+            }
+
+            // 3c. Delete variants removed by the vendor (only if at least 1 remains)
+            if (incomingIds.size > 0) {
+                for (const ev of existingVariants) {
+                    if (!incomingIds.has(String(ev.id))) {
+                        await this.productVariantService.softDelete(adminCtx, ev.id).catch(() => null);
+                    }
+                }
+            }
+        }
+
+        // 4. Handle collection updates
         console.log(`updateMyProduct: collectionIds = ${JSON.stringify(collectionIds)}`);
         if (collectionIds !== undefined) {
-            const product = await this.productService.findOne(ctx, id, ['variants']);
+            const product = await this.productService.findOne(adminCtx, id, ['variants']);
             if (!product || !product.variants) {
                 throw new Error('Product or variants not found');
             }
@@ -302,29 +491,24 @@ export class VendorShopResolver {
             const variantIds = product.variants.map(v => String(v.id));
             console.log(`updateMyProduct: Found ${variantIds.length} variants for product ${id}`);
 
-            // 3. Remove variant IDs from ALL collection join tables
-            await this.removeVariantsFromAllCollections(ctx, variantIds);
-
-            // 4. Add variant IDs to the NEW collection join tables (LAST step, can't be overwritten)
-            if (collectionIds.length > 0) {
-                await this.addVariantsToCollections(ctx, variantIds, collectionIds);
+            // Ensure variants are assigned to vendor channel
+            if (vendor.channelId) {
+                for (const variantId of variantIds) {
+                    await this.channelService.assignToChannels(adminCtx, ProductVariant, variantId, [vendor.channelId]).catch(() => null);
+                }
             }
 
-            // 5. Verify the join table state for debugging
-            try {
-                const rows = await this.connection.rawConnection.query(
-                    `SELECT "collectionId", "productVariantId" FROM collection_product_variants_product_variant WHERE "productVariantId" = ANY($1)`,
-                    [variantIds]
-                );
-                console.log(`updateMyProduct: Join table final state for variants ${JSON.stringify(variantIds)}:`, JSON.stringify(rows));
-            } catch (e) {
-                console.error('updateMyProduct: Failed to verify join table:', e);
+            // Remove variant IDs from all collections, then re-add
+            await this.removeVariantsFromAllCollections(adminCtx, variantIds);
+
+            if (collectionIds.length > 0) {
+                await this.addVariantsToCollections(adminCtx, variantIds, collectionIds);
             }
         }
 
-        // 6. Re-fetch and emit event so the search index is updated via Job Queue
-        const finalProduct = await this.productService.findOne(ctx, id) as Product;
-        this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
+        // 5. Re-fetch and emit event so the search index is updated via Job Queue
+        const finalProduct = await this.productService.findOne(adminCtx, id) as Product;
+        this.eventBus.publish(new ProductEvent(adminCtx, finalProduct, 'updated', { id }));
         return finalProduct;
     }
 
@@ -370,6 +554,7 @@ export class VendorShopResolver {
         }
         
         if (input.stock !== undefined) updateInput.stockOnHand = input.stock;
+        if ((input as any).sku !== undefined) updateInput.sku = (input as any).sku;
 
         // Add promotional price custom fields
         if (input.onPromotion !== undefined || input.promotionalPrice !== undefined) {
@@ -382,7 +567,8 @@ export class VendorShopResolver {
             }
         }
 
-        return this.productVariantService.update(ctx, [updateInput]).then(result => result[0]);
+        const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
+        return this.productVariantService.update(adminCtx, [updateInput]).then(result => result[0]);
     }
 
     /**
@@ -405,7 +591,8 @@ export class VendorShopResolver {
             throw new Error('You do not have permission to delete this product');
         }
 
-        await this.productService.softDelete(ctx, id);
+        const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
+        await this.productService.softDelete(adminCtx, id);
         return { result: 'DELETED', message: 'Product deleted successfully' };
     }
 
@@ -459,7 +646,8 @@ export class VendorShopResolver {
             return savedAsset;
         }
 
-        return this.assetService.create(ctx, {
+        const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
+        return this.assetService.create(adminCtx, {
             file: args.file,
             tags: ['vendor', `vendorId:${vendor.id}`]
         }) as Promise<Asset>;
@@ -480,14 +668,16 @@ export class VendorShopResolver {
             throw new Error('No vendor profile found for this user');
         }
 
-        // Verify order belongs to vendor
-        const order = await this.orderService.findOne(ctx, orderId, ['customFields.vendor']);
+        // Verify order belongs to vendor either via channel or customFields
+        const order = await this.orderService.findOne(ctx, orderId, ['channels', 'customFields.vendor']);
         if (!order) {
             throw new Error('Order not found');
         }
 
-        const orderVendor = (order.customFields as any).vendor;
-        if (!orderVendor || orderVendor.id !== vendor.id) {
+        const isChannelMatch = vendor.channelId && order.channels?.some(c => c.id === vendor.channelId);
+        const isCustomFieldMatch = (order.customFields as any)?.vendor?.id === vendor.id;
+
+        if (!isChannelMatch && !isCustomFieldMatch) {
             throw new Error('You do not have permission to update this order');
         }
 
@@ -531,8 +721,13 @@ export class VendorShopResolver {
         @Args('orderId') orderId: string
     ): Promise<boolean> {
         try {
+            // Trigger native Vendure order cancellation state machine
+            await this.orderService.transitionToState(ctx, orderId, 'Cancelled').catch(err => {
+                console.warn('[cancelCustomerOrder] Transition warning:', err?.message || err);
+            });
+            // Update custom status fields for marketplace consistency
             await this.connection.rawConnection.query(
-                `UPDATE "order" SET "state" = 'Cancelled', "customFieldsSellerstatus" = 'refused' WHERE id = $1`,
+                `UPDATE "order" SET "customFieldsSellerstatus" = 'refused', "customFieldsAdminstatus" = 'cancelled' WHERE id = $1`,
                 [orderId]
             );
             return true;

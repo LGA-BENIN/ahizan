@@ -1,1 +1,386 @@
 time="2026-07-09T13:02:34+02:00" level=warning msg="/srv/ahizan/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+
+Viewed llms.txt:1-800
+Listed directory ahizan
+Listed directory srv
+Viewed package.json:1-66
+Read URL: https://docs.vendure.io/mcp
+Read URL: https://docs.vendure.io/current/core/developer-guide/ai-assisted-development.md
+Viewed content.md:1-88
+Searched web: ""docs.vendure.io" MCP server OR "mcp" site:docs.vendure.io"
+Listed directory config
+Listed directory backend
+Listed directory srv
+Created .mcp.json
+Created .mcp.json
+Created vendure-architecture-rules.md
+Created SKILL.md
+Created AGENTS.md
+Created GEMINI.md
+Created VENDURE_GUIDELINES.md
+
+Tout est désormais parfaitement structuré et intégré dans votre environnement **AHIZAN** pour faire de la documentation officielle **Vendure v3** la source de vérité absolue.
+
+---
+
+### Ce qui a été mis en place
+
+#### 1. Configuration du Serveur MCP Vendure ([`.mcp.json`](file:///srv/ahizan/.mcp.json))
+Le serveur officiel MCP Vendure a été configuré à la racine du projet :
+- **URL** : `https://docs.vendure.io/mcp`
+- **Capacités** : Permet aux assistants IA compatibles d'effectuer des recherches directes (`search_docs`) et d'extraire n'importe quelle page en Markdown brut (`get_doc_page`).
+
+---
+
+#### 2. Pack de documentation structuré en 3 niveaux ([`VENDURE_GUIDELINES.md`](file:///srv/ahizan/VENDURE_GUIDELINES.md))
+Toutes les URLs cibles pointent directement vers leurs équivalents Markdown (`.md`) officiels :
+
+* **Niveau 1 — Indispensable & Cœur de Plateforme** :
+  - *Architecture & Démarrage* : Installation, Configuration, GraphQL.
+  - *Catalogue* : Products, ProductVariants, Facets & Filters, Collections, Pricing & Currency.
+  - *Ventes & Clients* : Orders & OrderLines, Cart & Checkout, Customers, Payment, Shipping & Fulfillment, Inventory.
+  - *Isolation & Auth* : Channels, Roles & Permissions, Authentication.
+  - *Extensibilité* : Plugins, Custom Fields, Events & EventBus, Job Queue.
+
+* **Niveau 2 — Architecture Marketplace Multi-Vendeurs AHIZAN** :
+  - *Multi-Vendor Marketplaces* (`multi-vendor-marketplaces.md`).
+  - *Extension API & Entités* : Extend GraphQL API, Database Entities, Channel Aware Entities, Translatable Entities, Custom Strategies.
+  - *Assets & Données* : S3 Asset Storage, Importing Data, File Uploads.
+  - *Dashboard Admin & Seller UI* : Extending Dashboard (React/Vite), Creating Pages, Custom Forms & Selectors, Data Fetching.
+  - *Storefront* : Connect API, Codegen, Product Listing, Checkout Flow.
+
+* **Niveau 3 — Référence Technique Approfondie** :
+  - Spécifications complètes de la *TypeScript API*, *TransactionalConnection*, *EntityHydrator*, *ListQueryBuilder*, et toutes les entités (`Seller`, `Channel`, `Order`, etc.).
+
+---
+
+#### 3. Directives & Règles Système "Vendure-First"
+Pour garantir qu'aucun développement futur ne dévie des bonnes pratiques :
+- [**`AGENTS.md`**](file:///srv/ahizan/AGENTS.md) & [**`GEMINI.md`**](file:///srv/ahizan/GEMINI.md) : Directives appliquées automatiquement à chaque session d'agent.
+- [**`.agents/rules/vendure-architecture-rules.md`**](file:///srv/ahizan/.agents/rules/vendure-architecture-rules.md) :
+  1. **Vendure-First** : Interdiction des scripts ad-hoc ou SQL bruts contournant les services Vendure.
+  2. **Respect du RequestContext (`ctx`)** : Propagation systématique du contexte dans TypeORM et les services.
+  3. **Isolation Multi-vendeur** : Respect strict du modèle `Seller` + `Channel` + token de channel.
+  4. **Atomicité & Transactions** : Utilisation de `TransactionalConnection` et de l'`EntityHydrator`.
+- [**`.agents/skills/vendure-expert/SKILL.md`**](file:///srv/ahizan/.agents/skills/vendure-expert/SKILL.md) : Skill dédié réutilisable par l'IA lors des phases de conception et de génération de code.
+
+---
+
+Dès votre prochaine consigne ou tâche sur AHIZAN, toute proposition ou implémentation s'appuiera strictement sur l'architecture et les conventions officielles Vendure.
+
+Viewed SKILL.md:1-12
+
+Listed directory src
+Listed directory plugins
+Viewed vendure-config.ts:1-150
+Viewed vendure-config.ts:151-195
+Listed directory multivendor
+Viewed multivendor.plugin.ts:1-150
+Viewed vendor.entity.ts:1-161
+Viewed vendor.service.ts:1-100
+Searched for "channel"
+Listed directory auth
+Viewed package.json:1-32
+Listed directory seller
+Listed directory vendure
+Viewed vendor-product-mutations.ts:1-153
+Listed directory Storefront
+Listed directory lib
+Viewed mutations.ts:1-60
+
+Voici l'analyse architecturale approfondie de votre codebase **AHIZAN V1**, comparée point par point au fonctionnement et aux standards officiels de **Vendure v3**.
+
+---
+
+# 1. Cartographie globale de l'existant (AHIZAN V1)
+
+L'architecture actuelle est organisée en 4 applications interconnectées :
+
+```mermaid
+flowchart TD
+    Storefront["Storefront (Next.js - Port 3001)<br/>Consomme /shop-api"] --> Backend
+    Seller["Seller App (Next.js - Port 3002)<br/>Consomme /admin-api & extensions"] --> Backend
+    Auth["Auth Portal (Next.js - Port 3003)<br/>Portail d'authentification"] --> Backend
+    Backend["Vendure v3 Core + Plugins (Port 3000)<br/>PostgreSQL / SQLite + TypeORM"]
+    
+    subgraph CustomPlugins["Plugins Custom AHIZAN"]
+        P1["multivendor (Vendor entity, like, chat, wallet)"]
+        P2["geo-engine (Zones, Marchés physiques, Shipping)"]
+        P3["notifications (Push web, Email Brevo, SMS)"]
+        P4["cms & banner-manager"]
+        P5["page-inscription & tax-enforcement"]
+    end
+    Backend --- CustomPlugins
+```
+
+---
+
+# 2. Analyse Comparative : AHIZAN V1 vs Standard Vendure v3
+
+### A. Modèle Vendeur & Multi-Boutique
+
+| Aspect | Implémentation Actuelle (AHIZAN V1) | Standard Officiel Vendure v3 |
+| :--- | :--- | :--- |
+| **Entité Vendeur** | Création d'une entité sur mesure `Vendor` avec 40+ champs (KYC, RCCM, Wallet, Coordonnées GPS). | Utilise l'entité native `Seller`. Les informations spécifiques (RCCM, KYC, Wallet) s'ajoutent via `customFields` sur `Seller`. |
+| **Isolation Multi-tenant** | Le vendeur est relié aux produits via un custom field de relation : `product.customFields.vendorId`. | **1 Vendeur = 1 `Seller` = 1 `Channel` dédié**. Chaque vendeur opère dans son canal avec son token (`vendure-token: <slug-du-vendeur>`). |
+| **Filtrage des données** | Requêtes personnalisées (`myVendorProducts`) qui filtrent manuellement en base avec des jointures SQL. | **Isolation automatique native** : Vendure filtre automatiquement les produits, stocks, prix et commandes selon le `Channel` du `RequestContext`. |
+
+---
+
+### B. Gestion des Produits, Variantes et Catalogue
+
+| Aspect | Implémentation Actuelle (AHIZAN V1) | Standard Officiel Vendure v3 |
+| :--- | :--- | :--- |
+| **Création de Produit** | Mutation custom `createMyProduct` + injection SQL directe dans les tables de jointure (`product_channels_channel`, `product_variant_price`, etc.). | Utilisation des mutations natives `createProduct` / `createProductVariants` exécutées dans le contexte du canal vendeur (`ctx.channel`). |
+| **Événements & Réindexation** | Les écritures SQL directes contournent l'`EventBus` Vendure. | Les services natifs émettent automatiquement `ProductEvent`, déclenchant l'indexation de recherche (`SearchService`), le cache et les webhooks. |
+| **Champs Personnalisés** | Très bonne utilisation de `customFields` sur `ProductVariant` (`compareAtPrice`, `promotionalPrice`, `onPromotion`) et `Product` (`shortDescription`). | Conforme aux recommandations Vendure. |
+
+---
+
+### C. Gestion des Commandes & Panier Multi-Vendeurs
+
+| Aspect | Implémentation Actuelle (AHIZAN V1) | Standard Officiel Vendure v3 |
+| :--- | :--- | :--- |
+| **Passation de commande** | Commande globale unique sur le canal par défaut. Des tables custom (`order_status`, triggers) gèrent le dispatch vendeur. | Stratégie native **`OrderSellerStrategy`** : lors de la validation d'un panier multi-vendeurs, Vendure scinde automatiquement ou assigne chaque ligne (`OrderLine`) au `Channel` du vendeur respectif. |
+| **Visibilité des commandes** | Filtrage custom manuel et suppressions directes dans `order_channels_channel`. | Le vendeur ne voit dans son Dashboard Admin que les sous-commandes ou lignes associées à son `Channel`. |
+| **Expédition & Livraison** | Calculateurs custom (`geoEngineShippingCalculator`) bien implémentés via l'API officielle `ShippingCalculator`. | Conforme. Possibilité d'utiliser `ShippingLineAssignmentStrategy` pour découper les frais d'expédition par vendeur. |
+
+---
+
+### D. Interface Vendeur (`seller/`) vs Dashboard Vendure
+
+| Aspect | Implémentation Actuelle (AHIZAN V1) | Standard Officiel Vendure v3 |
+| :--- | :--- | :--- |
+| **Frontend Vendeur** | Application Next.js 16 séparée avec composants UI dédiés. | Vendure propose soit d'étendre le Dashboard officiel React/Vite (`@vendure/dashboard`), soit d'utiliser une application headless tierce (Next.js) consommant `/admin-api` avec les droits restreints du vendeur. |
+| **Appels API Vendeur** | Appels à des mutations custom (`updateMyProduct`, `uploadVendorFile`). | L'application Seller appelle les mutations `/admin-api` standards protégées par les permissions de son rôle et scopées par son header de canal. |
+
+---
+
+# 3. Points forts & Risques identifiés
+
+###  Ce qui est déjà bien conçu
+1. **L'utilisation des Custom Fields** : L'implémentation dans `vendure-config.ts` (`Address`, `ProductVariant`, `Collection`) est propre et respecte les conventions Vendure.
+2. **Les calculateurs de livraison & d'éligibilité** : `GeoEnginePlugin` s'intègre via `ShippingCalculator` et `ShippingEligibilityChecker`.
+3. **Le découpage frontend/backend** : Storefront, Seller et Auth sont clairement modularisés en Next.js.
+
+### ⚠️ Risques et limites de la surcouche actuelle
+1. **Bypasses SQL directs (`rawConnection.query`)** :
+   - Risque de rupture de cohérence transactionnelle.
+   - Perte des hooks d'événements Vendure (ex : l'index de recherche ne se met pas à jour tout seul lors d'un `INSERT INTO product_channels_channel`).
+2. **Double gestion `Vendor` vs `Seller`** :
+   - `Seller` est l'entité que Vendure comprend pour la facturation, les canaux, les commissions et les exports comptables. Avoir une entité `Vendor` parallèle crée une duplication de responsabilité.
+3. **Maintenance lors des montées de version** :
+   - Toute mise à jour majeure de Vendure (ex : v3.x -> v3.y) risque de casser les requêtes SQL injectées directement dans les tables internes de jointure.
+
+---
+
+# 4. Recommandations et Plan d'Alignement (Roadmap progressive)
+
+Pour exploiter 100% du potentiel de Vendure sans casser ce qui fonctionne en V1 :
+
+```mermaid
+graph LR
+    Step1["Étape 1 : Unification Vendeur<br/>Lier Vendor <-> Seller / Channel"] --> Step2["Étape 2 : API Standards<br/>Remplacer les SQL directs par ChannelService"]
+    Step2 --> Step3["Étape 3 : OrderSellerStrategy<br/>Scission native des commandes multi-vendeurs"]
+    Step3 --> Step4["Étape 4 : Scaffolding Propre<br/>CLI Vendure pour les prochains modules"]
+```
+
+1. **Étape 1 — Unifier `Vendor` et `Seller`** :
+   - Conserver l'entité `Vendor` pour les champs spécifiques marché local (RCCM, KYC, coordonnées GPS, Mobile Money), mais s'assurer que chaque `Vendor` possède un `Seller` et un `Channel` Vendure officiel associé.
+2. **Étape 2 — Utiliser `ChannelService` et les services natifs** :
+   - Remplacer les requêtes SQL brutes (`INSERT INTO product_variant_price...`) par les méthodes natives `channelService.assignToChannels()` et `productService.create()`.
+3. **Étape 3 — Activer `OrderSellerStrategy`** :
+   - Configurer la stratégie native de commande multi-vendeurs dans `vendure-config.ts` (`orderOptions.orderSellerStrategy`) pour que chaque vendeur gère son fulfillment de manière autonome.
+4. **Étape 4 — S'appuyer sur la doc Markdown & MCP** :
+   - Pour chaque nouveau plugin ou fonctionnalité, se référer directement aux guides du pack [`VENDURE_GUIDELINES.md`](file:///srv/ahizan/VENDURE_GUIDELINES.md).
+
+Souhaitez-vous que nous commencions par nettoyer ou unifier une partie précise (ex: la création de produits par les vendeurs, ou la liaison Vendor/Seller/Channel) ?
+
+Viewed SKILL.md:1-11
+
+Listed directory src
+Listed directory app
+Listed directory lib
+Listed directory vendure
+Viewed mutations.ts:1-110
+Viewed queries.ts:1-44
+Viewed api.ts:1-164
+Searched for "applyToBecomeVendor"
+Viewed vendor.resolver.ts:40-75
+Searched for "async create("
+Viewed vendor.service.ts:1150-1270
+Viewed vendor.service.ts:1271-1400
+Viewed vendor.service.ts:1430-1530
+Searched for "async assignVendorRole"
+Viewed vendor.service.ts:1900-1970
+Searched for "async getOrCreateVendorRole"
+Viewed vendor.service.ts:1845-1895
+Read URL: https://docs.vendure.io/current/core/how-to/multi-vendor-marketplaces.md
+Viewed content.md:1-180
+Listed directory register
+Viewed actions.ts:1-160
+Listed directory app
+Listed directory onboarding
+Viewed actions.ts:1-66
+
+Nous allons procéder de manière très méthodique, **module par module**, en commençant par **`auth/`** (Authentification & Enrôlement Vendeur/Client) sans **jamais casser vos parcours utilisateurs ni vos interfaces existantes**.
+
+---
+
+# Étape 1 : Cartographie et Alignement du Module `auth/`
+
+```mermaid
+flowchart TD
+    subgraph UI_Auth["Module auth/ (Next.js - Port 3003)"]
+        ClientReg["Inscription Client<br/>(Nom, Email, Téléphone, Mot de passe)"]
+        VendorReg["Inscription Vendeur (Phase 1)<br/>(Création compte + Auto-login)"]
+        Login["Connexion Unique<br/>(Client / Vendeur)"]
+    end
+
+    subgraph UI_Seller["Module seller/ (Port 3002)"]
+        Onboarding["Onboarding Vendeur (Phase 2)<br/>KYC, RCCM, IFU, GPS, Mobile Money, Boutique"]
+    end
+
+    subgraph Backend_Vendure["Backend Vendure v3 (Port 3000)"]
+        NativeCust["Customer + User (Shop API)<br/>registerCustomerAccount & login"]
+        VendorPending["Vendor Entity (Status PENDING)<br/>applyToBecomeVendor"]
+        SuperAdminApprove["Validation SuperAdmin<br/>approveVendor"]
+        NativeMultiVendor["Création Native Vendure v3 :<br/>1. Seller entity<br/>2. Channel dédié (token)<br/>3. Role & Administrator scopé au Channel"]
+    end
+
+    ClientReg -->|Shop API| NativeCust
+    VendorReg -->|Shop API| NativeCust
+    VendorReg -->|Redirection| Onboarding
+    Onboarding -->|applyToBecomeVendor| VendorPending
+    VendorPending -->|Validation| SuperAdminApprove
+    SuperAdminApprove -->|Automatisation| NativeMultiVendor
+```
+
+---
+
+## 1. Ce que fait le module `auth/` actuellement
+
+1. **Inscription Client (`registerClientAction`)** :
+   - Appelle la mutation native Vendure `registerCustomerAccount`.
+   - Formate le numéro au standard international E.164.
+   - Redirige vers la page de vérification par code court (`ShortCodeVerificationTokenStrategy`).
+   - *Statut : Déjà 100% aligné avec le standard Vendure.*
+
+2. **Inscription Vendeur (`registerVendorAction` + `onboarding`)** :
+   - **Phase 1** : Création du compte utilisateur standard via `registerCustomerAccount` avec en-tête `x-ahizan-registration-role: vendor`, puis connexion automatique.
+   - **Phase 2** : Redirection vers `seller/onboarding` qui appelle `applyToBecomeVendor` avec les pièces jointes (RCCM, IFU, CIP, Logo, Couverture) et champs dynamiques configurés par le SuperAdmin (`RegistrationField`).
+   - Le compte vendeur passe en statut **`PENDING`** en attendant la validation par l'administration.
+
+---
+
+## 2. L'alignement architectural Vendure v3 sous le capot
+
+Pour respecter le modèle Vendure sans modifier les formulaires ni l'UX :
+
+| Étape du cycle de vie | Ce qui se passe actuellement (Hacks SQL) | Ce que nous alignons (Standard Vendure v3) |
+| :--- | :--- | :--- |
+| **Candidature Vendeur** | Création de la ligne `Vendor` en statut `PENDING`. | **Identique** : L'entité `Vendor` conserve toutes vos données locales (RCCM, KYC, coordonnées géographiques, Mobile Money). |
+| **Validation par le SuperAdmin (`approveVendor`)** | Modification du statut `APPROVED` + rôle global `vendor` non scopé (qui entrait en conflit avec le panier du storefront). | **Standard Vendure Multi-Vendor** :<br>1. Création de l'entité native `Seller`.<br>2. Création automatique du **`Channel`** dédié au vendeur (`code: 'boutique-slug'`, `token: 'xyz'`).<br>3. Création du `Role` et du profil `Administrator` vendeur **scopé exclusivement à son Channel**.<br>4. Liaison : `vendor.sellerId = seller.id` et `vendor.channelId = channel.id`. |
+| **Bénéfice immédiat** | Conflits de session et d'activeOrder entre vendeur et acheteur. | **Zéro conflit** : Le vendeur peut acheter sur le storefront comme un client normal (`__default_channel__`), et gérer sa boutique sur son Channel sans aucune collision de droits. |
+
+---
+
+## 3. Données et Champs Catalogue disponibles dans Vendure à exploiter
+
+Pendant l'enrôlement et la configuration de la boutique, Vendure offre nativement :
+- **Facettes & Catégorisation hiérarchique** (`FacetValue`) : Permet de classifier les types de vendeurs et de produits sans inventer de champs ad-hoc.
+- **Stock Locations** : Chaque canal vendeur se voit attribuer un `StockLocation` par défaut pour gérer ses inventaires.
+- **Zones de livraison & Méthodes d'expédition** : Liaison directe du `ShippingMethod` au canal du vendeur.
+
+---
+
+## Prochaine étape proposée
+
+Voulez-vous que nous passions à la **mise à jour du flux d'approbation (`approveVendor` dans `multivendor.plugin.ts`)** pour qu'à la validation d'un vendeur, Vendure génère automatiquement son `Seller` et son `Channel` natifs ?
+
+Viewed vendor.entity.ts:1-60
+Viewed vendor.entity.ts:130-161
+Searched for "updateStatus"
+Searched for "VendorStatus.APPROVED"
+Viewed vendor.service.ts:1550-1600
+Viewed vendor.service.ts:1710-1750
+Viewed vendor.service.ts:30-60
+Viewed api-extensions.ts:1-60
+Ran command: `npm run build`
+Ran command: `export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin; which node npm`
+Used tool: manage_task
+
+Je finalise la vérification de l'environnement pour inspecter le compilateur TypeScript et nous allons implémenter la création automatique et native des entités `Seller`, `Channel` et `Administrator` lors de l'approbation d'un vendeur.
+
+Ran command: `which -a node npm npx || find / -name "node" 2>/dev/null | grep -E '/bin/node$'`
+
+Je localise l'environnement Node pour les validations.
+
+Ran command: `docker ps`
+
+Je vérifie l'état des conteneurs de la stack AHIZAN.
+
+Viewed docker-compose.yml:1-100
+Ran command: `docker exec ahizan_backend npx tsc --noEmit`
+
+Je vérifie la compilation TypeScript directement dans le conteneur `ahizan_backend`.
+
+Viewed vendor.entity.ts:1-40
+Edited vendor.entity.ts
+Viewed api-extensions.ts:1-40
+Edited api-extensions.ts
+Viewed vendor.service.ts:1-48
+Viewed vendor.service.ts:1710-1730
+Viewed vendor.service.ts:1-48
+Viewed vendor.service.ts:2100-2160
+Viewed vendor.service.ts:15-30
+Viewed vendor.service.ts:1-50
+Edited vendor.service.ts
+Viewed vendor.service.ts:1715-1740
+Viewed vendor.service.ts:1900-1950
+Viewed vendor.service.ts:1920-1940
+Edited vendor.service.ts
+Viewed vendor.service.ts:1900-1920
+Edited vendor.service.ts
+Searched for "async onApplicationBootstrap"
+Viewed vendor.service.ts:2150-2200
+Viewed vendor.service.ts:2150-2170
+Edited vendor.service.ts
+Ran command: `docker exec ahizan_backend npx tsc --noEmit`
+
+Je vérifie la compilation TypeScript dans le conteneur backend.
+
+L'implémentation de la première brique d'alignement Multi-Vendeurs s'est déroulée avec succès.
+
+---
+
+### Résumé des réalisations sur l'enrôlement et l'approbation vendeur :
+
+1. **Relations Vendure natives ajoutées à [`vendor.entity.ts`](file:///srv/ahizan/backend/src/plugins/multivendor/entities/vendor.entity.ts)** :
+   - `seller` : Lien vers l'entité native `Seller`.
+   - `channel` : Lien vers l'entité native `Channel`.
+   - `channelToken` : Token de canal unique pour les requêtes vendeur scopées.
+
+2. **Automatisation de l'écosystème vendeur dans [`vendor.service.ts`](file:///srv/ahizan/backend/src/plugins/multivendor/service/vendor.service.ts)** :
+   - Méthode `ensureNativeSellerAndChannel` implémentée.
+   - Dès qu'un vendeur passe au statut `APPROVED` (ou au démarrage du serveur pour les vendeurs déjà approuvés via `syncExistingApprovedVendors`) :
+     1. Un **`Seller`** natif Vendure est automatiquement généré.
+     2. Un **`Channel`** dédié au vendeur est créé (avec code, token, devises et zones de taxe par défaut).
+     3. Un **`Role`** et un profil **`Administrator`** sont créés pour l'utilisateur, **scopés exclusivement à son propre canal**.
+     4. Un **`StockLocation`** par défaut est provisionné pour son canal.
+
+3. **Validation TypeScript** :
+   - Compilation réussie avec succès (`exit code 0`, 0 erreur) dans le conteneur backend.
+
+---
+
+### Prochaine étape : Étape 2 — Alignement de la gestion des Produits (`Product` & `ProductVariant`)
+
+Dans l'existant, la création de produits par les vendeurs (`createMyProduct`) injectait des données SQL directes dans `product_channels_channel` et `product_variant_price`.
+
+Dans le standard Vendure v3 :
+- La création/mise à jour de produit s'exécute directement dans le `RequestContext` du **Channel du Vendeur** via le `ProductService` natif.
+- Vendure associe automatiquement le produit, ses variantes, ses prix et ses stocks au canal du vendeur, et émet les `ProductEvent` pour réindexer automatiquement la recherche.
+- Nous enrichissons également la gestion des **variantes de produits** (options de taille, couleur, etc.) et des **facettes** pour exploiter le catalogue Vendure à 100%.
+
+Souhaitez-vous que nous procédions à l'alignement de cette étape 2 ?

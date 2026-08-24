@@ -6,6 +6,8 @@ import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context';
 
+import { fetchWithClientCache } from '@/lib/vendure/client-cache';
+
 interface LocalPersonalizedProductsProps {
     config?: {
         title?: string;
@@ -130,62 +132,55 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             const shopApiUrl = getShopApiUrl();
             let localProductsList: any[] = [];
 
-            if (hasLocation || !requireConfirmedLocation) {
-                const localQuery = `
-                    query GetLocalProducts($marketId: ID, $locationId: ID) {
-                        vendors(
-                            marketId: $marketId, 
-                            locationId: $locationId, 
-                            options: { filter: { status: { eq: "APPROVED" } } }
-                        ) {
-                            items {
+            const localQuery = `
+                query GetLocalProducts($marketId: ID, $locationId: ID) {
+                    vendors(
+                        marketId: $marketId, 
+                        locationId: $locationId, 
+                        options: { filter: { status: { eq: "APPROVED" } } }
+                    ) {
+                        items {
+                            id
+                            name
+                            physicalMarket { id name }
+                            location { id name }
+                            products {
                                 id
                                 name
-                                physicalMarket { id name }
-                                location { id name }
-                                products {
+                                slug
+                                featuredAsset { preview }
+                                collections { id }
+                                customFields { approvalStatus }
+                                variants {
                                     id
-                                    name
-                                    slug
-                                    featuredAsset { preview }
-                                    collections { id }
-                                    customFields { approvalStatus }
-                                    variants {
-                                        id
-                                        priceWithTax
-                                        customFields {
-                                            compareAtPrice
-                                            onPromotion
-                                            promotionalPrice
-                                        }
+                                    priceWithTax
+                                    customFields {
+                                        compareAtPrice
+                                        onPromotion
+                                        promotionalPrice
                                     }
                                 }
                             }
                         }
                     }
-                `;
+                }
+            `;
 
-                const resLocal = await fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: localQuery, variables })
-                });
-                const resultLocal = await resLocal.json();
-                const vendorsList = resultLocal.data?.vendors?.items || [];
-                
-                localProductsList = vendorsList.flatMap((v: any) => (v.products || [])
-                    .filter((p: any) => !p.customFields || p.customFields.approvalStatus === 'approved')
-                    .map((p: any) => ({
-                        ...p,
-                        vendorName: v.name,
-                        vendorId: v.id,
-                        marketName: v.physicalMarket?.name,
-                        marketId: v.physicalMarket?.id,
-                        locationName: v.location?.name,
-                        locationId: v.location?.id,
-                    }))
-                );
-            }
+            const resultLocal = await fetchWithClientCache(shopApiUrl, localQuery, variables);
+            const vendorsList = resultLocal?.vendors?.items || [];
+            
+            localProductsList = vendorsList.flatMap((v: any) => (v.products || [])
+                .filter((p: any) => !p.customFields || p.customFields.approvalStatus === 'approved')
+                .map((p: any) => ({
+                    ...p,
+                    vendorName: v.name,
+                    vendorId: v.id,
+                    marketName: v.physicalMarket?.name,
+                    marketId: v.physicalMarket?.id,
+                    locationName: v.location?.name,
+                    locationId: v.location?.id,
+                }))
+            );
 
             // Filter by Selection Mode (Collections / Products / Hybrid)
             const selectionMode = config?.selectionMode || 'COLLECTIONS';
@@ -226,16 +221,8 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                             }
                         }
                     `;
-                    const resManual = await fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            query: manualQuery, 
-                            variables: { ids: manualProductIds.map(String) } 
-                        })
-                    });
-                    const resultManual = await resManual.json();
-                    const manualItems = resultManual.data?.products?.items || [];
+                    const resultManual = await fetchWithClientCache(shopApiUrl, manualQuery, { ids: manualProductIds.map(String) });
+                    const manualItems = resultManual?.products?.items || [];
                     manualProductsList = manualItems.map((p: any) => ({
                         ...p,
                         vendorName: p.customFields?.vendor?.name,

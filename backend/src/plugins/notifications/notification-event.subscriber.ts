@@ -44,6 +44,8 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         iconUrl?: string,
         eventType: string = 'SYSTEM_EVENT',
         channelsOverride?: ('IN_APP' | 'PUSH')[],
+        targetRole?: 'CUSTOMER' | 'VENDOR' | 'ADMIN',
+        channelId?: number,
     ) {
         try {
             const channels: ('IN_APP' | 'PUSH')[] = channelsOverride ?? ['IN_APP', 'PUSH'];
@@ -55,6 +57,8 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 channels,
                 actionUrl,
                 iconUrl,
+                targetRole,
+                channelId,
             });
         } catch (e: any) {
             this.logger.error(`Failed to send In-App/Push notification to user ${userId}: ${e.message}`);
@@ -189,6 +193,17 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             };
             modified = true;
         }
+        if (!channelsConfig.StockAlert) {
+            this.logger.log('Initializing default StockAlert configuration...');
+            channelsConfig.StockAlert = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Alerte Stock Faible : {{ productName }} - Ahizan',
+                emailTemplate: '<p>Bonjour {{ businessName }},</p>\n<p>Attention : le stock pour le produit <strong>{{ productName }}</strong> est descendu à <strong>{{ stockLevel }} unité(s)</strong>.</p>\n<p>Veuillez réapprovisionner votre inventaire dès que possible.</p>',
+                smsTemplate: 'Ahizan Seller: Alerte stock pour {{ productName }} (reste {{ stockLevel }}).'
+            };
+            modified = true;
+        }
         if (modified) {
             await this.smsService.saveSettings({ channelsConfig });
         }
@@ -219,7 +234,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             String(vendor.user.id),
                             'Nouveau message',
                             `Vous avez reçu un nouveau message de ${dbMessage.customer?.firstName || 'un client'}.`,
-                            '/dashboard/messages'
+                            '/dashboard/messages',
+                            undefined,
+                            'VENDOR_EVENT',
+                            undefined,
+                            'VENDOR',
                         );
                     }
                 }
@@ -235,7 +254,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             String(customer.user.id),
                             'Nouveau message',
                             `${dbMessage.vendor?.name || 'Une boutique'} vous a envoyé un message.`,
-                            '/account/messages'
+                            '/account/messages',
+                            undefined,
+                            'BUYER_EVENT',
+                            undefined,
+                            'CUSTOMER',
                         );
                     }
                 }
@@ -252,7 +275,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             String(vendor.user.id),
                             'Message de l\'administrateur',
                             `L'administrateur a envoyé un message dans votre discussion.`,
-                            '/dashboard/messages'
+                            '/dashboard/messages',
+                            undefined,
+                            'VENDOR_EVENT',
+                            undefined,
+                            'VENDOR',
                         );
                     }
                     const customer = await this.connection.getRepository(ctx, Customer).findOne({
@@ -265,7 +292,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             String(customer.user.id),
                             'Message de l\'administrateur',
                             `L'administrateur a envoyé un message dans votre discussion.`,
-                            '/account/messages'
+                            '/account/messages',
+                            undefined,
+                            'BUYER_EVENT',
+                            undefined,
+                            'CUSTOMER',
                         );
                     }
                 } else if (dbMessage.vendor) {
@@ -279,7 +310,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             String(vendor.user.id),
                             'Message de l\'administrateur',
                             `L'administrateur vous a envoyé un message.`,
-                            '/dashboard/messages'
+                            '/dashboard/messages',
+                            undefined,
+                            'VENDOR_EVENT',
+                            undefined,
+                            'VENDOR',
                         );
                     }
                 } else if (dbMessage.customer) {
@@ -293,7 +328,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             String(customer.user.id),
                             'Message de l\'administrateur',
                             `L'administrateur vous a envoyé un message.`,
-                            '/account/messages'
+                            '/account/messages',
+                            undefined,
+                            'BUYER_EVENT',
+                            undefined,
+                            'CUSTOMER',
                         );
                     }
                 }
@@ -384,7 +423,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             FROM order_line ol
                             INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
                             INNER JOIN product p ON pv."productId" = p.id
-                            INNER JOIN vendor v ON p."customFieldsVendorid" = v.id
+                            INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
                             WHERE ol."orderId" = $1 AND v."userId" IS NOT NULL
                         `, [order.id]);
                         const vUserIds = vRows.map(v => v.user_id?.toString()).filter(Boolean);
@@ -402,31 +441,20 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         undefined,
                         'BUYER_EVENT',
                         buyerChannels,
+                        'CUSTOMER',
                     );
                 }
 
-                // ── Notification Web Push / In-App EXCLUSIVEMENT au Superadmin sur chaque vente ──
+                // ── Notification Push & In-App aux SuperAdmins sur chaque vente ──
                 try {
-                    const superAdminUsers: { id: string }[] = await this.connection.rawConnection.query(`
-                        SELECT DISTINCT u.id 
-                        FROM "user" u
-                        INNER JOIN user_roles_role urr ON urr."userId" = u.id
-                        INNER JOIN role r ON r.id = urr."roleId"
-                        WHERE r.code = '__super_admin_role__' OR r.code = 'superadmin' OR u.identifier = 'superadmin'
-                    `);
-                    const formattedTotal = (order.totalWithTax / 100).toLocaleString('fr-FR');
-
-                    for (const adminUser of superAdminUsers) {
-                        if (adminUser.id) {
-                            await this.sendInAppAndPushNotification(
-                                event.ctx,
-                                adminUser.id.toString(),
-                                `Nouvelle vente ! 🎉`,
-                                `Commande #${order.code} d'un montant de ${formattedTotal} FCFA enregistrée.`,
-                                `/orders/${order.id}`
-                            );
-                        }
-                    }
+                    const formattedTotal = Number(order.totalWithTax).toLocaleString('fr-FR');
+                    await this.notificationsService.notifySuperAdmins(event.ctx, {
+                        eventType: 'NEW_ORDER_ADMIN',
+                        title: `Nouvelle vente ! 🎉`,
+                        body: `Commande #${order.code} d'un montant de ${formattedTotal} FCFA enregistrée sur la plateforme.`,
+                        actionUrl: `/orders/${order.id}`,
+                        channels: ['IN_APP', 'PUSH'],
+                    });
                 } catch (adminErr: any) {
                     this.logger.error(`Erreur notification superadmin sur vente #${order.code}: ${adminErr.message}`);
                 }
@@ -470,13 +498,16 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         `Commande Annulée`,
                         `Votre commande ${order.code} a été annulée.`,
                         `/account/orders/${order.code}`,
+                        undefined,
+                        'BUYER_EVENT',
+                        undefined,
+                        'CUSTOMER',
                     );
                 }
             }
 
             // ── Vendeur : Notification de Nouvelle Vente ──
             if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
-                // Resolve buyer userId for exclusion (already done above but re-read safely)
                 let buyerUserIdForVendorCheck: string | undefined;
                 try {
                     let bUid = order.customer?.user?.id;
@@ -491,26 +522,56 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 } catch (_) {}
 
                 try {
-                    const vendorRows: { vendor_id: string; vendor_name: string; phone_number: string; email: string; user_id: string }[] = await this.connection.rawConnection.query(`
-                        SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id
+                    const vendorRows: { vendor_id: string; vendor_name: string; phone_number: string; email: string; user_id: string; channel_id: string }[] = await this.connection.rawConnection.query(`
+                        SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id, v."channelId" as channel_id
                         FROM order_line ol
                         INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
                         INNER JOIN product p ON pv."productId" = p.id
-                        INNER JOIN vendor v ON p."customFieldsVendorid" = v.id
+                        INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
                         WHERE ol."orderId" = $1 AND v.id IS NOT NULL
                     `, [order.id]);
 
                     const config = settings.channelsConfig?.NewOrderVendor;
 
                     for (const v of vendorRows) {
-                        // CRITICAL: If this vendor IS the buyer (same userId), skip entirely.
-                        // A seller who placed their own order receives only the storefront buyer
-                        // confirmation — NOT a "Nouvelle Vente!" seller alert for their own purchase.
+                        // CRITICAL: If this vendor IS the buyer (same userId), skip seller alert
                         if (buyerUserIdForVendorCheck && v.user_id && v.user_id.toString() === buyerUserIdForVendorCheck) {
                             continue;
                         }
 
-                        const vars = { orderCode: order.code };
+                        // Extract items specific to this vendor
+                        const vendorItems: { product_name: string; quantity: number; line_price: number }[] = await this.connection.rawConnection.query(`
+                            SELECT 
+                                p.name as product_name,
+                                ol.quantity,
+                                ol."proratedLinePrice" as line_price
+                            FROM order_line ol
+                            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                            INNER JOIN product p ON pv."productId" = p.id
+                            INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
+                            WHERE ol."orderId" = $1 AND v.id = $2
+                        `, [order.id, v.vendor_id]);
+
+                        const vendorTotal = vendorItems.reduce((acc, curr) => acc + parseInt(curr.line_price as any || '0', 10), 0);
+                        const formattedVendorTotal = Number(vendorTotal).toLocaleString('fr-FR');
+
+                        const itemsListText = vendorItems
+                            .map(i => `- ${i.product_name} (x${i.quantity}) : ${Number(i.line_price).toLocaleString('fr-FR')} FCFA`)
+                            .join('\n');
+
+                        const itemsListHtml = vendorItems
+                            .map(i => `<li><strong>${i.product_name}</strong> (x${i.quantity}) — ${(i.line_price / 100).toLocaleString('fr-FR')} FCFA</li>`)
+                            .join('');
+
+                        const vars = {
+                            orderCode: order.code,
+                            businessName: v.vendor_name || 'Vendeur',
+                            vendorTotal: formattedVendorTotal,
+                            vendorSubtotal: formattedVendorTotal,
+                            itemsList: itemsListText,
+                            itemsListHtml,
+                        };
+
                         const phone = v.phone_number;
                         const email = v.email;
 
@@ -520,22 +581,25 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                                 await this.smsService.sendSms(phone, content, settings);
                             }
                             if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
-                                const subject = this.smsService.interpolate(config.emailSubject || 'Nouvelle Vente', vars);
+                                const subject = this.smsService.interpolate(config.emailSubject || 'Nouvelle Vente ! - Commande #{{ orderCode }}', vars);
                                 const content = this.smsService.interpolate(config.emailTemplate, vars);
                                 await this.smsService.sendTransactionalEmail(email, subject, content, settings);
                             }
                         }
 
-                        // Real-time In-App & PWA Push to Seller EXCLUSIVELY for products they own
+                        // Real-time In-App & PWA Push to Seller EXCLUSIVELY for their products
                         if (v.user_id) {
                             await this.sendInAppAndPushNotification(
                                 event.ctx,
                                 v.user_id.toString(),
-                                `Nouvelle Vente !`,
-                                `Félicitations ! Vous avez reçu une nouvelle commande ${order.code}.`,
+                                `Nouvelle Vente ! 🎉`,
+                                `Félicitations ! Vous avez reçu une commande #${order.code} d'un montant de ${formattedVendorTotal} FCFA.`,
                                 `/dashboard/orders`,
                                 undefined,
                                 'VENDOR_EVENT',
+                                undefined,
+                                'VENDOR',
+                                v.channel_id ? parseInt(v.channel_id, 10) : undefined,
                             );
                         }
                     }
@@ -624,6 +688,10 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             `Mise à jour de livraison`,
                             `Votre commande ${order?.code} est ${stateText}.`,
                             `/account/orders/${order?.code}`,
+                            undefined,
+                            'BUYER_EVENT',
+                            undefined,
+                            'CUSTOMER',
                         );
                     }
                 }
@@ -652,11 +720,53 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     if (!variant) continue;
 
                     const storedStockOnHand = (movement as any).stockOnHand ?? 0;
-                    const productName = variant.name || (variant as any).product?.name || 'Produit inconnu';
+                    const productName = variant.name || (variant as any).product?.name || 'Produit';
 
-                    if (storedStockOnHand === 0 || (storedStockOnHand <= 5 && storedStockOnHand > 0)) {
-                        this.logger.warn(`[StockAlert] Triggered config for "${productName}". Notifications will be routed via vendor lookup in future implementation.`);
-                        // In a full implementation, we lookup the vendor email here and route via SendTransactionalEmail.
+                    if (storedStockOnHand <= 5 && storedStockOnHand >= 0) {
+                        // Find owner vendor via channel or customFields
+                        const vendorRows: { vendor_id: string; vendor_name: string; email: string; phone_number: string; user_id: string; channel_id: string }[] = await this.connection.rawConnection.query(`
+                            SELECT v.id as vendor_id, v.name as vendor_name, v.email, v."phoneNumber" as phone_number, v."userId" as user_id, v."channelId" as channel_id
+                            FROM vendor v
+                            INNER JOIN product p ON (p."customFieldsVendorid" = v.id)
+                            INNER JOIN product_variant pv ON pv."productId" = p.id
+                            WHERE pv.id = $1
+                            LIMIT 1
+                        `, [variant.id]);
+
+                        const v = vendorRows[0];
+                        if (v) {
+                            const vars = {
+                                productName,
+                                stockLevel: storedStockOnHand.toString(),
+                                businessName: v.vendor_name || 'Vendeur',
+                            };
+
+                            if ((config.channel === 'SMS' || config.channel === 'BOTH') && v.phone_number && config.smsTemplate) {
+                                const content = this.smsService.interpolate(config.smsTemplate, vars);
+                                await this.smsService.sendSms(v.phone_number, content, settings);
+                            }
+
+                            if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && v.email && config.emailTemplate) {
+                                const subject = this.smsService.interpolate(config.emailSubject || 'Alerte Stock Faible : {{ productName }} - Ahizan', vars);
+                                const content = this.smsService.interpolate(config.emailTemplate, vars);
+                                await this.smsService.sendTransactionalEmail(v.email, subject, content, settings);
+                            }
+
+                            if (v.user_id) {
+                                await this.sendInAppAndPushNotification(
+                                    event.ctx,
+                                    v.user_id.toString(),
+                                    `Stock Faible : ${productName} ⚠️`,
+                                    `Attention : il ne reste que ${storedStockOnHand} unité(s) en stock pour "${productName}".`,
+                                    `/dashboard/products`,
+                                    undefined,
+                                    'VENDOR_EVENT',
+                                    undefined,
+                                    'VENDOR',
+                                    v.channel_id ? parseInt(v.channel_id, 10) : undefined,
+                                );
+                            }
+                        }
                     }
                 } catch (err: any) {
                     this.logger.error(`Error checking stock for movement: ${err.message}`);
@@ -677,9 +787,25 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             if (!vendor) return;
 
             // Inscription Vendeur Reçue
-            // Inscription Vendeur Reçue
             if (event.type === 'created') {
                 const config = settings.channelsConfig?.VendorRegistration || settings.channelsConfig?.SellerAccountVerification;
+                const displayName = vendor.name || vendor.businessName || '';
+                const email = vendor.email || event.input?.email || '';
+
+                // 1. Notify SuperAdmins immediately (In-App & Push)
+                try {
+                    await this.notificationsService.notifySuperAdmins(event.ctx, {
+                        eventType: 'VENDOR_REGISTRATION',
+                        title: 'Nouvelle Candidature Vendeur 🏪',
+                        body: `La boutique "${displayName}" (${email}) vient de soumettre son dossier d'inscription.`,
+                        actionUrl: '/admin/vendors',
+                        channels: ['IN_APP', 'PUSH'],
+                    });
+                } catch (adminErr: any) {
+                    this.logger.error(`Failed to notify superadmin on vendor registration: ${adminErr.message}`);
+                }
+
+                // 2. Notify Vendor (Confirmation Email / SMS)
                 if (config?.enabled) {
                     let verificationToken = '';
                     const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
@@ -687,7 +813,6 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         relations: ['user']
                     });
                     const vendorUser = vWithUser?.user;
-                    const email = vendor.email || event.input?.email || vendorUser?.identifier || '';
                     const phone = vendor.phoneNumber || event.input?.phoneNumber || '';
 
                     if (vendorUser) {
@@ -699,7 +824,6 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         verificationToken = nativeMethod?.verificationToken || '';
                     }
 
-                    const displayName = vendor.name || vendor.businessName || '';
                     const nameParts = displayName.trim().split(/\s+/);
                     const firstName = nameParts[0] || '';
                     const lastName = nameParts.slice(1).join(' ') || '';
@@ -724,8 +848,6 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         const subject = this.smsService.interpolate(config.emailSubject || 'Inscription Reçue', vars);
                         const content = this.smsService.interpolate(config.emailTemplate, vars);
                         await this.smsService.sendTransactionalEmail(email, subject, content, settings);
-                    } else if (!email) {
-                        this.logger.warn(`No email address found for vendor ${vendor.id}. Skipping email notification.`);
                     }
                 }
             }
@@ -765,9 +887,14 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         await this.sendInAppAndPushNotification(
                             event.ctx,
                             vendorUserId.toString(),
-                            `Boutique Approuvée`,
+                            `Boutique Approuvée 🎉`,
                             `Félicitations ! Votre boutique "${vendor.name || vendor.businessName || ''}" a été approuvée par l'administrateur.`,
                             `/dashboard`,
+                            undefined,
+                            'VENDOR_EVENT',
+                            undefined,
+                            'VENDOR',
+                            vendor.channelId ? parseInt(vendor.channelId, 10) : undefined,
                         );
                     }
                 }
@@ -813,6 +940,11 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             `Candidature Rejetée`,
                             `Votre candidature de boutique a été rejetée. Motif : ${reason}`,
                             `/pending`,
+                            undefined,
+                            'VENDOR_EVENT',
+                            undefined,
+                            'VENDOR',
+                            vendor.channelId ? parseInt(vendor.channelId, 10) : undefined,
                         );
                     }
                 }

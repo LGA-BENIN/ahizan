@@ -112,3 +112,74 @@ export async function fetchAllOrderStatuses(): Promise<any[]> {
         return [];
     }
 }
+
+export async function updateOrderLineSellerStatusAction(lineId: string, statusCode: string) {
+    try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+            headers[VENDURE_AUTH_TOKEN_HEADER] = token;
+        }
+
+        const res = await fetch(VENDURE_API_URL!, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: `mutation UpdateMyOrderLineSellerStatus($lineId: ID!, $statusCode: String!) {
+                    updateMyOrderLineSellerStatus(lineId: $lineId, statusCode: $statusCode)
+                }`,
+                variables: { lineId, statusCode },
+            }),
+            cache: 'no-store',
+        });
+        const json = await res.json();
+        if (json.errors) {
+            return { success: false, error: json.errors[0].message };
+        }
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function fulfillVendorOrderAction(orderId: string, carrier: string, trackingCode?: string) {
+    try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+            headers[VENDURE_AUTH_TOKEN_HEADER] = token;
+        }
+
+        const res = await fetch(VENDURE_API_URL!, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: `mutation FulfillMyVendorOrder($orderId: ID!, $trackingCode: String, $carrier: String) {
+                    fulfillMyVendorOrder(orderId: $orderId, trackingCode: $trackingCode, carrier: $carrier) {
+                        id
+                        state
+                        trackingCode
+                        method
+                    }
+                }`,
+                variables: { orderId, carrier, trackingCode: trackingCode || '' },
+            }),
+            cache: 'no-store',
+        });
+        const json = await res.json();
+        if (json.errors) {
+            return { success: false, error: json.errors[0].message };
+        }
+        return { success: true, fulfillment: json.data?.fulfillMyVendorOrder };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}

@@ -20,6 +20,9 @@ const GET_APPROVED_VENDORS = `
                 description
                 logo { preview }
                 coverImage { preview }
+                location { id name }
+                physicalMarket { id name }
+                markets { id name }
             }
         }
     }

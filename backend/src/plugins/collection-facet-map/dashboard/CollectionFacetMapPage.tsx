@@ -197,60 +197,7 @@ export function CollectionFacetMapPage() {
                 Choisissez les facettes visibles pour les vendeurs dans chaque collection. Les sous-facettes (valeurs) seront proposées en dropdown dans le formulaire vendeur.
             </p>
 
-            {/* Seller Dashboard Settings */}
-            <div
-                style={{
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 12,
-                    padding: '16px 20px',
-                    marginBottom: 24,
-                    background: '#fff',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                }}
-            >
-                <div>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
-                        Page Portefeuille (Seller)
-                    </span>
-                    <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                        {walletEnabled
-                            ? 'La page Portefeuille est visible pour les vendeurs'
-                            : 'La page Portefeuille est masquée pour les vendeurs'}
-                    </p>
-                </div>
-                <button
-                    onClick={toggleWallet}
-                    disabled={togglingWallet}
-                    style={{
-                        width: 48,
-                        height: 26,
-                        borderRadius: 13,
-                        border: 'none',
-                        background: walletEnabled ? '#3b82f6' : '#d1d5db',
-                        cursor: togglingWallet ? 'wait' : 'pointer',
-                        position: 'relative',
-                        transition: 'background 0.2s',
-                        flexShrink: 0,
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: 10,
-                            background: '#fff',
-                            position: 'absolute',
-                            top: 3,
-                            left: walletEnabled ? 25 : 3,
-                            transition: 'left 0.2s',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                        }}
-                    />
-                </button>
-            </div>
+
 
             {/* Search Bar */}
             <div

@@ -40,12 +40,40 @@ export const GET_VENDOR_DETAIL = `
             suspensionReason
             walletBalance
             allowNegativeBalance
+            rccmNumber
+            ifuNumber
+            idCardNumber
+            website
+            facebook
+            instagram
+            paymentMethod
+            mobileMoneyProvider
+            mobileMoneyNumber
+            bankName
+            bankAccountNumber
+            latitude
+            longitude
             logo {
                 id
                 preview
                 source
             }
             coverImage {
+                id
+                preview
+                source
+            }
+            rccmFile {
+                id
+                preview
+                source
+            }
+            ifuFile {
+                id
+                preview
+                source
+            }
+            idCardFile {
                 id
                 preview
                 source
@@ -61,6 +89,20 @@ export const GET_VENDOR_DETAIL = `
                 variants {
                     id
                     price
+                }
+            }
+            orders {
+                id
+                code
+                state
+                createdAt
+                totalWithTax
+                currencyCode
+                customFields {
+                    paymentStatus
+                    sellerStatus
+                    adminStatus
+                    commissionAmount
                 }
             }
         }
@@ -185,6 +227,15 @@ export const DELETE_PRODUCT = `
         deleteProduct(id: $id) {
             result
             message
+        }
+    }
+`;
+
+export const CREATE_VENDOR = `
+    mutation CreateVendor($input: CreateVendorInput!) {
+        createVendor(input: $input) {
+            id
+            name
         }
     }
 `;

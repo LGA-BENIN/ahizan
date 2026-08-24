@@ -175,6 +175,31 @@ export const GetProductDetailQuery = graphql(`
             }
             customFields {
                 shortDescription
+                weight
+                width
+                height
+                vendor {
+                    id
+                    name
+                    zone
+                    rating
+                    ratingCount
+                    logo {
+                        preview
+                    }
+                    location {
+                        id
+                        name
+                    }
+                    physicalMarket {
+                        id
+                        name
+                    }
+                    markets {
+                        id
+                        name
+                    }
+                }
             }
         }
     }

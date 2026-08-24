@@ -568,3 +568,27 @@ export const GetOrderDetailQuery = graphql(`
         }
     }
 `);
+
+export const GetMyVendorDashboardStatsQuery = graphql(`
+    query GetMyVendorDashboardStats {
+        myVendorDashboardStats {
+            totalRevenue
+            monthlyRevenue
+            revenueGrowth
+            totalOrdersCount
+            monthlyOrdersCount
+            ordersGrowth
+            totalProductsCount
+            pendingShipmentCount
+            lowStockCount
+            totalLikesCount
+            currencyCode
+            chartData {
+                date
+                rawDate
+                revenue
+                ordersCount
+            }
+        }
+    }
+`);

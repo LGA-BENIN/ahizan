@@ -15,6 +15,8 @@ export interface NotificationPayload {
     iconUrl?: string;
     data?: any;
     channels?: ('IN_APP' | 'PUSH' | 'EMAIL' | 'SMS')[];
+    targetRole?: 'CUSTOMER' | 'VENDOR' | 'ADMIN';
+    channelId?: number;
 }
 
 /**
@@ -112,6 +114,36 @@ export class NotificationsService {
         }
     }
 
+    /**
+     * Notify all active SuperAdmin administrators (In-App & Push).
+     */
+    async notifySuperAdmins(
+        ctx: RequestContext,
+        payload: Omit<NotificationPayload, 'userId' | 'targetRole'>
+    ): Promise<void> {
+        try {
+            const superAdminUsers: { id: string }[] = await this.connection.rawConnection.query(`
+                SELECT DISTINCT u.id 
+                FROM "user" u
+                INNER JOIN user_roles_role urr ON urr."userId" = u.id
+                INNER JOIN role r ON r.id = urr."roleId"
+                WHERE r.code = '__super_admin_role__' OR r.code = 'superadmin' OR u.identifier = 'superadmin'
+            `);
+
+            for (const adminUser of superAdminUsers) {
+                if (adminUser.id) {
+                    await this.notify(ctx, {
+                        ...payload,
+                        userId: adminUser.id.toString(),
+                        targetRole: 'ADMIN',
+                    });
+                }
+            }
+        } catch (err: any) {
+            this.logger.error(`Failed to notify superadmins: ${err?.message || err}`);
+        }
+    }
+
     // ─────────────────────────────────────────────
     // DB Operations
     // ─────────────────────────────────────────────
@@ -129,6 +161,8 @@ export class NotificationsService {
         log.actionUrl = payload.actionUrl ?? null as any;
         log.iconUrl = payload.iconUrl ?? null as any;
         log.channel = channel;
+        log.targetRole = payload.targetRole ?? null as any;
+        log.channelId = payload.channelId ?? null as any;
         log.data = payload.data;
         log.isRead = false;
         log.sendSuccess = true;
@@ -149,9 +183,15 @@ export class NotificationsService {
             .andWhere('log.channel LIKE :channel', { channel: '%IN_APP%' });
 
         if (portal === 'seller') {
-            qb.andWhere('log.actionUrl LIKE :dashboardPattern', { dashboardPattern: '/dashboard%' });
+            qb.andWhere('(log.targetRole = :vRole OR (log.targetRole IS NULL AND log.actionUrl LIKE :dashboardPattern))', {
+                vRole: 'VENDOR',
+                dashboardPattern: '/dashboard%',
+            });
         } else if (portal === 'shop' || portal === 'storefront') {
-            qb.andWhere('(log.actionUrl IS NULL OR log.actionUrl NOT LIKE :dashboardPattern)', { dashboardPattern: '/dashboard%' });
+            qb.andWhere('(log.targetRole = :cRole OR (log.targetRole IS NULL AND (log.actionUrl IS NULL OR log.actionUrl NOT LIKE :dashboardPattern)))', {
+                cRole: 'CUSTOMER',
+                dashboardPattern: '/dashboard%',
+            });
         }
 
         const countQb = qb.clone().andWhere('log.isRead = :isRead', { isRead: false });

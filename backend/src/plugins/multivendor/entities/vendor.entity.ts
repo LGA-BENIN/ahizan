@@ -1,4 +1,4 @@
-import { DeepPartial, VendureEntity, Asset, User } from '@vendure/core';
+import { DeepPartial, VendureEntity, Asset, User, Channel, Seller } from '@vendure/core';
 import { Column, Entity, OneToOne, JoinColumn } from 'typeorm';
 
 
@@ -32,6 +32,23 @@ export class Vendor extends VendureEntity {
     @OneToOne(() => User, { nullable: true })
     @JoinColumn()
     user: User;
+
+    @OneToOne(() => Seller, { nullable: true })
+    @JoinColumn()
+    seller: Seller;
+
+    @Column({ nullable: true })
+    sellerId: number;
+
+    @OneToOne(() => Channel, { nullable: true })
+    @JoinColumn()
+    channel: Channel;
+
+    @Column({ nullable: true })
+    channelId: number;
+
+    @Column({ nullable: true })
+    channelToken: string;
 
     @Column({ type: 'varchar', default: VendorStatus.PENDING })
     status: VendorStatus;

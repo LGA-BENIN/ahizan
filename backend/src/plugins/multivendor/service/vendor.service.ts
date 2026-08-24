@@ -17,11 +17,22 @@ import {
     AssetService,
     Role,
     Channel,
+    Seller,
     Administrator,
     Customer,
     UserInputError,
     EntityHydrator,
     ProductService,
+    ProductVariantService,
+    ProductVariant,
+    ProductEvent,
+    OrderService,
+    ChannelService,
+    SellerService,
+    AdministratorService,
+    StockLocationService,
+    Fulfillment,
+    FulfillmentStateTransitionEvent,
 } from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { WithdrawalRequest, WithdrawalStatus } from '../entities/withdrawal-request.entity';
@@ -42,7 +53,13 @@ export class VendorService implements OnApplicationBootstrap {
         private assetService: AssetService,
         private entityHydrator: EntityHydrator,
         private productService: ProductService,
+        private productVariantService: ProductVariantService,
+        private orderService: OrderService,
         private notificationsService: NotificationsService,
+        private channelService: ChannelService,
+        private sellerService: SellerService,
+        private administratorService: AdministratorService,
+        private stockLocationService: StockLocationService,
     ) { }
 
     async findAll(
@@ -63,7 +80,7 @@ export class VendorService implements OnApplicationBootstrap {
 
         const qb = this.listQueryBuilder.build(Vendor, qbOptions, {
             ctx,
-            relations: ['logo', 'coverImage'],
+            relations: ['logo', 'coverImage', 'rccmFile', 'ifuFile', 'idCardFile'],
         });
 
         const [items, totalItems] = await qb.getManyAndCount();
@@ -145,14 +162,14 @@ export class VendorService implements OnApplicationBootstrap {
     findOne(ctx: RequestContext, id: string): Promise<Vendor | null> {
         return this.connection.getRepository(ctx, Vendor).findOne({
             where: { id },
-            relations: ['logo', 'coverImage', 'user']
+            relations: ['logo', 'coverImage', 'user', 'rccmFile', 'ifuFile', 'idCardFile']
         });
     }
 
     async findByUserId(ctx: RequestContext, userId: string): Promise<Vendor | null> {
         const vendors = await this.connection.getRepository(ctx, Vendor).find({
             where: { user: { id: userId } },
-            relations: ['logo', 'coverImage', 'user'],
+            relations: ['logo', 'coverImage', 'user', 'rccmFile', 'ifuFile', 'idCardFile'],
             order: { createdAt: 'ASC' }
         });
         if (!vendors || vendors.length === 0) return null;
@@ -200,6 +217,9 @@ export class VendorService implements OnApplicationBootstrap {
         let orderIds: string[] = [];
         let totalItems = 0;
 
+        const vendor = await this.findOne(ctx, vendorId);
+        const vendorChannelId = vendor?.channelId || 0;
+
         try {
             const rawResults = await this.connection.rawConnection.query(
                 `SELECT DISTINCT o.id 
@@ -207,11 +227,14 @@ export class VendorService implements OnApplicationBootstrap {
                  LEFT JOIN order_line ol ON ol."orderId" = o.id
                  LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
                  LEFT JOIN product p ON pv."productId" = p.id
+                 LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
                  WHERE o."customFieldsVendorid" = $1
                     OR p."customFieldsVendorid" = $1
-                    OR o."customFieldsVendorstatuses" LIKE $2
+                    OR ol."sellerChannelId" = $2
+                    OR occ."channelId" = $2
+                    OR o."customFieldsVendorstatuses" LIKE $3
                  ORDER BY o.id DESC`,
-                [numericVendorId, `%"${vendorId}"%`]
+                [numericVendorId, vendorChannelId, `%"${vendorId}"%`]
             );
             const allIds = rawResults.map((r: any) => String(r.id));
             totalItems = allIds.length;
@@ -272,6 +295,7 @@ export class VendorService implements OnApplicationBootstrap {
                     subTotal: vendorSubTotal,
                     totalWithTax: vendorTotalWithTax,
                     total: vendorTotalWithTax,
+                    lines: vendorLines,
                     customFields: {
                         ...order.customFields,
                         sellerStatus: vendorSpecific.sellerStatus || 'pending',
@@ -288,6 +312,7 @@ export class VendorService implements OnApplicationBootstrap {
                 subTotal: vendorSubTotal,
                 totalWithTax: vendorTotalWithTax,
                 total: vendorTotalWithTax,
+                lines: vendorLines,
                 customFields: {
                     ...order.customFields,
                     sellerStatus: 'pending',
@@ -302,6 +327,193 @@ export class VendorService implements OnApplicationBootstrap {
         return {
             items: mappedOrders,
             totalItems
+        };
+    }
+
+    async findOrderForVendor(ctx: RequestContext, vendorId: string, orderId: string): Promise<Order | null> {
+        const numericVendorId = Number(vendorId);
+        const vendor = await this.findOne(ctx, vendorId);
+        const vendorChannelId = vendor?.channelId || 0;
+
+        const order = await this.connection.getRepository(ctx, Order).findOne({
+            where: { id: orderId },
+            relations: [
+                'lines',
+                'lines.productVariant',
+                'lines.productVariant.product',
+                'lines.productVariant.product.featuredAsset',
+                'lines.productVariant.featuredAsset',
+                'lines.productVariant.product.customFields.vendor',
+                'customer',
+                'customer.user',
+                'shippingLines',
+                'fulfillments',
+                'fulfillments.lines',
+                'fulfillments.lines.fulfillmentLine',
+                'payments',
+                'surcharges',
+                'promotions',
+                'channels'
+            ]
+        });
+
+        if (!order) return null;
+
+        (order as any).surcharges = order.surcharges || [];
+
+        // Filter lines that belong to this vendor
+        const vendorLines = (order.lines || []).filter((l: any) => {
+            const p = l.productVariant?.product;
+            const cfVendorId = p?.customFields?.vendor?.id || (p as any)?.customFieldsVendorid;
+            return (
+                (cfVendorId && String(cfVendorId) === String(vendorId)) ||
+                (l.sellerChannelId && Number(l.sellerChannelId) === Number(vendorChannelId))
+            );
+        });
+
+        const isOverallVendor = String((order.customFields as any)?.vendor?.id || (order as any).customFieldsVendorid) === String(vendorId);
+        if (!isOverallVendor && vendorLines.length === 0) {
+            return null;
+        }
+
+        let vMap: Record<string, any> = {};
+        try {
+            if ((order.customFields as any)?.vendorStatuses) {
+                vMap = JSON.parse((order.customFields as any).vendorStatuses);
+            }
+        } catch (e) {}
+
+        const vendorSpecific = vMap[String(vendorId)];
+        const linesToUse = vendorLines.length > 0 ? vendorLines : order.lines;
+        const vendorSubTotal = linesToUse.reduce((sum: number, l: any) => sum + (l.linePrice || 0), 0);
+        const vendorTotalWithTax = linesToUse.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || 0), 0);
+
+        return {
+            ...order,
+            subTotal: vendorSubTotal,
+            totalWithTax: vendorTotalWithTax,
+            total: vendorTotalWithTax,
+            lines: linesToUse,
+            customFields: {
+                ...order.customFields,
+                sellerStatus: vendorSpecific?.sellerStatus || (order.customFields as any)?.sellerStatus || 'pending',
+                adminStatus: vendorSpecific?.adminStatus || (order.customFields as any)?.adminStatus || 'pending',
+                paymentStatus: (order.customFields as any)?.paymentStatus || 'PENDING',
+                commissionAmount: (order.customFields as any)?.commissionAmount || 0,
+                commissionRate: (order.customFields as any)?.commissionRate || 0,
+            }
+        } as any;
+    }
+
+    async fulfillOrderForVendor(
+        ctx: RequestContext,
+        vendorId: string,
+        orderId: string,
+        trackingCode?: string,
+        carrier?: string
+    ): Promise<{ id: string; state: string; trackingCode?: string; method?: string }> {
+        const order = await this.findOrderForVendor(ctx, vendorId, orderId);
+        if (!order) {
+            throw new Error('Commande introuvable pour ce vendeur.');
+        }
+
+        const lines = order.lines || [];
+        if (lines.length === 0) {
+            throw new Error('Aucune ligne de commande à expédier.');
+        }
+
+        // 1. Create fulfillment record
+        const fulfillmentRepo = this.connection.getRepository(ctx, Fulfillment);
+        const fulfillment = fulfillmentRepo.create({
+            state: 'Shipped',
+            method: carrier || 'Standard',
+            trackingCode: trackingCode || '',
+            orders: [order as any],
+        });
+        const savedFulfillment = await fulfillmentRepo.save(fulfillment);
+
+        // 2. Update vendor status in order JSON
+        await this.updateVendorOrderStatus(ctx, orderId, vendorId, 'sellerStatus', 'shipped', true);
+
+        // 3. Update order state to Shipped if appropriate
+        try {
+            if (order.state === 'PaymentSettled' || order.state === 'PaymentAuthorized') {
+                await this.orderService.transitionToState(ctx, orderId, 'Shipped');
+            }
+        } catch (e) {
+            await this.connection.rawConnection.query(
+                `UPDATE "order" SET state = 'Shipped', "updatedAt" = NOW() WHERE id = $1`,
+                [orderId]
+            );
+        }
+
+        // 4. Trigger event on EventBus so notification subscriber fires
+        this.eventBus.publish(new FulfillmentStateTransitionEvent(
+            'Created' as any,
+            'Shipped' as any,
+            ctx,
+            savedFulfillment
+        ));
+
+        return {
+            id: String(savedFulfillment.id),
+            state: 'Shipped',
+            trackingCode: trackingCode || '',
+            method: carrier || 'Standard',
+        };
+    }
+
+    async getVendorWalletStats(ctx: RequestContext, vendorId: string): Promise<any> {
+        const numericVendorId = Number(vendorId);
+        const vendor = await this.findOne(ctx, vendorId);
+        const vendorChannelId = vendor?.channelId || 0;
+
+        // Fetch sales and commissions aggregated
+        const salesRows: { total_sales: string; commission_sum: string; retirable_sum: string; pending_sum: string }[] = await this.connection.rawConnection.query(`
+            SELECT 
+                COALESCE(SUM(ol."proratedLinePriceWithTax"), 0) as total_sales,
+                COALESCE(SUM(CASE WHEN o."customFieldsCommissionamount" > 0 THEN o."customFieldsCommissionamount" ELSE 0 END), 0) as commission_sum,
+                COALESCE(SUM(CASE WHEN o."customFieldsPaymentstatus" = 'RETIRABLE' THEN ol."proratedLinePriceWithTax" ELSE 0 END), 0) as retirable_sum,
+                COALESCE(SUM(CASE WHEN o."customFieldsPaymentstatus" = 'PENDING' OR o."customFieldsPaymentstatus" IS NULL THEN ol."proratedLinePriceWithTax" ELSE 0 END), 0) as pending_sum
+            FROM order_line ol
+            INNER JOIN "order" o ON ol."orderId" = o.id
+            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+            INNER JOIN product p ON pv."productId" = p.id
+            WHERE (p."customFieldsVendorid" = $1 OR ol."sellerChannelId" = $2)
+              AND o.state NOT IN ('AddingItems', 'ArrangingPayment', 'Cancelled')
+        `, [numericVendorId, vendorChannelId]);
+
+        const rawSales = salesRows[0] || { total_sales: '0', commission_sum: '0', retirable_sum: '0', pending_sum: '0' };
+        const totalSales = parseInt(rawSales.total_sales, 10);
+        const platformCommission = parseInt(rawSales.commission_sum, 10);
+        const netEarnings = Math.max(0, totalSales - platformCommission);
+
+        // Fetch withdrawals
+        const withdrawalRows: { total_approved: string; total_pending: string }[] = await this.connection.rawConnection.query(`
+            SELECT 
+                COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN amount ELSE 0 END), 0) as total_approved,
+                COALESCE(SUM(CASE WHEN status = 'PENDING' THEN amount ELSE 0 END), 0) as total_pending
+            FROM withdrawal_request
+            WHERE "vendorId" = $1
+        `, [numericVendorId]);
+
+        const rawWithdrawals = withdrawalRows[0] || { total_approved: '0', total_pending: '0' };
+        const totalWithdrawn = parseInt(rawWithdrawals.total_approved, 10);
+        const pendingWithdrawalAmount = parseInt(rawWithdrawals.total_pending, 10);
+
+        const retirableSum = parseInt(rawSales.retirable_sum, 10);
+        const availableBalance = Math.max(0, retirableSum - totalWithdrawn - pendingWithdrawalAmount);
+        const pendingBalance = parseInt(rawSales.pending_sum, 10);
+
+        return {
+            totalSales,
+            platformCommission,
+            netEarnings,
+            availableBalance,
+            pendingBalance,
+            totalWithdrawn,
+            pendingWithdrawalAmount,
+            currencyCode: 'XOF',
         };
     }
 
@@ -450,6 +662,19 @@ export class VendorService implements OnApplicationBootstrap {
             } catch (err3) {
                 console.error('[updateVendorOrderStatus] Failed to cascade sellerStatus to lines:', err3);
             }
+        }
+
+        // Trigger native Vendure order transitions if appropriate
+        try {
+            if (aggregateAdminStatus === 'shipped' || newStatus === 'shipped') {
+                await this.orderService.transitionToState(ctx, orderId, 'Shipped').catch(() => null);
+            } else if (aggregateAdminStatus === 'delivered' || newStatus === 'delivered') {
+                await this.orderService.transitionToState(ctx, orderId, 'Delivered').catch(() => null);
+            } else if (aggregateAdminStatus === 'cancelled' || newStatus === 'cancelled') {
+                await this.orderService.transitionToState(ctx, orderId, 'Cancelled').catch(() => null);
+            }
+        } catch (stateErr) {
+            console.error('[updateVendorOrderStatus] Native transition error:', stateErr);
         }
 
         return true;
@@ -672,10 +897,13 @@ export class VendorService implements OnApplicationBootstrap {
                 [orderId]
             );
 
-            // If 0 lines remain, cancel the entire order
+            // If 0 lines remain, cancel the entire order via native transition
             if (!remainingLines || remainingLines.length === 0) {
+                await this.orderService.transitionToState(ctx, orderId, 'Cancelled').catch(err => {
+                    console.warn('[continueOrderWithoutReassignedItems] Cancel transition warning:', err?.message || err);
+                });
                 await this.connection.rawConnection.query(
-                    `UPDATE "order" SET "state" = 'Cancelled', "customFieldsSellerstatus" = 'refused' WHERE id = $1`,
+                    `UPDATE "order" SET "customFieldsSellerstatus" = 'refused', "customFieldsAdminstatus" = 'cancelled' WHERE id = $1`,
                     [orderId]
                 );
                 return true;
@@ -774,13 +1002,11 @@ export class VendorService implements OnApplicationBootstrap {
         try {
             // 1. Find all order lines belonging to oldVendorId
             const rawLines = await this.connection.rawConnection.query(
-                `SELECT ol.id, COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as vendor_id,
-                        ol."listPrice" as unit_price,
-                        (ol."listPrice" * ol."quantity") as line_price
+                `SELECT ol.id, pv.id as variant_id, ol.quantity, ol.unit_price_with_tax as unit_price, p."customFieldsVendorid" as vendor_id
                  FROM order_line ol
                  JOIN product_variant pv ON ol."productVariantId" = pv.id
                  JOIN product p ON pv."productId" = p.id
-                 WHERE ol."orderId" = $1`,
+                 WHERE ol."orderId" = $1 AND ol.quantity > 0`,
                 [orderId]
             );
 
@@ -916,99 +1142,111 @@ export class VendorService implements OnApplicationBootstrap {
             let variantId: string;
             const priceInCents = Math.round(newPrice);
 
+            const originalVariants = await this.connection.rawConnection.query(
+                `SELECT pv.id as "variantId", pv."taxCategoryId", p.id as "productId", p."featuredAssetId", p."customFieldsVendorid" as "originalVendorId", ol."customFieldsAssignedvendorid", ol.quantity
+                 FROM order_line ol
+                 JOIN product_variant pv ON ol."productVariantId" = pv.id
+                 JOIN product p ON pv."productId" = p.id
+                 WHERE ol.id = $1 LIMIT 1`,
+                [lineId]
+            );
+            if (!originalVariants || !originalVariants[0]) throw new Error('Original product not found');
+            const orig = originalVariants[0];
+
             if (newProductId) {
-                const rawVariant = await this.connection.rawConnection.query(
-                    `SELECT id FROM product_variant WHERE "productId" = $1 LIMIT 1`,
-                    [newProductId]
-                );
-                if (!rawVariant || !rawVariant[0]) throw new Error('Target product variant not found');
-                variantId = rawVariant[0].id;
+                const targetProduct = await this.productService.findOne(ctx, newProductId, ['variants']);
+                if (!targetProduct || !targetProduct.variants || targetProduct.variants.length === 0) {
+                    throw new Error('Target product variant not found');
+                }
+                variantId = String(targetProduct.variants[0].id);
             } else {
-                const originalVariants = await this.connection.rawConnection.query(
-                    `SELECT pv.id as "variantId", pv."taxCategoryId", p.id as "productId", p."featuredAssetId"
-                     FROM order_line ol
-                     JOIN product_variant pv ON ol."productVariantId" = pv.id
-                     JOIN product p ON pv."productId" = p.id
-                     WHERE ol.id = $1 LIMIT 1`,
-                    [lineId]
-                );
-                if (!originalVariants || !originalVariants[0]) throw new Error('Original product not found');
-                const orig = originalVariants[0];
+                let targetVendor = await this.findOne(ctx, newVendorId);
+                if (!targetVendor) throw new Error('Target vendor not found');
 
-                const prodTranslations = await this.connection.rawConnection.query(
-                    `SELECT * FROM product_translation WHERE "baseId" = $1`,
-                    [orig.productId]
-                );
-                const varTranslations = await this.connection.rawConnection.query(
-                    `SELECT * FROM product_variant_translation WHERE "baseId" = $1`,
-                    [orig.variantId]
-                );
-
-                const newProductRows = await this.connection.rawConnection.query(
-                    `INSERT INTO product ("createdAt", "updatedAt", "enabled", "featuredAssetId", "customFieldsVendorid") 
-                     VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true, $1, $2) RETURNING id`,
-                    [orig.featuredAssetId, newVendorId]
-                );
-                const createdProductId = newProductRows[0].id;
-
-                for (const pt of prodTranslations) {
-                    const finalName = newProductName ? newProductName : pt.name;
-                    const finalSlug = (newProductName ? newProductName.toLowerCase().replace(/[^a-z0-9]+/g, '-') : pt.slug) + '-' + Date.now();
-                    await this.connection.rawConnection.query(
-                        `INSERT INTO product_translation ("createdAt", "updatedAt", "languageCode", "name", "slug", "description", "baseId")
-                         VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $1, $2, $3, $4, $5)`,
-                        [pt.languageCode, finalName, finalSlug, pt.description, createdProductId]
-                    );
+                if (!targetVendor.channelId || !targetVendor.sellerId) {
+                    targetVendor = await this.ensureNativeSellerAndChannel(ctx, targetVendor);
                 }
 
-                const taxCatId = orig.taxCategoryId || 1;
-                const newVariantRows = await this.connection.rawConnection.query(
-                    `INSERT INTO product_variant ("createdAt", "updatedAt", "enabled", "sku", "productId", "taxCategoryId", "outOfStockThreshold", "useGlobalOutOfStockThreshold", "trackInventory")
-                     VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true, $1, $2, $3, 0, true, 'FALSE') RETURNING id`,
-                    ['SKU-' + Date.now(), createdProductId, taxCatId]
-                );
-                variantId = newVariantRows[0].id;
+                const origProduct = await this.productService.findOne(ctx, orig.productId, ['translations']);
+                const origTranslation = origProduct?.translations.find(t => t.languageCode === ctx.languageCode) || origProduct?.translations[0];
+                const finalName = newProductName || origTranslation?.name || 'Reassigned Product';
+                const finalSlug = (newProductName ? newProductName.toLowerCase().replace(/[^a-z0-9]+/g, '-') : (origTranslation?.slug || 'product')) + '-' + Date.now();
 
-                for (const vt of varTranslations) {
-                    const finalName = newProductName ? newProductName : vt.name;
-                    await this.connection.rawConnection.query(
-                        `INSERT INTO product_variant_translation ("createdAt", "updatedAt", "languageCode", "name", "baseId")
-                         VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $1, $2, $3)`,
-                        [vt.languageCode, finalName, variantId]
-                    );
+                const createdProduct = await this.productService.create(ctx, {
+                    translations: [{
+                        languageCode: ctx.languageCode,
+                        name: finalName,
+                        slug: finalSlug,
+                        description: origTranslation?.description || '',
+                    }],
+                    enabled: true,
+                    featuredAssetId: orig.featuredAssetId || undefined,
+                    customFields: {
+                        vendor: { id: targetVendor.id },
+                        approvalStatus: 'approved',
+                    }
+                });
+
+                const vendorPrefix = (targetVendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
+                const createdVariants = await this.productVariantService.create(ctx, [{
+                    productId: createdProduct.id,
+                    sku: `${vendorPrefix}-${Date.now()}`,
+                    price: priceInCents,
+                    stockOnHand: 100,
+                    translations: [{
+                        languageCode: ctx.languageCode,
+                        name: finalName,
+                    }]
+                }]);
+                const createdVariant = createdVariants[0];
+                variantId = String(createdVariant.id);
+
+                if (targetVendor.channelId) {
+                    try {
+                        await this.channelService.assignToChannels(ctx, Product, createdProduct.id, [targetVendor.channelId]);
+                        await this.channelService.assignToChannels(ctx, ProductVariant, createdVariant.id, [targetVendor.channelId]);
+                    } catch (chanErr) {
+                        console.error('[reassignOrderLineToProduct] Channel assignment error:', chanErr);
+                    }
                 }
 
-                const channelIdToUse = ctx.channelId || 1;
-                const currencyCodeToUse = ctx.channel?.defaultCurrencyCode || 'XOF';
-                try {
-                    await this.connection.rawConnection.query(
-                        `INSERT INTO product_variant_price ("createdAt", "updatedAt", "currencyCode", "price", "channelId", "variantId")
-                         VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $1, $2, $3, $4)`,
-                        [currencyCodeToUse, priceInCents, channelIdToUse, variantId]
-                    );
-                } catch (pe: any) {
-                    console.error('[reassignOrderLineToProduct] Error inserting product_variant_price:', pe?.message || pe);
-                }
-
-                await this.connection.rawConnection.query(
-                    `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                    [variantId, channelIdToUse]
-                );
-                await this.connection.rawConnection.query(
-                    `INSERT INTO product_channels_channel ("productId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                    [createdProductId, channelIdToUse]
-                );
+                this.eventBus.publish(new ProductEvent(ctx, createdProduct, 'created', { id: createdProduct.id }));
             }
 
+            const originalVendorId = orig.customFieldsAssignedvendorid || orig.originalVendorId;
+            const origQuantity = orig.quantity || 1;
+
+            // 1. Keep the original line, set status to reassigned_to_other, quantity to 0
             await this.connection.rawConnection.query(
                 `UPDATE order_line 
-                 SET "productVariantId" = $1, 
-                     "listPrice" = $2, 
-                     "initialListPrice" = $2,
-                     "customFieldsAssignedvendorid" = $3,
-                     "customFieldsSellerstatus" = 'pending'
-                 WHERE id = $4`,
-                [variantId, priceInCents, newVendorId, lineId]
+                 SET "customFieldsSellerstatus" = 'reassigned_to_other', 
+                     "quantity" = 0,
+                     "orderPlacedQuantity" = 0,
+                     "customFieldsAssignedvendorid" = $1
+                 WHERE id = $2`,
+                [originalVendorId, lineId]
+            );
+
+            // 2. Insert a cloned line for the new vendor with the original quantity and status pending
+            await this.connection.rawConnection.query(
+                `INSERT INTO order_line (
+                    "createdAt", "updatedAt", "quantity", "orderPlacedQuantity", 
+                    "listPriceIncludesTax", "adjustments", "taxLines", 
+                    "sellerChannelId", "shippingLineId", "productVariantId", 
+                    "taxCategoryId", "initialListPrice", "listPrice", 
+                    "featuredAssetId", "orderId", 
+                    "customFieldsSellerstatus", "customFieldsAssignedvendorid"
+                )
+                SELECT 
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $1, $1, 
+                    "listPriceIncludesTax", adjustments, "taxLines", 
+                    "sellerChannelId", "shippingLineId", $2, 
+                    "taxCategoryId", $3, $3, 
+                    "featuredAssetId", "orderId", 
+                    'pending', $4
+                FROM order_line
+                WHERE id = $5`,
+                [origQuantity, variantId, priceInCents, newVendorId, lineId]
             );
 
             const rawOrder = await this.connection.rawConnection.query(
@@ -1142,6 +1380,7 @@ export class VendorService implements OnApplicationBootstrap {
         rating?: number;
         ratingCount?: number;
         type?: string;
+        commissionRate?: number;
 
         rccmNumber?: string;
         rccmFile?: any; // Upload
@@ -1174,6 +1413,25 @@ export class VendorService implements OnApplicationBootstrap {
         const adminCtx = await this.getSuperAdminContext(ctx);
         console.log('VendorService.create: Starting with SuperAdmin context');
 
+        // --- EMAIL & PASSWORD VALIDATIONS ---
+        if (!input.email || input.email.trim() === '') {
+            throw new UserInputError("L'adresse email est obligatoire.");
+        }
+
+        if (!input.userId) {
+            if (!input.password || input.password.trim() === '') {
+                throw new UserInputError("Le mot de passe est obligatoire.");
+            }
+            
+            // Check if user with same identifier already exists
+            const existingUser = await this.connection.getRepository(ctx, User).findOne({
+                where: { identifier: input.email }
+            });
+            if (existingUser) {
+                throw new UserInputError(`L'adresse email "${input.email}" est déjà utilisée par un autre compte.`);
+            }
+        }
+
         // Check if vendor profile already exists for userId or email before creating
         if (input.userId) {
             const existingByUserId = await this.findByUserId(ctx, input.userId);
@@ -1203,50 +1461,52 @@ export class VendorService implements OnApplicationBootstrap {
         // Also map implicitly if they are passed as top-level args but validation expects them
         // (This step handles the mapping before validation loop)
 
-        // --- VALIDATION OF DYNAMIC FIELDS (Server-Side) ---
-        const registrationFields = await this.connection.getRepository(ctx, RegistrationField).find({
-            where: { enabled: true }
-        });
+        // --- VALIDATION OF DYNAMIC FIELDS (Server-Side - Shop API Only) ---
+        if (ctx.apiType === 'shop') {
+            const registrationFields = await this.connection.getRepository(ctx, RegistrationField).find({
+                where: { enabled: true }
+            });
 
-        for (const field of registrationFields) {
-            if (field.required) {
-                let isPresent = false;
-                const fieldName = field.name;
+            for (const field of registrationFields) {
+                if (field.required) {
+                    let isPresent = false;
+                    const fieldName = field.name;
 
-                // Check standard fields mapped in input
-                if (fieldName === 'name') isPresent = !!input.name;
-                else if (fieldName === 'firstName') isPresent = !!input.firstName || !!input.dynamicDetails['firstName'];
-                else if (fieldName === 'lastName') isPresent = !!input.lastName || !!input.dynamicDetails['lastName'];
-                else if (fieldName === 'email') isPresent = !!input.email;
-                else if (fieldName === 'phoneNumber') isPresent = !!input.phoneNumber;
-                else if (fieldName === 'address') isPresent = !!input.address;
-                else if (fieldName === 'description') isPresent = !!input.description;
-                else if (fieldName === 'zone') isPresent = !!input.zone;
-                else if (fieldName === 'deliveryInfo') isPresent = !!input.deliveryInfo;
-                else if (fieldName === 'returnPolicy') isPresent = !!input.returnPolicy;
-                else if (fieldName === 'type') isPresent = !!input.type;
-                else if (fieldName === 'website') isPresent = !!input.website;
-                else if (fieldName === 'facebook') isPresent = !!input.facebook;
-                else if (fieldName === 'instagram') isPresent = !!input.instagram;
-                else if (fieldName === 'rccmNumber') isPresent = !!input.rccmNumber;
-                else if (fieldName === 'ifuNumber') isPresent = !!input.ifuNumber;
-                else if (fieldName === 'idCardNumber') isPresent = !!input.idCardNumber;
-                else if (fieldName === 'locationId') isPresent = !!input.locationId;
+                    // Check standard fields mapped in input
+                    if (fieldName === 'name') isPresent = !!input.name;
+                    else if (fieldName === 'firstName') isPresent = !!input.firstName || !!input.dynamicDetails['firstName'];
+                    else if (fieldName === 'lastName') isPresent = !!input.lastName || !!input.dynamicDetails['lastName'];
+                    else if (fieldName === 'email') isPresent = !!input.email;
+                    else if (fieldName === 'phoneNumber') isPresent = !!input.phoneNumber;
+                    else if (fieldName === 'address') isPresent = !!input.address;
+                    else if (fieldName === 'description') isPresent = !!input.description;
+                    else if (fieldName === 'zone') isPresent = !!input.zone;
+                    else if (fieldName === 'deliveryInfo') isPresent = !!input.deliveryInfo;
+                    else if (fieldName === 'returnPolicy') isPresent = !!input.returnPolicy;
+                    else if (fieldName === 'type') isPresent = !!input.type;
+                    else if (fieldName === 'website') isPresent = !!input.website;
+                    else if (fieldName === 'facebook') isPresent = !!input.facebook;
+                    else if (fieldName === 'instagram') isPresent = !!input.instagram;
+                    else if (fieldName === 'rccmNumber') isPresent = !!input.rccmNumber;
+                    else if (fieldName === 'ifuNumber') isPresent = !!input.ifuNumber;
+                    else if (fieldName === 'idCardNumber') isPresent = !!input.idCardNumber;
+                    else if (fieldName === 'locationId') isPresent = !!input.locationId;
 
-                // Check file fields
-                else if (fieldName === 'rccmFile') isPresent = !!input.rccmFile && input.rccmFile.size > 0;
-                else if (fieldName === 'ifuFile') isPresent = !!input.ifuFile && input.ifuFile.size > 0;
-                else if (fieldName === 'idCardFile') isPresent = !!input.idCardFile && input.idCardFile.size > 0;
-                else if (fieldName === 'logo') isPresent = !!input.logoId; // Or check input.logo if handled differently
-                else if (fieldName === 'coverImage') isPresent = !!input.coverImageId;
+                    // Check file fields
+                    else if (fieldName === 'rccmFile') isPresent = !!input.rccmFile && input.rccmFile.size > 0;
+                    else if (fieldName === 'ifuFile') isPresent = !!input.ifuFile && input.ifuFile.size > 0;
+                    else if (fieldName === 'idCardFile') isPresent = !!input.idCardFile && input.idCardFile.size > 0;
+                    else if (fieldName === 'logo') isPresent = !!input.logoId; // Or check input.logo if handled differently
+                    else if (fieldName === 'coverImage') isPresent = !!input.coverImageId;
 
-                // Check dynamicDetails for other fields
-                else {
-                    isPresent = input.dynamicDetails && input.dynamicDetails[fieldName] !== undefined && input.dynamicDetails[fieldName] !== null && input.dynamicDetails[fieldName] !== '';
-                }
+                    // Check dynamicDetails for other fields
+                    else {
+                        isPresent = input.dynamicDetails && input.dynamicDetails[fieldName] !== undefined && input.dynamicDetails[fieldName] !== null && input.dynamicDetails[fieldName] !== '';
+                    }
 
-                if (!isPresent) {
-                    throw new UserInputError(`Le champ "${field.label}" est obligatoire.`);
+                    if (!isPresent) {
+                        throw new UserInputError(`Le champ "${field.label}" est obligatoire.`);
+                    }
                 }
             }
         }
@@ -1265,6 +1525,7 @@ export class VendorService implements OnApplicationBootstrap {
             ratingCount: input.ratingCount || 0,
             type: input.type as any || 'INDIVIDUAL',
             status: VendorStatus.PENDING,
+            commissionRate: input.commissionRate !== undefined ? Number(input.commissionRate) : 10,
 
             rccmNumber: input.rccmNumber,
             ifuNumber: input.ifuNumber,
@@ -1272,6 +1533,17 @@ export class VendorService implements OnApplicationBootstrap {
             website: input.website,
             facebook: input.facebook,
             instagram: input.instagram,
+
+            paymentMethod: (input as any).paymentMethod,
+            mobileMoneyProvider: (input as any).mobileMoneyProvider,
+            mobileMoneyNumber: (input as any).mobileMoneyNumber,
+            bankName: (input as any).bankName,
+            bankAccountNumber: (input as any).bankAccountNumber,
+            latitude: input.latitude,
+            longitude: input.longitude,
+            locationId: input.locationId ? Number(input.locationId) : undefined,
+            physicalMarketId: input.physicalMarketId ? Number(input.physicalMarketId) : undefined,
+            marketIds: input.marketIds ? input.marketIds.map(id => Number(id)) : [],
 
             dynamicDetails: input.dynamicDetails,
         });
@@ -1417,21 +1689,7 @@ export class VendorService implements OnApplicationBootstrap {
             // Assign Vendor Role (this also creates an Administrator if not present)
             await this.assignVendorRole(adminCtx, newUser.id.toString());
 
-            // Ensure Administrator for Dashboard Access (if not created by assignVendorRole)
-            const existingAdmin = await this.connection.getRepository(adminCtx, Administrator).findOne({
-                where: { user: { id: newUser.id } }
-            });
-            if (!existingAdmin) {
-                console.log('VendorService.create: Creating Administrator entity for user...');
-                const administrator = new Administrator({
-                    emailAddress: finalEmail,
-                    firstName: finalName.split(' ')[0] || 'Vendor',
-                    lastName: finalName.split(' ')[1] || 'Admin',
-                    user: newUser,
-                });
-                await this.connection.getRepository(adminCtx, Administrator).save(administrator);
-                console.log('VendorService.create: Administrator entity created.');
-            }
+
 
             // Create Customer for Shop Access (if not already exists)
             const existingCustomer = await this.connection.getRepository(adminCtx, Customer).findOne({
@@ -1477,7 +1735,25 @@ export class VendorService implements OnApplicationBootstrap {
         return newVendor;
     }
 
-    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { logoId?: string; logo?: any; coverImageId?: string; coverImage?: any; rejectionReason?: string; dynamicDetails?: any; latitude?: number; longitude?: number; locationId?: string | number; physicalMarketId?: string | number; marketIds?: string[] | number[] }): Promise<Vendor> {
+    async update(ctx: RequestContext, id: string, input: Partial<Vendor> & { 
+        logoId?: string; 
+        logo?: any; 
+        coverImageId?: string; 
+        coverImage?: any; 
+        rejectionReason?: string; 
+        dynamicDetails?: any; 
+        latitude?: number; 
+        longitude?: number; 
+        locationId?: string | number; 
+        physicalMarketId?: string | number; 
+        marketIds?: string[] | number[];
+        rccmFile?: any;
+        ifuFile?: any;
+        idCardFile?: any;
+        rccmFileId?: string;
+        ifuFileId?: string;
+        idCardFileId?: string;
+    }): Promise<Vendor> {
         const vendor = await this.findOne(ctx, id);
         if (!vendor) {
             throw new Error(`Vendor with id ${id} not found`);
@@ -1508,6 +1784,33 @@ export class VendorService implements OnApplicationBootstrap {
 
         if (input.logoId) {
             updated.logo = await this.connection.getEntityOrThrow(ctx, Asset, input.logoId);
+        }
+        if (input.rccmFileId) {
+            updated.rccmFile = await this.connection.getEntityOrThrow(ctx, Asset, input.rccmFileId);
+        }
+        if (input.rccmFile) {
+            const asset = await this.assetService.create(ctx, { file: input.rccmFile, tags: ['vendor-doc', 'rccm'] });
+            if (!(asset as any).errorCode) {
+                updated.rccmFile = asset as Asset;
+            }
+        }
+        if (input.ifuFileId) {
+            updated.ifuFile = await this.connection.getEntityOrThrow(ctx, Asset, input.ifuFileId);
+        }
+        if (input.ifuFile) {
+            const asset = await this.assetService.create(ctx, { file: input.ifuFile, tags: ['vendor-doc', 'ifu'] });
+            if (!(asset as any).errorCode) {
+                updated.ifuFile = asset as Asset;
+            }
+        }
+        if (input.idCardFileId) {
+            updated.idCardFile = await this.connection.getEntityOrThrow(ctx, Asset, input.idCardFileId);
+        }
+        if (input.idCardFile) {
+            const asset = await this.assetService.create(ctx, { file: input.idCardFile, tags: ['vendor-doc', 'idcard'] });
+            if (!(asset as any).errorCode) {
+                updated.idCardFile = asset as Asset;
+            }
         }
         if (input.logo) {
             // Check if file is a GIF - if so, skip Sharp processing to preserve animation
@@ -1625,9 +1928,14 @@ export class VendorService implements OnApplicationBootstrap {
         if (input.status && input.status !== oldStatus) {
             this.eventBus.publish(new VendorEvent(ctx, savedVendor, 'statusChanged', input));
 
-            // Automatically assign Vendor role when approved
-            if (input.status === VendorStatus.APPROVED && savedVendor.user) {
-                await this.assignVendorRole(ctx, savedVendor.user.id.toString());
+            // Automatically create Seller, Channel, and channel-scoped Role & Admin when approved
+            if (input.status === VendorStatus.APPROVED) {
+                try {
+                    const syncedVendor = await this.ensureNativeSellerAndChannel(ctx, savedVendor);
+                    return syncedVendor;
+                } catch (syncErr) {
+                    console.error('[VendorService] Error ensuring native Seller/Channel on approval:', syncErr);
+                }
             }
         }
 
@@ -1805,6 +2113,201 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     /**
+     * Ensure that an approved Vendor has a native Vendure Seller, dedicated Channel,
+     * Channel-scoped Role, and Administrator account.
+     */
+    async ensureNativeSellerAndChannel(ctx: RequestContext, vendor: Vendor): Promise<Vendor> {
+        const adminCtx = await this.getSuperAdminContext(ctx);
+        const hydratedVendor = await this.connection.getEntityOrThrow(adminCtx, Vendor, vendor.id, {
+            relations: ['user', 'seller', 'channel', 'logo'],
+        });
+
+        if (hydratedVendor.seller && hydratedVendor.channel && hydratedVendor.channelToken) {
+            console.log(`[VendorService] Vendor ${vendor.id} already has Seller and Channel.`);
+            return hydratedVendor;
+        }
+
+        console.log(`[VendorService] Ensuring native Seller & Channel for Vendor "${hydratedVendor.name}" (ID: ${hydratedVendor.id})`);
+
+        // 1. Create or retrieve native Seller
+        let seller: Seller | undefined = hydratedVendor.seller;
+        if (!seller && hydratedVendor.sellerId) {
+            seller = (await this.connection.getRepository(adminCtx, Seller).findOne({
+                where: { id: hydratedVendor.sellerId }
+            })) || undefined;
+        }
+        if (seller) {
+            const otherVendor = await this.connection.getRepository(adminCtx, Vendor).findOne({
+                where: { sellerId: Number(seller.id) }
+            });
+            if (otherVendor && String(otherVendor.id) !== String(hydratedVendor.id)) {
+                seller = undefined;
+            }
+        }
+        if (!seller) {
+            seller = await this.sellerService.create(adminCtx, {
+                name: `${hydratedVendor.name} (${hydratedVendor.id})`,
+                customFields: {},
+            });
+            console.log(`[VendorService] Created native Seller with ID: ${seller.id}`);
+        }
+
+        const validSeller: Seller = seller;
+
+        // 2. Fetch default channel properties
+        const defaultChannel = await this.channelService.getDefaultChannel(adminCtx);
+
+        // 3. Generate clean slug and token
+        const cleanSlug = (hydratedVendor.name || 'vendor')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        const channelCode = `${cleanSlug}-${hydratedVendor.id}`;
+        const channelToken = `vt_${cleanSlug}_${hydratedVendor.id}_${Math.random().toString(36).substring(2, 8)}`;
+
+        // 4. Create or retrieve Channel
+        let channel: Channel | undefined = hydratedVendor.channel;
+        if (!channel && hydratedVendor.channelId) {
+            channel = (await this.connection.getRepository(adminCtx, Channel).findOne({
+                where: { id: hydratedVendor.channelId },
+                relations: ['seller', 'defaultShippingZone', 'defaultTaxZone'],
+            })) || undefined;
+        }
+        if (channel) {
+            const otherVendor = await this.connection.getRepository(adminCtx, Vendor).findOne({
+                where: { channelId: Number(channel.id) }
+            });
+            if (otherVendor && String(otherVendor.id) !== String(hydratedVendor.id)) {
+                channel = undefined;
+            }
+        }
+        if (!channel) {
+            channel = (await this.connection.getRepository(adminCtx, Channel).findOne({
+                where: { code: channelCode },
+                relations: ['seller', 'defaultShippingZone', 'defaultTaxZone'],
+            })) || undefined;
+            if (channel) {
+                const otherVendor = await this.connection.getRepository(adminCtx, Vendor).findOne({
+                    where: { channelId: Number(channel.id) }
+                });
+                if (otherVendor && String(otherVendor.id) !== String(hydratedVendor.id)) {
+                    channel = undefined;
+                }
+            }
+        }
+        if (!channel) {
+            channel = (await this.channelService.create(adminCtx, {
+                code: channelCode,
+                token: channelToken,
+                sellerId: validSeller.id,
+                defaultLanguageCode: defaultChannel.defaultLanguageCode,
+                currencyCode: defaultChannel.defaultCurrencyCode,
+                pricesIncludeTax: defaultChannel.pricesIncludeTax,
+                defaultShippingZoneId: defaultChannel.defaultShippingZone?.id,
+                defaultTaxZoneId: defaultChannel.defaultTaxZone?.id,
+            })) as Channel;
+            console.log(`[VendorService] Created Channel "${channelCode}" (ID: ${channel.id}, Token: ${channelToken})`);
+        }
+
+        const validChannel: Channel = channel;
+
+        // 5. Create Channel-scoped Role for this Vendor
+        let role = await this.connection.getRepository(adminCtx, Role).findOne({
+            where: { code: `vendor-${hydratedVendor.id}-role` },
+            relations: ['channels'],
+        });
+
+        const permissions = [
+            Permission.Authenticated,
+            Permission.CreateCatalog,
+            Permission.ReadCatalog,
+            Permission.UpdateCatalog,
+            Permission.DeleteCatalog,
+            Permission.CreateAsset,
+            Permission.ReadAsset,
+            Permission.UpdateAsset,
+            Permission.DeleteAsset,
+            Permission.ReadOrder,
+            Permission.UpdateOrder,
+            Permission.ReadCustomer,
+            Permission.ReadShippingMethod,
+            Permission.ReadPaymentMethod,
+            Permission.ReadTaxCategory,
+            Permission.ReadTaxRate,
+            Permission.ReadZone,
+            Permission.ReadCountry,
+        ];
+
+        try {
+            if (!role) {
+                role = await this.roleService.create(adminCtx, {
+                    code: `vendor-${hydratedVendor.id}-role`,
+                    description: `Vendor role for ${hydratedVendor.name}`,
+                    channelIds: [channel.id],
+                    permissions: permissions,
+                });
+                console.log(`[VendorService] Created channel-scoped Role: ${role.code}`);
+            }
+        } catch (roleErr: any) {
+            console.warn('[VendorService] Role creation note:', roleErr.message);
+        }
+
+        // 6. Create or assign Administrator for the vendor user
+        if (hydratedVendor.user && role) {
+            try {
+                const user = await this.connection.getEntityOrThrow(adminCtx, User, hydratedVendor.user.id);
+                let admin = await this.administratorService.findOneByUserId(adminCtx, user.id);
+                if (!admin) {
+                    const nameParts = (hydratedVendor.name || 'Vendeur Ahizan').trim().split(/\s+/);
+                    admin = await this.administratorService.create(adminCtx, {
+                        firstName: nameParts[0] || 'Vendeur',
+                        lastName: nameParts.slice(1).join(' ') || 'Ahizan',
+                        emailAddress: hydratedVendor.email,
+                        roleIds: [role.id],
+                    } as any);
+                    console.log(`[VendorService] Created Administrator for Vendor user ID: ${user.id}`);
+                } else {
+                    const existingRoleIds = ((admin as any).user?.roles || (admin as any).roles || []).map((r: any) => r.id);
+                    if (!existingRoleIds.includes(role.id)) {
+                        await this.administratorService.update(adminCtx, {
+                            id: admin.id,
+                            roleIds: [...existingRoleIds, role.id],
+                        });
+                        console.log(`[VendorService] Assigned channel-scoped role to Administrator ID: ${admin.id}`);
+                    }
+                }
+            } catch (adminErr: any) {
+                console.warn('[VendorService] Administrator creation note:', adminErr.message);
+            }
+        }
+
+        // 7. Create default StockLocation for this Vendor's Channel
+        try {
+            const stockLocations = await this.stockLocationService.findAll(adminCtx);
+            const vendorStockLocation = stockLocations.items.find((sl: any) => sl.name === `${hydratedVendor.name} Stock`);
+            if (!vendorStockLocation) {
+                await this.stockLocationService.create(adminCtx, {
+                    name: `${hydratedVendor.name} Stock`,
+                    description: `Stock location for ${hydratedVendor.name}`,
+                });
+            }
+        } catch (stockErr: any) {
+            console.warn('[VendorService] StockLocation note:', stockErr.message);
+        }
+
+        // 8. Update Vendor entity with Seller, Channel, and Token
+        hydratedVendor.seller = validSeller;
+        hydratedVendor.sellerId = Number(validSeller.id);
+        hydratedVendor.channel = validChannel;
+        hydratedVendor.channelId = Number(validChannel.id);
+        hydratedVendor.channelToken = (validChannel as any).token || channelToken;
+
+        return await this.connection.getRepository(adminCtx, Vendor).save(hydratedVendor);
+    }
+
+    /**
      * Assign Vendor role to a user
      */
     async assignVendorRole(ctx: RequestContext, userId: string) {
@@ -1826,26 +2329,12 @@ export class VendorService implements OnApplicationBootstrap {
             console.log('assignVendorRole: User already has role.');
         }
 
-        // Ensure user has an Administrator entity for dashboard access
-        const existingAdmin = await this.connection.getRepository(ctx, Administrator).findOne({
-            where: { user: { id: userId } }
-        });
-        if (!existingAdmin) {
-            console.log('assignVendorRole: Creating Administrator entity for user...');
-            const nameParts = user.identifier.split('@')[0].split('.');
-            const administrator = new Administrator({
-                emailAddress: user.identifier,
-                firstName: nameParts[0] || 'Vendor',
-                lastName: nameParts[1] || 'Admin',
-                user: user,
-            });
-            await this.connection.getRepository(ctx, Administrator).save(administrator);
-            console.log('assignVendorRole: Administrator entity created successfully.');
-        }
+
     }
 
-    private async getSuperAdminContext(ctx: RequestContext): Promise<RequestContext> {
-        const superAdminUser = await this.connection.getRepository(ctx, User).findOne({
+    public async getSuperAdminContext(ctx?: RequestContext): Promise<RequestContext> {
+        const defaultChannel = await this.channelService.getDefaultChannel();
+        const superAdminUser = await this.connection.rawConnection.getRepository(User).findOne({
             where: {
                 identifier: process.env.SUPERADMIN_USERNAME || 'superadmin',
             },
@@ -1858,13 +2347,13 @@ export class VendorService implements OnApplicationBootstrap {
             console.log('getSuperAdminContext: Found SuperAdmin user:', superAdminUser.identifier);
         }
 
-        // Mock a session with the superadmin user
+        // Session configured on default channel with superadmin user
         const session = {
             id: 'superadmin-session',
-            expires: new Date(Date.now() + 1000 * 60 * 60),
+            expires: new Date(Date.now() + 1000 * 60 * 60 * 24),
             activeOrder: null,
-            activeChannelId: ctx.channel.id,
-            user: superAdminUser,
+            activeChannelId: defaultChannel.id,
+            user: superAdminUser || undefined,
             isAuthenticated: true,
         } as any;
 
@@ -1872,22 +2361,114 @@ export class VendorService implements OnApplicationBootstrap {
             apiType: 'admin',
             isAuthorized: true,
             authorizedAsOwnerOnly: false,
-            channel: ctx.channel,
-            languageCode: ctx.languageCode,
+            channel: defaultChannel,
+            languageCode: ctx?.languageCode,
             session: session,
         });
+    }
+
+    async removeVendorAdministrators(ctx: RequestContext): Promise<void> {
+        try {
+            console.log('[VendorService] Checking for existing vendor Administrator records to remove...');
+            const administrators = await this.connection.getRepository(ctx, Administrator).find({
+                relations: ['user', 'user.roles']
+            });
+
+            const adminsToRemove = administrators.filter(admin => {
+                if (!admin.user) return false;
+                const roles = admin.user.roles || [];
+                const hasVendorRole = roles.some(role => role.code === 'vendor');
+                const hasSuperadminRole = roles.some(role => role.code === 'superadmin' || role.code === 'administrator');
+                return hasVendorRole && !hasSuperadminRole;
+            });
+
+            if (adminsToRemove.length > 0) {
+                console.log(`[VendorService] Found ${adminsToRemove.length} vendor Administrator records to delete.`);
+                for (const admin of adminsToRemove) {
+                    try {
+                        await this.connection.rawConnection.query(
+                            `UPDATE "history_entry" SET "administratorId" = NULL WHERE "administratorId" = $1`,
+                            [admin.id]
+                        );
+                    } catch (err: any) {
+                        console.warn(`[VendorService] Could not nullify history_entry administratorId for admin ${admin.id}:`, err.message);
+                    }
+
+                    try {
+                        await this.connection.getRepository(ctx, Administrator).remove(admin);
+                        console.log(`[VendorService] Removed Administrator record for user ${admin.emailAddress}`);
+                    } catch (err: any) {
+                        console.error(`[VendorService] Failed to remove Administrator record for admin ${admin.id}:`, err.message);
+                    }
+                }
+            } else {
+                console.log('[VendorService] No vendor Administrator records found for removal.');
+            }
+        } catch (e: any) {
+            console.error('[VendorService] Error removing vendor Administrator records:', e.message);
+        }
     }
 
     async onApplicationBootstrap() {
         console.log('VendorService: Bootstrapping... Checking for Vendor role to ensure it exists.');
         try {
+            await this.connection.rawConnection.query(
+                `UPDATE channel SET token = '__default_channel__' WHERE code = '__default_channel__'`
+            ).catch(() => null);
             await this.fixCorruptedJsonColumns();
             await this.deduplicateVendorRecords();
             const ctx = await this.createBootstrapContext();
             await this.getOrCreateVendorRole(ctx);
+            await this.syncExistingApprovedVendors(ctx);
             console.log('VendorService: Bootstrapping complete. Vendor role ready.');
         } catch (e) {
             console.error('VendorService: Failed to bootstrap vendor role:', e);
+        }
+    }
+
+    /**
+     * Automatically sync existing approved Vendor records with native Vendure Seller & Channel entities
+     * and assign all their historical products & variants to their dedicated channel.
+     */
+    async syncExistingApprovedVendors(ctx: RequestContext): Promise<void> {
+        try {
+            console.log('[VendorService] Checking for approved vendors needing native Channel/Seller sync...');
+            const approvedVendors = await this.connection.getRepository(ctx, Vendor).find({
+                where: { status: VendorStatus.APPROVED },
+                relations: ['seller', 'channel', 'user'],
+            });
+
+            const defaultChannel = await this.channelService.getDefaultChannel(ctx);
+
+            for (const v of approvedVendors) {
+                let currentVendor = v;
+                if (!v.seller || !v.channel || !v.channelToken) {
+                    console.log(`[VendorService] Syncing native Seller/Channel for approved vendor: ${v.name} (ID: ${v.id})`);
+                    currentVendor = await this.ensureNativeSellerAndChannel(ctx, v);
+                }
+
+                if (currentVendor.channel?.id) {
+                    const vendorChannelId = currentVendor.channel.id;
+                    const vendorProducts = await this.connection.rawConnection.query(`
+                        SELECT id FROM product WHERE "customFieldsVendorid" = $1
+                    `, [currentVendor.id]);
+
+                    for (const p of vendorProducts) {
+                        try {
+                            await this.channelService.assignToChannels(ctx, Product, p.id, [vendorChannelId, defaultChannel.id]);
+                            const variants = await this.connection.rawConnection.query(`
+                                SELECT id FROM product_variant WHERE "productId" = $1
+                            `, [p.id]);
+                            for (const vRow of variants) {
+                                await this.channelService.assignToChannels(ctx, ProductVariant, vRow.id, [vendorChannelId, defaultChannel.id]);
+                            }
+                        } catch (prodSyncErr: any) {}
+                    }
+                }
+            }
+            console.log(`[VendorService] Successfully verified and synchronized ${approvedVendors.length} approved vendors and their catalog.`);
+        } catch (err) {
+            console.warn('[VendorService] Note during syncExistingApprovedVendors:', err);
         }
     }
 
@@ -2307,12 +2888,27 @@ export class VendorService implements OnApplicationBootstrap {
             mobileMoneyNumber: vendor.mobileMoneyNumber || vendor.phoneNumber
         });
         await this.connection.getRepository(ctx, WithdrawalRequest).save(withdrawal);
+
+        // Notify SuperAdmins of new withdrawal request
+        try {
+            const formattedAmount = Number(amount).toLocaleString('fr-FR');
+            const vName = vendor.name || (vendor as any).businessName || 'Vendeur';
+            await this.connection.rawConnection.query(`
+                INSERT INTO notification_log ("createdAt", "updatedAt", "userId", "eventType", title, body, "actionUrl", channel, "targetRole", "isRead", "sendSuccess")
+                SELECT NOW(), NOW(), u.id, 'WITHDRAWAL_REQUEST', 'Demande de Retrait 💰', $1, '/admin/finance', 'IN_APP,PUSH', 'ADMIN', false, true
+                FROM "user" u
+                INNER JOIN user_roles_role urr ON urr."userId" = u.id
+                INNER JOIN role r ON r.id = urr."roleId"
+                WHERE r.code = '__super_admin_role__' OR r.code = 'superadmin' OR u.identifier = 'superadmin'
+            `, [`La boutique "${vName}" a demandé un retrait de ${formattedAmount} FCFA.`]);
+        } catch (err) {}
+
         return true;
     }
 
     async approveWithdrawal(ctx: RequestContext, id: string): Promise<boolean> {
         const repo = this.connection.getRepository(ctx, WithdrawalRequest);
-        const withdrawal = await repo.findOne({ where: { id }, relations: ['vendor'] });
+        const withdrawal = await repo.findOne({ where: { id }, relations: ['vendor', 'vendor.user'] });
         if (!withdrawal) throw new Error('Demande de retrait introuvable');
         if (withdrawal.status !== WithdrawalStatus.PENDING) {
             throw new Error('La demande de retrait n\'est pas en attente');
@@ -2320,6 +2916,18 @@ export class VendorService implements OnApplicationBootstrap {
 
         withdrawal.status = WithdrawalStatus.APPROVED;
         await repo.save(withdrawal);
+
+        // Notify Vendor that withdrawal was approved
+        const vendorUserId = withdrawal.vendor?.user?.id || (withdrawal.vendor as any)?.userId;
+        if (vendorUserId) {
+            try {
+                const formattedAmount = Number(withdrawal.amount).toLocaleString('fr-FR');
+                await this.connection.rawConnection.query(`
+                    INSERT INTO notification_log ("createdAt", "updatedAt", "userId", "eventType", title, body, "actionUrl", channel, "targetRole", "isRead", "sendSuccess")
+                    VALUES (NOW(), NOW(), $1, 'WITHDRAWAL_APPROVED', 'Retrait Approuvé ✅', $2, '/dashboard/wallet', 'IN_APP,PUSH', 'VENDOR', false, true)
+                `, [vendorUserId.toString(), `Votre demande de retrait de ${formattedAmount} FCFA a été validée et transférée.`]);
+            } catch (err) {}
+        }
 
         const orders = await this.connection.getRepository(ctx, Order).find({
             where: {
@@ -2540,5 +3148,135 @@ export class VendorService implements OnApplicationBootstrap {
                 productsCount: 0,
             };
         }
+    }
+
+    async getMyVendorDashboardStats(ctx: RequestContext, vendorId: string): Promise<any> {
+        const numericVendorId = Number(vendorId);
+        const vendor = await this.findOne(ctx, vendorId);
+        const vendorChannelId = vendor?.channelId || 0;
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const startOfCurrentMonth = new Date(currentYear, currentMonth, 1);
+        const startOfPrevMonth = new Date(currentMonth === 0 ? currentYear - 1 : currentYear, currentMonth === 0 ? 11 : currentMonth - 1, 1);
+        const endOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
+
+        // 1. Query settled orders for this vendor
+        const settledOrdersRaw = await this.connection.rawConnection.query(
+            `SELECT DISTINCT o.id, o."createdAt", o."subTotalWithTax", o."state", o."customFieldsSellerStatus"
+             FROM "order" o
+             LEFT JOIN order_line ol ON ol."orderId" = o.id
+             LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+             LEFT JOIN product p ON pv."productId" = p.id
+             LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
+             WHERE (o."customFieldsVendorid" = $1
+                OR p."customFieldsVendorid" = $1
+                OR ol."sellerChannelId" = $2
+                OR occ."channelId" = $2
+                OR o."customFieldsVendorstatuses" LIKE $3)
+               AND o.state NOT IN ('AddingItems', 'ArrangingPayment', 'Cancelled')
+             ORDER BY o."createdAt" DESC`,
+            [numericVendorId, vendorChannelId, `%"${vendorId}"%`]
+        );
+
+        let totalRevenue = 0;
+        let monthlyRevenue = 0;
+        let prevMonthlyRevenue = 0;
+        let monthlyOrdersCount = 0;
+        let prevMonthlyOrdersCount = 0;
+        let pendingShipmentCount = 0;
+
+        const last30DaysMap: Record<string, { revenue: number; count: number }> = {};
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+            const key = d.toISOString().split('T')[0];
+            last30DaysMap[key] = { revenue: 0, count: 0 };
+        }
+
+        const settledStates = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
+
+        for (const o of settledOrdersRaw) {
+            const d = new Date(o.createdAt);
+            const isSettled = settledStates.includes(o.state);
+            const total = Number(o.subTotalWithTax || o.totalWithTax || 0);
+
+            if (isSettled) {
+                totalRevenue += total;
+
+                if (d >= startOfCurrentMonth) {
+                    monthlyRevenue += total;
+                    monthlyOrdersCount++;
+                } else if (d >= startOfPrevMonth && d <= endOfPrevMonth) {
+                    prevMonthlyRevenue += total;
+                    prevMonthlyOrdersCount++;
+                }
+
+                const dayKey = d.toISOString().split('T')[0];
+                if (last30DaysMap[dayKey]) {
+                    last30DaysMap[dayKey].revenue += total;
+                    last30DaysMap[dayKey].count++;
+                }
+            }
+
+            if (o.customFieldsSellerStatus !== 'confirmed' && o.customFieldsSellerStatus !== 'refused') {
+                pendingShipmentCount++;
+            }
+        }
+
+        const totalOrdersCount = settledOrdersRaw.length;
+        const revenueGrowth = prevMonthlyRevenue > 0
+            ? Math.round(((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100)
+            : (monthlyRevenue > 0 ? 100 : 0);
+
+        const ordersGrowth = prevMonthlyOrdersCount > 0
+            ? Math.round(((monthlyOrdersCount - prevMonthlyOrdersCount) / prevMonthlyOrdersCount) * 100)
+            : (monthlyOrdersCount > 0 ? 100 : 0);
+
+        // 2. Count products & low stock
+        const productsRaw = await this.connection.rawConnection.query(
+            `SELECT p.id, MIN(pv."stockOnHand") as min_stock
+             FROM product p
+             LEFT JOIN product_variant pv ON pv."productId" = p.id
+             LEFT JOIN product_channels_channel pcc ON pcc."productId" = p.id
+             WHERE p."customFieldsVendorid" = $1 OR (pcc."channelId" = $2 AND $2 > 0)
+             GROUP BY p.id`,
+            [numericVendorId, vendorChannelId]
+        );
+        const totalProductsCount = productsRaw.length;
+        const lowStockCount = productsRaw.filter((p: any) => p.min_stock !== null && Number(p.min_stock) >= 0 && Number(p.min_stock) <= 5).length;
+
+        // 3. Count likes
+        const likesRaw = await this.connection.rawConnection.query(
+            `SELECT COUNT(*) as count FROM product_like pl
+             JOIN product p ON pl."productId" = p.id
+             WHERE p."customFieldsVendorid" = $1`,
+            [numericVendorId]
+        ).catch(() => [{ count: 0 }]);
+        const totalLikesCount = Number(likesRaw[0]?.count || 0);
+
+        const chartData = Object.entries(last30DaysMap).map(([rawDate, data]) => ({
+            rawDate,
+            date: new Date(rawDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+            revenue: Math.round(data.revenue),
+            ordersCount: data.count,
+        }));
+
+        const currencyCode = ctx.channel?.defaultCurrencyCode || 'XOF';
+
+        return {
+            totalRevenue,
+            monthlyRevenue,
+            revenueGrowth,
+            totalOrdersCount,
+            monthlyOrdersCount,
+            ordersGrowth,
+            totalProductsCount,
+            pendingShipmentCount,
+            lowStockCount,
+            totalLikesCount,
+            currencyCode,
+            chartData,
+        };
     }
 }

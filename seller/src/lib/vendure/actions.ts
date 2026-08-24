@@ -466,4 +466,46 @@ export async function getRegistrationFields() {
     }
 }
 
+export async function requestVendorWithdrawal(amount: number) {
+    const token = await getAuthToken();
+    if (!token) return false;
+    try {
+        const result = await query(
+            `mutation RequestWithdrawal($amount: Int!) {
+                requestWithdrawal(amount: $amount)
+            }`,
+            { amount },
+            { token, useAuthToken: true }
+        );
+        return (result.data as any)?.requestWithdrawal || false;
+    } catch (e) {
+        console.error('[requestVendorWithdrawal] Error requesting withdrawal:', e);
+        return false;
+    }
+}
+
+export async function getMyWithdrawals() {
+    const token = await getAuthToken();
+    if (!token) return [];
+    try {
+        const result = await query(
+            `query GetMyWithdrawals {
+                myWithdrawals {
+                    id
+                    amount
+                    status
+                    createdAt
+                    reason
+                }
+            }`,
+            undefined,
+            { token, useAuthToken: true }
+        );
+        return (result.data as any)?.myWithdrawals || [];
+    } catch (e) {
+        console.error('[getMyWithdrawals] Error fetching withdrawals:', e);
+        return [];
+    }
+}
+
 

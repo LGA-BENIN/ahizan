@@ -93,6 +93,37 @@ export default function WalletClientContent({
         }
     };
 
+    const handleExportCSV = () => {
+        if (!orders || orders.length === 0) {
+            toast.error("Aucune transaction à exporter.");
+            return;
+        }
+
+        const headers = ["ID Commande", "Code", "Date", "Montant Brut (FCFA)", "Commission (FCFA)", "Gain Net (FCFA)", "Statut Vendeur", "Statut Paiement"];
+        const rows = orders.map((o: any) => [
+            `"${o.id}"`,
+            `"${o.code}"`,
+            `"${new Date(o.createdAt).toLocaleDateString('fr-FR')}"`,
+            Number(o.totalWithTax || 0).toFixed(0),
+            Number(o.customFields?.commissionAmount || 0).toFixed(0),
+            Number((o.totalWithTax || 0) - (o.customFields?.commissionAmount || 0)).toFixed(0),
+            `"${o.customFields?.sellerStatus || 'pending'}"`,
+            `"${o.customFields?.paymentStatus || 'PENDING'}"`
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+            + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `releve_ventes_ahizan_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success("Relevé CSV téléchargé avec succès !");
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
             
@@ -107,13 +138,23 @@ export default function WalletClientContent({
                     </p>
                 </div>
                 
-                <Button 
-                    onClick={handleWithdrawClick}
-                    className="h-12 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
-                >
-                    <ArrowUpRight className="w-5 h-5" />
-                    Retirer de l'argent
-                </Button>
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button 
+                        variant="outline"
+                        onClick={handleExportCSV}
+                        className="h-12 px-5 rounded-2xl border-border font-bold text-xs uppercase tracking-wider flex items-center gap-2"
+                    >
+                        <FileText className="w-4 h-4 text-primary" />
+                        Exporter CSV
+                    </Button>
+                    <Button 
+                        onClick={handleWithdrawClick}
+                        className="h-12 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 transition-all"
+                    >
+                        <ArrowUpRight className="w-5 h-5" />
+                        Retirer de l'argent
+                    </Button>
+                </div>
             </div>
 
             {/* Stat Cards Row */}
@@ -353,7 +394,7 @@ export default function WalletClientContent({
                                 type="button" 
                                 onClick={() => {
                                     setIsMissingPhoneModalOpen(false);
-                                    router.push('/dashboard/settings');
+                                    router.push('/dashboard/settings?tab=payment');
                                 }}
                                 className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90 text-white font-black flex items-center justify-center gap-2"
                             >

@@ -54,6 +54,49 @@ export class VendorShopApiResolver {
         return this.vendorService.findOrdersForVendor(ctx, vendor.id.toString(), options);
     }
 
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.findOrderForVendor(ctx, vendor.id.toString(), id);
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async myVendorWalletStats(
+        @Ctx() ctx: RequestContext
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.getVendorWalletStats(ctx, vendor.id.toString());
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async fulfillMyVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string,
+        @Args('trackingCode') trackingCode?: string,
+        @Args('carrier') carrier?: string
+    ): Promise<any> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+
+        return this.vendorService.fulfillOrderForVendor(ctx, vendor.id.toString(), orderId, trackingCode, carrier);
+    }
+
     /**
      * Update the authenticated vendor's profile (Re-submission or simple update)
      */

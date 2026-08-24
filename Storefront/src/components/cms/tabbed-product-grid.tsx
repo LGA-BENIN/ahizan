@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useThemeSettings } from '@/components/providers/theme-provider';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
 import { useLocation } from '@/contexts/location-context';
+import { fetchWithClientCache } from '@/lib/vendure/client-cache';
 
 interface TabConfig {
     id: string;
@@ -121,13 +122,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             }
 
             try {
-                const res = await fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: searchQuery, variables: { input } }),
-                });
-                const data = await res.json();
-                let items = data.data?.search?.items || [];
+                const data = await fetchWithClientCache(shopApiUrl, searchQuery, { input });
+                let items = data?.search?.items || [];
                 
                 // Fallback for when Vendure search index is empty but collection has direct variants
                 if (items.length === 0 && collectionSlug) {
@@ -144,13 +140,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             }
                         }
                     `;
-                    const fallbackRes = await fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query: fallbackQuery, variables: { slug: collectionSlug, take } }),
-                    });
-                    const fallbackData = await fallbackRes.json();
-                    const variants = fallbackData.data?.collection?.productVariants?.items || [];
+                    const fallbackData = await fetchWithClientCache(shopApiUrl, fallbackQuery, { slug: collectionSlug, take });
+                    const variants = fallbackData?.collection?.productVariants?.items || [];
                     if (variants.length > 0) {
                         items = variants.map((v: any) => ({
                             productId: v.product.id,
@@ -200,13 +191,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         }
                     }
                 `;
-                const res = await fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: manualQuery, variables: { ids: manualProductIds.map(String) } }),
-                });
-                const data = await res.json();
-                return (data.data?.products?.items || []).map((p: any) => ({
+                const data = await fetchWithClientCache(shopApiUrl, manualQuery, { ids: manualProductIds.map(String) });
+                return (data?.products?.items || []).map((p: any) => ({
                     productId: p.id,
                     productName: p.name,
                     slug: p.slug,

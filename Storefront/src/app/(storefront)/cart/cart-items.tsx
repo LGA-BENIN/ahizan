@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import {Button} from '@/components/ui/button';
-import {Minus, Plus, X, ShoppingCart} from 'lucide-react';
+import {Minus, Plus, X, ShoppingCart, Store, MapPin} from 'lucide-react';
 import {Price} from '@/components/commerce/price';
 import {removeFromCart, adjustQuantity} from './actions';
 import {LottieEmptyCart} from '@/components/shared/animations/LottieEmptyCart';
@@ -24,6 +24,15 @@ type ActiveOrder = {
                 featuredAsset?: {
                     preview: string;
                 } | null;
+                customFields?: {
+                    vendor?: {
+                        id?: string;
+                        name?: string;
+                        zone?: string;
+                        location?: { id?: string; name?: string };
+                        physicalMarket?: { id?: string; name?: string };
+                    };
+                };
             };
         };
     }>;
@@ -49,120 +58,163 @@ export async function CartItems({activeOrder}: { activeOrder: ActiveOrder | null
         );
     }
 
+    // Group lines by vendor
+    const vendorGroupsMap = new Map<string, {
+        vendorName: string;
+        vendorLocation?: string;
+        lines: typeof activeOrder.lines;
+    }>();
+
+    activeOrder.lines.forEach((line) => {
+        const vendor = line.productVariant.product.customFields?.vendor;
+        const vendorId = vendor?.id ? String(vendor.id) : 'official';
+        const vendorName = vendor?.name || 'Boutique Officielle Ahizan';
+        const vendorLocation = vendor?.physicalMarket?.name || vendor?.location?.name || vendor?.zone;
+
+        if (!vendorGroupsMap.has(vendorId)) {
+            vendorGroupsMap.set(vendorId, {
+                vendorName,
+                vendorLocation,
+                lines: []
+            });
+        }
+        vendorGroupsMap.get(vendorId)!.lines.push(line);
+    });
+
+    const vendorGroups = Array.from(vendorGroupsMap.values());
+
     return (
         <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between pb-4 border-b">
                 <h2 className="font-bold text-lg">{activeOrder.lines.length} Article{activeOrder.lines.length > 1 ? 's' : ''}</h2>
             </div>
-            {activeOrder.lines.map((line) => (
-                <div
-                    key={line.id}
-                    className="flex flex-col sm:flex-row gap-4 p-4 border rounded-xl bg-card shadow-sm hover:shadow-md transition-shadow"
-                >
-                    {line.productVariant.product.featuredAsset && (
-                        <Link
-                            href={`/product/${line.productVariant.product.slug}`}
-                            className="flex-shrink-0"
-                        >
-                            <Image
-                                src={line.productVariant.product.featuredAsset.preview}
-                                alt={line.productVariant.name}
-                                width={100}
-                                height={100}
-                                className="rounded-lg object-cover w-full sm:w-[100px] h-[100px] border shadow-sm"
-                            />
-                        </Link>
-                    )}
 
-                    <div className="flex-grow min-w-0 flex flex-col justify-between">
-                        <div>
-                            <div className="flex justify-between items-start gap-4">
-                                <Link
-                                    href={`/product/${line.productVariant.product.slug}`}
-                                    className="font-bold text-base hover:text-primary transition-colors block leading-tight"
-                                >
-                                    {line.productVariant.product.name}
-                                </Link>
-                                <div className="hidden sm:block text-right">
-                                    <p className="font-bold text-lg text-primary">
-                                        <Price value={line.linePriceWithTax} currencyCode={activeOrder.currencyCode}/>
-                                    </p>
+            {vendorGroups.map((group, gIdx) => (
+                <div key={'vendor-group-' + gIdx} className="space-y-3">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted/60 dark:bg-muted/30 rounded-xl border text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <Store className="w-4 h-4 text-primary" />
+                        <span>{group.vendorName}</span>
+                        {group.vendorLocation && (
+                            <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground ml-auto">
+                                <MapPin className="w-3 h-3" />
+                                {group.vendorLocation}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="space-y-3">
+                        {group.lines.map((line) => (
+                            <div
+                                key={line.id}
+                                className="flex flex-col sm:flex-row gap-4 p-4 border rounded-xl bg-card shadow-sm hover:shadow-md transition-shadow"
+                            >
+                                {line.productVariant.product.featuredAsset && (
+                                    <Link
+                                        href={`/product/${line.productVariant.product.slug}`}
+                                        className="flex-shrink-0"
+                                    >
+                                        <Image
+                                            src={line.productVariant.product.featuredAsset.preview}
+                                            alt={line.productVariant.name}
+                                            width={100}
+                                            height={100}
+                                            className="rounded-lg object-cover w-full sm:w-[100px] h-[100px] border shadow-sm"
+                                        />
+                                    </Link>
+                                )}
+
+                                <div className="flex-grow min-w-0 flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex justify-between items-start gap-4">
+                                            <Link
+                                                href={`/product/${line.productVariant.product.slug}`}
+                                                className="font-bold text-base hover:text-primary transition-colors block leading-tight"
+                                            >
+                                                {line.productVariant.product.name}
+                                            </Link>
+                                            <div className="hidden sm:block text-right">
+                                                <p className="font-bold text-lg text-primary">
+                                                    <Price value={line.linePriceWithTax} currencyCode={activeOrder.currencyCode}/>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {line.productVariant.name !== line.productVariant.product.name && (
+                                            <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-wider">
+                                                Option: {line.productVariant.name}
+                                            </p>
+                                        )}
+                                        <p className="text-[10px] font-black text-muted-foreground/60 mt-1 uppercase tracking-widest">
+                                            SKU: {line.productVariant.sku}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center bg-muted/50 rounded-xl border p-1">
+                                                <form
+                                                    action={async () => {
+                                                        'use server';
+                                                        await adjustQuantity(line.id, Math.max(1, line.quantity - 1));
+                                                    }}
+                                                >
+                                                    <Button
+                                                        type="submit"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 rounded-lg hover:bg-background shadow-sm"
+                                                        disabled={line.quantity <= 1}
+                                                    >
+                                                        <Minus className="h-3.5 w-3.5"/>
+                                                    </Button>
+                                                </form>
+
+                                                <span className="w-10 text-center font-black text-sm tabular-nums">{line.quantity}</span>
+
+                                                <form
+                                                    action={async () => {
+                                                        'use server';
+                                                        await adjustQuantity(line.id, line.quantity + 1);
+                                                    }}
+                                                >
+                                                    <Button
+                                                        type="submit"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 rounded-lg hover:bg-background shadow-sm"
+                                                    >
+                                                        <Plus className="h-3.5 w-3.5"/>
+                                                    </Button>
+                                                </form>
+                                            </div>
+
+                                            <form
+                                                action={async () => {
+                                                    'use server';
+                                                    await removeFromCart(line.id);
+                                                }}
+                                            >
+                                                <Button
+                                                    type="submit"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-9 px-3 text-destructive hover:text-destructive hover:bg-destructive/10 font-bold rounded-lg"
+                                                >
+                                                    <X className="h-4 w-4 mr-2"/>
+                                                    Supprimer
+                                                </Button>
+                                            </form>
+                                        </div>
+
+                                        <div className="sm:hidden">
+                                            <p className="font-bold text-lg text-primary">
+                                                <Price value={line.linePriceWithTax}
+                                                       currencyCode={activeOrder.currencyCode}/>
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            {line.productVariant.name !== line.productVariant.product.name && (
-                                <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-wider">
-                                    Option: {line.productVariant.name}
-                                </p>
-                            )}
-                            <p className="text-[10px] font-black text-muted-foreground/60 mt-1 uppercase tracking-widest">
-                                SKU: {line.productVariant.sku}
-                            </p>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-6">
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center bg-muted/50 rounded-xl border p-1">
-                                    <form
-                                        action={async () => {
-                                            'use server';
-                                            await adjustQuantity(line.id, Math.max(1, line.quantity - 1));
-                                        }}
-                                    >
-                                        <Button
-                                            type="submit"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 rounded-lg hover:bg-background shadow-sm"
-                                            disabled={line.quantity <= 1}
-                                        >
-                                            <Minus className="h-3.5 w-3.5"/>
-                                        </Button>
-                                    </form>
-
-                                    <span className="w-10 text-center font-black text-sm tabular-nums">{line.quantity}</span>
-
-                                    <form
-                                        action={async () => {
-                                            'use server';
-                                            await adjustQuantity(line.id, line.quantity + 1);
-                                        }}
-                                    >
-                                        <Button
-                                            type="submit"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 rounded-lg hover:bg-background shadow-sm"
-                                        >
-                                            <Plus className="h-3.5 w-3.5"/>
-                                        </Button>
-                                    </form>
-                                </div>
-
-                                <form
-                                    action={async () => {
-                                        'use server';
-                                        await removeFromCart(line.id);
-                                    }}
-                                >
-                                    <Button
-                                        type="submit"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-9 px-3 text-destructive hover:text-destructive hover:bg-destructive/10 font-bold rounded-lg"
-                                    >
-                                        <X className="h-4 w-4 mr-2"/>
-                                        Supprimer
-                                    </Button>
-                                </form>
-                            </div>
-
-                            <div className="sm:hidden">
-                                <p className="font-bold text-lg text-primary">
-                                    <Price value={line.linePriceWithTax}
-                                           currencyCode={activeOrder.currencyCode}/>
-                                </p>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
             ))}

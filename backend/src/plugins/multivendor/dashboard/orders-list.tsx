@@ -864,22 +864,27 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                             <p style={{ fontSize: '13px', color: '#881337', margin: '0 0 12px 0' }}>
                                 Le vendeur {activeSubOrderVendor ? activeSubOrderVendor.name : ''} a annulé sa partie de la commande. Veuillez réassigner la commande à un autre vendeur ou remplacer par un autre produit.
                             </p>
-                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setReassignVendorModal(true)}
-                                    style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                                >
-                                    🔄 Assigner la commande à un autre vendeur
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setReassignProductModal(true)}
-                                    style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                                >
-                                    📦 Assigner à un autre produit
-                                </button>
-                            </div>
+                        </div>
+                    )}
+
+                    {/* Unconditional Admin Actions */}
+                    {sStat !== 'reassigned_to_other' && (
+                        <div style={{ padding: '16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Réassignation Admin :</span>
+                            <button
+                                type="button"
+                                onClick={() => setReassignVendorModal(true)}
+                                style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                            >
+                                🔄 Assigner la commande à un autre vendeur
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setReassignProductModal(true)}
+                                style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                            >
+                                📦 Assigner à un autre produit
+                            </button>
                         </div>
                     )}
 

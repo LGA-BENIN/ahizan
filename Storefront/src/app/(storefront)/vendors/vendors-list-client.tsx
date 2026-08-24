@@ -15,6 +15,9 @@ interface Vendor {
     ratingCount?: number;
     logo?: { preview: string } | null;
     coverImage?: { preview: string } | null;
+    location?: { id: string; name: string } | null;
+    physicalMarket?: { id: string; name: string } | null;
+    markets?: Array<{ id: string; name: string }>;
 }
 
 interface VendorsListClientProps {
@@ -25,14 +28,18 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedZone, setSelectedZone] = useState('all');
 
-    // Extract all unique zones for filter dropdown
-    const zones = ['all', ...Array.from(new Set(initialVendors.map(v => v.zone).filter(Boolean)))];
+    // Extract all unique locations & markets for filter dropdown
+    const locationOptions = ['all', ...Array.from(new Set(
+        initialVendors.map(v => v.physicalMarket?.name || v.location?.name || v.zone).filter(Boolean)
+    ))];
 
     // Filter vendors locally
     const filteredVendors = initialVendors.filter(vendor => {
         const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (vendor.description && vendor.description.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesZone = selectedZone === 'all' || vendor.zone === selectedZone;
+        
+        const vendorLoc = vendor.physicalMarket?.name || vendor.location?.name || vendor.zone;
+        const matchesZone = selectedZone === 'all' || vendorLoc === selectedZone || vendor.zone === selectedZone;
         return matchesSearch && matchesZone;
     });
 
@@ -56,11 +63,11 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                     <select
                         value={selectedZone}
                         onChange={(e) => setSelectedZone(e.target.value)}
-                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl leading-5 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all"
+                        className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl leading-5 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary sm:text-sm transition-all font-semibold"
                     >
-                        <option value="all">Toutes les zones</option>
-                        {zones.filter(z => z !== 'all').map(zone => (
-                            <option key={zone} value={zone}>{zone}</option>
+                        <option value="all">Tous les marchés & zones</option>
+                        {locationOptions.filter(z => z !== 'all').map(loc => (
+                            <option key={loc as string} value={loc as string}>{loc as string}</option>
                         ))}
                     </select>
                 </div>
@@ -121,12 +128,18 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                                         </span>
                                     </div>
 
-                                    {/* Ratings & Zone */}
-                                    <div className="flex items-center gap-3 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-4 flex-wrap">
-                                        {(vendor.zone || vendor.address) && (
+                                    {/* Ratings & Zone & Market */}
+                                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3 flex-wrap">
+                                        {vendor.physicalMarket?.name && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800 text-[11px]">
+                                                <Store className="h-3 w-3" />
+                                                {vendor.physicalMarket.name}
+                                            </span>
+                                        )}
+                                        {(vendor.location?.name || vendor.zone || vendor.address) && (
                                             <span className="flex items-center gap-1">
                                                 <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                                                {vendor.zone || vendor.address}
+                                                {vendor.location?.name || vendor.zone || vendor.address}
                                             </span>
                                         )}
                                         {hasRating && (

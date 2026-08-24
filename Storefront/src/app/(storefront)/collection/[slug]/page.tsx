@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { query } from '@/lib/vendure/api';
-import { GetCollectionProductsQuery, GetCollectionAllowedFacetsQuery, GetProductsQuery } from '@/lib/vendure/queries';
+import { GetCollectionProductsQuery, GetCollectionAllowedFacetsQuery } from '@/lib/vendure/queries';
 import { ProductGrid } from '@/components/commerce/product-grid';
 import { FacetFilters } from '@/components/commerce/facet-filters';
 import { getCurrentPage, buildSearchInput } from '@/lib/search-helpers';
@@ -276,31 +276,40 @@ export default async function CollectionPage({ params, searchParams }: any) {
         const searchParamsResolved = await searchParams;
         const page = getCurrentPage(searchParamsResolved);
 
-        const [collectionMeta, allowedFacetsData] = await Promise.all([
-            getCollectionMetadata(slug),
+        // Build native search input
+        const searchInput = buildSearchInput({ searchParams: searchParamsResolved, collectionSlug: slug });
+
+        // Load CMS layout configuration (preset preview or published page) & allowed facets concurrently
+        const presetId = searchParamsResolved?.presetId;
+        const [cmsPage, homeCmsPage, allowedFacetsData] = await Promise.all([
+            presetId ? getPreviewHabillageContent(presetId) : getPageContent('category'),
+            getPageContent('home'),
             getCollectionAllowedFacets(slug)
         ]);
 
-        const collection = collectionMeta?.data?.collection;
+        const sections = (cmsPage?.sections || [])
+            .filter((s: any) => (s.pageSlug || 'home') === 'category')
+            .sort((a: any, b: any) => a.order - b.order);
+
+        // Handle products per page from CMS settings if present
+        const gridSection = sections.find((s: any) => s.type === 'DYNAMIC_PRODUCT_GRID');
+        if (gridSection?.data?.productsPerPage) {
+            searchInput.take = Number(gridSection.data.productsPerPage);
+            searchInput.skip = (page - 1) * searchInput.take;
+        }
+
+        // Execute unified native query for collection details + search results
+        const searchResult = await query(GetCollectionProductsQuery, {
+            slug,
+            input: searchInput,
+        });
+
+        const collection = searchResult?.data?.collection;
         if (!collection) return <div className="mt-20 p-10 text-center font-bold text-xl">Collection non trouvée.</div>;
 
         const allowedFacets = (allowedFacetsData?.data as any)?.collectionAllowedFacets?.allowedFacets || [];
         const allowedFacetIds = (allowedFacetsData?.data as any)?.collectionAllowedFacets?.allowedFacetIds || [];
 
-        // Load CMS layout configuration (preset preview or published page)
-        const presetId = searchParamsResolved?.presetId;
-        let cmsPage = null;
-        let homeCmsPage = null;
-        if (presetId) {
-            cmsPage = await getPreviewHabillageContent(presetId);
-            // In preview, we might not easily get the preview of home unless specified. 
-            // We'll just fetch the published home for fallback images.
-            homeCmsPage = await getPageContent('home');
-        } else {
-            cmsPage = await getPageContent('category');
-            homeCmsPage = await getPageContent('home');
-        }
-        
         let fallbackCollectionImage = '';
         if (homeCmsPage?.sections) {
             const categoriesSection = homeCmsPage.sections.find((s: any) => s.type === 'CATEGORIES' && s.isActive);
@@ -309,125 +318,12 @@ export default async function CollectionPage({ params, searchParams }: any) {
             }
         }
 
-        const sections = (cmsPage?.sections || [])
-            .filter(s => (s.pageSlug || 'home') === 'category')
-            .sort((a, b) => a.order - b.order);
-
-        // Try Vendure's native search API
-        const searchInput = buildSearchInput({ searchParams: searchParamsResolved, collectionSlug: slug });
-        
-        // Handle products per page from CMS settings if present
-        const gridSection = sections.find(s => s.type === 'DYNAMIC_PRODUCT_GRID');
-        if (gridSection?.data?.productsPerPage) {
-            searchInput.take = Number(gridSection.data.productsPerPage);
-            searchInput.skip = (page - 1) * searchInput.take;
-        }
-
-        const zoneId = searchParamsResolved?.zoneId;
-        
-        let searchResult = null;
-        if (!zoneId) {
-            searchResult = await query(GetCollectionProductsQuery, {
-                slug,
-                input: searchInput,
-            });
-        }
-
         const searchData = searchResult?.data?.search;
         let totalItems = searchData?.totalItems || 0;
         let products: any[] = searchData?.items || [];
-        let facetValues = searchData?.facetValues || [];
+        const facetValues = searchData?.facetValues || [];
 
-        console.log(`[CollectionPage] slug=${slug} collectionId=${collection.id} searchTotalItems=${totalItems} zoneId=${zoneId}`);
-
-        if (totalItems === 0 || zoneId) {
-            try {
-                const directResult = await query(GetProductsQuery, {
-                    options: { take: 100 }
-                });
-                const allProducts = (directResult?.data?.products?.items || []) as any[];
-                const collectionId = collection.id;
-
-                const descendantIds = new Set<string>([String(collectionId)]);
-                const children = (collection as any).children || [];
-                children.forEach((child: any) => {
-                    descendantIds.add(String(child.id));
-                    (child.children || []).forEach((grandChild: any) => {
-                        descendantIds.add(String(grandChild.id));
-                    });
-                });
-
-                let collectionProducts = allProducts.filter((p: any) =>
-                    (p.collections || []).some((c: any) => descendantIds.has(String(c.id)))
-                );
-                
-                const activeFacetIds = searchInput.facetValueFilters?.map((f: any) => f.and) || [];
-                if (activeFacetIds.length > 0) {
-                    collectionProducts = collectionProducts.filter((p: any) => {
-                        const productFacetIds = (p.facetValues || []).map((fv: any) => String(fv.id));
-                        return activeFacetIds.every(id => productFacetIds.includes(String(id)));
-                    });
-                }
-
-                if (zoneId) {
-                    collectionProducts = collectionProducts.filter((p: any) => {
-                        const vendor = p.customFields?.vendor;
-                        if (!vendor) return false;
-                        const belongsToMarket = String(vendor.physicalMarket?.id) === String(zoneId) ||
-                            (vendor.markets || []).some((m: any) => String(m.id) === String(zoneId));
-                        const belongsToNeighborhood = String(vendor.location?.id) === String(zoneId);
-                        return belongsToMarket || belongsToNeighborhood;
-                    });
-                }
-
-                if (collectionProducts.length > 0) {
-                    totalItems = collectionProducts.length;
-                    products = collectionProducts.map((p: any) => ({
-                        productId: p.id,
-                        productName: p.name,
-                        slug: p.slug,
-                        productAsset: p.featuredAsset,
-                        priceWithTax: p.variants?.[0]?.priceWithTax ? {
-                            __typename: 'SinglePrice',
-                            value: p.variants[0].priceWithTax
-                        } : null,
-                        currencyCode: 'XOF',
-                        description: p.description,
-                        collectionIds: (p.collections || []).map((c: any) => c.id),
-                        facetValueIds: (p.facetValues || []).map((fv: any) => fv.id),
-                        inStock: p.variants?.some((v: any) => v.stockLevel && v.stockLevel !== 'OUT_OF_STOCK'),
-                        customFields: p.customFields
-                    }));
-
-                    const facetValueCounts = new Map<string, number>();
-                    collectionProducts.forEach((p: any) => {
-                        (p.facetValues || []).forEach((fv: any) => {
-                            facetValueCounts.set(String(fv.id), (facetValueCounts.get(String(fv.id)) || 0) + 1);
-                        });
-                    });
-
-                    facetValues = [];
-                    allowedFacets.forEach((facet: any) => {
-                        (facet.values || []).forEach((value: any) => {
-                            const count = facetValueCounts.get(String(value.id)) || 0;
-                            if (count > 0) {
-                                facetValues.push({
-                                    count,
-                                    facetValue: {
-                                        id: value.id,
-                                        name: value.name,
-                                        facet: { id: facet.id, name: facet.name }
-                                    }
-                                });
-                            }
-                        });
-                    });
-                }
-            } catch (e) {
-                console.error('[CollectionPage] Fallback query failed:', e);
-            }
-        }
-        // Filter products by price range on storefront side
+        // Filter products by price range on storefront side if minPrice/maxPrice is specified
         const minPriceNum = searchParamsResolved?.minPrice ? Number(searchParamsResolved.minPrice) : undefined;
         const maxPriceNum = searchParamsResolved?.maxPrice ? Number(searchParamsResolved.maxPrice) : undefined;
 
@@ -454,20 +350,11 @@ export default async function CollectionPage({ params, searchParams }: any) {
             totalItems = products.length;
         }
 
-        // Apply pagination slice if we did local filtering (fallback or price/zone active)
-        const isLocallyFiltered = (searchResult === null) || minPriceNum !== undefined || maxPriceNum !== undefined;
-        let paginatedItems = products;
-        if (isLocallyFiltered) {
-            const take = searchInput.take || 12;
-            const skip = (page - 1) * take;
-            paginatedItems = products.slice(skip, skip + take);
-        }
-
         const productData = {
             data: {
                 search: {
                     totalItems,
-                    items: paginatedItems,
+                    items: products,
                     facetValues,
                 }
             }

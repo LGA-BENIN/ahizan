@@ -25,12 +25,19 @@ export const commonApiExtensions = `
         rejectionReason: String
         suspensionReason: String
         products: [Product!]
+        orders: [Order!]
         user: User
+        seller: Seller
+        channel: Channel
+        channelToken: String
 
         # Legal & Identity
         rccmNumber: String
+        rccmFile: Asset
         ifuNumber: String
+        ifuFile: Asset
         idCardNumber: String
+        idCardFile: Asset
 
         # Social & Web
         website: String
@@ -84,6 +91,7 @@ export const commonApiExtensions = `
         rating: Float
         ratingCount: Int
         type: String
+        commissionRate: Float
 
         # New Fields
         rccmNumber: String
@@ -97,6 +105,13 @@ export const commonApiExtensions = `
         instagram: String
         
         dynamicDetails: JSON
+
+        # Payment Reception
+        paymentMethod: String
+        mobileMoneyProvider: String
+        mobileMoneyNumber: String
+        bankName: String
+        bankAccountNumber: String
 
         # Geolocation & Markets Input
         latitude: Float
@@ -187,6 +202,29 @@ export const commonApiExtensions = `
         totalItems: Int!
     }
 
+    input CreateVendorOptionInput {
+        name: String!
+        code: String!
+    }
+
+    input CreateVendorOptionGroupInput {
+        name: String!
+        code: String!
+        options: [CreateVendorOptionInput!]!
+    }
+
+    input CreateVendorVariantInput {
+        id: ID
+        name: String
+        sku: String
+        price: Int!
+        stock: Int!
+        onPromotion: Boolean
+        promotionalPrice: Int
+        optionCodes: [String!]
+        featuredAssetId: ID
+    }
+
     input CreateVendorProductInput {
         name: String!
         description: String!
@@ -197,8 +235,15 @@ export const commonApiExtensions = `
         facetValueIds: [ID!]
         assetIds: [ID!]
         featuredAssetId: ID
+        enabled: Boolean
+        sku: String
+        weight: Float
+        width: Float
+        height: Float
         onPromotion: Boolean
         promotionalPrice: Int
+        optionGroups: [CreateVendorOptionGroupInput!]
+        variants: [CreateVendorVariantInput!]
     }
 
     input UpdateVendorProductInput {
@@ -210,14 +255,21 @@ export const commonApiExtensions = `
         assetIds: [ID!]
         featuredAssetId: ID
         enabled: Boolean
+        sku: String
+        weight: Float
+        width: Float
+        height: Float
         onPromotion: Boolean
         promotionalPrice: Int
+        optionGroups: [CreateVendorOptionGroupInput!]
+        variants: [CreateVendorVariantInput!]
     }
 
     input UpdateVendorProductVariantInput {
         id: ID!
         price: Int
         stock: Int
+        sku: String
         onPromotion: Boolean
         promotionalPrice: Int
     }
@@ -328,6 +380,28 @@ export const commonApiExtensions = `
         likesCount: Int!
     }
 
+    type DailySalesPoint {
+        date: String!
+        rawDate: String!
+        revenue: Float!
+        ordersCount: Int!
+    }
+
+    type VendorDashboardStats {
+        totalRevenue: Float!
+        monthlyRevenue: Float!
+        revenueGrowth: Float!
+        totalOrdersCount: Int!
+        monthlyOrdersCount: Int!
+        ordersGrowth: Float!
+        totalProductsCount: Int!
+        pendingShipmentCount: Int!
+        lowStockCount: Int!
+        totalLikesCount: Int!
+        currencyCode: String!
+        chartData: [DailySalesPoint!]!
+    }
+
     type PlatformPublicStats {
         visitorsCount: Int!
         ordersCount: Int!
@@ -346,6 +420,24 @@ export const commonApiExtensions = `
         rejectionReason: String
         transferReference: String
     }
+
+    type VendorFulfillmentResult {
+        id: ID!
+        state: String!
+        trackingCode: String
+        method: String
+    }
+
+    type VendorWalletStats {
+        totalSales: Float!
+        platformCommission: Float!
+        netEarnings: Float!
+        availableBalance: Float!
+        pendingBalance: Float!
+        totalWithdrawn: Float!
+        pendingWithdrawalAmount: Float!
+        currencyCode: String!
+    }
 `;
 
 export const shopApiExtensions = `
@@ -361,6 +453,7 @@ export const shopApiExtensions = `
         vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
         myVendorProfile: Vendor
         myVendorOrders(options: OrderListOptions): OrderList!
+        myVendorOrder(id: ID!): Order
         myVendorProducts(options: ProductListOptions): ProductList!
         myVendorProduct(id: ID!): Product
         platformSettings: PlatformSettings
@@ -368,6 +461,8 @@ export const shopApiExtensions = `
         orderStatuses: [OrderStatus!]!
         vendorOrderStatuses: [OrderStatus!]!
         myWithdrawals: [WithdrawalRequest!]!
+        myVendorDashboardStats: VendorDashboardStats!
+        myVendorWalletStats: VendorWalletStats!
 
 
         # Email role checking (public — no auth required)
@@ -398,6 +493,7 @@ export const shopApiExtensions = `
         applyToBecomeVendor(input: CreateVendorInput!): Vendor!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
+        fulfillMyVendorOrder(orderId: ID!, trackingCode: String, carrier: String): VendorFulfillmentResult!
         updateMyOrderSellerStatus(orderId: ID!, statusCode: String!): Boolean!
         updateMyOrderLineSellerStatus(lineId: ID!, statusCode: String!): Boolean!
         continueOrderWithoutReassigning(orderId: ID!, lineId: ID): Boolean!
@@ -439,10 +535,13 @@ export const adminApiExtensions = `
         myVendorProfile: Vendor
         myVendorProducts(options: ProductListOptions): ProductList!
         myVendorOrders(options: OrderListOptions): OrderList!
+        myVendorOrder(id: ID!): Order
         myVendorProduct(id: ID!): Product
         platformSettings: PlatformSettings
         orderStatuses: [OrderStatus!]!
         withdrawalRequests: [WithdrawalRequest!]!
+        myVendorDashboardStats: VendorDashboardStats!
+        myVendorWalletStats: VendorWalletStats!
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
@@ -462,6 +561,7 @@ export const adminApiExtensions = `
         deleteVendor(id: ID!, deleteProducts: Boolean!, deleteOrders: Boolean!): Boolean!
         updateMyVendorProfile(input: UpdateVendorInput!): Vendor!
         updateMyOrderStatus(orderId: ID!, status: String!): TransitionOrderToStateResult!
+        fulfillMyVendorOrder(orderId: ID!, trackingCode: String, carrier: String): VendorFulfillmentResult!
         continueOrderWithoutReassigning(orderId: ID!, lineId: ID): Boolean!
         cancelCustomerOrder(orderId: ID!): Boolean!
 
@@ -490,6 +590,11 @@ export const adminApiExtensions = `
         updateMyProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
         deleteMyProduct(id: ID!): DeletionResponse!
         uploadVendorFile(file: Upload!): Asset!
+        
+        # Superadmin Product Management
+        adminCreateProduct(input: CreateVendorProductInput!, vendorId: ID!): Product!
+        adminUpdateProduct(id: ID!, input: UpdateVendorProductInput!, vendorId: ID): Product!
+        adminUpdateProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
         
         # Order Management (Admin status updates & Reassignment)
         updateOrderAdminStatus(orderId: ID!, status: String!, vendorId: ID): Boolean!

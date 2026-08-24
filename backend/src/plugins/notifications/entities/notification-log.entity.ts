@@ -45,6 +45,14 @@ export class NotificationLog extends VendureEntity {
     @Column({ nullable: true })
     channel: string; // 'IN_APP' | 'EMAIL' | 'SMS' | 'PUSH'
 
+    /** Target role for portal separation ('CUSTOMER' | 'VENDOR' | 'ADMIN') */
+    @Column({ nullable: true })
+    targetRole: string;
+
+    /** Associated Channel ID if applicable */
+    @Column({ nullable: true })
+    channelId: number;
+
     /** Raw data payload (JSON) */
     @Column({ type: 'simple-json', nullable: true })
     data: any;

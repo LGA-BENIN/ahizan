@@ -1,6 +1,6 @@
 import { Package, ShoppingBag, Coins, Activity, ArrowRight, TrendingUp, Users, Percent, Truck, AlertTriangle, Wallet } from "lucide-react";
 import { query } from "@/lib/vendure/api";
-import { GetMyVendorProfileQuery } from "@/lib/vendure/queries";
+import { GetMyVendorProfileQuery, GetMyVendorDashboardStatsQuery } from "@/lib/vendure/queries";
 import { GetMyVendorProductsQuery } from "@/lib/vendure/vendor-product-mutations";
 import { GetMyVendorOrdersQuery } from "@/lib/vendure/vendor-order-mutations";
 import { unstable_noStore as noStore } from 'next/cache';
@@ -16,75 +16,39 @@ export default async function DashboardPage() {
     noStore();
     const token = await getAuthToken();
 
-    // Fetch vendor profile, products, and orders in parallel
-    const [{ data: vendorData }, { data: productsData }, { data: ordersData }, { data: allOrdersData }, likesData] = await Promise.all([
+    // Fetch vendor profile, stats, products, and orders in parallel
+    const [{ data: vendorData }, { data: statsData }, { data: productsData }, { data: ordersData }] = await Promise.all([
         query(GetMyVendorProfileQuery, {}, { token }).catch(() => ({ data: { myVendorProfile: null } })),
-        query(GetMyVendorProductsQuery, { options: { take: 50, sort: { createdAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
+        query(GetMyVendorDashboardStatsQuery, {}, { token }).catch(() => ({ data: { myVendorDashboardStats: null } })),
+        query(GetMyVendorProductsQuery, { options: { take: 10, sort: { createdAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorProducts: { items: [], totalItems: 0 } } })),
         query(GetMyVendorOrdersQuery, { options: { take: 10, sort: { updatedAt: 'DESC' } } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
-        query(GetMyVendorOrdersQuery, { options: { take: 1000 } }, { token }).catch(() => ({ data: { myVendorOrders: { items: [], totalItems: 0 } } })),
-        getVendorProductsLikesAction().catch(() => [])
     ]);
 
     const vendor = (vendorData as any)?.myVendorProfile;
     const vendorName = vendor?.name || 'Vendeur';
-    const totalProducts = (productsData as any)?.myVendorProducts?.totalItems || 0;
+    const stats = (statsData as any)?.myVendorDashboardStats;
+
+    const totalProducts = stats?.totalProductsCount ?? (productsData as any)?.myVendorProducts?.totalItems ?? 0;
     const rawOrders = (ordersData as any)?.myVendorOrders?.items || [];
-    // N'afficher chez le vendeur que les commandes payees ou validees (exclure l'etat de brouillon de paiement et annulees)
     const recentOrders = rawOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment' && o.state !== 'Cancelled');
     const products = [...((productsData as any)?.myVendorProducts?.items || [])].sort((a: any, b: any) => {
         return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
 
-    // Filter settled states for revenue calculation (Real stats)
-    const settledStates = ['PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered'];
-    const rawAllOrders = (allOrdersData as any)?.myVendorOrders?.items || [];
-    const settledAllOrders = rawAllOrders.filter((o: any) => o && settledStates.includes(o.state));
+    const revenue = stats?.monthlyRevenue ?? 0;
+    const revenueGrowth = stats?.revenueGrowth ?? 0;
+    const hasPrevRevenue = (stats?.monthlyRevenue ?? 0) > 0 || (stats?.revenueGrowth ?? 0) !== 0;
 
-    // Calculate real monthly revenue
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const monthlyOrders = settledAllOrders.filter((o: any) => {
-        const d = new Date(o.createdAt);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
-    const revenue = monthlyOrders.reduce((acc: number, o: any) => acc + (o.totalWithTax || 0), 0);
+    const monthlyOrdersCount = stats?.monthlyOrdersCount ?? 0;
+    const ordersGrowth = stats?.ordersGrowth ?? 0;
+    const hasPrevOrders = (stats?.monthlyOrdersCount ?? 0) > 0 || (stats?.ordersGrowth ?? 0) !== 0;
 
-    // Calculate real previous month revenue & orders for true growth comparison
-    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const prevMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const prevMonthOrders = settledAllOrders.filter((o: any) => {
-        const d = new Date(o.createdAt);
-        return d.getMonth() === prevMonth && d.getFullYear() === prevMonthYear;
-    });
-    const prevRevenue = prevMonthOrders.reduce((acc: number, o: any) => acc + (o.totalWithTax || 0), 0);
-    const hasPrevRevenue = prevRevenue > 0;
-    const revenueGrowth = hasPrevRevenue ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : (revenue > 0 ? 100 : 0);
-
-    const prevOrdersCount = prevMonthOrders.length;
-    const monthlyOrdersCount = monthlyOrders.length;
-    const hasPrevOrders = prevOrdersCount > 0;
-    const ordersGrowth = hasPrevOrders ? Math.round(((monthlyOrdersCount - prevOrdersCount) / prevOrdersCount) * 100) : (monthlyOrdersCount > 0 ? 100 : 0);
-
-    // Real total orders count (excluding draft and cancelled orders)
-    const activeAllOrders = rawAllOrders.filter((o: any) => o && o.state !== 'AddingItems' && o.state !== 'ArrangingPayment' && o.state !== 'Cancelled');
-    const totalOrdersCount = activeAllOrders.length;
-
-    // Real likes count
-    const likesList = (likesData as any) || [];
-    const totalLikes = likesList.reduce((acc: number, item: any) => acc + (item.likesCount || 0), 0);
-
-    // Dynamic calculations for "À traiter" center
-    const pendingShipmentCount = recentOrders.filter((o: any) => 
-        o.customFields?.sellerStatus !== 'confirmed' && 
-        o.customFields?.sellerStatus !== 'refused'
-    ).length;
-
-    const lowStockCount = products.filter((p: any) => 
-        p.variants?.some((v: any) => v.stockLevel !== undefined && Number(v.stockLevel) >= 0 && Number(v.stockLevel) <= 5)
-    ).length;
-
-    // Currency code from orders or default
-    const currencyCode = recentOrders[0]?.currencyCode || 'XOF';
+    const totalOrdersCount = stats?.totalOrdersCount ?? recentOrders.length;
+    const totalLikes = stats?.totalLikesCount ?? 0;
+    const pendingShipmentCount = stats?.pendingShipmentCount ?? 0;
+    const lowStockCount = stats?.lowStockCount ?? 0;
+    const chartData = stats?.chartData ?? [];
+    const currencyCode = stats?.currencyCode || recentOrders[0]?.currencyCode || 'XOF';
 
     // Format initials for client avatar placeholder
     const getInitials = (firstName?: string, lastName?: string) => {
@@ -262,7 +226,7 @@ export default async function DashboardPage() {
                         </div>
                     </div>
                     <div className="mt-4">
-                        <RevenueChart orders={recentOrders} currencyCode={currencyCode} />
+                        <RevenueChart orders={recentOrders} initialData={chartData} currencyCode={currencyCode} />
                     </div>
                 </div>
 

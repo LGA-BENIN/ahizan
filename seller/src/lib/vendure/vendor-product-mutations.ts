@@ -51,6 +51,9 @@ export const GetMyVendorProductQuery = graphql(`
                 approvalStatus
                 rejectionReason
                 shortDescription
+                weight
+                width
+                height
             }
             collections {
                 id
@@ -67,6 +70,8 @@ export const GetMyVendorProductQuery = graphql(`
             }
             variants {
                 id
+                name
+                sku
                 price
                 priceWithTax
                 currencyCode

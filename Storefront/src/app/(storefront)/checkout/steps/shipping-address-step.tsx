@@ -509,7 +509,7 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
   };
 
   // Reusable Nominatim + GPS search block (used in all forms)
-  const AddressSearchBlock = () => (
+  const renderAddressSearchBlock = () => (
     <div className="col-span-2 space-y-2">
       <button
         type="button"
@@ -597,7 +597,7 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
                 <FieldError className="font-bold text-xs text-destructive">{errors.phoneNumber?.message}</FieldError>
               </Field>
 
-              <AddressSearchBlock />
+              {renderAddressSearchBlock()}
 
               <Field className="col-span-2">
                 <FieldLabel htmlFor="streetLine2" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Précisions (Optionnel)</FieldLabel>
@@ -690,7 +690,7 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
             <FieldError className="font-bold text-xs text-destructive">{errors.phoneNumber?.message}</FieldError>
           </Field>
 
-          <AddressSearchBlock />
+          {renderAddressSearchBlock()}
 
           <Field className="col-span-2">
             <FieldLabel htmlFor="streetLine2" className="font-black text-xs uppercase tracking-widest text-muted-foreground">Précisions (Optionnel)</FieldLabel>

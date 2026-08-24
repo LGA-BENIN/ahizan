@@ -25,7 +25,23 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
     const router = useRouter();
     const [profileState, profileAction, isProfilePending] = useActionState<any, FormData>(updateVendorProfileAction, undefined);
     const [passwordState, passwordAction, isPasswordPending] = useActionState<any, FormData>(changePasswordAction, undefined);
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('tab') || 'general';
+        }
+        return 'general';
+    });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab && tab !== activeTab) {
+                setActiveTab(tab);
+            }
+        }
+    }, [activeTab]);
     
     // Collapsible sections and bio counter
     const [isVisualExpanded, setIsVisualExpanded] = useState(true);

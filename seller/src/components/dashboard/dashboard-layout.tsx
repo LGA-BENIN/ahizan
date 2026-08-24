@@ -156,10 +156,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
         { name: 'Paramètres', href: '/dashboard/settings', icon: Settings },
     ];
 
-    const navigation = allNavItems.filter(item => {
-        if (item.key === 'wallet' && dashboardConfig?.walletPageEnabled === false) return false;
-        return true;
-    });
+    const navigation = allNavItems;
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 

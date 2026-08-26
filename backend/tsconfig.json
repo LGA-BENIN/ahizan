@@ -24,7 +24,10 @@
     "admin-ui",
     "src/plugins/**/dashboard/*",
     "src/gql/*",
-    "vite.*.*ts"
+    "vite.*.*ts",
+    "src/debug-*.ts",
+    "src/test-*.ts",
+    "src/run-migration-fix.ts"
   ],
   "ts-node": {
     "files": true

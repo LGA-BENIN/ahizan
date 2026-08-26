@@ -27,14 +27,51 @@ export const geoEngineShippingEligibilityChecker = new ShippingEligibilityChecke
         }
 
         try {
-            const fullOrder = await orderService.findOne(ctx, order.id, ['customFields.vendor']);
-            const vendorId = (fullOrder?.customFields as any).vendor?.id;
-            if (!vendorId) {
-                return false;
+            const vendorIds = new Set<string>();
+            const connection = (geoService as any).connection;
+
+            if (connection && connection.rawConnection) {
+                const rawVendors = await connection.rawConnection.query(`
+                    SELECT DISTINCT COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as "vendorId"
+                    FROM order_line ol
+                    JOIN product_variant pv ON ol."productVariantId" = pv.id
+                    JOIN product p ON pv."productId" = p.id
+                    WHERE ol."orderId" = $1 AND (p."customFieldsVendorid" IS NOT NULL OR ol."customFieldsAssignedvendorid" IS NOT NULL)
+                `, [order.id]);
+
+                if (rawVendors && rawVendors.length > 0) {
+                    for (const row of rawVendors) {
+                        if (row.vendorId) {
+                            vendorIds.add(String(row.vendorId));
+                        }
+                    }
+                }
+
+                const rawOrderVendor = await connection.rawConnection.query(`
+                    SELECT "customFieldsVendorid" as "vendorId" FROM "order" WHERE id = $1 LIMIT 1
+                `, [order.id]);
+                if (rawOrderVendor && rawOrderVendor[0] && rawOrderVendor[0].vendorId) {
+                    vendorIds.add(String(rawOrderVendor[0].vendorId));
+                }
             }
 
-            const result = await geoService.checkDeliveryEligibility(ctx, { lat, lng }, String(vendorId));
-            return result.eligible;
+            if (vendorIds.size === 0 && connection && connection.rawConnection) {
+                const fallbackVendors = await connection.rawConnection.query(`SELECT id FROM vendor LIMIT 1`);
+                if (fallbackVendors && fallbackVendors[0]) {
+                    vendorIds.add(String(fallbackVendors[0].id));
+                } else {
+                    return false;
+                }
+            }
+
+            for (const vId of Array.from(vendorIds)) {
+                const result = await geoService.checkDeliveryEligibility(ctx, { lat, lng }, vId);
+                if (!result.eligible) {
+                    return false;
+                }
+            }
+
+            return true;
         } catch (e) {
             console.error('[geoEngineShippingEligibilityChecker] Error checking eligibility:', e);
             return false;

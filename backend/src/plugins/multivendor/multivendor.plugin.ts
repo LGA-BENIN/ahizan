@@ -14,7 +14,7 @@ import { OrderStatusService } from './service/order-status.service';
 import { LikeService } from './service/like.service';
 import { ChatService } from './service/chat.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
-import { VendorResolver, VendorAdminResolver } from './api/vendor.resolver';
+import { VendorResolver, VendorAdminResolver, WithdrawalRequestEntityResolver } from './api/vendor.resolver';
 import { VendorShopResolver, ProductVariantShopResolver } from './api/vendor-shop.resolver';
 import { VendorShopApiResolver } from './api/vendor-shop-api.resolver';
 import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './api/platform-settings.resolver';
@@ -50,7 +50,7 @@ ${commonApiExtensions}
 
 ${adminApiExtensions}
         `,
-        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver],
+        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver, WithdrawalRequestEntityResolver],
     },
 
     shopApiExtensions: {
@@ -59,7 +59,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver],
+        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver, WithdrawalRequestEntityResolver],
     },
 
     configuration: (config: any) => {

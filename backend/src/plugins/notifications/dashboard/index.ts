@@ -1,15 +1,36 @@
+import React from 'react';
 import { defineDashboardExtension } from '@vendure/dashboard';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Cloud, Mail, Bell, Send } from 'lucide-react';
 import { NotificationsSettingsComponent } from './pages/notifications-settings';
 import { NotificationLogsComponent } from './pages/notification-logs';
 import { SendNotificationComponent } from './pages/send-notification';
 import { SuperadminNotificationBell } from './components/superadmin-notification-bell';
 
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            retry: 1,
+        },
+    },
+});
+
+function withQueryClient<P extends object>(Component: React.ComponentType<P>): React.FC<P> {
+    return function WrappedComponent(props: P) {
+        return (
+            <QueryClientProvider client={queryClient}>
+                <Component {...props} />
+            </QueryClientProvider>
+        );
+    };
+}
+
 export default defineDashboardExtension({
     toolbarItems: [
         {
             id: 'superadmin-notification-bell',
-            component: SuperadminNotificationBell,
+            component: withQueryClient(SuperadminNotificationBell),
             position: { itemId: 'alerts', order: 'replace' },
         },
     ],
@@ -23,7 +44,7 @@ export default defineDashboardExtension({
     routes: [
         {
             path: 'notifications',
-            component: NotificationsSettingsComponent,
+            component: withQueryClient(NotificationsSettingsComponent),
             navMenuItem: {
                 id: 'notifications-settings',
                 title: 'Notifications Brevo',
@@ -34,7 +55,7 @@ export default defineDashboardExtension({
         },
         {
             path: 'notification-logs',
-            component: NotificationLogsComponent,
+            component: withQueryClient(NotificationLogsComponent),
             navMenuItem: {
                 id: 'notification-logs',
                 title: 'Journal Notifications',
@@ -45,7 +66,7 @@ export default defineDashboardExtension({
         },
         {
             path: 'send-notification',
-            component: SendNotificationComponent,
+            component: withQueryClient(SendNotificationComponent),
             navMenuItem: {
                 id: 'send-notification',
                 title: 'Envoyer une notification',

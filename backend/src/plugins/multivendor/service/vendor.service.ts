@@ -37,7 +37,7 @@ import {
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { WithdrawalRequest, WithdrawalStatus } from '../entities/withdrawal-request.entity';
 import { PlatformSettings } from '../entities/platform-settings.entity';
-import { VendorEvent } from '../events/vendor-event';
+import { VendorEvent, FundsReleasedEvent } from '../events/vendor-event';
 import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
 import { IsNull, In } from 'typeorm';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -228,13 +228,13 @@ export class VendorService implements OnApplicationBootstrap {
                  LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
                  LEFT JOIN product p ON pv."productId" = p.id
                  LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
-                 WHERE o."customFieldsVendorid" = $1
-                    OR p."customFieldsVendorid" = $1
-                    OR ol."sellerChannelId" = $2
-                    OR occ."channelId" = $2
-                    OR o."customFieldsVendorstatuses" LIKE $3
+                 WHERE (o."customFieldsVendorid" = $1 AND COALESCE(o."customFieldsSellerstatus", '') != 'reassigned_to_other')
+                    OR (
+                        (p."customFieldsVendorid" = $1 OR ol."customFieldsAssignedvendorid" = $1 OR ol."sellerChannelId" = $2 OR occ."channelId" = $2)
+                        AND COALESCE(ol."customFieldsSellerstatus", '') != 'reassigned_to_other'
+                    )
                  ORDER BY o.id DESC`,
-                [numericVendorId, vendorChannelId, `%"${vendorId}"%`]
+                [numericVendorId, vendorChannelId]
             );
             const allIds = rawResults.map((r: any) => String(r.id));
             totalItems = allIds.length;
@@ -349,7 +349,7 @@ export class VendorService implements OnApplicationBootstrap {
                 'shippingLines',
                 'fulfillments',
                 'fulfillments.lines',
-                'fulfillments.lines.fulfillmentLine',
+                'fulfillments.lines.orderLine',
                 'payments',
                 'surcharges',
                 'promotions',
@@ -361,8 +361,11 @@ export class VendorService implements OnApplicationBootstrap {
 
         (order as any).surcharges = order.surcharges || [];
 
-        // Filter lines that belong to this vendor
+        // Filter lines that belong to this vendor and are NOT reassigned
         const vendorLines = (order.lines || []).filter((l: any) => {
+            const isReassigned = l.customFields?.sellerStatus === 'reassigned_to_other' || (l as any).customFieldsSellerstatus === 'reassigned_to_other';
+            if (isReassigned) return false;
+
             const p = l.productVariant?.product;
             const cfVendorId = p?.customFields?.vendor?.id || (p as any)?.customFieldsVendorid;
             return (
@@ -371,7 +374,8 @@ export class VendorService implements OnApplicationBootstrap {
             );
         });
 
-        const isOverallVendor = String((order.customFields as any)?.vendor?.id || (order as any).customFieldsVendorid) === String(vendorId);
+        const isOverallVendor = String((order.customFields as any)?.vendor?.id || (order as any).customFieldsVendorid) === String(vendorId)
+            && ((order.customFields as any)?.sellerStatus !== 'reassigned_to_other' && (order as any).customFieldsSellerstatus !== 'reassigned_to_other');
         if (!isOverallVendor && vendorLines.length === 0) {
             return null;
         }
@@ -468,24 +472,61 @@ export class VendorService implements OnApplicationBootstrap {
         const vendor = await this.findOne(ctx, vendorId);
         const vendorChannelId = vendor?.channelId || 0;
 
-        // Fetch sales and commissions aggregated
-        const salesRows: { total_sales: string; commission_sum: string; retirable_sum: string; pending_sum: string }[] = await this.connection.rawConnection.query(`
-            SELECT 
-                COALESCE(SUM(ol."proratedLinePriceWithTax"), 0) as total_sales,
-                COALESCE(SUM(CASE WHEN o."customFieldsCommissionamount" > 0 THEN o."customFieldsCommissionamount" ELSE 0 END), 0) as commission_sum,
-                COALESCE(SUM(CASE WHEN o."customFieldsPaymentstatus" = 'RETIRABLE' THEN ol."proratedLinePriceWithTax" ELSE 0 END), 0) as retirable_sum,
-                COALESCE(SUM(CASE WHEN o."customFieldsPaymentstatus" = 'PENDING' OR o."customFieldsPaymentstatus" IS NULL THEN ol."proratedLinePriceWithTax" ELSE 0 END), 0) as pending_sum
-            FROM order_line ol
-            INNER JOIN "order" o ON ol."orderId" = o.id
-            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
-            INNER JOIN product p ON pv."productId" = p.id
-            WHERE (p."customFieldsVendorid" = $1 OR ol."sellerChannelId" = $2)
-              AND o.state NOT IN ('AddingItems', 'ArrangingPayment', 'Cancelled')
+        // Fetch sales and commissions aggregated strictly on paid/settled lines belonging to this vendor
+        let salesRows: { total_sales: string; retirable_sum: string; pending_sum: string }[] = [];
+        try {
+            salesRows = await this.connection.rawConnection.query(`
+                SELECT 
+                    COALESCE(SUM(CASE WHEN o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered') THEN ol."listPrice" * ol.quantity ELSE 0 END), 0) as total_sales,
+                    COALESCE(SUM(CASE WHEN o."customFieldsPaymentstatus" = 'RETIRABLE' AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered') THEN ol."listPrice" * ol.quantity ELSE 0 END), 0) as retirable_sum,
+                    COALESCE(SUM(CASE WHEN (o."customFieldsPaymentstatus" = 'PENDING' OR o."customFieldsPaymentstatus" IS NULL) AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered') THEN ol."listPrice" * ol.quantity ELSE 0 END), 0) as pending_sum
+                FROM order_line ol
+                INNER JOIN "order" o ON ol."orderId" = o.id
+                INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                INNER JOIN product p ON pv."productId" = p.id
+                WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
+                  AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                  AND ol.quantity > 0
+                  AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
+            `, [numericVendorId]);
+        } catch (e) {
+            try {
+                salesRows = await this.connection.rawConnection.query(`
+                    SELECT 
+                        COALESCE(SUM(CASE WHEN o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered') THEN ol."listPrice" * ol.quantity ELSE 0 END), 0) as total_sales,
+                        COALESCE(SUM(CASE WHEN o."customFieldsPaymentStatus" = 'RETIRABLE' AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered') THEN ol."listPrice" * ol.quantity ELSE 0 END), 0) as retirable_sum,
+                        COALESCE(SUM(CASE WHEN (o."customFieldsPaymentStatus" = 'PENDING' OR o."customFieldsPaymentStatus" IS NULL) AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered') THEN ol."listPrice" * ol.quantity ELSE 0 END), 0) as pending_sum
+                    FROM order_line ol
+                    INNER JOIN "order" o ON ol."orderId" = o.id
+                    INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                    INNER JOIN product p ON pv."productId" = p.id
+                    WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
+                      AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                      AND ol.quantity > 0
+                      AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
+                `, [numericVendorId]);
+            } catch (err2: any) {
+                console.error('[getVendorWalletStats] Failed to fetch salesRows:', err2);
+                salesRows = [{ total_sales: '0', retirable_sum: '0', pending_sum: '0' }];
+            }
+        }
+
+        // Query commission sum strictly for paid orders
+        const commissionRows: { commission_sum: string }[] = await this.connection.rawConnection.query(`
+            SELECT COALESCE(SUM(o."customFieldsCommissionamount"), 0) as commission_sum
+            FROM "order" o
+            WHERE (o."customFieldsVendorid" = $1 OR o.id IN (
+                SELECT DISTINCT oc."orderId" 
+                FROM order_channel oc 
+                WHERE oc."channelId" = $2
+            ))
+              AND COALESCE(o."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+              AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
         `, [numericVendorId, vendorChannelId]);
 
-        const rawSales = salesRows[0] || { total_sales: '0', commission_sum: '0', retirable_sum: '0', pending_sum: '0' };
+        const rawSales = salesRows[0] || { total_sales: '0', retirable_sum: '0', pending_sum: '0' };
         const totalSales = parseInt(rawSales.total_sales, 10);
-        const platformCommission = parseInt(rawSales.commission_sum, 10);
+        const platformCommission = parseInt(commissionRows[0]?.commission_sum || '0', 10);
         const netEarnings = Math.max(0, totalSales - platformCommission);
 
         // Fetch withdrawals
@@ -502,7 +543,8 @@ export class VendorService implements OnApplicationBootstrap {
         const pendingWithdrawalAmount = parseInt(rawWithdrawals.total_pending, 10);
 
         const retirableSum = parseInt(rawSales.retirable_sum, 10);
-        const availableBalance = Math.max(0, retirableSum - totalWithdrawn - pendingWithdrawalAmount);
+        // Correct mathematical model to avoid double-subtracting paid orders (which are already removed from retirableSum)
+        const availableBalance = Math.max(0, retirableSum - pendingWithdrawalAmount);
         const pendingBalance = parseInt(rawSales.pending_sum, 10);
 
         return {
@@ -558,10 +600,6 @@ export class VendorService implements OnApplicationBootstrap {
                     }
                 }
             }
-        }
-
-        if (statusType === 'sellerStatus' && newStatus === 'refused') {
-            newStatus = 'reassigning';
         }
 
         if (vendorId) {
@@ -625,9 +663,9 @@ export class VendorService implements OnApplicationBootstrap {
             try {
                 await this.connection.rawConnection.query(
                     `UPDATE "order" 
-                     SET "customFieldsSellerStatus" = $1,
-                         "customFieldsAdminStatus" = $2,
-                         "customFieldsVendorStatuses" = $3
+                     SET "customFieldsSellerstatus" = $1,
+                         "customFieldsAdminstatus" = $2,
+                         "customFieldsVendorstatuses" = $3
                      WHERE id = $4`,
                     [aggregateSellerStatus, aggregateAdminStatus, JSON.stringify(vMap), orderId]
                 );
@@ -636,7 +674,7 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
-        // Cascade the status down to the vendor's lines if requested
+        // Cascade the status down to the vendor's lines if requested (only when vendorId is specified)
         if (statusType === 'sellerStatus' && cascade) {
             try {
                 if (vendorId) {
@@ -651,13 +689,6 @@ export class VendorService implements OnApplicationBootstrap {
                          AND COALESCE(ol."customFieldsSellerstatus", '') NOT IN ('refused', 'reassigned_to_other', 'reassigning')`,
                         [newStatus, orderId, vendorId]
                     );
-                } else {
-                    await this.connection.rawConnection.query(
-                        `UPDATE order_line SET "customFieldsSellerstatus" = $1 
-                         WHERE "orderId" = $2 
-                         AND COALESCE("customFieldsSellerstatus", '') NOT IN ('refused', 'reassigned_to_other', 'reassigning')`,
-                        [newStatus, orderId]
-                    );
                 }
             } catch (err3) {
                 console.error('[updateVendorOrderStatus] Failed to cascade sellerStatus to lines:', err3);
@@ -666,11 +697,11 @@ export class VendorService implements OnApplicationBootstrap {
 
         // Trigger native Vendure order transitions if appropriate
         try {
-            if (aggregateAdminStatus === 'shipped' || newStatus === 'shipped') {
+            if (aggregateAdminStatus === 'shipped') {
                 await this.orderService.transitionToState(ctx, orderId, 'Shipped').catch(() => null);
-            } else if (aggregateAdminStatus === 'delivered' || newStatus === 'delivered') {
+            } else if (aggregateAdminStatus === 'delivered') {
                 await this.orderService.transitionToState(ctx, orderId, 'Delivered').catch(() => null);
-            } else if (aggregateAdminStatus === 'cancelled' || newStatus === 'cancelled') {
+            } else if (aggregateAdminStatus === 'cancelled') {
                 await this.orderService.transitionToState(ctx, orderId, 'Cancelled').catch(() => null);
             }
         } catch (stateErr) {
@@ -707,10 +738,6 @@ export class VendorService implements OnApplicationBootstrap {
             throw new Error('You do not have permission to update this order line');
         }
 
-        if (newStatus === 'refused') {
-            newStatus = 'reassigning';
-        }
-
         // 3. Update the OrderLine custom field — column is 'customFieldsSellerstatus' (lowercase s)
         await this.connection.rawConnection.query(
             `UPDATE order_line SET "customFieldsSellerstatus" = $1 WHERE id = $2`,
@@ -728,17 +755,24 @@ export class VendorService implements OnApplicationBootstrap {
         );
 
         let allConfirmed = true;
-        let allReassigning = true;
+        let allRefused = true;
+        let someRefusedOrReassigning = false;
 
         for (const l of allVendorLines) {
             const status = l.customFieldsSellerstatus || 'pending';
             if (status !== 'confirmed') allConfirmed = false;
-            if (status !== 'reassigning' && status !== 'refused') allReassigning = false;
+            if (status !== 'refused') allRefused = false;
+            if (status === 'refused' || status === 'reassigning') someRefusedOrReassigning = true;
         }
 
         let newVendorStatus = 'pending';
-        if (allConfirmed) newVendorStatus = 'confirmed';
-        else if (allReassigning) newVendorStatus = 'reassigning';
+        if (allConfirmed) {
+            newVendorStatus = 'confirmed';
+        } else if (allRefused) {
+            newVendorStatus = 'refused';
+        } else if (someRefusedOrReassigning) {
+            newVendorStatus = 'reassigning';
+        }
 
         // 5. Update the vendor suborder status by calling existing method (without cascading)
         await this.updateVendorOrderStatus(ctx, line.orderId, vendorId, 'sellerStatus', newVendorStatus, false);
@@ -1143,7 +1177,7 @@ export class VendorService implements OnApplicationBootstrap {
             const priceInCents = Math.round(newPrice);
 
             const originalVariants = await this.connection.rawConnection.query(
-                `SELECT pv.id as "variantId", pv."taxCategoryId", p.id as "productId", p."featuredAssetId", p."customFieldsVendorid" as "originalVendorId", ol."customFieldsAssignedvendorid", ol.quantity
+                `SELECT pv.id as "variantId", pv."taxCategoryId", p.id as "productId", p."featuredAssetId", p."customFieldsVendorid" as "originalVendorId", ol."customFieldsAssignedvendorid", ol.quantity, ol."sellerChannelId"
                  FROM order_line ol
                  JOIN product_variant pv ON ol."productVariantId" = pv.id
                  JOIN product p ON pv."productId" = p.id
@@ -1153,6 +1187,14 @@ export class VendorService implements OnApplicationBootstrap {
             if (!originalVariants || !originalVariants[0]) throw new Error('Original product not found');
             const orig = originalVariants[0];
 
+            let targetVendor = await this.findOne(ctx, newVendorId);
+            if (!targetVendor) throw new Error('Target vendor not found');
+
+            if (!targetVendor.channelId || !targetVendor.sellerId) {
+                targetVendor = await this.ensureNativeSellerAndChannel(ctx, targetVendor);
+            }
+            const newSellerChannelId = targetVendor.channelId || orig.sellerChannelId;
+
             if (newProductId) {
                 const targetProduct = await this.productService.findOne(ctx, newProductId, ['variants']);
                 if (!targetProduct || !targetProduct.variants || targetProduct.variants.length === 0) {
@@ -1160,13 +1202,6 @@ export class VendorService implements OnApplicationBootstrap {
                 }
                 variantId = String(targetProduct.variants[0].id);
             } else {
-                let targetVendor = await this.findOne(ctx, newVendorId);
-                if (!targetVendor) throw new Error('Target vendor not found');
-
-                if (!targetVendor.channelId || !targetVendor.sellerId) {
-                    targetVendor = await this.ensureNativeSellerAndChannel(ctx, targetVendor);
-                }
-
                 const origProduct = await this.productService.findOne(ctx, orig.productId, ['translations']);
                 const origTranslation = origProduct?.translations.find(t => t.languageCode === ctx.languageCode) || origProduct?.translations[0];
                 const finalName = newProductName || origTranslation?.name || 'Reassigned Product';
@@ -1182,10 +1217,18 @@ export class VendorService implements OnApplicationBootstrap {
                     enabled: true,
                     featuredAssetId: orig.featuredAssetId || undefined,
                     customFields: {
-                        vendor: { id: targetVendor.id },
+                        vendorId: targetVendor.id,
                         approvalStatus: 'approved',
-                    }
+                    } as any
                 });
+
+                // Ensure raw SQL customFieldsVendorid is directly updated
+                try {
+                    await this.connection.rawConnection.query(
+                        `UPDATE product SET "customFieldsVendorid" = $1, "customFieldsApprovalstatus" = 'approved' WHERE id = $2`,
+                        [targetVendor.id, createdProduct.id]
+                    );
+                } catch (_) {}
 
                 const vendorPrefix = (targetVendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
                 const createdVariants = await this.productVariantService.create(ctx, [{
@@ -1205,6 +1248,13 @@ export class VendorService implements OnApplicationBootstrap {
                     try {
                         await this.channelService.assignToChannels(ctx, Product, createdProduct.id, [targetVendor.channelId]);
                         await this.channelService.assignToChannels(ctx, ProductVariant, createdVariant.id, [targetVendor.channelId]);
+                        // Ensure channel price record exists
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO product_variant_price ("createdAt", "updatedAt", "price", "channelId", "variantId")
+                             VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $1, $2, $3)
+                             ON CONFLICT DO NOTHING`,
+                            [priceInCents, targetVendor.channelId, createdVariant.id]
+                        ).catch(() => null);
                     } catch (chanErr) {
                         console.error('[reassignOrderLineToProduct] Channel assignment error:', chanErr);
                     }
@@ -1216,38 +1266,52 @@ export class VendorService implements OnApplicationBootstrap {
             const originalVendorId = orig.customFieldsAssignedvendorid || orig.originalVendorId;
             const origQuantity = orig.quantity || 1;
 
-            // 1. Keep the original line, set status to reassigned_to_other, quantity to 0
-            await this.connection.rawConnection.query(
-                `UPDATE order_line 
-                 SET "customFieldsSellerstatus" = 'reassigned_to_other', 
-                     "quantity" = 0,
-                     "orderPlacedQuantity" = 0,
-                     "customFieldsAssignedvendorid" = $1
-                 WHERE id = $2`,
-                [originalVendorId, lineId]
-            );
+            // Use transactional repository on ctx so new ProductVariant and OrderLine share the same transaction
+            const orderLineRepo = this.connection.getRepository(ctx, OrderLine);
+            const origOrderLine = await orderLineRepo.findOne({
+                where: { id: lineId },
+                relations: ['taxCategory', 'shippingLine', 'featuredAsset']
+            });
 
-            // 2. Insert a cloned line for the new vendor with the original quantity and status pending
-            await this.connection.rawConnection.query(
-                `INSERT INTO order_line (
-                    "createdAt", "updatedAt", "quantity", "orderPlacedQuantity", 
-                    "listPriceIncludesTax", "adjustments", "taxLines", 
-                    "sellerChannelId", "shippingLineId", "productVariantId", 
-                    "taxCategoryId", "initialListPrice", "listPrice", 
-                    "featuredAssetId", "orderId", 
-                    "customFieldsSellerstatus", "customFieldsAssignedvendorid"
-                )
-                SELECT 
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $1, $1, 
-                    "listPriceIncludesTax", adjustments, "taxLines", 
-                    "sellerChannelId", "shippingLineId", $2, 
-                    "taxCategoryId", $3, $3, 
-                    "featuredAssetId", "orderId", 
-                    'pending', $4
-                FROM order_line
-                WHERE id = $5`,
-                [origQuantity, variantId, priceInCents, newVendorId, lineId]
-            );
+            if (origOrderLine) {
+                origOrderLine.quantity = 0;
+                origOrderLine.orderPlacedQuantity = 0;
+                (origOrderLine.customFields as any) = {
+                    ...(origOrderLine.customFields || {}),
+                    sellerStatus: 'reassigned_to_other',
+                    assignedVendorId: originalVendorId
+                };
+                await orderLineRepo.save(origOrderLine);
+
+                const clonedLine = new OrderLine({
+                    quantity: origQuantity,
+                    orderPlacedQuantity: origQuantity,
+                    listPrice: priceInCents,
+                    initialListPrice: priceInCents,
+                    listPriceIncludesTax: origOrderLine.listPriceIncludesTax,
+                    adjustments: origOrderLine.adjustments,
+                    taxLines: origOrderLine.taxLines,
+                    sellerChannelId: newSellerChannelId,
+                    shippingLine: origOrderLine.shippingLine,
+                    productVariant: { id: variantId } as any,
+                    taxCategory: origOrderLine.taxCategory,
+                    featuredAsset: origOrderLine.featuredAsset,
+                    order: { id: orderId } as any,
+                    customFields: {
+                        sellerStatus: 'pending',
+                        assignedVendorId: newVendorId
+                    } as any
+                });
+                await orderLineRepo.save(clonedLine);
+            } else {
+                // Raw fallback
+                await this.connection.rawConnection.query(
+                    `UPDATE order_line 
+                     SET "customFieldsSellerstatus" = 'reassigned_to_other', "quantity" = 0, "orderPlacedQuantity" = 0, "customFieldsAssignedvendorid" = $1
+                     WHERE id = $2`,
+                    [originalVendorId, lineId]
+                );
+            }
 
             const rawOrder = await this.connection.rawConnection.query(
                 `SELECT * FROM "order" WHERE id = $1 LIMIT 1`,
@@ -1262,6 +1326,28 @@ export class VendorService implements OnApplicationBootstrap {
                         vMap = typeof vsStr === 'string' ? JSON.parse(vsStr) : vsStr;
                     }
                 } catch (e) {}
+
+                const activeLinesForOldVendor = await this.connection.rawConnection.query(
+                    `SELECT COUNT(*)::int as count 
+                     FROM order_line ol
+                     JOIN product_variant pv ON ol."productVariantId" = pv.id
+                     JOIN product p ON pv."productId" = p.id
+                     WHERE ol."orderId" = $1 
+                       AND ol.id != $2 
+                       AND ol.quantity > 0 
+                       AND (p."customFieldsVendorid" = $3 OR ol."customFieldsAssignedvendorid" = $3)`,
+                    [orderId, lineId, originalVendorId]
+                );
+                
+                const hasActiveLines = activeLinesForOldVendor[0]?.count > 0;
+                if (!hasActiveLines) {
+                    if (vMap[String(originalVendorId)]) {
+                        vMap[String(originalVendorId)].sellerStatus = 'reassigned_to_other';
+                        vMap[String(originalVendorId)].adminStatus = 'cancelled';
+                    } else {
+                        vMap[String(originalVendorId)] = { sellerStatus: 'reassigned_to_other', adminStatus: 'cancelled' };
+                    }
+                }
 
                 vMap[String(newVendorId)] = {
                     sellerStatus: 'pending',
@@ -1322,6 +1408,17 @@ export class VendorService implements OnApplicationBootstrap {
 
     async deleteVendorOrder(ctx: RequestContext, orderId: string): Promise<boolean> {
         try {
+            // First, find and delete any child/sub-orders if this is a parent order
+            const childOrders: { id: string | number }[] = await this.connection.rawConnection.query(
+                `SELECT id FROM "order" WHERE "aggregateOrderId" = $1`,
+                [orderId]
+            );
+            for (const child of childOrders) {
+                if (child?.id) {
+                    await this.deleteVendorOrder(ctx, child.id.toString());
+                }
+            }
+
             await this.connection.rawConnection.query(`DELETE FROM refund WHERE "paymentId" IN (SELECT id FROM payment WHERE "orderId" = $1)`, [orderId]);
             await this.connection.rawConnection.query(`DELETE FROM order_modification WHERE "paymentId" IN (SELECT id FROM payment WHERE "orderId" = $1) OR "orderId" = $1`, [orderId]);
             await this.connection.rawConnection.query(`DELETE FROM payment WHERE "orderId" = $1`, [orderId]);
@@ -1347,12 +1444,13 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     async findAllProductsForVendor(ctx: RequestContext, vendorId: string): Promise<Product[]> {
-        return this.connection.getRepository(ctx, Product)
+        const products = await this.connection.getRepository(ctx, Product)
             .createQueryBuilder('product')
             .leftJoinAndSelect('product.translations', 'translations')
             .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
             .leftJoinAndSelect('product.assets', 'assets')
             .leftJoinAndSelect('product.variants', 'variants')
+            .leftJoinAndSelect('variants.productVariantPrices', 'prices')
             .leftJoinAndSelect('variants.translations', 'variantTranslations')
             .leftJoinAndSelect('variants.options', 'options')
             .leftJoinAndSelect('options.group', 'group')
@@ -1360,6 +1458,23 @@ export class VendorService implements OnApplicationBootstrap {
             .where('vendor.id = :vendorId', { vendorId })
             .andWhere('product.deletedAt IS NULL')
             .getMany();
+
+        // Ensure each variant has its price populated from its prices array
+        for (const p of products) {
+            if (p.variants) {
+                for (const v of p.variants) {
+                    if (!v.price || v.price === 0) {
+                        const positivePrice = v.productVariantPrices?.find(pr => pr.price > 0)?.price;
+                        if (positivePrice) {
+                            v.price = positivePrice;
+                            v.priceWithTax = positivePrice;
+                        }
+                    }
+                }
+            }
+        }
+
+        return products;
     }
 
     async create(ctx: RequestContext, input: {
@@ -2820,6 +2935,68 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
+        // Synchronize payment status to the corresponding child order(s)
+        try {
+            const childOrders = await this.connection.rawConnection.query(`
+                SELECT id, "customFieldsVendorid" as vendor_id FROM "order"
+                WHERE ("aggregateOrderId" = $1 OR id = $1)
+            `, [orderId]);
+
+            for (const child of childOrders) {
+                const childVendorId = child.vendor_id ? String(child.vendor_id) : null;
+                if (vendorId && childVendorId !== String(vendorId)) {
+                    continue;
+                }
+
+                await this.connection.rawConnection.query(`
+                    UPDATE "order"
+                    SET "customFieldsIsvendorpaid" = $1,
+                        "customFieldsPaymentstatus" = $2
+                    WHERE id = $3
+                `, [isPaid, paymentStatus, child.id]).catch(() => {
+                    return this.connection.rawConnection.query(`
+                        UPDATE "order"
+                        SET "customFieldsIsVendorPaid" = $1,
+                            "customFieldsPaymentStatus" = $2
+                        WHERE id = $3
+                    `, [isPaid, paymentStatus, child.id]);
+                });
+            }
+        } catch (syncErr) {
+            console.error('[updateOrderVendorPaymentStatus] Failed to sync child order payment status:', syncErr);
+        }
+
+        // Dispatch FundsReleasedEvent
+        if (isPaid) {
+            const targetVendorIds = vendorId ? [vendorId] : Array.from(vendorIds);
+            for (const vId of targetVendorIds) {
+                const vendor = await this.findOne(ctx, vId);
+                if (vendor) {
+                    const amountRow = await this.connection.rawConnection.query(`
+                        SELECT COALESCE(SUM(ol."proratedLinePriceWithTax"), 0) as amount
+                        FROM order_line ol
+                        INNER JOIN "order" o ON ol."orderId" = o.id
+                        INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                        INNER JOIN product p ON pv."productId" = p.id
+                        WHERE (o.id = $1 OR o."aggregateOrderId" = $1)
+                          AND (p."customFieldsVendorid" = $2 OR ol."sellerChannelId" = $3)
+                    `, [orderId, Number(vId), vendor.channelId || 0]);
+                    const amount = parseInt(amountRow[0]?.amount || '0', 10);
+
+                    const stats = await this.getVendorWalletStats(ctx, vId);
+                    const availableBalance = stats?.availableBalance || 0;
+
+                    this.eventBus.publish(new FundsReleasedEvent(
+                        ctx,
+                        vendor,
+                        amount,
+                        order.code,
+                        availableBalance
+                    ));
+                }
+            }
+        }
+
         return true;
     }
 
@@ -2955,40 +3132,56 @@ export class VendorService implements OnApplicationBootstrap {
                 const commission = (order.customFields as any)?.commissionAmount || 0;
                 const net = order.totalWithTax - commission;
 
-                if (vendorSpecific) {
-                    vendorSpecific.paymentStatus = 'PAID';
-                    vendorSpecific.isPaid = true;
-                    vendorSpecific.paidAt = new Date().toISOString();
-                } else {
-                    vMap[String(withdrawal.vendor.id)] = {
-                        isPaid: true,
-                        paidAt: new Date().toISOString(),
-                        paymentStatus: 'PAID'
-                    };
-                }
-
                 try {
-                    await this.connection.rawConnection.query(
-                        `UPDATE "order" 
-                         SET "customFieldsIsvendorpaid" = $1,
-                             "customFieldsVendorstatuses" = $2,
-                             "customFieldsPaymentstatus" = $3
-                         WHERE id = $4`,
-                        [true, JSON.stringify(vMap), 'PAID', order.id]
-                    );
-                } catch (e) {
-                    try {
-                        await this.connection.rawConnection.query(
-                            `UPDATE "order" 
-                             SET "customFieldsIsVendorPaid" = $1,
-                                 "customFieldsVendorStatuses" = $2,
-                                 "customFieldsPaymentStatus" = $3
-                             WHERE id = $4`,
-                            [true, JSON.stringify(vMap), 'PAID', order.id]
-                        );
-                    } catch (err2) {
-                        console.error('[approveWithdrawal] Failed to update order:', err2);
+                    const relatedOrders = await this.connection.rawConnection.query(`
+                        SELECT id FROM "order"
+                        WHERE id = $1 OR "aggregateOrderId" = $1 OR ("aggregateOrderId" IS NOT NULL AND "aggregateOrderId" = (
+                            SELECT "aggregateOrderId" FROM "order" WHERE id = $1
+                        ))
+                    `, [order.id]);
+
+                    const relatedOrderIds = relatedOrders.map((r: any) => r.id);
+                    for (const rId of relatedOrderIds) {
+                        const rOrder = await this.connection.getRepository(ctx, Order).findOne({ where: { id: rId } });
+                        if (rOrder) {
+                            let rMap: Record<string, any> = {};
+                            try {
+                                if ((rOrder.customFields as any)?.vendorStatuses) {
+                                    rMap = JSON.parse((rOrder.customFields as any).vendorStatuses);
+                                }
+                            } catch (e) {}
+
+                            if (rMap[String(withdrawal.vendor.id)]) {
+                                rMap[String(withdrawal.vendor.id)].paymentStatus = 'PAID';
+                                rMap[String(withdrawal.vendor.id)].isPaid = true;
+                                rMap[String(withdrawal.vendor.id)].paidAt = new Date().toISOString();
+                            } else {
+                                rMap[String(withdrawal.vendor.id)] = {
+                                    isPaid: true,
+                                    paidAt: new Date().toISOString(),
+                                    paymentStatus: 'PAID'
+                                };
+                            }
+
+                            await this.connection.rawConnection.query(`
+                                UPDATE "order"
+                                SET "customFieldsIsvendorpaid" = $1,
+                                    "customFieldsVendorstatuses" = $2,
+                                    "customFieldsPaymentstatus" = $3
+                                WHERE id = $4
+                            `, [true, JSON.stringify(rMap), 'PAID', rId]).catch(() => {
+                                return this.connection.rawConnection.query(`
+                                    UPDATE "order"
+                                    SET "customFieldsIsVendorPaid" = $1,
+                                        "customFieldsVendorStatuses" = $2,
+                                        "customFieldsPaymentStatus" = $3
+                                    WHERE id = $4
+                                `, [true, JSON.stringify(rMap), 'PAID', rId]);
+                            });
+                        }
                     }
+                } catch (syncErr) {
+                    console.error('[approveWithdrawal] Failed to sync related orders status:', syncErr);
                 }
 
                 remainingAmountToPay -= net;
@@ -3162,22 +3355,24 @@ export class VendorService implements OnApplicationBootstrap {
         const startOfPrevMonth = new Date(currentMonth === 0 ? currentYear - 1 : currentYear, currentMonth === 0 ? 11 : currentMonth - 1, 1);
         const endOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
 
-        // 1. Query settled orders for this vendor
+        // 1. Query settled orders and vendor line amounts for this vendor
         const settledOrdersRaw = await this.connection.rawConnection.query(
-            `SELECT DISTINCT o.id, o."createdAt", o."subTotalWithTax", o."state", o."customFieldsSellerStatus"
-             FROM "order" o
-             LEFT JOIN order_line ol ON ol."orderId" = o.id
-             LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
-             LEFT JOIN product p ON pv."productId" = p.id
-             LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
-             WHERE (o."customFieldsVendorid" = $1
-                OR p."customFieldsVendorid" = $1
-                OR ol."sellerChannelId" = $2
-                OR occ."channelId" = $2
-                OR o."customFieldsVendorstatuses" LIKE $3)
-               AND o.state NOT IN ('AddingItems', 'ArrangingPayment', 'Cancelled')
+            `SELECT 
+                o.id, 
+                o."createdAt", 
+                o.state, 
+                COALESCE(SUM(ol."listPrice" * ol.quantity), 0) as vendor_line_total
+             FROM order_line ol
+             INNER JOIN "order" o ON ol."orderId" = o.id
+             INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+             INNER JOIN product p ON pv."productId" = p.id
+             WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
+               AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+               AND ol.quantity > 0
+               AND o.state IN ('PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered')
+             GROUP BY o.id, o."createdAt", o.state
              ORDER BY o."createdAt" DESC`,
-            [numericVendorId, vendorChannelId, `%"${vendorId}"%`]
+            [numericVendorId]
         );
 
         let totalRevenue = 0;
@@ -3199,7 +3394,7 @@ export class VendorService implements OnApplicationBootstrap {
         for (const o of settledOrdersRaw) {
             const d = new Date(o.createdAt);
             const isSettled = settledStates.includes(o.state);
-            const total = Number(o.subTotalWithTax || o.totalWithTax || 0);
+            const total = Number(o.vendor_line_total || 0);
 
             if (isSettled) {
                 totalRevenue += total;
@@ -3219,7 +3414,7 @@ export class VendorService implements OnApplicationBootstrap {
                 }
             }
 
-            if (o.customFieldsSellerStatus !== 'confirmed' && o.customFieldsSellerStatus !== 'refused') {
+            if (o.customFieldsSellerstatus !== 'confirmed' && o.customFieldsSellerstatus !== 'refused') {
                 pendingShipmentCount++;
             }
         }

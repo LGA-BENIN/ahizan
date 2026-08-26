@@ -1,5 +1,5 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService, ChannelService } from '@vendure/core';
-import { In } from 'typeorm';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService, ChannelService, ProductOptionGroupService, ProductOptionService, ProductOption, ProductPriceApplicator } from '@vendure/core';
+import { In, Not } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -22,6 +22,8 @@ export class VendorShopResolver {
         private searchService: SearchService,
         private globalSettingsService: GlobalSettingsService,
         private channelService: ChannelService,
+        private productOptionGroupService: ProductOptionGroupService,
+        private productOptionService: ProductOptionService,
     ) { }
 
     /**
@@ -202,135 +204,223 @@ export class VendorShopResolver {
         const finalFacetValueIds = Array.from(new Set([...(input.facetValueIds || []), ...extractedFacetIds]));
         console.log(`createMyProduct: Final facetValueIds to be saved:`, finalFacetValueIds);
         
-        const globalSettings = await this.globalSettingsService.getSettings(ctx);
-        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
-        if (input.price < minPrice) {
-            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+        // 1. Pre-validation checks (Price and SKU uniqueness)
+        if ((input as any).variants && (input as any).variants.length > 0) {
+            for (const v of (input as any).variants) {
+                await this.validateMinimumPrice(ctx, v.price);
+                await this.validateSkuUniqueness(ctx, v.sku);
+            }
+        } else {
+            await this.validateMinimumPrice(ctx, input.price);
+            await this.validateSkuUniqueness(ctx, (input as any).sku);
         }
 
         // Get superadmin elevated context to execute core Vendure product creation
         const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
 
-        // 1. Create Product with Translations, Assets, and Vendor customField
-        const product = await this.productService.create(adminCtx, {
-            translations: [{
-                languageCode: ctx.languageCode,
-                name: input.name,
-                slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-                description: input.description,
-                customFields: {
-                    shortDescription: input.shortDescription || '',
-                },
-            }],
-            enabled: (input as any).enabled ?? false,
-            assetIds: input.assetIds,
-            facetValueIds: finalFacetValueIds,
-            featuredAssetId: input.featuredAssetId,
-            customFields: {
-                vendor: { id: vendor.id },
-                shortDescription: input.shortDescription || '',
-                approvalStatus: 'pending',
-                weight: (input as any).weight,
-                width: (input as any).width,
-                height: (input as any).height,
-            }
-        });
-
-        // 2. Create Variants (Multiple or Single)
-        const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
-        const variantInputs: any[] = [];
-
-        if ((input as any).variants && (input as any).variants.length > 0) {
-            for (let i = 0; i < (input as any).variants.length; i++) {
-                const v = (input as any).variants[i];
-                const vName = v.name || `${input.name} - Option ${i + 1}`;
-                const vSku = v.sku || `${vendorPrefix}-${Date.now()}-${i + 1}`;
-                const vInput: any = {
-                    productId: product.id,
-                    sku: vSku,
-                    price: v.price,
-                    stockOnHand: v.stock,
-                    featuredAssetId: v.featuredAssetId || input.featuredAssetId,
-                    translations: [{
-                        languageCode: ctx.languageCode,
-                        name: vName,
-                    }],
-                    customFields: {}
-                };
-                if (v.onPromotion !== undefined) {
-                    vInput.customFields.onPromotion = v.onPromotion;
-                }
-                if (v.promotionalPrice !== undefined) {
-                    vInput.customFields.promotionalPrice = v.promotionalPrice;
-                }
-                variantInputs.push(vInput);
-            }
-        } else {
-            const singleSku = (input as any).sku || `${vendorPrefix}-${Date.now()}`;
-            const singleInput: any = {
-                productId: product.id,
-                sku: singleSku,
-                price: input.price,
-                stockOnHand: input.stock,
-                featuredAssetId: input.featuredAssetId,
+        return this.connection.withTransaction(adminCtx, async (transactionalCtx: RequestContext) => {
+            // 2. Create Product with Translations, Assets, and Vendor customField
+            const product = await this.productService.create(transactionalCtx, {
                 translations: [{
                     languageCode: ctx.languageCode,
                     name: input.name,
+                    slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+                    description: input.description,
+                    customFields: {
+                        shortDescription: input.shortDescription || '',
+                    },
                 }],
-                customFields: {}
-            };
-            if (input.onPromotion !== undefined) {
-                singleInput.customFields.onPromotion = input.onPromotion;
-            }
-            if (input.promotionalPrice !== undefined) {
-                singleInput.customFields.promotionalPrice = input.promotionalPrice;
-            }
-            variantInputs.push(singleInput);
-        }
-
-        const variants = await this.productVariantService.create(adminCtx, variantInputs);
-
-        // 3. Assign Product, Variants and Assets to Vendor's native Channel and default channel
-        if (vendor.channelId) {
-            try {
-                await this.channelService.assignToChannels(adminCtx, Product, product.id, [vendor.channelId]);
-                for (const variant of variants) {
-                    await this.channelService.assignToChannels(adminCtx, ProductVariant, variant.id, [vendor.channelId]);
+                enabled: false,
+                assetIds: input.assetIds,
+                facetValueIds: finalFacetValueIds,
+                featuredAssetId: input.featuredAssetId,
+                customFields: {
+                    vendor: { id: vendor.id },
+                    shortDescription: input.shortDescription || '',
+                    approvalStatus: 'pending',
+                    weight: (input as any).weight,
+                    width: (input as any).width,
+                    height: (input as any).height,
                 }
-                if (input.assetIds && input.assetIds.length > 0) {
-                    for (const assetId of input.assetIds) {
-                        await this.channelService.assignToChannels(adminCtx, Asset, assetId, [vendor.channelId]).catch(() => null);
+            });
+
+            // 3. Create Option Groups and Options if multiple variants
+            const optionGroups: any[] = [];
+            const optionMap = new Map<string, any>(); // key: "groupIndex:optionName", value: optionEntity
+
+            if ((input as any).variants && (input as any).variants.length > 1) {
+                const variantNames = (input as any).variants.map((v: any, idx: number) => v.name || `${input.name} - Option ${idx + 1}`);
+                const splitNames = variantNames.map((name: string) => name.split(' - ').map((p: string) => p.trim()));
+                
+                const firstLen = splitNames[0].length;
+                const allSameLen = splitNames.every((parts: string[]) => parts.length === firstLen);
+                const numGroups = allSameLen ? firstLen : 1;
+
+                for (let g = 0; g < numGroups; g++) {
+                    const uniqueValues = Array.from(new Set(
+                        allSameLen 
+                            ? splitNames.map((parts: string[]) => parts[g])
+                            : variantNames
+                    )) as string[];
+
+                    const groupName = this.getOptionGroupName(uniqueValues, g);
+                    const groupCode = `${groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}-${g}`;
+
+                    const optionGroup = await this.productOptionGroupService.create(transactionalCtx, {
+                        code: groupCode,
+                        translations: [{
+                            languageCode: ctx.languageCode,
+                            name: groupName,
+                        }]
+                    });
+
+                    await this.productService.addOptionGroupToProduct(transactionalCtx, product.id, optionGroup.id);
+                    optionGroups.push(optionGroup);
+
+                    for (const val of uniqueValues) {
+                        const optCode = val.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const option = await this.productOptionService.create(transactionalCtx, optionGroup.id, {
+                            code: `${optCode}-${Date.now()}`,
+                            translations: [{
+                                languageCode: ctx.languageCode,
+                                name: val,
+                            }]
+                        });
+                        optionMap.set(`${g}:${val}`, option);
                     }
                 }
-            } catch (chanErr) {
-                console.error(`createMyProduct: Channel assignment error:`, chanErr);
             }
-        }
 
-        // 4. Update facet values & custom fields
-        await this.productService.update(adminCtx, {
-            id: product.id,
-            facetValueIds: finalFacetValueIds,
-            customFields: {
-                shortDescription: input.shortDescription || '',
-                approvalStatus: 'pending',
-                weight: (input as any).weight,
-                width: (input as any).width,
-                height: (input as any).height,
+            // 4. Create Variants (Multiple or Single)
+            const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
+            const variantInputs: any[] = [];
+
+            if ((input as any).variants && (input as any).variants.length > 0) {
+                const variantNames = (input as any).variants.map((v: any, idx: number) => v.name || `${input.name} - Option ${idx + 1}`);
+                const splitNames = variantNames.map((name: string) => name.split(' - ').map((p: string) => p.trim()));
+                const firstLen = splitNames[0].length;
+                const allSameLen = splitNames.every((parts: string[]) => parts.length === firstLen);
+                const numGroups = allSameLen ? firstLen : 1;
+
+                for (let i = 0; i < (input as any).variants.length; i++) {
+                    const v = (input as any).variants[i];
+                    const vName = variantNames[i];
+                    const vSku = v.sku || `${vendorPrefix}-${Date.now()}-${i + 1}`;
+                    
+                    const optionIds: any[] = [];
+                    if (optionGroups.length > 0) {
+                        const parts = allSameLen ? splitNames[i] : [vName];
+                        for (let g = 0; g < numGroups; g++) {
+                            const val = parts[g];
+                            const option = optionMap.get(`${g}:${val}`);
+                            if (option) {
+                                optionIds.push(option.id);
+                            }
+                        }
+                    }
+
+                    const vInput: any = {
+                        productId: product.id,
+                        sku: vSku,
+                        price: v.price,
+                        stockOnHand: v.stock,
+                        featuredAssetId: v.featuredAssetId || input.featuredAssetId,
+                        translations: [{
+                            languageCode: ctx.languageCode,
+                            name: vName,
+                        }],
+                        optionIds,
+                        customFields: {}
+                    };
+                    if (v.onPromotion !== undefined) {
+                        vInput.customFields.onPromotion = v.onPromotion;
+                    }
+                    if (v.promotionalPrice !== undefined) {
+                        vInput.customFields.promotionalPrice = v.promotionalPrice;
+                    }
+                    variantInputs.push(vInput);
+                }
+            } else {
+                const singleSku = (input as any).sku || `${vendorPrefix}-${Date.now()}`;
+                const singleInput: any = {
+                    productId: product.id,
+                    sku: singleSku,
+                    price: input.price,
+                    stockOnHand: input.stock,
+                    featuredAssetId: input.featuredAssetId,
+                    translations: [{
+                        languageCode: ctx.languageCode,
+                        name: input.name,
+                    }],
+                    customFields: {}
+                };
+                if (input.onPromotion !== undefined) {
+                    singleInput.customFields.onPromotion = input.onPromotion;
+                }
+                if (input.promotionalPrice !== undefined) {
+                    singleInput.customFields.promotionalPrice = input.promotionalPrice;
+                }
+                variantInputs.push(singleInput);
             }
+
+            const variants = await this.productVariantService.create(transactionalCtx, variantInputs);
+
+            // 5. Assign Product, Variants and Assets to Vendor's native Channel and default channel
+            if (vendor.channelId) {
+                try {
+                    await this.channelService.assignToChannels(transactionalCtx, Product, product.id, [vendor.channelId]);
+                    for (const variant of variants) {
+                        await this.channelService.assignToChannels(transactionalCtx, ProductVariant, variant.id, [vendor.channelId]);
+                    }
+
+                    const sellerUpdates = variants.map((v, idx) => {
+                        const originalInput = variantInputs[idx];
+                        return {
+                            id: String(v.id),
+                            price: originalInput.price,
+                            customFields: {
+                                onPromotion: originalInput.customFields?.onPromotion,
+                                promotionalPrice: originalInput.customFields?.promotionalPrice,
+                            }
+                        };
+                    });
+                    await this.updatePricesInSellerChannel(transactionalCtx, vendor.channelId.toString(), sellerUpdates);
+
+                    if (input.assetIds && input.assetIds.length > 0) {
+                        for (const assetId of input.assetIds) {
+                            await this.channelService.assignToChannels(transactionalCtx, Asset, assetId, [vendor.channelId]).catch(() => null);
+                        }
+                    }
+                } catch (chanErr) {
+                    console.error(`createMyProduct: Channel assignment error:`, chanErr);
+                }
+            }
+
+            // 6. Update facet values & custom fields
+            await this.productService.update(transactionalCtx, {
+                id: product.id,
+                facetValueIds: finalFacetValueIds,
+                customFields: {
+                    shortDescription: input.shortDescription || '',
+                    approvalStatus: 'pending',
+                    weight: (input as any).weight,
+                    width: (input as any).width,
+                    height: (input as any).height,
+                }
+            });
+
+            // 7. Assign to collections if provided
+            if (input.collectionIds && input.collectionIds.length > 0) {
+                const variantIds = variants.map(v => String(v.id));
+                console.log(`createMyProduct: Assigning variants ${variantIds.join(', ')} to collections:`, input.collectionIds);
+                await this.addVariantsToCollections(transactionalCtx, variantIds, input.collectionIds);
+            }
+
+            // 8. Publish ProductEvent for automatic search indexing and cache invalidation
+            const finalProduct = await this.productService.findOne(transactionalCtx, product.id) as Product;
+            this.eventBus.publish(new ProductEvent(transactionalCtx, finalProduct, 'created', { id: product.id }));
+            return finalProduct;
         });
-
-        // 5. Assign to collections if provided
-        if (input.collectionIds && input.collectionIds.length > 0) {
-            const variantIds = variants.map(v => String(v.id));
-            console.log(`createMyProduct: Assigning variants ${variantIds.join(', ')} to collections:`, input.collectionIds);
-            await this.addVariantsToCollections(adminCtx, variantIds, input.collectionIds);
-        }
-
-        // 6. Publish ProductEvent for automatic search indexing and cache invalidation
-        const finalProduct = await this.productService.findOne(adminCtx, product.id) as Product;
-        this.eventBus.publish(new ProductEvent(adminCtx, finalProduct, 'created', { id: product.id }));
-        return finalProduct;
     }
 
     /**
@@ -360,6 +450,18 @@ export class VendorShopResolver {
 
         // Handle collectionIds, facetValueIds, variants separately
         const { collectionIds, facetValueIds, name, description, shortDescription, variants, ...productInput } = input;
+
+        // 1. Pre-validation checks (Price and SKU uniqueness)
+        if (variants && Array.isArray(variants)) {
+            for (const v of variants) {
+                if (v.price !== undefined) {
+                    await this.validateMinimumPrice(ctx, v.price);
+                }
+                if (v.sku !== undefined) {
+                    await this.validateSkuUniqueness(ctx, v.sku, v.id && !String(v.id).startsWith('new_') ? v.id : undefined);
+                }
+            }
+        }
 
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
@@ -398,118 +500,286 @@ export class VendorShopResolver {
             }];
         }
 
-        // 1. Update the product (facets, name, description, assets, logistics)
-        const updated = await this.productService.update(adminCtx, updateData);
-
-        // 2. Ensure product is assigned to vendor channel
-        if (vendor.channelId) {
-            await this.channelService.assignToChannels(adminCtx, Product, id, [vendor.channelId]).catch(() => null);
-        }
-
-        // 3. Handle Variants (Native Vendure ProductVariantService create/update/delete)
-        if (variants && Array.isArray(variants) && variants.length > 0) {
-            const currentProduct = await this.productService.findOne(adminCtx, id, ['variants']);
-            const existingVariants = currentProduct?.variants || [];
+        return this.connection.withTransaction(adminCtx, async (transactionalCtx: RequestContext) => {
+            // 2. Fetch current product and existing variants/optionGroups
+            const currentProduct = await this.productService.findOne(transactionalCtx, id, ['variants', 'optionGroups']);
+            if (!currentProduct) {
+                throw new Error('Product not found');
+            }
+            const existingVariants = currentProduct.variants || [];
             const existingMap = new Map(existingVariants.map(v => [String(v.id), v]));
-            const incomingIds = new Set(variants.filter((v: any) => v.id && !String(v.id).startsWith('new_')).map((v: any) => String(v.id)));
 
-            // 3a. Update existing variants
-            const toUpdate: any[] = [];
-            for (const v of variants) {
-                if (v.id && existingMap.has(String(v.id))) {
-                    const updateItem: any = {
-                        id: v.id,
-                        ...(v.sku !== undefined ? { sku: v.sku } : {}),
-                        ...(v.price !== undefined ? { price: v.price } : {}),
-                        ...(v.stock !== undefined ? { stockOnHand: v.stock } : {}),
-                        translations: [{
-                            languageCode: ctx.languageCode,
-                            name: v.name || input.name || updated.name,
-                        }],
-                        customFields: {}
-                    };
-                    if (v.onPromotion !== undefined) updateItem.customFields.onPromotion = v.onPromotion;
-                    if (v.promotionalPrice !== undefined) updateItem.customFields.promotionalPrice = v.promotionalPrice;
-                    toUpdate.push(updateItem);
-                }
-            }
-            if (toUpdate.length > 0) {
-                await this.productVariantService.update(adminCtx, toUpdate);
-            }
+            // 3. Update the product core properties
+            const updated = await this.productService.update(transactionalCtx, updateData);
 
-            // 3b. Create new variants
-            const toCreate: any[] = [];
-            const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
-            for (let i = 0; i < variants.length; i++) {
-                const v = variants[i];
-                if (!v.id || String(v.id).startsWith('new_') || !existingMap.has(String(v.id))) {
-                    const vSku = v.sku || `${vendorPrefix}-${Date.now()}-${i + 1}`;
-                    const createItem: any = {
-                        productId: id,
-                        sku: vSku,
-                        price: v.price,
-                        stockOnHand: v.stock ?? 0,
-                        featuredAssetId: v.featuredAssetId || input.featuredAssetId,
-                        translations: [{
-                            languageCode: ctx.languageCode,
-                            name: v.name || `${input.name || updated.name} - Option ${i + 1}`,
-                        }],
-                        customFields: {}
-                    };
-                    if (v.onPromotion !== undefined) createItem.customFields.onPromotion = v.onPromotion;
-                    if (v.promotionalPrice !== undefined) createItem.customFields.promotionalPrice = v.promotionalPrice;
-                    toCreate.push(createItem);
-                }
-            }
-            if (toCreate.length > 0) {
-                const newCreatedVariants = await this.productVariantService.create(adminCtx, toCreate);
-                if (vendor.channelId) {
-                    for (const nv of newCreatedVariants) {
-                        await this.channelService.assignToChannels(adminCtx, ProductVariant, nv.id, [vendor.channelId]).catch(() => null);
-                    }
-                }
-            }
-
-            // 3c. Delete variants removed by the vendor (only if at least 1 remains)
-            if (incomingIds.size > 0) {
-                for (const ev of existingVariants) {
-                    if (!incomingIds.has(String(ev.id))) {
-                        await this.productVariantService.softDelete(adminCtx, ev.id).catch(() => null);
-                    }
-                }
-            }
-        }
-
-        // 4. Handle collection updates
-        console.log(`updateMyProduct: collectionIds = ${JSON.stringify(collectionIds)}`);
-        if (collectionIds !== undefined) {
-            const product = await this.productService.findOne(adminCtx, id, ['variants']);
-            if (!product || !product.variants) {
-                throw new Error('Product or variants not found');
-            }
-
-            const variantIds = product.variants.map(v => String(v.id));
-            console.log(`updateMyProduct: Found ${variantIds.length} variants for product ${id}`);
-
-            // Ensure variants are assigned to vendor channel
+            // Ensure product is assigned to vendor channel
             if (vendor.channelId) {
-                for (const variantId of variantIds) {
-                    await this.channelService.assignToChannels(adminCtx, ProductVariant, variantId, [vendor.channelId]).catch(() => null);
+                await this.channelService.assignToChannels(transactionalCtx, Product, id, [vendor.channelId]).catch(() => null);
+            }
+
+            // 4. Handle Option Groups and Options if needed
+            const incomingVariantsCount = variants ? variants.length : 0;
+            const productGroups = [...(currentProduct.optionGroups || [])];
+
+            if (variants && Array.isArray(variants) && variants.length > 0) {
+                if (incomingVariantsCount > 1 && productGroups.length === 0) {
+                    // Create Option Groups based on incoming variants names
+                    const variantNames = variants.map((v: any, idx: number) => v.name || `${input.name || updated.name} - Option ${idx + 1}`);
+                    const splitNames = variantNames.map((name: string) => name.split(' - ').map((p: string) => p.trim()));
+                    
+                    const firstLen = splitNames[0].length;
+                    const allSameLen = splitNames.every((parts: string[]) => parts.length === firstLen);
+                    const numGroups = allSameLen ? firstLen : 1;
+
+                    for (let g = 0; g < numGroups; g++) {
+                        const uniqueValues = Array.from(new Set(
+                            allSameLen 
+                                ? splitNames.map((parts: string[]) => parts[g])
+                                : variantNames
+                        )) as string[];
+
+                        const groupName = this.getOptionGroupName(uniqueValues, g);
+                        const groupCode = `${groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}-${g}`;
+
+                        const newGroup = await this.productOptionGroupService.create(transactionalCtx, {
+                            code: groupCode,
+                            translations: [{
+                                languageCode: ctx.languageCode,
+                                name: groupName,
+                            }]
+                        });
+
+                        await this.productService.addOptionGroupToProduct(transactionalCtx, id, newGroup.id);
+                        productGroups.push(newGroup);
+                    }
+
+                    // If there was a single existing variant, we must assign it options from the new groups.
+                    if (existingVariants.length === 1) {
+                        const existingV = existingVariants[0];
+                        const defaultOptionIds: any[] = [];
+
+                        for (let g = 0; g < productGroups.length; g++) {
+                            const group = productGroups[g];
+                            const firstOptionVal = allSameLen ? splitNames[0][g] : variantNames[0];
+                            const optCode = firstOptionVal.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                            
+                            const option = await this.productOptionService.create(transactionalCtx, group.id, {
+                                code: `${optCode}-${Date.now()}`,
+                                translations: [{
+                                    languageCode: ctx.languageCode,
+                                    name: firstOptionVal,
+                                }]
+                            });
+                            defaultOptionIds.push(option.id);
+                        }
+
+                        await this.productVariantService.update(transactionalCtx, [{
+                            id: existingV.id,
+                            optionIds: defaultOptionIds
+                        }]);
+                        
+                        const updatedExistingV = await this.connection.getRepository(transactionalCtx, ProductVariant).findOne({
+                            where: { id: existingV.id },
+                            relations: ['options']
+                        });
+                        if (updatedExistingV) {
+                            existingMap.set(String(existingV.id), updatedExistingV);
+                        }
+                    }
+                }
+
+                // 5. Create / Update / Delete Variants
+                const incomingIds = new Set(variants.filter((v: any) => v.id && !String(v.id).startsWith('new_')).map((v: any) => String(v.id)));
+
+                // 5a. Update existing variants
+                const toUpdate: any[] = [];
+                for (const v of variants) {
+                    if (v.id && existingMap.has(String(v.id))) {
+                        const existingV = existingMap.get(String(v.id)) as ProductVariant;
+                        
+                        let optionIds: any[] = [];
+                        if (v.name && productGroups.length > 0) {
+                            const parts = v.name.split(' - ').map((p: string) => p.trim());
+                            for (let idx = 0; idx < productGroups.length; idx++) {
+                                const val = parts[idx] || v.name;
+                                const groupOptions = await this.connection.getRepository(transactionalCtx, ProductOption).find({
+                                    where: { group: { id: productGroups[idx].id } },
+                                    relations: ['translations']
+                                });
+                                
+                                let option = groupOptions.find((o: any) => 
+                                    o.translations?.some((t: any) => t.name.toLowerCase().trim() === val.toLowerCase().trim()) ||
+                                    o.code.toLowerCase().trim() === val.toLowerCase().replace(/[^a-z0-9]+/g, '-').trim()
+                                );
+                                
+                                if (!option) {
+                                    const optCode = val.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                                    option = await this.productOptionService.create(transactionalCtx, productGroups[idx].id, {
+                                        code: `${optCode}-${Date.now()}`,
+                                        translations: [{
+                                            languageCode: ctx.languageCode,
+                                            name: val,
+                                        }]
+                                    });
+                                }
+                                optionIds.push(option.id);
+                            }
+                        } else {
+                            optionIds = existingV.options?.map(o => o.id) || [];
+                        }
+
+                        const updateItem: any = {
+                            id: v.id,
+                            ...(v.sku !== undefined ? { sku: v.sku } : {}),
+                            ...(v.price !== undefined ? { price: v.price } : {}),
+                            ...(v.stock !== undefined ? { stockOnHand: v.stock } : {}),
+                            translations: [{
+                                languageCode: ctx.languageCode,
+                                name: v.name || input.name || updated.name,
+                            }],
+                            optionIds,
+                            customFields: {}
+                        };
+                        if (v.onPromotion !== undefined) updateItem.customFields.onPromotion = v.onPromotion;
+                        if (v.promotionalPrice !== undefined) updateItem.customFields.promotionalPrice = v.promotionalPrice;
+                        toUpdate.push(updateItem);
+                    }
+                }
+                const sellerUpdates: Array<{ id: string; price?: number; customFields?: { onPromotion?: boolean; promotionalPrice?: number } }> = [];
+
+                if (toUpdate.length > 0) {
+                    await this.productVariantService.update(transactionalCtx, toUpdate);
+                    for (const u of toUpdate) {
+                        if (u.price !== undefined) {
+                            sellerUpdates.push({
+                                id: u.id,
+                                price: u.price,
+                                customFields: {
+                                    onPromotion: u.customFields?.onPromotion,
+                                    promotionalPrice: u.customFields?.promotionalPrice,
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // 5b. Create new variants
+                const toCreate: any[] = [];
+                const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
+                for (let i = 0; i < variants.length; i++) {
+                    const v = variants[i];
+                    if (!v.id || String(v.id).startsWith('new_') || !existingMap.has(String(v.id))) {
+                        const vSku = v.sku || `${vendorPrefix}-${Date.now()}-${i + 1}`;
+                        const optionIds: any[] = [];
+                        
+                        if (productGroups.length > 0) {
+                            const vName = v.name || `${input.name || updated.name} - Option ${i + 1}`;
+                            const parts = vName.split(' - ').map((p: string) => p.trim());
+                            
+                            for (let idx = 0; idx < productGroups.length; idx++) {
+                                const val = parts[idx] || vName;
+                                const groupOptions = await this.connection.getRepository(transactionalCtx, ProductOption).find({
+                                    where: { group: { id: productGroups[idx].id } },
+                                    relations: ['translations']
+                                });
+                                
+                                let option = groupOptions.find((o: any) => 
+                                    o.translations?.some((t: any) => t.name.toLowerCase().trim() === val.toLowerCase().trim()) ||
+                                    o.code.toLowerCase().trim() === val.toLowerCase().replace(/[^a-z0-9]+/g, '-').trim()
+                                );
+                                
+                                if (!option) {
+                                    const optCode = val.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                                    option = await this.productOptionService.create(transactionalCtx, productGroups[idx].id, {
+                                        code: `${optCode}-${Date.now()}`,
+                                        translations: [{
+                                            languageCode: ctx.languageCode,
+                                            name: val,
+                                        }]
+                                    });
+                                }
+                                optionIds.push(option.id);
+                            }
+                        }
+
+                        const createItem: any = {
+                            productId: id,
+                            sku: vSku,
+                            price: v.price,
+                            stockOnHand: v.stock ?? 0,
+                            featuredAssetId: v.featuredAssetId || input.featuredAssetId,
+                            translations: [{
+                                languageCode: ctx.languageCode,
+                                name: v.name || `${input.name || updated.name} - Option ${i + 1}`,
+                            }],
+                            optionIds,
+                            customFields: {}
+                        };
+                        if (v.onPromotion !== undefined) createItem.customFields.onPromotion = v.onPromotion;
+                        if (v.promotionalPrice !== undefined) createItem.customFields.promotionalPrice = v.promotionalPrice;
+                        toCreate.push(createItem);
+                    }
+                }
+                if (toCreate.length > 0) {
+                    const newCreatedVariants = await this.productVariantService.create(transactionalCtx, toCreate);
+                    if (vendor.channelId) {
+                        for (const nv of newCreatedVariants) {
+                            await this.channelService.assignToChannels(transactionalCtx, ProductVariant, nv.id, [vendor.channelId]).catch(() => null);
+                        }
+                    }
+
+                    for (let idx = 0; idx < newCreatedVariants.length; idx++) {
+                        const nv = newCreatedVariants[idx];
+                        const origInput = toCreate[idx];
+                        sellerUpdates.push({
+                            id: String(nv.id),
+                            price: origInput.price,
+                            customFields: {
+                                onPromotion: origInput.customFields?.onPromotion,
+                                promotionalPrice: origInput.customFields?.promotionalPrice,
+                            }
+                        });
+                    }
+                }
+
+                if (vendor.channelId && sellerUpdates.length > 0) {
+                    await this.updatePricesInSellerChannel(transactionalCtx, vendor.channelId.toString(), sellerUpdates);
+                }
+
+                // 5c. Delete variants removed by the vendor (only if at least 1 remains)
+                if (incomingIds.size > 0) {
+                    for (const ev of existingVariants) {
+                        if (!incomingIds.has(String(ev.id))) {
+                            await this.productVariantService.softDelete(transactionalCtx, ev.id).catch(() => null);
+                        }
+                    }
                 }
             }
 
-            // Remove variant IDs from all collections, then re-add
-            await this.removeVariantsFromAllCollections(adminCtx, variantIds);
+            // 6. Handle collection updates
+            if (collectionIds !== undefined) {
+                const refreshedProduct = await this.productService.findOne(transactionalCtx, id, ['variants']);
+                if (refreshedProduct && refreshedProduct.variants) {
+                    const variantIds = refreshedProduct.variants.map(v => String(v.id));
+                    
+                    if (vendor.channelId) {
+                        for (const variantId of variantIds) {
+                            await this.channelService.assignToChannels(transactionalCtx, ProductVariant, variantId, [vendor.channelId]).catch(() => null);
+                        }
+                    }
 
-            if (collectionIds.length > 0) {
-                await this.addVariantsToCollections(adminCtx, variantIds, collectionIds);
+                    await this.removeVariantsFromAllCollections(transactionalCtx, variantIds);
+                    if (collectionIds.length > 0) {
+                        await this.addVariantsToCollections(transactionalCtx, variantIds, collectionIds);
+                    }
+                }
             }
-        }
 
-        // 5. Re-fetch and emit event so the search index is updated via Job Queue
-        const finalProduct = await this.productService.findOne(adminCtx, id) as Product;
-        this.eventBus.publish(new ProductEvent(adminCtx, finalProduct, 'updated', { id }));
-        return finalProduct;
+            // 7. Re-fetch and emit event so the search index is updated via Job Queue
+            const finalProduct = await this.productService.findOne(transactionalCtx, id) as Product;
+            this.eventBus.publish(new ProductEvent(transactionalCtx, finalProduct, 'updated', { id }));
+            return finalProduct;
+        });
     }
 
     /**
@@ -534,41 +804,65 @@ export class VendorShopResolver {
         }
 
         const productVendor = await this.vendorService.getVendorByProductId(ctx, variant.productId.toString());
-        if (!productVendor || productVendor.id !== vendor.id) {
+        if (!productVendor || productVendor.id.toString() !== vendor.id.toString()) {
             throw new Error('You do not have permission to update this product variant');
         }
 
-        // Construct update input
-        const updateInput: any = {
-            id: input.id,
-        };
-        
+        // 1. Pre-validation checks (Price and SKU uniqueness)
         if (input.price !== undefined) {
-            // Enforce Minimum Marketplace Price
-            const globalSettings = await this.globalSettingsService.getSettings(ctx);
-            const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
-            if (input.price < minPrice) {
-                throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
-            }
-            updateInput.price = input.price;
+            await this.validateMinimumPrice(ctx, input.price);
         }
-        
-        if (input.stock !== undefined) updateInput.stockOnHand = input.stock;
-        if ((input as any).sku !== undefined) updateInput.sku = (input as any).sku;
-
-        // Add promotional price custom fields
-        if (input.onPromotion !== undefined || input.promotionalPrice !== undefined) {
-            updateInput.customFields = {};
-            if (input.onPromotion !== undefined) {
-                updateInput.customFields.onPromotion = input.onPromotion;
-            }
-            if (input.promotionalPrice !== undefined) {
-                updateInput.customFields.promotionalPrice = input.promotionalPrice;
-            }
+        if ((input as any).sku !== undefined) {
+            await this.validateSkuUniqueness(ctx, (input as any).sku, input.id);
         }
 
         const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
-        return this.productVariantService.update(adminCtx, [updateInput]).then(result => result[0]);
+
+        return this.connection.withTransaction(adminCtx, async (transactionalCtx: RequestContext) => {
+            const transactionalVariant = await this.productVariantService.findOne(transactionalCtx, input.id);
+            if (!transactionalVariant) {
+                throw new Error('Product variant not found');
+            }
+
+            // Construct update input
+            const updateInput: any = {
+                id: input.id,
+            };
+            
+            if (input.price !== undefined) {
+                updateInput.price = input.price;
+            }
+            if (input.stock !== undefined) {
+                updateInput.stockOnHand = input.stock;
+            }
+            if ((input as any).sku !== undefined) {
+                updateInput.sku = (input as any).sku;
+            }
+
+            // Add promotional price custom fields
+            if (input.onPromotion !== undefined || input.promotionalPrice !== undefined) {
+                updateInput.customFields = {};
+                if (input.onPromotion !== undefined) {
+                    updateInput.customFields.onPromotion = input.onPromotion;
+                }
+                if (input.promotionalPrice !== undefined) {
+                    updateInput.customFields.promotionalPrice = input.promotionalPrice;
+                }
+            }
+
+            const result = await this.productVariantService.update(transactionalCtx, [updateInput]).then(res => res[0]);
+            if (vendor.channelId) {
+                await this.updatePricesInSellerChannel(transactionalCtx, vendor.channelId.toString(), [{
+                    id: input.id,
+                    price: input.price,
+                    customFields: {
+                        onPromotion: input.onPromotion,
+                        promotionalPrice: input.promotionalPrice,
+                    }
+                }]);
+            }
+            return result;
+        });
     }
 
     /**
@@ -595,6 +889,65 @@ export class VendorShopResolver {
         await this.productService.softDelete(adminCtx, id);
         return { result: 'DELETED', message: 'Product deleted successfully' };
     }
+
+    /**
+     * Enforce SKU uniqueness before database write
+     */
+    private async validateSkuUniqueness(ctx: RequestContext, sku?: string, excludeVariantId?: any): Promise<void> {
+        if (!sku) return;
+        const qb = this.connection.getRepository(ctx, ProductVariant)
+            .createQueryBuilder('pv')
+            .where('pv.sku = :sku', { sku });
+        if (excludeVariantId) {
+            qb.andWhere('pv.id != :id', { id: excludeVariantId });
+        }
+        const existing = await qb.getOne();
+        if (existing) {
+            throw new Error(`Le SKU "${sku}" est déjà utilisé par un autre produit.`);
+        }
+    }
+
+    /**
+     * Enforce minimum marketplace price on a price value
+     */
+    private async validateMinimumPrice(ctx: RequestContext, price?: number): Promise<void> {
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
+        if (price !== undefined && price !== null && price < minPrice) {
+            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+        }
+    }
+
+    private async updatePricesInSellerChannel(
+        transactionalCtx: RequestContext,
+        channelId: string,
+        updates: Array<{ id: string; price?: number; customFields?: { onPromotion?: boolean; promotionalPrice?: number } }>
+    ) {
+        if (!channelId || updates.length === 0) return;
+        const sellerChannel = await this.channelService.findOne(transactionalCtx, channelId);
+        if (!sellerChannel) return;
+
+        const sellerCtx = new RequestContext({
+            apiType: transactionalCtx.apiType,
+            isAuthorized: transactionalCtx.isAuthorized,
+            authorizedAsOwnerOnly: transactionalCtx.authorizedAsOwnerOnly,
+            channel: sellerChannel,
+            languageCode: transactionalCtx.languageCode,
+            session: transactionalCtx.session ? {
+                ...transactionalCtx.session,
+                activeChannelId: sellerChannel.id,
+            } as any : undefined,
+        });
+
+        const updateInputs = updates.map(u => ({
+            id: u.id,
+            ...(u.price !== undefined ? { price: u.price } : {}),
+            ...(u.customFields ? { customFields: u.customFields } : {}),
+        }));
+
+        await this.productVariantService.update(sellerCtx, updateInputs);
+    }
+
 
     /**
      * Upload a file for the vendor
@@ -1051,11 +1404,34 @@ export class VendorShopResolver {
 
         return true;
     }
+
+    private getOptionGroupName(partValues: string[], index: number): string {
+        const sizeKeywords = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XS', 'Taille', 'Size', 'S/M', 'L/XL'];
+        const isSize = partValues.some(val => {
+            const upper = val.toUpperCase().trim();
+            return sizeKeywords.includes(upper) || /^\d+(\s*(cm|m|kg|g|l|ml))?$/i.test(upper);
+        });
+        if (isSize) {
+            return 'Taille';
+        }
+        const colorKeywords = ['rouge', 'bleu', 'vert', 'jaune', 'noir', 'blanc', 'rose', 'orange', 'violet', 'gris', 'marron', 'color', 'couleur', 'red', 'blue', 'green', 'black', 'white', 'yellow', 'pink'];
+        const isColor = partValues.some(val => {
+            const lower = val.toLowerCase().trim();
+            return colorKeywords.some(kw => lower.includes(kw));
+        });
+        if (isColor) {
+            return 'Couleur';
+        }
+        return index === 0 ? 'Couleur' : 'Taille';
+    }
 }
 
 @Resolver('ProductVariant')
 export class ProductVariantShopResolver {
-    constructor(private connection: TransactionalConnection) {}
+    constructor(
+        private connection: TransactionalConnection,
+        private productPriceApplicator: ProductPriceApplicator,
+    ) {}
 
     @ResolveField('stockOnHand')
     async stockOnHand(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<number> {
@@ -1065,6 +1441,36 @@ export class ProductVariantShopResolver {
         });
         const stockLevels = variantWithStock?.stockLevels || [];
         return stockLevels.reduce((sum, sl) => sum + (sl.stockOnHand || 0), 0);
+    }
+
+    @ResolveField('price')
+    async price(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<number> {
+        return this.getCustomVariantPrice(ctx, variant, false);
+    }
+
+    @ResolveField('priceWithTax')
+    async priceWithTax(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<number> {
+        return this.getCustomVariantPrice(ctx, variant, true);
+    }
+
+    private async getCustomVariantPrice(ctx: RequestContext, variant: ProductVariant, withTax: boolean): Promise<number> {
+        // 1. Try to get price from product_variant_price for ctx.channelId
+        let priceRecord = await this.connection.rawConnection.query(
+            `SELECT price FROM product_variant_price WHERE "variantId" = $1 AND "channelId" = $2 LIMIT 1`,
+            [variant.id, ctx.channelId]
+        );
+        let price = priceRecord?.[0]?.price;
+
+        // 2. If not found or 0, fallback to ANY positive price record for this variant
+        if (price === undefined || price === null || Number(price) === 0) {
+            priceRecord = await this.connection.rawConnection.query(
+                `SELECT price FROM product_variant_price WHERE "variantId" = $1 AND price > 0 ORDER BY id DESC LIMIT 1`,
+                [variant.id]
+            );
+            price = priceRecord?.[0]?.price;
+        }
+
+        return Number(price || 0);
     }
 }
 

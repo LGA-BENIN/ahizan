@@ -1,15 +1,14 @@
 import {
+    defaultCollectionFilters,
     defaultShippingCalculator,
-    defaultCollectionFilters, 
-    defaultOrderProcess,
-    DefaultJobQueuePlugin,
-    DefaultSchedulerPlugin,
     DefaultSearchPlugin,
-    VendureConfig,
+    DefaultSchedulerPlugin,
+    DefaultJobQueuePlugin,
     LanguageCode,
+    defaultOrderProcess,
 } from '@vendure/core';
-import { defaultEmailHandlers, EmailPlugin, FileBasedTemplateLoader } from '@vendure/email-plugin';
 import { AssetServerPlugin } from '@vendure/asset-server-plugin';
+import { EmailPlugin, FileBasedTemplateLoader } from '@vendure/email-plugin';
 import { DashboardPlugin } from '@vendure/dashboard/plugin';
 import { GraphiqlPlugin } from '@vendure/graphiql-plugin';
 import 'dotenv/config';
@@ -26,7 +25,7 @@ import { PageInscriptionPlugin } from './plugins/page-inscription/page-inscripti
 import { AhizanNotificationsPlugin } from './plugins/notifications/ahizan-notifications.plugin';
 import { DynamicEmailSender } from './plugins/notifications/dynamic-email-sender';
 import { ShortCodeVerificationTokenStrategy } from './plugins/notifications/short-code-strategy';
-import { PromotionalOrderItemPriceCalculationStrategy } from './plugins/multivendor/service/promotional-price.strategy';
+import { PromotionalOrderItemPriceCalculationStrategy, AhizanProductVariantPriceCalculationStrategy } from './plugins/multivendor/service/promotional-price.strategy';
 import { AhizanOrderSellerStrategy } from './plugins/multivendor/service/ahizan-order-seller.strategy';
 import { multivendorOrderProcess } from './plugins/multivendor/service/multivendor-order.process';
 import { CMSPlugin } from './plugins/cms/cms.plugin';
@@ -40,31 +39,18 @@ import { geoEngineShippingEligibilityChecker } from './plugins/geo-engine/shippi
 
 dns.setDefaultResultOrder('ipv4first');
 
+// Shared DynamicEmailSender instance – index.ts and index-worker.ts call .setDataSource() on it
+export const emailSenderNode = new DynamicEmailSender();
+
 const IS_DEV = process.env.APP_ENV === 'dev';
 const serverPort = +process.env.PORT || 3000;
 
-export const emailSenderNode = new DynamicEmailSender();
-
-export const config: VendureConfig = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const config: any = {
     apiOptions: {
-        hostname: '0.0.0.0',
         port: serverPort,
         adminApiPath: 'admin-api',
         shopApiPath: 'shop-api',
-        trustProxy: IS_DEV ? false : 1,
-        ...(IS_DEV ? {
-            adminApiDebug: true,
-            shopApiDebug: true,
-        } : {}),
-        cors: {
-            origin: process.env.CORS_ORIGINS
-                ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
-                : [
-                    'http://localhost:5173', 'http://localhost:4200', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:5176',
-                    'http://127.0.0.1:5173', 'http://127.0.0.1:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:5174', 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'http://127.0.0.1:5176'
-                ],
-            credentials: true,
-        },
         middleware: [
             {
                 handler: json({ limit: '50mb' }),
@@ -74,7 +60,7 @@ export const config: VendureConfig = {
         ],
     },
     authOptions: {
-        tokenMethod: ['bearer', 'cookie'],
+        tokenMethod: ['bearer', 'cookie'] as const,
         requireVerification: true, 
         verificationTokenStrategy: new ShortCodeVerificationTokenStrategy(),
         verificationTokenDuration: '100y', 
@@ -115,7 +101,7 @@ export const config: VendureConfig = {
         ],
     },
     catalogOptions: {
-        // Using only defaults first to ensure the server starts safely
+        productVariantPriceCalculationStrategy: new AhizanProductVariantPriceCalculationStrategy(),
         collectionFilters: [...defaultCollectionFilters, variantIdCollectionFilter],
     },
     paymentOptions: {
@@ -165,10 +151,10 @@ export const config: VendureConfig = {
             indexStockStatus: true,
         }),
         EmailPlugin.init({
-            transport: { type: 'none' }, 
+            transport: { type: 'none' },
             emailSender: emailSenderNode,
             route: 'mailbox',
-            handlers: defaultEmailHandlers.filter((h: any) => h.code !== 'password-reset' && h.code !== 'email-verification' && h.code !== 'order-confirmation' && h.type !== 'password-reset' && h.type !== 'email-verification' && h.type !== 'order-confirmation'),
+            handlers: [],
             templateLoader: new FileBasedTemplateLoader(path.join(__dirname, '../static/email/templates')),
             globalTemplateVars: async (ctx: any) => {
                 const req = ctx?.req;

@@ -37,6 +37,9 @@ export default async function OrdersPage(props: any) {
                         state: {
                             notEq: 'AddingItems',
                         },
+                        type: {
+                            notEq: 'Seller',
+                        },
                     },
                 },
             },

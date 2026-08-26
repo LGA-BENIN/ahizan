@@ -344,8 +344,29 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                             </td>
 
                                             {/* Price in CFA */}
-                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right font-serif font-black text-foreground text-sm">
-                                                {variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF').toLocaleString('fr-FR') : '0'} F CFA
+                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right font-serif font-black text-sm">
+                                                {(() => {
+                                                    const hasPromo = variant?.customFields?.onPromotion === true && typeof variant?.customFields?.promotionalPrice === 'number';
+                                                    if (hasPromo) {
+                                                        const original = priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF');
+                                                        const promo = priceFromSubunit(variant.customFields.promotionalPrice, variant.currencyCode || 'XOF');
+                                                        return (
+                                                            <div className="flex flex-col items-end gap-0.5">
+                                                                <span className="text-red-600 dark:text-red-400 font-bold">
+                                                                    {promo.toLocaleString('fr-FR')} F CFA
+                                                                </span>
+                                                                <span className="text-xs text-muted-foreground line-through font-normal">
+                                                                    {original.toLocaleString('fr-FR')} F CFA
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <span className="text-foreground">
+                                                            {variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF').toLocaleString('fr-FR') : '0'} F CFA
+                                                        </span>
+                                                    );
+                                                })()}
                                             </td>
 
                                             {/* Action Buttons (discretes, scale on hover) */}

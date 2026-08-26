@@ -11,3 +11,16 @@ export class VendorEvent extends VendureEvent {
         super();
     }
 }
+
+export class FundsReleasedEvent extends VendureEvent {
+    constructor(
+        public ctx: RequestContext,
+        public vendor: Vendor,
+        public amount: number,
+        public orderCode: string,
+        public availableBalance: number,
+    ) {
+        super();
+    }
+}
+

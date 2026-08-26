@@ -418,6 +418,7 @@ export const commonApiExtensions = `
         status: String!
         mobileMoneyNumber: String
         rejectionReason: String
+        reason: String
         transferReference: String
     }
 

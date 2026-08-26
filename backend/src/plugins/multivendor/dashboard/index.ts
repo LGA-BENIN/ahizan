@@ -1,4 +1,6 @@
+import React from 'react';
 import { defineDashboardExtension } from '@vendure/dashboard';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { VendorListComponent } from './vendors-list';
 import { VendorDetailComponent } from './vendor-detail';
 import { ProductListComponent } from './products-list';
@@ -11,11 +13,30 @@ import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
 import { VendorSelector } from './vendor-selector';
 import { SuivreDiscussionsComponent } from './suivre-discussions';
 
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            retry: 1,
+        },
+    },
+});
+
+function withQueryClient<P extends object>(Component: React.ComponentType<P>): React.FC<P> {
+    return function WrappedComponent(props: P) {
+        return (
+            <QueryClientProvider client={queryClient}>
+                <Component {...props} />
+            </QueryClientProvider>
+        );
+    };
+}
+
 export default defineDashboardExtension({
     routes: [
         {
             path: 'gestion-paiement',
-            component: PaymentManagementComponent,
+            component: withQueryClient(PaymentManagementComponent),
             navMenuItem: {
                 id: 'gestion-paiement',
                 title: 'Commissions & Règlements',
@@ -25,11 +46,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/gestion-paiement',
-            component: PaymentManagementComponent,
+            component: withQueryClient(PaymentManagementComponent),
         },
         {
             path: 'vendors',
-            component: VendorListComponent,
+            component: withQueryClient(VendorListComponent),
             navMenuItem: {
                 id: 'vendors',
                 title: 'Vendeurs',
@@ -39,19 +60,19 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/vendors',
-            component: VendorListComponent,
+            component: withQueryClient(VendorListComponent),
         },
         {
             path: 'vendors/:id',
-            component: VendorDetailComponent,
+            component: withQueryClient(VendorDetailComponent),
         },
         {
             path: 'extensions/vendors/:id',
-            component: VendorDetailComponent,
+            component: withQueryClient(VendorDetailComponent),
         },
         {
             path: 'vendor-orders',
-            component: OrdersListComponent,
+            component: withQueryClient(OrdersListComponent),
             navMenuItem: {
                 id: 'vendor-orders-list',
                 title: 'Ventes des Vendeurs',
@@ -61,15 +82,15 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/vendor-orders',
-            component: OrdersListComponent,
+            component: withQueryClient(OrdersListComponent),
         },
         {
             path: 'orders',
-            component: OrdersListComponent,
+            component: withQueryClient(OrdersListComponent),
         },
         {
             path: 'settings',
-            component: PlatformSettingsComponent,
+            component: withQueryClient(PlatformSettingsComponent),
             navMenuItem: {
                 id: 'platform-settings',
                 title: 'Paramètres',
@@ -79,11 +100,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/settings',
-            component: PlatformSettingsComponent,
+            component: withQueryClient(PlatformSettingsComponent),
         },
         {
             path: 'order-statuses',
-            component: OrderStatusesComponent,
+            component: withQueryClient(OrderStatusesComponent),
             navMenuItem: {
                 id: 'order-statuses',
                 title: 'Configuration des Statuts',
@@ -93,11 +114,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/order-statuses',
-            component: OrderStatusesComponent,
+            component: withQueryClient(OrderStatusesComponent),
         },
         {
             path: 'delivery-zones',
-            component: DeliveryZonesComponent,
+            component: withQueryClient(DeliveryZonesComponent),
             navMenuItem: {
                 id: 'delivery-zones',
                 title: 'Zones de livraison',
@@ -107,11 +128,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/delivery-zones',
-            component: DeliveryZonesComponent,
+            component: withQueryClient(DeliveryZonesComponent),
         },
         {
             path: 'marketplace-products',
-            component: ProductListComponent,
+            component: withQueryClient(ProductListComponent),
             navMenuItem: {
                 id: 'marketplace-products-list',
                 title: 'Produits Marketplace',
@@ -121,11 +142,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/marketplace-products',
-            component: ProductListComponent,
+            component: withQueryClient(ProductListComponent),
         },
         {
             path: 'suivre-discussions',
-            component: SuivreDiscussionsComponent,
+            component: withQueryClient(SuivreDiscussionsComponent),
             navMenuItem: {
                 id: 'suivre-discussions',
                 title: 'Suivre les discussions',
@@ -135,7 +156,7 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/suivre-discussions',
-            component: SuivreDiscussionsComponent,
+            component: withQueryClient(SuivreDiscussionsComponent),
         },
     ],
     navSections: [
@@ -152,20 +173,4 @@ export default defineDashboardExtension({
             },
         ],
     },
-    /*
-    dataTableColumns: [
-        {
-            id: 'seller-status',
-            entity: 'Order',
-            title: 'Statut Vendeur',
-            component: SellerStatusColumn,
-        },
-        {
-            id: 'admin-status',
-            entity: 'Order',
-            title: 'Statut Livraison',
-            component: AdminStatusColumn,
-        },
-    ],
-    */
 });

@@ -21,13 +21,19 @@ export default async function WalletPage() {
     const vendor = (vendorData as any)?.myVendorProfile;
     const stats = (statsData as any)?.myVendorWalletStats;
     const allOrders = (ordersData as any)?.myVendorOrders?.items || [];
-    const activeOrders = allOrders.filter((o: any) => o.customFields?.sellerStatus !== 'reassigned_to_other');
+    const activeOrders = allOrders.filter((o: any) => 
+        o && 
+        o.state !== 'ArrangingPayment' && 
+        o.state !== 'AddingItems' && 
+        o.state !== 'Cancelled' && 
+        o.customFields?.sellerStatus !== 'reassigned_to_other'
+    );
 
-    const totalSales = stats?.netEarnings !== undefined ? stats.netEarnings : activeOrders.reduce((sum: number, o: any) => {
-        if (o.state === 'Cancelled') return sum;
+    const totalSales = typeof stats?.netEarnings === 'number' && stats?.netEarnings > 0 ? stats.netEarnings : activeOrders.reduce((sum: number, o: any) => {
+        if (o.state === 'Cancelled' || o.state === 'ArrangingPayment' || o.state === 'AddingItems') return sum;
         const total = o.totalWithTax || 0;
         const commission = o.customFields?.commissionAmount || 0;
-        return sum + (total - commission);
+        return sum + Math.max(0, total - commission);
     }, 0);
 
     const withdrawnAmount = stats?.totalWithdrawn !== undefined ? stats.totalWithdrawn : withdrawals

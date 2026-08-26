@@ -669,7 +669,12 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
   }
 
   // Shared dialog form content
-  const AddressDialogForm = ({ onSubmitHandler, isSaving, onCancel, submitLabel }: { onSubmitHandler: (data: AddressFormData) => Promise<void>; isSaving: boolean; onCancel?: () => void; submitLabel?: string }) => (
+  const renderAddressDialogForm = (
+    onSubmitHandler: (data: AddressFormData) => Promise<void>,
+    isSaving: boolean,
+    onCancel?: () => void,
+    submitLabel?: string
+  ) => (
     <form onSubmit={handleSubmit(onSubmitHandler)}>
       <FieldGroup className="space-y-6">
         <div className="grid grid-cols-2 gap-6">
@@ -836,7 +841,7 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
             <DialogTitle className="text-2xl font-black tracking-tight">Ajouter une nouvelle adresse</DialogTitle>
             <DialogDescription className="text-base font-medium">Remplissez le formulaire ci-dessous pour ajouter une adresse de livraison.</DialogDescription>
           </DialogHeader>
-          <AddressDialogForm onSubmitHandler={onSaveNewAddress} isSaving={saving} onCancel={() => setDialogOpen(false)} submitLabel="Enregistrer l'adresse" />
+          {renderAddressDialogForm(onSaveNewAddress, saving, () => setDialogOpen(false), "Enregistrer l'adresse")}
         </DialogContent>
       </Dialog>
 
@@ -847,7 +852,7 @@ export default function ShippingAddressStep({ onComplete }: ShippingAddressStepP
             <DialogTitle className="text-2xl font-black tracking-tight">Modifier l'adresse</DialogTitle>
             <DialogDescription className="text-base font-medium">Modifiez les informations de votre adresse de livraison ci-dessous.</DialogDescription>
           </DialogHeader>
-          <AddressDialogForm onSubmitHandler={onUpdateAddress} isSaving={saving} onCancel={() => setEditDialogOpen(false)} submitLabel="Mettre à jour l'adresse" />
+          {renderAddressDialogForm(onUpdateAddress, saving, () => setEditDialogOpen(false), "Mettre à jour l'adresse")}
         </DialogContent>
       </Dialog>
     </div>

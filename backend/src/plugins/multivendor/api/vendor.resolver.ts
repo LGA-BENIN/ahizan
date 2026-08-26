@@ -1,5 +1,5 @@
-import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction, ProductVariantService, SearchService, GlobalSettingsService, EventBus, ProductEvent, Collection, ProductVariant, ChannelService } from '@vendure/core';
-import { In } from 'typeorm';
+import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction, ProductVariantService, SearchService, GlobalSettingsService, EventBus, ProductEvent, Collection, ProductVariant, ChannelService, ProductOptionGroupService, ProductOptionService } from '@vendure/core';
+import { In, Not } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
@@ -351,6 +351,14 @@ export class VendorResolver {
     }
 }
 
+@Resolver('WithdrawalRequest')
+export class WithdrawalRequestEntityResolver {
+    @ResolveField('reason')
+    reason(@Parent() withdrawal: any): string | null {
+        return withdrawal.rejectionReason;
+    }
+}
+
 function isErrorResult(result: any): result is { message: string; errorCode: string } {
     return !!result.errorCode;
 }
@@ -368,6 +376,8 @@ export class VendorAdminResolver {
         private likeService: LikeService,
         private geoService: GeoService,
         private channelService: ChannelService,
+        private productOptionGroupService: ProductOptionGroupService,
+        private productOptionService: ProductOptionService,
     ) {
         console.log('VendorAdminResolver initialized with ProductService and GeoService');
     }
@@ -797,86 +807,86 @@ export class VendorAdminResolver {
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, input.collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(input.facetValueIds || []), ...extractedFacetIds]));
 
-        const globalSettings = await this.globalSettingsService.getSettings(ctx);
-        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
-        if (input.price < minPrice) {
-            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
-        }
+        // 1. Pre-validation checks
+        await this.validateMinimumPrice(ctx, input.price);
 
-        const product = await this.productService.create(ctx, {
-            translations: [{
-                languageCode: ctx.languageCode,
-                name: input.name,
-                slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-                description: input.description,
+        return this.connection.withTransaction(ctx, async (transactionalCtx: RequestContext) => {
+            // 2. Create Product
+            const product = await this.productService.create(transactionalCtx, {
+                translations: [{
+                    languageCode: ctx.languageCode,
+                    name: input.name,
+                    slug: input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+                    description: input.description,
+                    customFields: {
+                        shortDescription: input.shortDescription || '',
+                    },
+                }],
+                enabled: true,
+                assetIds: input.assetIds,
+                facetValueIds: finalFacetValueIds,
+                featuredAssetId: input.featuredAssetId,
+                customFields: {
+                    vendor: { id: vendor.id },
+                    shortDescription: input.shortDescription || '',
+                    approvalStatus: 'approved',
+                }
+            });
+
+            const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
+            const variantInput: any = {
+                productId: product.id,
+                sku: `${vendorPrefix}-${Date.now()}`,
+                price: input.price,
+                stockOnHand: input.stock,
+                translations: [{
+                    languageCode: ctx.languageCode,
+                    name: input.name,
+                }]
+            };
+
+            if (input.onPromotion !== undefined) {
+                variantInput.customFields = { onPromotion: input.onPromotion };
+            }
+            if (input.promotionalPrice !== undefined) {
+                variantInput.customFields = { ...variantInput.customFields, promotionalPrice: input.promotionalPrice };
+            }
+
+            const variants = await this.productVariantService.create(transactionalCtx, [variantInput]);
+            const variant = variants[0];
+
+            // 3. Assign Product, Variant and Assets to Vendor's native Channel
+            if (vendor.channelId) {
+                try {
+                    await this.channelService.assignToChannels(transactionalCtx, Product, product.id, [vendor.channelId]);
+                    await this.channelService.assignToChannels(transactionalCtx, ProductVariant, variant.id, [vendor.channelId]);
+                    if (input.assetIds && input.assetIds.length > 0) {
+                        for (const assetId of input.assetIds) {
+                            await this.channelService.assignToChannels(transactionalCtx, Asset, assetId, [vendor.channelId]).catch(() => null);
+                        }
+                    }
+                } catch (chanErr) {
+                    console.error(`adminCreateProduct: Channel assignment error:`, chanErr);
+                }
+            }
+
+            await this.productService.update(transactionalCtx, {
+                id: product.id,
+                facetValueIds: finalFacetValueIds,
                 customFields: {
                     shortDescription: input.shortDescription || '',
-                },
-            }],
-            enabled: true,
-            assetIds: input.assetIds,
-            facetValueIds: finalFacetValueIds,
-            featuredAssetId: input.featuredAssetId,
-            customFields: {
-                vendor: { id: vendor.id },
-                shortDescription: input.shortDescription || '',
-                approvalStatus: 'approved',
-            }
-        });
-
-        const vendorPrefix = (vendor.name || 'VND').substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'V');
-        const variantInput: any = {
-            productId: product.id,
-            sku: `${vendorPrefix}-${Date.now()}`,
-            price: input.price,
-            stockOnHand: input.stock,
-            translations: [{
-                languageCode: ctx.languageCode,
-                name: input.name,
-            }]
-        };
-
-        if (input.onPromotion !== undefined) {
-            variantInput.customFields = { onPromotion: input.onPromotion };
-        }
-        if (input.promotionalPrice !== undefined) {
-            variantInput.customFields = { ...variantInput.customFields, promotionalPrice: input.promotionalPrice };
-        }
-
-        const variants = await this.productVariantService.create(ctx, [variantInput]);
-        const variant = variants[0];
-
-        // Assign Product, Variant and Assets to Vendor's native Channel
-        if (vendor.channelId) {
-            try {
-                await this.channelService.assignToChannels(ctx, Product, product.id, [vendor.channelId]);
-                await this.channelService.assignToChannels(ctx, ProductVariant, variant.id, [vendor.channelId]);
-                if (input.assetIds && input.assetIds.length > 0) {
-                    for (const assetId of input.assetIds) {
-                        await this.channelService.assignToChannels(ctx, Asset, assetId, [vendor.channelId]).catch(() => null);
-                    }
+                    approvalStatus: 'approved',
                 }
-            } catch (chanErr) {
-                console.error(`adminCreateProduct: Channel assignment error:`, chanErr);
-            }
-        }
+            });
 
-        await this.productService.update(ctx, {
-            id: product.id,
-            facetValueIds: finalFacetValueIds,
-            customFields: {
-                shortDescription: input.shortDescription || '',
-                approvalStatus: 'approved',
+            if (input.collectionIds && input.collectionIds.length > 0) {
+                await this.addVariantsToCollections(transactionalCtx, [String(variant.id)], input.collectionIds);
             }
+
+            const finalProduct = await this.productService.findOne(transactionalCtx, product.id) as Product;
+            this.eventBus.publish(new ProductEvent(transactionalCtx, finalProduct, 'created', { id: product.id }));
+            return finalProduct;
         });
-
-        if (input.collectionIds && input.collectionIds.length > 0) {
-            await this.addVariantsToCollections(ctx, [String(variant.id)], input.collectionIds);
-        }
-
-        const finalProduct = await this.productService.findOne(ctx, product.id) as Product;
-        this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'created', { id: product.id }));
-        return finalProduct;
     }
 
     @Mutation()
@@ -967,20 +977,21 @@ export class VendorAdminResolver {
         const variant = await this.productVariantService.findOne(ctx, input.id);
         if (!variant) throw new Error('Product variant not found');
 
+        // 1. Pre-validation checks (Price and SKU uniqueness)
+        if (input.price !== undefined) {
+            await this.validateMinimumPrice(ctx, input.price);
+        }
+        if (input.sku !== undefined) {
+            await this.validateSkuUniqueness(ctx, input.sku, input.id);
+        }
+
         const updateInput: any = {
             id: input.id,
         };
         
-        if (input.price !== undefined) {
-            const globalSettings = await this.globalSettingsService.getSettings(ctx);
-            const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
-            if (input.price < minPrice) {
-                throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
-            }
-            updateInput.price = input.price;
-        }
-        
+        if (input.price !== undefined) updateInput.price = input.price;
         if (input.stock !== undefined) updateInput.stockOnHand = input.stock;
+        if (input.sku !== undefined) updateInput.sku = input.sku;
 
         if (input.onPromotion !== undefined || input.promotionalPrice !== undefined) {
             updateInput.customFields = {};
@@ -988,6 +999,36 @@ export class VendorAdminResolver {
             if (input.promotionalPrice !== undefined) updateInput.customFields.promotionalPrice = input.promotionalPrice;
         }
 
-        return this.productVariantService.update(ctx, [updateInput]).then(result => result[0]);
+        return this.connection.withTransaction(ctx, async (transactionalCtx: RequestContext) => {
+            return this.productVariantService.update(transactionalCtx, [updateInput]).then(result => result[0]);
+        });
+    }
+
+    /**
+     * Enforce SKU uniqueness before database write
+     */
+    private async validateSkuUniqueness(ctx: RequestContext, sku?: string, excludeVariantId?: any): Promise<void> {
+        if (!sku) return;
+        const qb = this.connection.getRepository(ctx, ProductVariant)
+            .createQueryBuilder('pv')
+            .where('pv.sku = :sku', { sku });
+        if (excludeVariantId) {
+            qb.andWhere('pv.id != :id', { id: excludeVariantId });
+        }
+        const existing = await qb.getOne();
+        if (existing) {
+            throw new Error(`Le SKU "${sku}" est déjà utilisé par un autre produit.`);
+        }
+    }
+
+    /**
+     * Enforce minimum marketplace price on a price value
+     */
+    private async validateMinimumPrice(ctx: RequestContext, price?: number): Promise<void> {
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
+        if (price !== undefined && price !== null && price < minPrice) {
+            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+        }
     }
 }

@@ -17,7 +17,7 @@ import {
 } from '@vendure/core';
 import { BrevoSmsService } from './brevo-sms.service';
 import { BrevoSettings } from './entities/brevo-settings.entity';
-import { VendorEvent } from '../multivendor/events/vendor-event';
+import { VendorEvent, FundsReleasedEvent } from '../multivendor/events/vendor-event';
 import { Vendor } from '../multivendor/entities/vendor.entity';
 import { ChatMessage } from '../multivendor/entities/chat-message.entity';
 import { ChatMessageEvent } from '../multivendor/events/chat-message-event';
@@ -424,7 +424,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
                             INNER JOIN product p ON pv."productId" = p.id
                             INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
-                            WHERE ol."orderId" = $1 AND v."userId" IS NOT NULL
+                            WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1)) AND v."userId" IS NOT NULL
                         `, [order.id]);
                         const vUserIds = vRows.map(v => v.user_id?.toString()).filter(Boolean);
                         if (vUserIds.includes(buyerUserId.toString())) {
@@ -507,7 +507,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
             }
 
             // ── Vendeur : Notification de Nouvelle Vente ──
-            if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
+            if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled' || toState === 'ArrangingPayment') {
                 let buyerUserIdForVendorCheck: string | undefined;
                 try {
                     let bUid = order.customer?.user?.id;
@@ -522,25 +522,47 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 } catch (_) {}
 
                 try {
-                    const vendorRows: { vendor_id: string; vendor_name: string; phone_number: string; email: string; user_id: string; channel_id: string }[] = await this.connection.rawConnection.query(`
+                    let vendorRows: { vendor_id: string; vendor_name: string; phone_number: string; email: string; user_id: string; channel_id: string }[] = [];
+                try {
+                    vendorRows = await this.connection.rawConnection.query(`
                         SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id, v."channelId" as channel_id
                         FROM order_line ol
                         INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
                         INNER JOIN product p ON pv."productId" = p.id
-                        INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
-                        WHERE ol."orderId" = $1 AND v.id IS NOT NULL
+                        INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid")
+                        WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                          AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                          AND v.id IS NOT NULL
                     `, [order.id]);
+                } catch (err1) {
+                    try {
+                        vendorRows = await this.connection.rawConnection.query(`
+                            SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id, v."channelId" as channel_id
+                            FROM order_line ol
+                            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                            INNER JOIN product p ON pv."productId" = p.id
+                            INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorId", p."customFieldsVendorId")
+                            WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                              AND COALESCE(ol."customFieldsSellerStatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                              AND v.id IS NOT NULL
+                        `, [order.id]);
+                    } catch (err2: any) {
+                        console.error('[notification-event.subscriber] Failed to fetch vendorRows:', err2?.message || err2);
+                    }
+                }
 
-                    const config = settings.channelsConfig?.NewOrderVendor;
+                const config = settings.channelsConfig?.NewOrderVendor;
 
-                    for (const v of vendorRows) {
-                        // CRITICAL: If this vendor IS the buyer (same userId), skip seller alert
-                        if (buyerUserIdForVendorCheck && v.user_id && v.user_id.toString() === buyerUserIdForVendorCheck) {
-                            continue;
-                        }
+                for (const v of vendorRows) {
+                    // CRITICAL: If this vendor IS the buyer (same userId), skip seller alert
+                    if (buyerUserIdForVendorCheck && v.user_id && v.user_id.toString() === buyerUserIdForVendorCheck) {
+                        continue;
+                    }
 
-                        // Extract items specific to this vendor
-                        const vendorItems: { product_name: string; quantity: number; line_price: number }[] = await this.connection.rawConnection.query(`
+                    // Extract items specific to this vendor
+                    let vendorItems: { product_name: string; quantity: number; line_price: number }[] = [];
+                    try {
+                        vendorItems = await this.connection.rawConnection.query(`
                             SELECT 
                                 p.name as product_name,
                                 ol.quantity,
@@ -548,9 +570,30 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             FROM order_line ol
                             INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
                             INNER JOIN product p ON pv."productId" = p.id
-                            INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
-                            WHERE ol."orderId" = $1 AND v.id = $2
+                            INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid")
+                            WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                              AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                              AND v.id = $2
                         `, [order.id, v.vendor_id]);
+                    } catch (errItem1) {
+                        try {
+                            vendorItems = await this.connection.rawConnection.query(`
+                                SELECT 
+                                    p.name as product_name,
+                                    ol.quantity,
+                                    ol."proratedLinePrice" as line_price
+                                FROM order_line ol
+                                INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                                INNER JOIN product p ON pv."productId" = p.id
+                                INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorId", p."customFieldsVendorId")
+                                WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                                  AND COALESCE(ol."customFieldsSellerStatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                                  AND v.id = $2
+                            `, [order.id, v.vendor_id]);
+                        } catch (errItem2: any) {
+                            console.error('[notification-event.subscriber] Failed to fetch vendorItems:', errItem2?.message || errItem2);
+                        }
+                    }
 
                         const vendorTotal = vendorItems.reduce((acc, curr) => acc + parseInt(curr.line_price as any || '0', 10), 0);
                         const formattedVendorTotal = Number(vendorTotal).toLocaleString('fr-FR');
@@ -948,6 +991,34 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         );
                     }
                 }
+            }
+        });
+
+        this.eventBus.ofType(FundsReleasedEvent).subscribe(async (event) => {
+            const { ctx, vendor, amount, orderCode, availableBalance } = event;
+            let vendorUserId: string | number | undefined = vendor.user?.id;
+            if (!vendorUserId && vendor.id) {
+                const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
+                    where: { id: vendor.id },
+                    relations: ['user']
+                });
+                vendorUserId = vWithUser?.user?.id ?? undefined;
+            }
+            if (vendorUserId) {
+                const formattedAmount = (amount / 100).toLocaleString('fr-FR');
+                const formattedBalance = (availableBalance / 100).toLocaleString('fr-FR');
+                await this.sendInAppAndPushNotification(
+                    ctx,
+                    vendorUserId.toString(),
+                    'Fonds Libérés 🔓',
+                    `Les fonds d'un montant de ${formattedAmount} FCFA pour la commande #${orderCode} ont été libérés. Votre solde disponible est de ${formattedBalance} FCFA.`,
+                    '/dashboard/wallet',
+                    undefined,
+                    'VENDOR_EVENT',
+                    undefined,
+                    'VENDOR',
+                    vendor.channelId ? parseInt(vendor.channelId.toString(), 10) : undefined,
+                );
             }
         });
     }

@@ -141,8 +141,8 @@ const REASSIGN_VENDOR_SUB_ORDER = `
 `;
 
 const REASSIGN_ORDER_LINE_TO_PRODUCT = `
-    mutation ReassignOrderLineToProduct($orderId: ID!, $lineId: ID!, $newProductId: ID!, $newPrice: Float!, $newVendorId: ID!) {
-        reassignOrderLineToProduct(orderId: $orderId, lineId: $lineId, newProductId: $newProductId, newPrice: $newPrice, newVendorId: $newVendorId)
+    mutation ReassignOrderLineToProduct($orderId: ID!, $lineId: ID!, $newProductId: ID, $newProductName: String, $newPrice: Float!, $newVendorId: ID!) {
+        reassignOrderLineToProduct(orderId: $orderId, lineId: $lineId, newProductId: $newProductId, newProductName: $newProductName, newPrice: $newPrice, newVendorId: $newVendorId)
     }
 `;
 
@@ -687,7 +687,9 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
     });
     const vendorSubOrders = Object.keys(linesByVendorMap).map(k => linesByVendorMap[k]);
 
-    const [selectedSubOrderIndex, setSelectedSubOrderIndex] = useState<number | 'all'>('all');
+    const [selectedSubOrderIndex, setSelectedSubOrderIndex] = useState<number | 'all'>(
+        vendorSubOrders.length > 0 ? 0 : 'all'
+    );
 
     // Vendor Statuses Map
     const vendorStatusesMap = useMemo(() => {
@@ -763,8 +765,15 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
     });
 
     const reassignProductMutation = useMutation({
-        mutationFn: ({ lineId, newProductId, newPrice, newVendorId }: any) => 
-            fetchGraphQL(REASSIGN_ORDER_LINE_TO_PRODUCT, { orderId: order.id, lineId, newProductId, newPrice: Number(newPrice), newVendorId }),
+        mutationFn: ({ lineId, newProductId, newProductName, newPrice, newVendorId }: any) => 
+            fetchGraphQL(REASSIGN_ORDER_LINE_TO_PRODUCT, { 
+                orderId: order.id, 
+                lineId, 
+                newProductId: newProductId || undefined, 
+                newProductName: newProductName || undefined, 
+                newPrice: Number(newPrice), 
+                newVendorId 
+            }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
             setReassignProductModal(false);
@@ -777,526 +786,617 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
     });
 
     return (
-        <div className="po-modal-overlay" onClick={onClose}>
-            <div className="po-modal" onClick={e => e.stopPropagation()}>
+        <div className="po-modal-overlay" onClick={onClose} style={{ backdropFilter: 'blur(6px)', background: 'rgba(15, 23, 42, 0.65)' }}>
+            <div className="po-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '1150px', width: '95vw', maxHeight: '92vh', borderRadius: '20px', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #cbd5e1' }}>
                 
-                <div className="po-modal-header">
+                {/* ── HEADER ── */}
+                <div style={{ background: '#ffffff', padding: '20px 28px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                            <h2 style={{ fontSize: '24px', fontWeight: 900, margin: 0, color: '#0f172a', fontFamily: 'monospace' }}>#{order.code}</h2>
-                            <span className="po-status-badge" style={{ background: `${stObj.color}15`, color: stObj.color, fontSize: '13px' }}>
-                                <StateIcon size={15} /> {stObj.label}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                            <h2 style={{ fontSize: '24px', fontWeight: 900, margin: 0, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                                Commande <span style={{ color: '#2563eb', fontFamily: 'monospace' }}>#{order.code}</span>
+                            </h2>
+                            <span className="po-status-badge" style={{ background: `${stObj.color}18`, color: stObj.color, fontSize: '12px', fontWeight: 800, padding: '4px 10px', borderRadius: '8px' }}>
+                                <StateIcon size={14} /> {stObj.label}
                             </span>
-                            {vendorSubOrders.length > 1 && (
-                                <span className="po-status-badge" style={{ background: '#eff6ff', color: '#2563eb', fontSize: '12px', fontWeight: 800, border: '1px solid #bfdbfe' }}>
-                                    {vendorSubOrders.length} Sub-commandes Vendeurs
+                            {vendorSubOrders.length > 1 ? (
+                                <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                                    📦 {vendorSubOrders.length} Sous-Commandes Vendeurs
+                                </span>
+                            ) : (
+                                <span style={{ background: '#f8fafc', color: '#475569', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                    👤 1 Vendeur unique
                                 </span>
                             )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#64748b', fontSize: '13px', fontWeight: 600, flexWrap: 'wrap' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={15} /> Créée le {formatDate(order.createdAt)}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#64748b', fontSize: '12px', fontWeight: 600, marginTop: '6px' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={14} /> Passée le {formatDate(order.createdAt)}
+                            </span>
                             <span>•</span>
-                            <span>{order.lines.length} Article(s) au total</span>
+                            <span>{order.lines.length} Article(s)</span>
+                            <span>•</span>
+                            <span>Client: <strong>{order.customer ? `${order.customer.firstName} ${order.customer.lastName}` : 'Client Invité'}</strong></span>
                         </div>
-
-                        {/* Sub-Orders Navigation Tabs */}
-                        {vendorSubOrders.length > 1 && (
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedSubOrderIndex('all')}
-                                    style={{
-                                        padding: '6px 14px',
-                                        borderRadius: '20px',
-                                        fontSize: '12px',
-                                        fontWeight: 800,
-                                        border: selectedSubOrderIndex === 'all' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                        background: selectedSubOrderIndex === 'all' ? '#eff6ff' : 'white',
-                                        color: selectedSubOrderIndex === 'all' ? '#1d4ed8' : '#475569',
-                                        cursor: 'pointer',
-                                        whiteSpace: 'nowrap'
-                                    }}
-                                >
-                                    Vue Globale (Toutes)
-                                </button>
-                                {vendorSubOrders.map((so, idx) => {
-                                    const vId = so?.vendor?.id || 'default';
-                                    const soVendorStatus = vendorStatusesMap[vId]?.sellerStatus || 'pending';
-                                    const soStatusColor = soVendorStatus === 'confirmed' ? '#10b981' : soVendorStatus === 'reassigning' ? '#8b5cf6' : soVendorStatus === 'reassigned_to_other' ? '#6b7280' : soVendorStatus === 'refused' ? '#ef4444' : '#f59e0b';
-                                    const soStatusLabel = soVendorStatus === 'confirmed' ? '✅' : soVendorStatus === 'reassigning' ? '🔄' : soVendorStatus === 'reassigned_to_other' ? '⏭️' : soVendorStatus === 'refused' ? '❌' : '⏳';
-                                    return (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => setSelectedSubOrderIndex(idx)}
-                                        style={{
-                                            padding: '6px 14px',
-                                            borderRadius: '20px',
-                                            fontSize: '12px',
-                                            fontWeight: 800,
-                                            border: selectedSubOrderIndex === idx ? '2px solid #2563eb' : `1px solid ${soStatusColor}40`,
-                                            background: selectedSubOrderIndex === idx ? '#eff6ff' : `${soStatusColor}10`,
-                                            color: selectedSubOrderIndex === idx ? '#1d4ed8' : '#475569',
-                                            cursor: 'pointer',
-                                            whiteSpace: 'nowrap'
-                                        }}
-                                    >
-                                        {soStatusLabel} {so.vendor.name}
-                                    </button>
-                                    );
-                                })}
-                            </div>
-                        )}
                     </div>
-                    <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background='#e2e8f0'} onMouseLeave={e => e.currentTarget.style.background='#f1f5f9'}>
+                    
+                    <button 
+                        onClick={onClose} 
+                        style={{ background: '#f1f5f9', border: 'none', borderRadius: '12px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#475569', transition: 'all 0.2s' }} 
+                        onMouseEnter={e => e.currentTarget.style.background='#e2e8f0'} 
+                        onMouseLeave={e => e.currentTarget.style.background='#f1f5f9'}
+                        title="Fermer la fenêtre"
+                    >
                         <X size={20} />
                     </button>
                 </div>
 
-                <div className="po-modal-body">
+                {/* ── TOP KPI STRIP ── */}
+                <div style={{ background: '#f8fafc', padding: '14px 28px', borderBottom: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                    <div style={{ background: 'white', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Total Payé Client</div>
+                        <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>{formatPrice(order.totalWithTax, order.currencyCode)}</div>
+                    </div>
+                    <div style={{ background: 'white', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Téléphone Client</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Phone size={13} color="#2563eb" /> {order.customer?.phoneNumber || order.shippingAddress?.phoneNumber || 'Non renseigné'}
+                        </div>
+                    </div>
+                    <div style={{ background: 'white', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Ville Livraison</div>
+                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={13} color="#16a34a" /> {order.shippingAddress?.city ? `${order.shippingAddress.city}, ${order.shippingAddress.province || ''}` : 'Non spécifiée'}
+                        </div>
+                    </div>
+                    <div style={{ background: 'white', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Statut Expédition Client</div>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#2563eb', marginTop: '2px' }}>
+                            {order.customFields?.adminStatus === 'delivered' ? '🎉 Colis Livré' :
+                             order.customFields?.adminStatus === 'shipped' ? '🚚 Expédiée' :
+                             order.customFields?.adminStatus === 'in_transit' ? '✈️ En transit' :
+                             order.customFields?.adminStatus === 'cancelled' ? '❌ Annulée' : '⏳ Préparation'}
+                        </div>
+                    </div>
+                </div>
 
-                    {/* Cancellation & Reassignment Alert Banner */}
-                    {(sStat === 'refused' || sStat === 'reassigning') && (
-                        <div style={{ padding: '16px', background: '#fff1f2', border: '2px dashed #f43f5e', borderRadius: '12px', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#9f1239', fontWeight: 800, fontSize: '15px', marginBottom: '6px' }}>
-                                <AlertCircle size={20} color="#e11d48" /> Sous-commande Refusée par le vendeur (En cours d'assignation)
+                {/* ── MODAL BODY (SCROLLABLE) ── */}
+                <div className="po-modal-body" style={{ display: 'flex', gap: '24px', padding: '24px 28px', overflowY: 'auto', flex: 1 }}>
+                    
+                    {/* LEFT COLUMN: Sub-orders per Vendor (68%) */}
+                    <div style={{ flex: '2', minWidth: '400px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '14px', fontWeight: 900, margin: 0, textTransform: 'uppercase', color: '#334155', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Store size={18} color="#2563eb" />
+                                Détail des Sous-Commandes par Vendeur ({vendorSubOrders.length})
+                            </h3>
+                        </div>
+
+                        {/* LIST OF VENDORS & THEIR ITEMS */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {vendorSubOrders.map((so, vIdx) => {
+                                const vId = so?.vendor?.id || 'default';
+                                const soVendorStatus = vendorStatusesMap[vId]?.sellerStatus || 'pending';
+                                
+                                const statusMetaMap: Record<string, { label: string; color: string; bg: string; border: string }> = {
+                                    confirmed: { label: 'Acceptée par le vendeur', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+                                    refused: { label: 'Refusée par le vendeur', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+                                    reassigning: { label: 'En réassignation', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+                                    reassigned_to_other: { label: 'Réassignée', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' },
+                                    pending: { label: 'En attente validation', color: '#b45309', bg: '#fffbeb', border: '#fde68a' }
+                                };
+                                const meta = statusMetaMap[soVendorStatus] || statusMetaMap.pending;
+                                const isAllConfirmed = so.lines.every((l: any) => l.customFields?.sellerStatus === 'confirmed');
+
+                                return (
+                                    <div 
+                                        key={vIdx} 
+                                        style={{ 
+                                            background: '#ffffff', 
+                                            borderRadius: '16px', 
+                                            border: '1px solid #e2e8f0', 
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                            overflow: 'hidden' 
+                                        }}
+                                    >
+                                        {/* Vendor Sub-Order Header */}
+                                        <div style={{ background: '#f8fafc', padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '14px', border: '1px solid #bfdbfe' }}>
+                                                    🏪
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>{so.vendor.name}</div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                        {so.vendor.email || 'Pas de courriel'} {so.vendor.phoneNumber ? `• Tel: ${so.vendor.phoneNumber}` : ''}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '8px', color: meta.color, backgroundColor: meta.bg, border: `1px solid ${meta.border}` }}>
+                                                    {meta.label}
+                                                </span>
+                                                <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginLeft: '4px' }}>
+                                                    {formatPrice(so.total, order.currencyCode)}
+                                                </span>
+
+                                                {/* Transfer entire sub-order button */}
+                                                {!isAllConfirmed && soVendorStatus !== 'reassigned_to_other' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedSubOrderIndex(vIdx);
+                                                            setTargetVendorId('');
+                                                            setReassignVendorModal(true);
+                                                        }}
+                                                        style={{
+                                                            padding: '5px 10px',
+                                                            background: '#f1f5f9',
+                                                            color: '#334155',
+                                                            border: '1px solid #cbd5e1',
+                                                            borderRadius: '8px',
+                                                            fontWeight: 800,
+                                                            fontSize: '11px',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                        title="Transférer tous les articles de ce vendeur à un autre vendeur"
+                                                    >
+                                                        🔄 Transférer à un autre vendeur
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Items List for this vendor */}
+                                        <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {so.lines.map((line: any) => {
+                                                const lineStatus = line.customFields?.sellerStatus || 'pending';
+                                                const isConfirmed = lineStatus === 'confirmed';
+                                                const isRefused = lineStatus === 'refused';
+                                                const isReassigned = lineStatus === 'reassigned_to_other';
+                                                const isReassigning = lineStatus === 'reassigning';
+
+                                                return (
+                                                    <div 
+                                                        key={line.id} 
+                                                        style={{ 
+                                                            display: 'flex', 
+                                                            alignItems: 'center', 
+                                                            gap: '14px', 
+                                                            padding: '10px 14px', 
+                                                            borderRadius: '12px', 
+                                                            background: isReassigned ? '#f8fafc' : '#ffffff', 
+                                                            border: isRefused ? '1px solid #fecaca' : isConfirmed ? '1px solid #bbf7d0' : '1px solid #f1f5f9',
+                                                            opacity: isReassigned ? 0.6 : 1
+                                                        }}
+                                                    >
+                                                        <img 
+                                                            src={line.productVariant?.featuredAsset?.preview || '/placeholder.png'} 
+                                                            alt={line.productVariant?.name} 
+                                                            style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#f8fafc' }}
+                                                        />
+                                                        
+                                                        <div style={{ flex: 1, textAlign: 'left' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{line.productVariant?.name}</span>
+                                                                
+                                                                {/* Status Badge */}
+                                                                {isConfirmed && (
+                                                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
+                                                                        ✅ Accepté
+                                                                    </span>
+                                                                )}
+                                                                {isRefused && (
+                                                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>
+                                                                        ❌ Refusé
+                                                                    </span>
+                                                                )}
+                                                                {isReassigning && (
+                                                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }}>
+                                                                        🔄 En réassignation
+                                                                    </span>
+                                                                )}
+                                                                {isReassigned && (
+                                                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                                                                        ⏭️ Réassigné
+                                                                    </span>
+                                                                )}
+                                                                {!isConfirmed && !isRefused && !isReassigning && !isReassigned && (
+                                                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}>
+                                                                        ⏳ En attente
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>
+                                                                SKU: <strong style={{ color: '#475569' }}>{line.productVariant?.sku || '—'}</strong> • Prix unitaire: {formatPrice(line.unitPriceWithTax || line.listPrice || 0, order.currencyCode)}
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ textAlign: 'center', minWidth: '45px' }}>
+                                                            <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>Qté</div>
+                                                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>{line.quantity}</div>
+                                                        </div>
+
+                                                        <div style={{ textAlign: 'right', minWidth: '95px' }}>
+                                                            <div style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a' }}>{formatPrice(line.linePriceWithTax, order.currencyCode)}</div>
+                                                        </div>
+
+                                                        {/* Reassign Action logic strictly complying with user rule */}
+                                                        <div style={{ minWidth: '150px', textAlign: 'right' }}>
+                                                            {isConfirmed ? (
+                                                                <span 
+                                                                    title="Cet article a été accepté par le vendeur et ne peut plus être réassigné." 
+                                                                    style={{ 
+                                                                        fontSize: '11px', 
+                                                                        fontWeight: 800, 
+                                                                        color: '#16a34a', 
+                                                                        background: '#dcfce7', 
+                                                                        padding: '4px 8px', 
+                                                                        borderRadius: '6px',
+                                                                        border: '1px solid #bbf7d0',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px'
+                                                                    }}
+                                                                >
+                                                                    🔒 Accepté
+                                                                </span>
+                                                            ) : isReassigned ? (
+                                                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
+                                                                    Déjà transféré
+                                                                </span>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setTargetLineId(line.id);
+                                                                        setTargetVendorId('');
+                                                                        setTargetProductId('');
+                                                                        setTargetPrice(String(line.unitPriceWithTax || line.listPrice || 0));
+                                                                        setTargetProductName('');
+                                                                        setReassignProductModal(true);
+                                                                    }}
+                                                                    style={{
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 800,
+                                                                        padding: '6px 12px',
+                                                                        borderRadius: '8px',
+                                                                        backgroundColor: isRefused ? '#dc2626' : '#7c3aed',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        cursor: 'pointer',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        transition: 'opacity 0.2s'
+                                                                    }}
+                                                                    onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                                                                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                                                                >
+                                                                    🔄 Réassigner cet article
+                                                                </button>
+                                                            )}
+                                                        </div>
+
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                    </div>
+
+                    {/* RIGHT COLUMN: Client Visibility overrides, Customer Info & Totals (32%) */}
+                    <div style={{ flex: '1', minWidth: '290px', display: 'flex', flexDirection: 'column', gap: '20px', borderLeft: '1px solid #e2e8f0', paddingLeft: '24px' }}>
+                        
+                        {/* 1. CLIENT VISIBILITY OVERRIDES */}
+                        <div style={{ background: '#f8fafc', padding: '18px', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
+                            <h4 style={{ fontSize: '12px', fontWeight: 900, margin: '0 0 14px 0', textTransform: 'uppercase', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
+                                <Activity size={16} color="#2563eb" /> Statuts Visibles par le Client
+                            </h4>
+                            
+                            {/* Validation Vendeur override */}
+                            <div style={{ marginBottom: '14px', textAlign: 'left' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                                    Validation Vendeur (Affiché au client)
+                                </label>
+                                <div className="po-select-wrapper">
+                                    <select 
+                                        className="po-select" 
+                                        value={order.customFields?.sellerStatus || 'pending'}
+                                        onChange={e => onUpdateSeller(e.target.value, undefined)}
+                                        disabled={isMutating}
+                                        style={{ fontWeight: 800, fontSize: '12px', background: 'white' }}
+                                    >
+                                        <option value="pending">⏳ En attente validation</option>
+                                        <option value="confirmed">✅ Confirmée (Acceptée)</option>
+                                        <option value="refused">❌ Refusée</option>
+                                        <option value="reassigning">🔄 En cours de réassignation</option>
+                                    </select>
+                                    <ChevronDown size={15} className="po-select-icon" />
+                                </div>
                             </div>
-                            <p style={{ fontSize: '13px', color: '#881337', margin: '0 0 12px 0' }}>
-                                Le vendeur {activeSubOrderVendor ? activeSubOrderVendor.name : ''} a annulé sa partie de la commande. Veuillez réassigner la commande à un autre vendeur ou remplacer par un autre produit.
+
+                            {/* Statut d'expédition override */}
+                            <div style={{ textAlign: 'left' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                                    Statut Expédition (Affiché au client)
+                                </label>
+                                <div className="po-select-wrapper">
+                                    <select 
+                                        className="po-select" 
+                                        value={order.customFields?.adminStatus || 'pending'}
+                                        onChange={e => onUpdateAdmin(e.target.value, undefined)}
+                                        disabled={isMutating}
+                                        style={{ fontWeight: 800, fontSize: '12px', background: 'white' }}
+                                    >
+                                        <option value="pending">⏳ Préparation du colis</option>
+                                        <option value="in_transit">✈️ En transit</option>
+                                        <option value="shipped">🚚 Expédiée</option>
+                                        <option value="delivered">📦 Colis Livré</option>
+                                        <option value="cancelled">❌ Annulée</option>
+                                    </select>
+                                    <ChevronDown size={15} className="po-select-icon" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. CUSTOMER CONTACT */}
+                        <div style={{ background: '#ffffff', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                            <h4 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px 0', textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <User size={15} color="#64748b" /> Coordonnées Client
+                            </h4>
+                            {order.customer ? (
+                                <div style={{ fontSize: '12px', color: '#334155', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>{order.customer.firstName} {order.customer.lastName}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={13} color="#94a3b8" /> {order.customer.emailAddress}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} color="#94a3b8" /> {order.customer.phoneNumber || '—'}</div>
+                                </div>
+                            ) : <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Aucune info client.</p>}
+                        </div>
+
+                        {/* 3. SHIPPING ADDRESS */}
+                        <div style={{ background: '#ffffff', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                            <h4 style={{ fontSize: '12px', fontWeight: 800, margin: '0 0 10px 0', textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <MapPin size={15} color="#64748b" /> Adresse de Livraison
+                            </h4>
+                            {order.shippingAddress ? (
+                                <div style={{ color: '#334155', fontSize: '12px', lineHeight: '1.5' }}>
+                                    <div style={{ fontWeight: 800 }}>{order.shippingAddress.fullName}</div>
+                                    <div>{order.shippingAddress.streetLine1}</div>
+                                    {order.shippingAddress.streetLine2 && <div>{order.shippingAddress.streetLine2}</div>}
+                                    <div>{order.shippingAddress.city}, {order.shippingAddress.province}</div>
+                                    {order.shippingAddress.phoneNumber && <div style={{ marginTop: '4px', fontWeight: 700, color: '#2563eb' }}><Phone size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}/> {order.shippingAddress.phoneNumber}</div>}
+                                </div>
+                            ) : <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Aucune adresse.</p>}
+                        </div>
+
+                        {/* 4. FINANCIAL SUMMARY */}
+                        <div style={{ background: '#f8fafc', borderRadius: '16px', padding: '18px', border: '1px solid #cbd5e1' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '12px', textTransform: 'uppercase' }}>
+                                Récapitulatif Financier
+                            </div>
+                            <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#64748b' }}>
+                                <span>Sous-total articles</span>
+                                <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatPrice(order.subTotalWithTax, order.currencyCode)}</span>
+                            </div>
+                            <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#64748b' }}>
+                                <span>Frais de livraison</span>
+                                <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatPrice(order.shippingWithTax, order.currencyCode)}</span>
+                            </div>
+                            {order.customFields?.commissionAmount > 0 && (
+                                <div style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#dc2626' }}>
+                                    <span>Commissions</span>
+                                    <span style={{ fontWeight: 700 }}>{formatPrice(order.customFields.commissionAmount, order.currencyCode)}</span>
+                                </div>
+                            )}
+                            <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>
+                                <span>Total Payé TTC</span>
+                                <span style={{ color: '#2563eb' }}>{formatPrice(order.totalWithTax, order.currencyCode)}</span>
+                            </div>
+                        </div>
+
+                        {/* Danger zone: Delete order */}
+                        <div style={{ textAlign: 'center', marginTop: 'auto' }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement la commande #${order.code} et ses sous-commandes ?`)) {
+                                        deleteOrderMutation.mutate(order.id);
+                                    }
+                                }}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 14px',
+                                    background: '#fff1f2',
+                                    color: '#b91c1c',
+                                    border: '1px solid #fecaca',
+                                    borderRadius: '10px',
+                                    fontWeight: 800,
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                <Trash2 size={13} /> Supprimer cette commande
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* ── REASSIGN VENDOR MODAL ── */}
+                {reassignVendorModal && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '460px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '8px', textAlign: 'left', color: '#0f172a' }}>
+                                🔄 Transférer la sous-commande
+                            </h3>
+                            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px', textAlign: 'left' }}>
+                                Sélectionnez le nouveau vendeur qui prendra en charge tous les articles de cette sous-commande.
                             </p>
-                        </div>
-                    )}
-
-                    {/* Unconditional Admin Actions */}
-                    {sStat !== 'reassigned_to_other' && (
-                        <div style={{ padding: '16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>Réassignation Admin :</span>
-                            <button
-                                type="button"
-                                onClick={() => setReassignVendorModal(true)}
-                                style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                            <select 
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', marginBottom: '20px', fontWeight: 700, fontSize: '13px' }}
+                                value={targetVendorId} 
+                                onChange={e => setTargetVendorId(e.target.value)}
                             >
-                                🔄 Assigner la commande à un autre vendeur
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setReassignProductModal(true)}
-                                style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                            >
-                                📦 Assigner à un autre produit
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Reassign Vendor Modal */}
-                    {reassignVendorModal && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-                                <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '12px' }}>🔄 Assigner la sous-commande à un autre vendeur</h3>
-                                <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
-                                    Sélectionnez le nouveau vendeur qui prendra en charge cette sous-commande.
-                                </p>
-                                <select 
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '16px', fontWeight: 600 }}
-                                    value={targetVendorId} 
-                                    onChange={e => setTargetVendorId(e.target.value)}
+                                <option value="">-- Choisir un nouveau vendeur --</option>
+                                {(vendorsData?.vendors?.items || []).map((v: any) => (
+                                    <option key={v.id} value={v.id}>{v.name} ({v.email})</option>
+                                ))}
+                            </select>
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                <button 
+                                    onClick={() => setReassignVendorModal(false)} 
+                                    style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
                                 >
-                                    <option value="">-- Choisir un vendeur --</option>
+                                    Annuler
+                                </button>
+                                <button 
+                                    disabled={!targetVendorId || reassignVendorMutation.isPending}
+                                    onClick={() => {
+                                        const currentVendor = vendorSubOrders[selectedSubOrderIndex as number]?.vendor;
+                                        reassignVendorMutation.mutate({ oldVendorId: currentVendor?.id, newVendorId: targetVendorId });
+                                    }}
+                                    style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '12px', cursor: !targetVendorId ? 'not-allowed' : 'pointer' }}
+                                >
+                                    {reassignVendorMutation.isPending ? 'Transfert...' : 'Valider le Transfert'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── REASSIGN PRODUCT MODAL ── */}
+                {reassignProductModal && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '18px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '4px', textAlign: 'left', color: '#0f172a' }}>
+                                📦 Réassigner cet article
+                            </h3>
+                            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px', textAlign: 'left' }}>
+                                Choisissez le vendeur destinataire. Vous pouvez lier un de ses produits existants ou générer automatiquement une copie.
+                            </p>
+
+                            {/* Destination Vendor */}
+                            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px', marginBottom: '12px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    ① Nouveau Vendeur Destinataire
+                                </label>
+                                <select 
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '13px', background: 'white' }}
+                                    value={targetVendorId} 
+                                    onChange={e => {
+                                        setTargetVendorId(e.target.value);
+                                        setTargetProductId('');
+                                    }}
+                                >
+                                    <option value="">-- Sélectionner le vendeur --</option>
                                     {(vendorsData?.vendors?.items || []).map((v: any) => (
                                         <option key={v.id} value={v.id}>{v.name} ({v.email})</option>
                                     ))}
                                 </select>
-                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                    <button onClick={() => setReassignVendorModal(false)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: 'pointer' }}>Annuler</button>
-                                    <button 
-                                        disabled={!targetVendorId || reassignVendorMutation.isPending}
-                                        onClick={() => reassignVendorMutation.mutate({ oldVendorId: activeSubOrderVendor?.id, newVendorId: targetVendorId })}
-                                        style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-                                    >
-                                        {reassignVendorMutation.isPending ? 'Assignation...' : 'Valider L\'Assignation'}
-                                    </button>
-                                </div>
                             </div>
-                        </div>
-                    )}
 
-                    {/* Reassign Product Modal */}
-                    {reassignProductModal && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                            <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '540px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
-                                <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '4px' }}>📦 Assigner la ligne à un autre produit</h3>
-                                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px' }}>Sélectionnez d'abord le vendeur destinataire, puis choisissez un de ses produits existants ou créez une copie.</p>
-
-                                {/* STEP 1: Select order line */}
-                                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>① Ligne de commande à remplacer</label>
-                                    <select 
-                                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px' }}
-                                        value={targetLineId} 
-                                        onChange={e => setTargetLineId(e.target.value)}
-                                    >
-                                        <option value="">-- Choisir la ligne --</option>
-                                        {displayedLines.map((l: any) => (
-                                            <option key={l.id} value={l.id}>{l.productVariant?.name} (x{l.quantity})</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* STEP 2: Select target vendor */}
-                                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>② Vendeur Destinataire</label>
-                                    <select 
-                                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px' }}
-                                        value={targetVendorId} 
-                                        onChange={e => {
-                                            setTargetVendorId(e.target.value);
-                                            // Reset product selection when vendor changes
-                                            setTargetProductId('');
-                                            setTargetPrice('');
-                                            setTargetProductName('');
-                                        }}
-                                    >
-                                        <option value="">-- Choisir le vendeur --</option>
-                                        {(vendorsData?.vendors?.items || []).map((v: any) => (
-                                            <option key={v.id} value={v.id}>{v.name} ({v.email})</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* STEP 3: Select from vendor's existing products OR create a copy */}
-                                {targetVendorId && (
-                                    <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
-                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>③ Produit du Vendeur</label>
-                                        {vendorFilteredProducts.length === 0 ? (
-                                            <div style={{ padding: '10px', background: '#fff7ed', borderRadius: '8px', border: '1px solid #fed7aa', fontSize: '12px', color: '#92400e', fontWeight: 600 }}>
-                                                ⚠️ Ce vendeur n'a aucun produit existant. Une copie du produit actuel sera créée automatiquement.
-                                            </div>
-                                        ) : (
-                                            <select 
-                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px' }}
-                                                value={targetProductId} 
-                                                onChange={e => {
-                                                    const pId = e.target.value;
-                                                    setTargetProductId(pId);
-                                                    const prod = vendorFilteredProducts.find((p: any) => p.id === pId);
-                                                    if (prod?.variants?.[0]?.price != null) {
-                                                        setTargetPrice(String(prod.variants[0].price));
-                                                    } else {
-                                                        setTargetPrice('');
-                                                    }
-                                                }}
-                                            >
-                                                <option value="">-- Créer une copie du produit actuel --</option>
-                                                {vendorFilteredProducts.map((p: any) => (
-                                                    <option key={p.id} value={p.id}>
-                                                        {p.name} {p.variants?.[0]?.sku ? `(SKU: ${p.variants[0].sku})` : ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        )}
-
-                                        {/* If creating a copy, allow custom name */}
-                                        {!targetProductId && (
-                                            <div style={{ marginTop: '10px' }}>
-                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '4px', color: '#64748b' }}>Nom pour la copie (optionnel)</label>
-                                                <input 
-                                                    type="text" 
-                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', boxSizing: 'border-box' }}
-                                                    value={targetProductName} 
-                                                    onChange={e => setTargetProductName(e.target.value)} 
-                                                    placeholder="Ex: T-Shirt (copie)" 
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Price */}
-                                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', marginBottom: '16px', border: '1px solid #e2e8f0' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>④ Prix Unitaire (centimes)</label>
-                                    <input 
-                                        type="number" 
-                                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', boxSizing: 'border-box' }}
-                                        value={targetPrice} 
-                                        onChange={e => setTargetPrice(e.target.value)} 
-                                        placeholder="ex: 150000 (= 1 500 FCFA)" 
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                    <button
-                                        onClick={() => {
-                                            setReassignProductModal(false);
-                                            setTargetVendorId('');
-                                            setTargetProductId('');
-                                            setTargetPrice('');
-                                            setTargetProductName('');
-                                            setTargetLineId('');
-                                        }}
-                                        style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: 'pointer', fontWeight: 600 }}
-                                    >Annuler</button>
-                                    <button 
-                                        disabled={!targetLineId || !targetPrice || !targetVendorId || reassignProductMutation.isPending}
-                                        onClick={() => reassignProductMutation.mutate({ lineId: targetLineId, newProductId: targetProductId, newProductName: targetProductName, newPrice: targetPrice, newVendorId: targetVendorId })}
-                                        style={{ padding: '8px 16px', background: !targetLineId || !targetPrice || !targetVendorId ? '#94a3b8' : '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: !targetLineId || !targetPrice || !targetVendorId ? 'not-allowed' : 'pointer' }}
-                                    >
-                                        {reassignProductMutation.isPending ? '⏳ En cours...' : '✅ Confirmer la réassignation'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    
-                    {/* Status Management Bar */}
-                    <div className="po-card" style={{ background: 'linear-gradient(145deg, #ffffff, #f8fafc)', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-                        <h3 className="po-card-title" style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                            <Activity size={18} color="#2563eb" /> 
-                            Gestion des Statuts {activeSubOrderVendor ? `(Sous-commande: ${activeSubOrderVendor.name})` : '(Vue Globale)'}
-                            {isMutating && <span style={{ color: '#f97316', fontSize: '13px', fontWeight: 600, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}><Activity size={14} style={{ animation: 'spin 1s linear infinite' }} /> Mise à jour...</span>}
-                        </h3>
-                        
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginTop: '12px' }}>
-                            {/* 1. NATIVE STATE (Vendure Workflow) */}
-                            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                <label className="po-filter-label" style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>① État Global (Vendure)</label>
-                                <div className="po-select-wrapper">
-                                    <select 
-                                        className="po-select" 
-                                        value={order.state}
-                                        onChange={e => onTransition(e.target.value)}
-                                        disabled={isMutating}
-                                        style={{ fontWeight: 700, fontSize: '13px' }}
-                                    >
-                                        <option value={order.state}>Actuel: {stObj.label}</option>
-                                        <optgroup label="États disponibles:">
-                                            {order.nextStates?.map((ns: string) => (
-                                                <option key={ns} value={ns}>→ {stateMeta[ns]?.label || ns}</option>
-                                            ))}
-                                        </optgroup>
-                                    </select>
-                                    <ChevronDown size={16} className="po-select-icon" />
-                                </div>
-                            </div>
-                            
-                            {/* 2. SELLER STATUS (Shown ONLY when a specific sub-order/vendor is selected, as validation belongs to each seller) */}
-                            {activeSubOrderVendor ? (
-                                <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                    <label className="po-filter-label" style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>② Validation Vendeur ({activeSubOrderVendor.name})</label>
-                                    <div className="po-select-wrapper">
+                            {/* Destination Product */}
+                            {targetVendorId && (
+                                <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px', marginBottom: '12px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        ② Produit Associé
+                                    </label>
+                                    {vendorFilteredProducts.length === 0 ? (
+                                        <div style={{ padding: '10px', background: '#fff7ed', borderRadius: '8px', border: '1px solid #fed7aa', fontSize: '12px', color: '#92400e', fontWeight: 600 }}>
+                                            ⚠️ Ce vendeur n'a pas encore de produit équivalent. Une copie du produit actuel sera créée automatiquement pour son catalogue.
+                                        </div>
+                                    ) : (
                                         <select 
-                                            className="po-select" 
-                                            value={sStat}
-                                            onChange={e => onUpdateSeller(e.target.value, activeSubOrderVendor?.id)}
-                                            disabled={isMutating}
-                                            style={{ 
-                                                fontWeight: 700, 
-                                                fontSize: '13px',
-                                                border: sStat === 'confirmed' ? '2px solid #10b981' : sStat === 'refused' ? '2px solid #ef4444' : sStat === 'reassigning' ? '2px solid #8b5cf6' : '2px solid #f59e0b',
-                                                background: sStat === 'confirmed' ? '#f0fdf4' : sStat === 'refused' ? '#fef2f2' : sStat === 'reassigning' ? '#f5f3ff' : '#fffbeb'
+                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '13px', background: 'white' }}
+                                            value={targetProductId} 
+                                            onChange={e => {
+                                                const pId = e.target.value;
+                                                setTargetProductId(pId);
+                                                const prod = vendorFilteredProducts.find((p: any) => p.id === pId);
+                                                if (prod?.variants?.[0]?.price != null) {
+                                                    setTargetPrice(String(prod.variants[0].price));
+                                                }
                                             }}
                                         >
-                                            <option value="pending">⏳ En attente validation</option>
-                                            <option value="confirmed">✅ Acceptée par vendeur</option>
-                                            <option value="refused">❌ Refusée par vendeur</option>
-                                            <option value="reassigning">🔄 En réassignation</option>
-                                            <option value="reassigned_to_other">⏭️ Réassignée à un autre</option>
+                                            <option value="">-- Créer une copie du produit actuel --</option>
+                                            {vendorFilteredProducts.map((p: any) => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name} {p.variants?.[0]?.sku ? `(SKU: ${p.variants[0].sku})` : ''}
+                                                </option>
+                                            ))}
                                         </select>
-                                        <ChevronDown size={16} className="po-select-icon" />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>② Validation Vendeur</span>
-                                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569', fontStyle: 'italic', fontWeight: 600 }}>
-                                        💡 Cliquez sur un vendeur ci-dessus pour gérer sa validation d'article.
-                                    </p>
-                                </div>
-                            )}
+                                    )}
 
-                            {/* 3. ADMIN STATUS (SuperAdmin Delivery Status — ALWAYS controlled by SuperAdmin) */}
-                            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                <label className="po-filter-label" style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'block' }}>③ Statut Livraison (SuperAdmin)</label>
-                                <div className="po-select-wrapper">
-                                    <select 
-                                        className="po-select" 
-                                        value={aStat}
-                                        onChange={e => onUpdateAdmin(e.target.value, activeSubOrderVendor?.id)}
-                                        disabled={isMutating}
-                                        style={{ fontWeight: 700, fontSize: '13px' }}
-                                    >
-                                        <option value="pending">⏳ En attente d'expédition</option>
-                                        <option value="shipped">🚚 Expédiée (Shipped)</option>
-                                        <option value="in_transit">✈️ En transit (In Transit)</option>
-                                        <option value="delivered">📦 Livrée au client</option>
-                                        <option value="cancelled">❌ Annulée</option>
-                                    </select>
-                                    <ChevronDown size={16} className="po-select-icon" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                        {/* Customer Info */}
-                        <div className="po-card">
-                            <h3 className="po-card-title"><User size={17} color="#2563eb" /> Client & Contact</h3>
-                            {order.customer ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{order.customer.firstName} {order.customer.lastName}</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px' }}>
-                                        <Mail size={15} color="#94a3b8" /> {order.customer.emailAddress}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569', fontSize: '13px' }}>
-                                        <Phone size={15} color="#94a3b8" /> {order.customer.phoneNumber || 'Non renseigné'}
-                                    </div>
-                                </div>
-                            ) : <p style={{ color: '#94a3b8' }}>Aucune information client.</p>}
-                        </div>
-
-                        {/* Vendor Info */}
-                        <div className="po-card">
-                            <h3 className="po-card-title"><Store size={17} color="#8b5cf6" /> Vendeur(s) Assigné(s)</h3>
-                            {vendorSubOrders.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    {vendorSubOrders.map((so, i) => (
-                                        <div key={i} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>Sub-commande #{i + 1}: {so.vendor.name}</div>
-                                            {so.vendor.email && <div style={{ fontSize: '12px', color: '#64748b' }}>{so.vendor.email}</div>}
-                                            <div style={{ fontSize: '12px', color: '#2563eb', fontWeight: 700, marginTop: '4px' }}>
-                                                Sous-total vendeur: {formatPrice(so.total, order.currencyCode)} ({so.lines.length} article(s))
-                                            </div>
+                                    {!targetProductId && (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, marginBottom: '4px', color: '#64748b' }}>Nom pour la copie du produit (optionnel)</label>
+                                            <input 
+                                                type="text" 
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', boxSizing: 'border-box' }}
+                                                value={targetProductName} 
+                                                onChange={e => setTargetProductName(e.target.value)} 
+                                                placeholder="Ex: T-Shirt (copie vendeur)" 
+                                            />
                                         </div>
-                                    ))}
-                                </div>
-                            ) : <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Aucun vendeur assigné à cette commande.</p>}
-                        </div>
-                    </div>
-
-                    {/* Addresses */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                        <div className="po-card">
-                            <h3 className="po-card-title"><MapPin size={17} color="#10b981" /> Adresse de Livraison</h3>
-                            {order.shippingAddress ? (
-                                <div style={{ color: '#334155', fontSize: '13px', lineHeight: '1.6' }}>
-                                    <div style={{ fontWeight: 800 }}>{order.shippingAddress.fullName}</div>
-                                    <div>{order.shippingAddress.streetLine1}</div>
-                                    {order.shippingAddress.streetLine2 && <div>{order.shippingAddress.streetLine2}</div>}
-                                    <div>{order.shippingAddress.postalCode} {order.shippingAddress.city}</div>
-                                    <div>{order.shippingAddress.province} {order.shippingAddress.country}</div>
-                                    {order.shippingAddress.phoneNumber && <div style={{ marginTop: '6px', color: '#475569' }}><Phone size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}/> {order.shippingAddress.phoneNumber}</div>}
-                                </div>
-                            ) : <p style={{ color: '#94a3b8' }}>—</p>}
-                        </div>
-
-                        <div className="po-card">
-                            <h3 className="po-card-title"><Receipt size={17} color="#f59e0b" /> Adresse de Facturation</h3>
-                            {order.billingAddress?.streetLine1 ? (
-                                <div style={{ color: '#334155', fontSize: '13px', lineHeight: '1.6' }}>
-                                    <div style={{ fontWeight: 800 }}>{order.billingAddress.fullName}</div>
-                                    <div>{order.billingAddress.streetLine1}</div>
-                                    {order.billingAddress.streetLine2 && <div>{order.billingAddress.streetLine2}</div>}
-                                    <div>{order.billingAddress.postalCode} {order.billingAddress.city}</div>
-                                    <div>{order.billingAddress.province} {order.billingAddress.country}</div>
-                                </div>
-                            ) : <p style={{ color: '#94a3b8', fontStyle: 'italic' }}>Identique à la livraison</p>}
-                        </div>
-                    </div>
-
-                    {/* Order Lines & Summary */}
-                    <div className="po-card">
-                        <h3 className="po-card-title">
-                            <Package size={17} color="#ef4444" /> 
-                            Articles {selectedSubOrderIndex !== 'all' ? `de Sub-commande #${(selectedSubOrderIndex as number) + 1} (${activeSubOrderVendor?.name})` : `au total (${order.lines.length})`}
-                        </h3>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            {displayedLines.map((line: any) => (
-                                <div key={line.id} className="po-line-item">
-                                    <img 
-                                        className="po-img" 
-                                        src={line.productVariant?.featuredAsset?.preview || '/placeholder.png'} 
-                                        alt={line.productVariant?.name} 
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>{line.productVariant?.name || 'Produit inconnu'}</div>
-                                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>SKU: {line.productVariant?.sku || '—'}</div>
-                                        {line.customFields?.sellerStatus && line.customFields.sellerStatus !== 'pending' && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
-                                                <div style={{ 
-                                                    fontSize: '11px', 
-                                                    fontWeight: 600, 
-                                                    padding: '2px 6px', 
-                                                    borderRadius: '4px', 
-                                                    backgroundColor: line.customFields.sellerStatus === 'confirmed' ? '#dcfce7' : '#fee2e2',
-                                                    color: line.customFields.sellerStatus === 'confirmed' ? '#166534' : '#991b1b'
-                                                }}>
-                                                    {line.customFields.sellerStatus === 'confirmed' ? '✓ Confirmé par vendeur' : '✗ Refusé par vendeur'}
-                                                </div>
-                                                {(line.customFields.sellerStatus === 'refused' || line.customFields.sellerStatus === 'reassigning') && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setTargetLineId(line.id);
-                                                            setReassignProductModal(true);
-                                                        }}
-                                                        style={{
-                                                            fontSize: '11px',
-                                                            fontWeight: 700,
-                                                            padding: '2px 8px',
-                                                            borderRadius: '4px',
-                                                            backgroundColor: '#7c3aed',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        🔄 Réassigner ce produit
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div style={{ textAlign: 'center', padding: '0 16px' }}>
-                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Qté</div>
-                                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#334155' }}>{line.quantity}</div>
-                                    </div>
-                                    <div style={{ textAlign: 'right', minWidth: '110px' }}>
-                                        <div style={{ fontSize: '13px', color: '#475569' }}>{formatPrice(line.unitPriceWithTax, order.currencyCode)} l&apos;unité</div>
-                                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', marginTop: '3px' }}>{formatPrice(line.linePriceWithTax, order.currencyCode)}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Financial Summary */}
-                        <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '20px', marginTop: '20px', border: '1px solid #e2e8f0', width: '100%', maxWidth: '340px', marginLeft: 'auto' }}>
-                            <div className="po-summary-row">
-                                <span>Sous-total</span>
-                                <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatPrice(order.subTotalWithTax, order.currencyCode)}</span>
-                            </div>
-                            <div className="po-summary-row">
-                                <span>Frais de livraison</span>
-                                <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatPrice(order.shippingWithTax, order.currencyCode)}</span>
-                            </div>
-                            {order.surcharges?.map((s: any, i: number) => (
-                                <div key={i} className="po-summary-row">
-                                    <span>{s.description}</span>
-                                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatPrice(s.priceWithTax, order.currencyCode)}</span>
-                                </div>
-                            ))}
-                            {order.customFields?.commissionAmount > 0 && (
-                                <div className="po-summary-row" style={{ color: '#dc2626' }}>
-                                    <span>Commission Marketplace</span>
-                                    <span style={{ fontWeight: 700 }}>{formatPrice(order.customFields.commissionAmount, order.currencyCode)}</span>
+                                    )}
                                 </div>
                             )}
-                            <div className="po-summary-total">
-                                <span>Total Payé</span>
-                                <span>{formatPrice(order.totalWithTax, order.currencyCode)}</span>
+
+                            {/* Unit Price */}
+                            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px', marginBottom: '16px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    ③ Prix Unitaire (centimes ou FCFA)
+                                </label>
+                                <input 
+                                    type="number" 
+                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '13px', boxSizing: 'border-box' }}
+                                    value={targetPrice} 
+                                    onChange={e => setTargetPrice(e.target.value)} 
+                                    placeholder="ex: 150000 (= 1 500 FCFA)" 
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => {
+                                        setReassignProductModal(false);
+                                        setTargetVendorId('');
+                                        setTargetProductId('');
+                                        setTargetPrice('');
+                                        setTargetProductName('');
+                                        setTargetLineId('');
+                                    }}
+                                    style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
+                                >
+                                    Annuler
+                                </button>
+                                <button 
+                                    disabled={!targetLineId || !targetPrice || !targetVendorId || reassignProductMutation.isPending}
+                                    onClick={() => reassignProductMutation.mutate({ lineId: targetLineId, newProductId: targetProductId, newProductName: targetProductName, newPrice: targetPrice, newVendorId: targetVendorId })}
+                                    style={{ padding: '8px 18px', background: !targetLineId || !targetPrice || !targetVendorId ? '#94a3b8' : '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '12px', cursor: !targetLineId || !targetPrice || !targetVendorId ? 'not-allowed' : 'pointer' }}
+                                >
+                                    {reassignProductMutation.isPending ? '⏳ Réassignation...' : '✅ Valider la Réassignation'}
+                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
+
             </div>
         </div>
     );

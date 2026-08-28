@@ -15,14 +15,28 @@ export const GetMyVendorProductsQuery = graphql(`
                 }
                 variants {
                     id
+                    name
+                    sku
                     price
                     priceWithTax
                     currencyCode
                     stockLevel
+                    stockOnHand
+                    options {
+                        id
+                        name
+                        code
+                    }
+                    featuredAsset {
+                        id
+                        preview
+                    }
                     customFields {
                         compareAtPrice
                         onPromotion
                         promotionalPrice
+                        offerStatus
+                        rejectionReason
                     }
                 }
                 featuredAsset {
@@ -77,10 +91,21 @@ export const GetMyVendorProductQuery = graphql(`
                 currencyCode
                 stockLevel
                 stockOnHand
+                featuredAsset {
+                    id
+                    preview
+                }
+                options {
+                    id
+                    name
+                    code
+                }
                 customFields {
                     compareAtPrice
                     onPromotion
                     promotionalPrice
+                    offerStatus
+                    rejectionReason
                 }
             }
             assets {
@@ -155,3 +180,53 @@ export const UploadVendorFileMutation = graphql(`
         }
     }
 `);
+
+export const TagProductWithVariantOffersMutation = graphql(`
+    mutation TagProductWithVariantOffers($input: TagProductWithVariantOffersInput!) {
+        tagProductWithVariantOffers(input: $input) {
+            id
+            price
+            stock
+            sku
+            onPromotion
+            promotionalPrice
+            deliveryTimeValue
+            deliveryTimeUnit
+            condition
+            status
+        }
+    }
+`);
+
+export const UpdateMyVariantOffersMutation = graphql(`
+    mutation UpdateMyVariantOffers($offers: [TagVariantOfferInput!]!) {
+        updateMyVariantOffers(offers: $offers) {
+            id
+            price
+            stock
+            sku
+            onPromotion
+            promotionalPrice
+            deliveryTimeValue
+            deliveryTimeUnit
+            condition
+            status
+        }
+    }
+`);
+
+export const GetGlobalOptionGroupsQuery = graphql(`
+    query GetGlobalOptionGroups {
+        getGlobalOptionGroups {
+            id
+            code
+            name
+            options {
+                id
+                code
+                name
+            }
+        }
+    }
+`);
+

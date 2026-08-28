@@ -50,8 +50,8 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-3xl font-serif font-bold tracking-tight">Modifier le produit</h1>
-                    <p className="text-sm text-muted-foreground">Mettez à jour les détails de votre article en vente.</p>
+                    <h1 className="text-3xl font-serif font-black tracking-tight">Gestion de mon offre commerciale</h1>
+                    <p className="text-sm text-muted-foreground">Configurez vos déclinaisons, prix, stocks et visuels pour cette référence Ahizan.</p>
                 </div>
             </div>
 

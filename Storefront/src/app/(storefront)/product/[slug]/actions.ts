@@ -6,10 +6,11 @@ import { updateTag } from 'next/cache';
 import { setAuthToken } from '@/lib/auth';
 import { ensureAddingItems } from '@/app/(storefront)/checkout/actions';
 
-export async function addToCart(variantId: string, quantity: number = 1) {
+export async function addToCart(variantId: string, quantity: number = 1, vendorId?: string) {
   try {
     await ensureAddingItems();
-    const result = await mutate(AddToCartMutation, { variantId, quantity }, { useAuthToken: true });
+    const customFields = vendorId ? { assignedVendorId: vendorId } : undefined;
+    const result = await mutate(AddToCartMutation, { variantId, quantity, customFields }, { useAuthToken: true });
 
     if (result.token) {
       await setAuthToken(result.token);
@@ -23,7 +24,8 @@ export async function addToCart(variantId: string, quantity: number = 1) {
     } else {
       return { success: false, error: result.data.addItemToOrder.message };
     }
-  } catch {
+  } catch (err: any) {
+    console.error('[Storefront Cart Action] AddToCart error:', err);
     return { success: false, error: 'Failed to add item to cart' };
   }
 }

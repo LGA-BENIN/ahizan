@@ -183,6 +183,12 @@ const APPROVE_WITHDRAWAL = `
     }
 `;
 
+const SECOND_APPROVE_WITHDRAWAL = `
+    mutation SecondApproveWithdrawal($id: ID!) {
+        secondApproveWithdrawalRequest(id: $id)
+    }
+`;
+
 const REJECT_WITHDRAWAL = `
     mutation RejectWithdrawal($id: ID!, $reason: String) {
         rejectWithdrawalRequest(id: $id, reason: $reason)
@@ -302,6 +308,15 @@ export function PaymentManagementComponent() {
             queryClient.invalidateQueries({ queryKey: ['withdrawalRequestsList'] });
             queryClient.invalidateQueries({ queryKey: ['deliveredOrdersForPayment'] });
             addToast('Demande de retrait approuvée avec succès', 'success');
+        },
+        onError: (err: any) => addToast(err.message, 'error')
+    });
+
+    const secondApproveWithdrawalMutation = useMutation({
+        mutationFn: (id: string) => fetchGraphQL(SECOND_APPROVE_WITHDRAWAL, { id }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['withdrawalRequestsList'] });
+            addToast('2ème validation accordée', 'success');
         },
         onError: (err: any) => addToast(err.message, 'error')
     });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { 
     Search, 
@@ -14,7 +14,10 @@ import {
     HelpCircle,
     Copy,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    AlertTriangle,
+    AlertCircle,
+    Sparkles
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -37,6 +40,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
     const [priceMax, setPriceMax] = useState<string>('');
 
     const [currentPage, setCurrentPage] = useState(1);
+    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const pageSize = 10;
 
     // Reset all filters
@@ -159,12 +163,20 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                         Gérez votre inventaire, mettez à jour vos tarifs et suivez vos stocks
                     </p>
                 </div>
-                <Link href="/dashboard/products/new" className="shrink-0">
-                    <Button className="h-11 px-6 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 uppercase text-[10px] tracking-widest">
-                        <Plus className="w-4 h-4" />
-                        Ajouter un produit
-                    </Button>
-                </Link>
+                <div className="flex flex-wrap gap-2.5 shrink-0">
+                    <Link href="/dashboard/products/affiliate">
+                        <Button variant="outline" className="h-11 px-5 rounded-xl border-border bg-card hover:bg-muted font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 uppercase text-[10px] tracking-widest cursor-pointer">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                            S'affilier (Greffage)
+                        </Button>
+                    </Link>
+                    <Link href="/dashboard/products/new">
+                        <Button className="h-11 px-6 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 uppercase text-[10px] tracking-widest cursor-pointer">
+                            <Plus className="w-4 h-4" />
+                            Nouveau produit
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             {/* Advanced Filters Bar (Stitch Layout) */}
@@ -261,137 +273,261 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                     const stockInfo = getStockIndicator(product);
 
                                     return (
-                                        <tr key={product.id} className="group hover:bg-muted/20 transition-colors">
-                                            
-                                            {/* Product Column (Image, Title, SKU) */}
-                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5">
-                                                <div className="flex items-center gap-4">
-                                                    {product.featuredAsset ? (
-                                                        <img 
-                                                            src={product.featuredAsset.preview} 
-                                                            alt={product.name} 
-                                                            className="h-12 w-12 rounded-xl object-cover border border-border/75 shadow-sm group-hover:scale-105 transition-transform" 
-                                                        />
-                                                    ) : (
-                                                        <div className="h-12 w-12 bg-muted rounded-xl flex items-center justify-center border border-border/75">
-                                                            <Package className="h-6 w-6 text-muted-foreground" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex flex-col max-w-[90px] sm:max-w-[150px] md:max-w-[240px]">
-                                                        <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate block" title={product.name}>
-                                                            {product.name}
-                                                        </span>
-                                                        {variant?.sku && (
-                                                            <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider mt-1">
-                                                                SKU: {variant.sku}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            {/* Status Badge */}
-                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap">
-                                                {(() => {
-                                                    const status = product.customFields?.approvalStatus || 'pending';
-                                                    const reason = product.customFields?.rejectionReason;
-                                                    
-                                                    let badgeLabel = 'En attente';
-                                                    let badgeClass = 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400';
-                                                    let circleClass = 'text-amber-500';
-                                                    
-                                                    if (status === 'approved') {
-                                                        badgeLabel = 'En ligne';
-                                                        badgeClass = 'bg-green-50 text-green-700 border-green-100 dark:bg-green-950/20 dark:text-green-400';
-                                                        circleClass = 'text-green-500';
-                                                    } else if (status === 'rejected') {
-                                                        badgeLabel = 'Rejeté';
-                                                        badgeClass = 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20 dark:text-red-400';
-                                                        circleClass = 'text-red-500';
-                                                    }
-                                                    
-                                                    return (
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <Badge 
-                                                                variant="outline"
-                                                                className={cn(
-                                                                    "rounded-full px-3 py-1 text-[9px] font-black gap-1.5 uppercase tracking-wider border w-fit",
-                                                                    badgeClass
-                                                                )}
-                                                                title={status === 'rejected' && reason ? `Motif: ${reason}` : undefined}
+                                        <React.Fragment key={product.id}>
+                                            <tr className="group hover:bg-muted/20 transition-colors">
+                                                
+                                                {/* Product Column (Image, Title, SKU) */}
+                                                <td className="px-2.5 sm:px-4 md:px-6 py-3.5">
+                                                    <div className="flex items-center gap-3">
+                                                        {product.variants && product.variants.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setExpandedRowId(expandedRowId === product.id ? null : product.id)}
+                                                                className="w-6 h-6 rounded-md bg-muted/60 hover:bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-black transition-all cursor-pointer shrink-0"
+                                                                title="Voir les déclinaisons"
                                                             >
-                                                                <Circle className={cn("w-1.5 h-1.5 fill-current", circleClass)} />
-                                                                {badgeLabel}
-                                                            </Badge>
-                                                            {status === 'rejected' && reason && (
-                                                                <span className="text-[9px] text-red-500 font-bold italic max-w-[150px] truncate" title={reason}>
-                                                                    Motif: {reason}
-                                                                </span>
-                                                            )}
+                                                                {expandedRowId === product.id ? '▼' : '▶'}
+                                                            </button>
+                                                        )}
+                                                        {product.featuredAsset ? (
+                                                            <img 
+                                                                src={product.featuredAsset.preview} 
+                                                                alt={product.name} 
+                                                                className="h-12 w-12 rounded-xl object-cover border border-border/75 shadow-sm group-hover:scale-105 transition-transform shrink-0" 
+                                                            />
+                                                        ) : (
+                                                            <div className="h-12 w-12 bg-muted rounded-xl flex items-center justify-center border border-border/75 shrink-0">
+                                                                <Package className="h-6 w-6 text-muted-foreground" />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex flex-col max-w-[90px] sm:max-w-[150px] md:max-w-[240px]">
+                                                            <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate block" title={product.name}>
+                                                                {product.name}
+                                                            </span>
+                                                            <span className="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                                                                {product.variants?.length || 1} offre(s) / déclinaison(s)
+                                                            </span>
                                                         </div>
-                                                    );
-                                                })()}
-                                            </td>
+                                                    </div>
+                                                </td>
 
-                                            {/* Stock Indicator */}
-                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={cn("w-2 h-2 rounded-full", stockInfo.color)} />
-                                                    <span className={cn("text-xs", stockInfo.textClass)}>
-                                                        {stockInfo.label}
-                                                    </span>
-                                                </div>
-                                            </td>
+                                                {/* Status Badge */}
+                                                <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap">
+                                                    {(() => {
+                                                        const status = product.customFields?.approvalStatus || 'pending';
+                                                        const reason = product.customFields?.rejectionReason;
+                                                        
+                                                        // Check for variant corrections
+                                                        const variantCorrections = (product.variants || []).filter((v: any) => 
+                                                            v.customFields?.offerStatus === 'correction_requested' || 
+                                                            v.customFields?.offerStatus === 'rejected' || 
+                                                            !!v.customFields?.rejectionReason
+                                                        );
+                                                        const hasProductCorrection = status === 'correction_requested' || (status === 'rejected' && !!reason);
+                                                        const totalCorrections = variantCorrections.length + (hasProductCorrection && variantCorrections.length === 0 ? 1 : 0);
 
-                                            {/* Price in CFA */}
-                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right font-serif font-black text-sm">
-                                                {(() => {
-                                                    const hasPromo = variant?.customFields?.onPromotion === true && typeof variant?.customFields?.promotionalPrice === 'number';
-                                                    if (hasPromo) {
-                                                        const original = priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF');
-                                                        const promo = priceFromSubunit(variant.customFields.promotionalPrice, variant.currencyCode || 'XOF');
+                                                        if (totalCorrections > 0 || status === 'correction_requested') {
+                                                            return (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <Badge 
+                                                                        variant="outline"
+                                                                        className="rounded-full px-2.5 py-1 text-[9px] font-black gap-1 uppercase tracking-wider border bg-amber-500/15 text-amber-600 border-amber-500/30 animate-pulse w-fit"
+                                                                    >
+                                                                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                                                        {totalCorrections > 0 ? `${totalCorrections} correction(s)` : 'Correction demandée'}
+                                                                    </Badge>
+                                                                    <Link href={`/dashboard/products/${product.id}`} className="text-[10px] text-amber-600 hover:text-amber-700 font-bold hover:underline">
+                                                                        Voir remarques ➔
+                                                                    </Link>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        let badgeLabel = 'En attente';
+                                                        let badgeClass = 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400';
+                                                        let circleClass = 'text-amber-500';
+                                                        
+                                                        if (status === 'approved') {
+                                                            badgeLabel = 'En ligne';
+                                                            badgeClass = 'bg-green-50 text-green-700 border-green-100 dark:bg-green-950/20 dark:text-green-400';
+                                                            circleClass = 'text-green-500';
+                                                        } else if (status === 'rejected') {
+                                                            badgeLabel = 'Rejeté';
+                                                            badgeClass = 'bg-red-50 text-red-700 border-red-100 dark:bg-red-950/20 dark:text-red-400';
+                                                            circleClass = 'text-red-500';
+                                                        }
+                                                        
                                                         return (
-                                                            <div className="flex flex-col items-end gap-0.5">
-                                                                <span className="text-red-600 dark:text-red-400 font-bold">
-                                                                    {promo.toLocaleString('fr-FR')} F CFA
-                                                                </span>
-                                                                <span className="text-xs text-muted-foreground line-through font-normal">
-                                                                    {original.toLocaleString('fr-FR')} F CFA
-                                                                </span>
+                                                            <div className="flex flex-col gap-1.5">
+                                                                <Badge 
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        "rounded-full px-3 py-1 text-[9px] font-black gap-1.5 uppercase tracking-wider border w-fit",
+                                                                        badgeClass
+                                                                    )}
+                                                                    title={status === 'rejected' && reason ? `Motif: ${reason}` : undefined}
+                                                                >
+                                                                    <Circle className={cn("w-1.5 h-1.5 fill-current", circleClass)} />
+                                                                    {badgeLabel}
+                                                                </Badge>
+                                                                {status === 'rejected' && reason && (
+                                                                    <span className="text-[9px] text-red-500 font-bold italic max-w-[150px] truncate" title={reason}>
+                                                                        Motif: {reason}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         );
-                                                    }
-                                                    return (
-                                                        <span className="text-foreground">
-                                                            {variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF').toLocaleString('fr-FR') : '0'} F CFA
+                                                    })()}
+                                                </td>
+
+                                                {/* Stock Indicator */}
+                                                <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={cn("w-2 h-2 rounded-full", stockInfo.color)} />
+                                                        <span className={cn("text-xs", stockInfo.textClass)}>
+                                                            {stockInfo.label}
                                                         </span>
-                                                    );
-                                                })()}
-                                            </td>
+                                                    </div>
+                                                </td>
 
-                                            {/* Action Buttons (discretes, scale on hover) */}
-                                            <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Link href={`/dashboard/products/${product.id}`}>
-                                                        <button 
-                                                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-border transition-all"
-                                                            title="Éditer le produit"
-                                                        >
-                                                            <Pencil className="w-4 h-4" />
-                                                        </button>
-                                                    </Link>
-                                                    <button 
-                                                        onClick={() => handleDuplicateProduct(product.name)}
-                                                        className="p-2 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-transparent hover:border-border transition-all"
-                                                        title="Dupliquer le produit"
-                                                    >
-                                                        <Copy className="w-4 h-4" />
-                                                    </button>
-                                                    <DeleteProductDialog productId={product.id} productName={product.name} />
-                                                </div>
-                                            </td>
+                                                {/* Price in CFA */}
+                                                <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right font-serif font-black text-sm">
+                                                    {(() => {
+                                                        const hasPromo = variant?.customFields?.onPromotion === true && typeof variant?.customFields?.promotionalPrice === 'number';
+                                                        if (hasPromo) {
+                                                            const original = priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF');
+                                                            const promo = priceFromSubunit(variant.customFields.promotionalPrice, variant.currencyCode || 'XOF');
+                                                            return (
+                                                                <div className="flex flex-col items-end gap-0.5">
+                                                                    <span className="text-red-600 dark:text-red-400 font-bold">
+                                                                        {promo.toLocaleString('fr-FR')} F CFA
+                                                                    </span>
+                                                                    <span className="text-xs text-muted-foreground line-through font-normal">
+                                                                        {original.toLocaleString('fr-FR')} F CFA
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <span className="text-foreground">
+                                                                {variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode || 'XOF').toLocaleString('fr-FR') : '0'} F CFA
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </td>
 
-                                        </tr>
+                                                {/* Action Buttons */}
+                                                <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Link href={`/dashboard/products/${product.id}`}>
+                                                            <button 
+                                                                className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-border transition-all cursor-pointer"
+                                                                title="Éditer mes offres"
+                                                            >
+                                                                <Pencil className="w-4 h-4" />
+                                                            </button>
+                                                        </Link>
+                                                        <DeleteProductDialog productId={product.id} productName={product.name} />
+                                                    </div>
+                                                </td>
+
+                                            </tr>
+
+                                            {/* Expandable Variants Breakdown */}
+                                            {expandedRowId === product.id && product.variants && product.variants.length > 0 && (
+                                                <tr className="bg-muted/10 border-b border-border">
+                                                    <td colSpan={5} className="px-6 py-4">
+                                                        <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
+                                                            {/* Product-level Admin Remark if any */}
+                                                            {product.customFields?.rejectionReason && (
+                                                                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2">
+                                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                                                    <div>
+                                                                        <span className="font-bold">Remarque Administrateur sur la fiche :</span> {product.customFields.rejectionReason}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                                                                <span>Déclinaisons &amp; Offres Actives ({product.variants.length})</span>
+                                                                <Link href={`/dashboard/products/${product.id}`} className="text-primary hover:underline font-bold">
+                                                                    Modifier les tarifs et stocks ➔
+                                                                </Link>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                                {product.variants.map((v: any, vIdx: number) => {
+                                                                    const vPrice = v.priceWithTax ? priceFromSubunit(v.priceWithTax, v.currencyCode || 'XOF') : 0;
+                                                                    const vPromo = v.customFields?.onPromotion && v.customFields?.promotionalPrice ? priceFromSubunit(v.customFields.promotionalPrice, v.currencyCode || 'XOF') : null;
+                                                                    
+                                                                    const optionValues = (v.options || []).map((o: any) => o.name || o.code).filter(Boolean);
+                                                                    let optionValuesStr = optionValues.join(' ');
+                                                                    if (optionValuesStr.toLowerCase().startsWith(product.name.toLowerCase())) {
+                                                                        optionValuesStr = optionValuesStr.slice(product.name.length).replace(/^[\s\-—]+/, '').trim();
+                                                                    }
+
+                                                                    const resolvedVariantName = optionValuesStr
+                                                                        ? `${product.name} — ${optionValuesStr}`
+                                                                        : (v.name && !v.name.includes('Option ') && !v.name.includes('Option 2') && !v.name.startsWith('Option')
+                                                                            ? v.name 
+                                                                            : `${product.name} (Déclinaison #${vIdx + 1})`);
+
+                                                                    const variantImg = v.featuredAsset?.preview || product.featuredAsset?.preview;
+                                                                    const adminReason = v.customFields?.rejectionReason;
+
+                                                                    return (
+                                                                        <div key={v.id || vIdx} className="p-3.5 rounded-xl bg-muted/20 border border-border/80 flex flex-col justify-between gap-2.5 text-xs">
+                                                                            {/* Admin Rejection / Correction comment */}
+                                                                            {adminReason && (
+                                                                                <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-900 dark:text-amber-300 flex items-start gap-1.5 leading-snug">
+                                                                                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                                                                    <div>
+                                                                                        <span className="font-bold">Correction admin :</span> {adminReason}
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+
+                                                                            <div className="flex items-center justify-between gap-3">
+                                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                                    {variantImg ? (
+                                                                                        <img 
+                                                                                            src={variantImg} 
+                                                                                            alt={resolvedVariantName} 
+                                                                                            className="w-10 h-10 rounded-lg object-cover border border-border shrink-0 bg-background"
+                                                                                        />
+                                                                                    ) : (
+                                                                                        <div className="w-10 h-10 rounded-lg bg-muted border border-border flex items-center justify-center text-muted-foreground shrink-0 font-bold text-[10px]">
+                                                                                            IMG
+                                                                                        </div>
+                                                                                    )}
+                                                                                    <div className="min-w-0">
+                                                                                        <div className="font-bold text-foreground truncate" title={resolvedVariantName}>
+                                                                                            {resolvedVariantName}
+                                                                                        </div>
+                                                                                        {v.sku && <div className="text-[10px] text-muted-foreground font-mono truncate">SKU: {v.sku}</div>}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="text-right shrink-0">
+                                                                                    {vPromo ? (
+                                                                                        <div>
+                                                                                            <div className="font-black text-red-600">{vPromo.toLocaleString('fr-FR')} F</div>
+                                                                                            <div className="text-[10px] text-muted-foreground line-through">{vPrice.toLocaleString('fr-FR')} F</div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="font-black text-foreground">{vPrice.toLocaleString('fr-FR')} F</div>
+                                                                                    )}
+                                                                                    <div className="text-[10px] text-muted-foreground font-semibold">Stock: {v.stockOnHand ?? 0}</div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     );
                                 })
                             ) : (

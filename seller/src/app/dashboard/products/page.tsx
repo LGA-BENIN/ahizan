@@ -32,38 +32,32 @@ export default async function ProductListPage() {
 
     if (products.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[600px] text-center space-y-8 animate-in fade-in zoom-in duration-700">
-                <div className="w-32 h-32 bg-muted/50 rounded-full flex items-center justify-center shadow-inner relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-brand-navy/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <Package className="w-14 h-14 text-muted-foreground group-hover:text-brand-navy transition-colors duration-500" />
+            <div className="flex flex-col items-center justify-center min-h-[500px] text-center space-y-8 animate-in fade-in zoom-in duration-500 max-w-2xl mx-auto py-12">
+                <div className="w-24 h-24 bg-primary/10 text-primary rounded-3xl flex items-center justify-center shadow-inner">
+                    <Package className="w-12 h-12" />
                 </div>
-                <div className="space-y-4 px-4">
-                    <h2 className="text-2xl md:text-4xl font-serif font-black tracking-tight leading-tight">Créez votre premier produit</h2>
-                    <p className="text-sm md:text-base text-muted-foreground max-w-md mx-auto leading-relaxed">
-                        Prêt à partager votre expertise ? Mettez vos articles en vente et commencez à générer des revenus sur AHIZAN.
+                <div className="space-y-2 px-4">
+                    <h2 className="text-2xl md:text-3xl font-serif font-black tracking-tight leading-tight text-foreground">
+                        Commencez à vendre sur AHIZAN
+                    </h2>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                        Le catalogue Ahizan contient déjà des milliers de références. Vous pouvez directement vous affilier à un produit existant pour y greffer vos tarifs et stocks, ou proposer un tout nouvel article.
                     </p>
                 </div>
-                <div className="flex items-center gap-4 pt-4">
-                     <Link href="/dashboard/products/new">
-                        <Button className="h-12 px-10 rounded-xl bg-brand-navy hover:bg-brand-navy/90 text-white font-bold shadow-lg shadow-brand-navy/20 flex items-center gap-2 uppercase text-xs tracking-widest">
+                <div className="flex items-center gap-3 pt-2 w-full justify-center">
+                    <Link href="/dashboard/products/new">
+                        <Button className="h-12 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black shadow-lg shadow-primary/20 flex items-center justify-center gap-2 uppercase text-xs tracking-widest cursor-pointer">
                             <Plus className="w-4 h-4" />
-                            Ajouter mon premier produit
+                            Ajouter un produit
                         </Button>
-                     </Link>
+                    </Link>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h1 className="text-2xl md:text-4xl font-serif font-black tracking-tight italic underline decoration-brand-red decoration-4">Mes Produits</h1>
-                    <p className="text-xs md:text-sm text-muted-foreground font-bold uppercase tracking-widest mt-1">Gestion du catalogue d'articles</p>
-                </div>
-            </div>
-
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <ProductListTable initialProducts={products} collectionTree={collectionTree} />
         </div>
     );

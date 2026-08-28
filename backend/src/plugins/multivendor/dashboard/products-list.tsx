@@ -1,30 +1,171 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_PRODUCTS, GET_COLLECTIONS } from './queries';
+import { GET_COLLECTIONS } from './queries';
 
 // --- Interfaces ---
-interface Product {
+export interface SellerOfferItem {
+    id: string;
+    createdAt?: string;
+    price: number;
+    stock: number;
+    sku?: string;
+    onPromotion?: boolean;
+    promotionalPrice?: number;
+    deliveryTimeValue?: number;
+    deliveryTimeUnit?: string;
+    condition?: string;
+    status?: string;
+    rejectionReason?: string;
+    vendor?: {
+        id: string;
+        name: string;
+        status?: string;
+        logo?: { preview: string };
+    };
+    productVariant?: {
+        id: string;
+        name?: string;
+        sku?: string;
+    };
+}
+
+export interface VariantItem {
+    id: string;
+    name?: string;
+    sku?: string;
+    price: number;
+    priceWithTax?: number;
+    currencyCode?: string;
+    stockOnHand?: number;
+    stockLevel?: string;
+    customFields?: {
+        onPromotion?: boolean;
+        promotionalPrice?: number;
+        compareAtPrice?: number;
+    };
+    options?: Array<{
+        id: string;
+        code: string;
+        name?: string;
+        group?: { name: string };
+    }>;
+    sellerOffers?: SellerOfferItem[];
+}
+
+export interface MarketplaceProduct {
     id: string;
     createdAt: string;
+    updatedAt?: string;
     name: string;
     slug: string;
     enabled: boolean;
+    description?: string;
+    featuredAsset?: { id?: string; preview: string };
+    assets?: Array<{ id: string; preview: string }>;
+    collections?: Array<{ id: string; name: string; slug?: string }>;
     customFields?: {
         vendor?: {
             id: string;
             name: string;
             status: string;
-            zone: string;
+            zone?: string;
             logo?: { preview: string };
         };
         approvalStatus?: string;
         rejectionReason?: string;
+        shortDescription?: string;
     };
-    featuredAsset?: { preview: string };
-    variants: Array<{ price: number; currencyCode: string; stockLevel: string }>;
+    variants: VariantItem[];
+    optionGroups?: Array<{
+        id: string;
+        name: string;
+        code: string;
+        options: Array<{ id: string; name: string; code: string }>;
+    }>;
 }
 
-// --- Global Settings Queries ---
+// --- GraphQL Queries & Mutations ---
+const GET_MARKETPLACE_PRODUCTS = `
+    query GetMarketplaceProducts($options: ProductListOptions) {
+        products(options: $options) {
+            items {
+                id
+                createdAt
+                updatedAt
+                name
+                slug
+                enabled
+                description
+                featuredAsset {
+                    id
+                    preview
+                }
+                assets {
+                    id
+                    preview
+                }
+                collections {
+                    id
+                    name
+                    slug
+                }
+                optionGroups {
+                    id
+                    name
+                    code
+                    options {
+                        id
+                        name
+                        code
+                    }
+                }
+                customFields {
+                    vendor {
+                        id
+                        name
+                        status
+                        zone
+                        logo {
+                            preview
+                        }
+                    }
+                    approvalStatus
+                    rejectionReason
+                    shortDescription
+                }
+                variants {
+                    id
+                    sku
+                    price
+                    currencyCode
+                    stockLevel
+                    customFields {
+                        onPromotion
+                        promotionalPrice
+                        compareAtPrice
+                    }
+                }
+            }
+            totalItems
+        }
+    }
+`;
+
+const GET_VENDORS_LIST = `
+    query GetVendorsList {
+        vendors(options: { take: 200 }) {
+            items {
+                id
+                name
+                status
+                logo {
+                    preview
+                }
+            }
+        }
+    }
+`;
+
 const GET_GLOBAL_SETTINGS = `
     query GetGlobalSettings {
         globalSettings {
@@ -46,102 +187,6 @@ const UPDATE_GLOBAL_SETTINGS = `
                     whatsappNumber
                 }
             }
-            ... on ErrorResult {
-                errorCode
-                message
-            }
-        }
-    }
-`;
-
-// --- Vendor Queries ---
-const GET_VENDORS_LIST = `
-    query GetVendorsList {
-        vendors(options: { take: 100 }) {
-            items {
-                id
-                name
-            }
-        }
-    }
-`;
-
-const REASSIGN_PRODUCT = `
-    mutation UpdateProductVendor($input: UpdateProductInput!) {
-        updateProduct(input: $input) {
-            id
-            customFields {
-                vendor {
-                    id
-                    name
-                }
-            }
-        }
-    }
-`;
-
-// --- Product CRUD Mutations & Queries ---
-const GET_PRODUCT_DETAIL = `
-    query GetProductDetail($id: ID!) {
-        product(id: $id) {
-            id
-            name
-            description
-            enabled
-            customFields {
-                shortDescription
-                vendor {
-                    id
-                    name
-                }
-            }
-            assets {
-                id
-                preview
-            }
-            featuredAsset {
-                id
-                preview
-            }
-            collections {
-                id
-                name
-            }
-            variants {
-                id
-                price
-                stockOnHand
-                customFields {
-                    onPromotion
-                    promotionalPrice
-                }
-            }
-        }
-    }
-`;
-
-const ADMIN_CREATE_PRODUCT = `
-    mutation AdminCreateProduct($input: CreateVendorProductInput!, $vendorId: ID!) {
-        adminCreateProduct(input: $input, vendorId: $vendorId) {
-            id
-            name
-        }
-    }
-`;
-
-const ADMIN_UPDATE_PRODUCT = `
-    mutation AdminUpdateProduct($id: ID!, $input: UpdateVendorProductInput!, $vendorId: ID) {
-        adminUpdateProduct(id: $id, input: $input, vendorId: $vendorId) {
-            id
-            name
-        }
-    }
-`;
-
-const ADMIN_UPDATE_PRODUCT_VARIANT = `
-    mutation AdminUpdateProductVariant($input: UpdateVendorProductVariantInput!) {
-        adminUpdateProductVariant(input: $input) {
-            id
         }
     }
 `;
@@ -150,6 +195,7 @@ const UPDATE_PRODUCT_APPROVAL = `
     mutation UpdateProductApproval($input: UpdateProductInput!) {
         updateProduct(input: $input) {
             id
+            enabled
             customFields {
                 approvalStatus
                 rejectionReason
@@ -158,7 +204,81 @@ const UPDATE_PRODUCT_APPROVAL = `
     }
 `;
 
-// --- GraphQL Fetcher ---
+const DELETE_PRODUCT = `
+    mutation DeleteProduct($id: ID!) {
+        deleteProduct(id: $id) {
+            result
+            message
+        }
+    }
+`;
+
+const ADMIN_UPDATE_PRODUCT = `
+    mutation AdminUpdateProduct($id: ID!, $input: UpdateVendorProductInput!) {
+        adminUpdateProduct(id: $id, input: $input) {
+            id
+            name
+            slug
+            enabled
+        }
+    }
+`;
+
+const GET_SELLER_OFFERS_FOR_PRODUCT = `
+    query GetSellerOffersForProduct($productId: ID!) {
+        sellerOffersForProduct(productId: $productId) {
+            id
+            price
+            stock
+            sku
+            deliveryTimeValue
+            deliveryTimeUnit
+            condition
+            onPromotion
+            promotionalPrice
+            featuredAssetId
+            status
+            rejectionReason
+            vendor {
+                id
+                name
+                logo {
+                    preview
+                }
+            }
+            productVariant {
+                id
+                name
+                sku
+            }
+        }
+    }
+`;
+
+const ADMIN_REVIEW_SELLER_OFFER = `
+    mutation AdminReviewSellerOffer($id: ID!, $status: String!, $rejectionReason: String) {
+        adminReviewSellerOffer(id: $id, status: $status, rejectionReason: $rejectionReason) {
+            id
+            status
+            rejectionReason
+        }
+    }
+`;
+
+const ADMIN_REVIEW_PRODUCT = `
+    mutation AdminReviewProduct($id: ID!, $status: String!, $rejectionReason: String, $convertToOfficialCatalog: Boolean) {
+        adminReviewProduct(id: $id, status: $status, rejectionReason: $rejectionReason, convertToOfficialCatalog: $convertToOfficialCatalog) {
+            id
+            enabled
+            customFields {
+                approvalStatus
+                rejectionReason
+            }
+        }
+    }
+`;
+
+// Helper GraphQL Fetcher
 async function fetchGraphQL(query: string, variables?: any) {
     const response = await fetch('/admin-api', {
         method: 'POST',
@@ -177,1065 +297,1311 @@ async function fetchGraphQL(query: string, variables?: any) {
     return json.data;
 }
 
-// Upload Asset via multipart
-async function uploadAsset(file: File) {
-    const operations = {
-        query: `mutation CreateAssets($input: [CreateAssetInput!]!) {
-            createAssets(input: $input) {
-                ... on Asset {
-                    id
-                    preview
-                }
-            }
-        }`,
-        variables: {
-            input: [{ file: null }]
-        }
-    };
+export function ProductListComponent() {
+    const queryClient = useQueryClient();
 
-    const map = {
-        '0': ['variables.input.0.file']
-    };
+    // Active View Tab: 'all' | 'official' | 'vendor_proposals' | 'pending' | 'settings'
+    const [activeTab, setActiveTab] = useState<'all' | 'official' | 'vendor_proposals' | 'pending' | 'settings'>('all');
 
-    const formData = new FormData();
-    formData.append('operations', JSON.stringify(operations));
-    formData.append('map', JSON.stringify(map));
-    formData.append('0', file);
+    // Search and Filters
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [selectedVendor, setSelectedVendor] = useState('all');
+    const [selectedStatus, setSelectedStatus] = useState('all');
+    const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
 
-    const response = await fetch('/admin-api', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
+    // Modal state for Approval Review
+    const [reviewProduct, setReviewProduct] = useState<MarketplaceProduct | null>(null);
+    const [reviewDecision, setReviewDecision] = useState<'approved_official' | 'approved_vendor' | 'rejected'>('approved_official');
+    const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+    // Modal state for Editing Ahizan Product
+    const [editingProduct, setEditingProduct] = useState<MarketplaceProduct | null>(null);
+    const [editFormData, setEditFormData] = useState<{
+        name: string;
+        slug: string;
+        description: string;
+        shortDescription: string;
+        collectionIds: string[];
+        enabled: boolean;
+    }>({
+        name: '',
+        slug: '',
+        description: '',
+        shortDescription: '',
+        collectionIds: [],
+        enabled: true,
     });
+    const [isSavingProduct, setIsSavingProduct] = useState(false);
 
-    const json = await response.json();
-    if (json.errors) throw new Error(json.errors[0].message);
-    return json.data.createAssets[0];
-}
+    // Seller Offers state & handlers
+    const [offersMap, setOffersMap] = useState<Record<string, any[]>>({});
+    const [loadingOffersProductId, setLoadingOffersProductId] = useState<string | null>(null);
+    const [commentingOfferId, setCommentingOfferId] = useState<string | null>(null);
+    const [offerCommentInput, setOfferCommentInput] = useState('');
+    const [isSavingOfferReview, setIsSavingOfferReview] = useState(false);
 
-// Helper to structure collections in tree
-const buildCollectionTree = (collections: any[]) => {
-    const map = new Map<string, any>();
-    collections.forEach(c => {
-        map.set(c.id, { ...c, children: [] });
-    });
-
-    const rootNodes: any[] = [];
-    collections.forEach(c => {
-        const node = map.get(c.id);
-        if (c.parent && c.parent.name !== '__root_collection__' && map.has(c.parent.id)) {
-            map.get(c.parent.id).children.push(node);
+    const handleToggleExpandProduct = async (productId: string) => {
+        if (expandedProductId === productId) {
+            setExpandedProductId(null);
         } else {
-            rootNodes.push(node);
-        }
-    });
-    return rootNodes;
-};
-
-// --- CategoryManager Component ---
-function CategoryManager() {
-    const queryClient = useQueryClient();
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [newCategorySlug, setNewCategorySlug] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const { data: collectionsData, isLoading: isLoadingCollections } = useQuery({
-        queryKey: ['collections'],
-        queryFn: () => fetchGraphQL(GET_COLLECTIONS, {
-            options: { take: 100, skip: 0 }
-        })
-    });
-
-    const collections = collectionsData?.collections?.items || [];
-
-    const createMutation = useMutation({
-        mutationFn: ({ name, slug, parentId }: { name: string; slug: string; parentId?: string }) => fetchGraphQL(
-            `mutation CreateCollection($input: CreateCollectionInput!) {
-                createCollection(input: $input) {
-                    id
-                    name
-                    slug
-                }
-            }`,
-            {
-                input: {
-                    translations: [{ languageCode: 'fr', name, slug }],
-                    filters: [{
-                        code: 'variant-id-filter',
-                        arguments: [{ name: 'variantIds', value: '[]' }],
-                    }],
-                    ...(parentId ? { parentId } : {}),
+            setExpandedProductId(productId);
+            if (!offersMap[productId]) {
+                setLoadingOffersProductId(productId);
+                try {
+                    const data = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId });
+                    if (data?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [productId]: data.sellerOffersForProduct }));
+                    }
+                } catch (err) {
+                    console.error('Failed to load seller offers:', err);
+                } finally {
+                    setLoadingOffersProductId(null);
                 }
             }
-        ),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['collections'] });
-            setNewCategoryName('');
-            setNewCategorySlug('');
-            setIsSubmitting(false);
-            alert('Collection créée avec succès!');
-        },
-        onError: (error) => {
-            setIsSubmitting(false);
-            alert('Erreur: ' + (error as Error).message);
         }
-    });
-
-    const handleCreateCategory = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newCategoryName || !newCategorySlug) return;
-        setIsSubmitting(true);
-        createMutation.mutate({ name: newCategoryName, slug: newCategorySlug });
     };
 
-    return (
-        <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
-            <h3 style={{ marginTop: 0, fontSize: '16px', color: '#1e293b', marginBottom: '12px' }}>📂 Ajouter une nouvelle catégorie</h3>
-            <form onSubmit={handleCreateCategory} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <input
-                    type="text"
-                    placeholder="Nom de la catégorie (ex: Légumes)"
-                    value={newCategoryName}
-                    onChange={e => {
-                        setNewCategoryName(e.target.value);
-                        setNewCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
-                    }}
-                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', flex: 1, minWidth: '200px' }}
-                />
-                <input
-                    type="text"
-                    placeholder="Slug URL (ex: legumes)"
-                    value={newCategorySlug}
-                    onChange={e => setNewCategorySlug(e.target.value)}
-                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', flex: 1, minWidth: '200px' }}
-                />
-                <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    style={{ padding: '8px 16px', borderRadius: '6px', background: '#2563eb', color: 'white', border: 'none', fontWeight: 'bold', cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
-                >
-                    {isSubmitting ? 'En cours...' : 'Ajouter'}
-                </button>
-            </form>
-        </div>
-    );
-}
+    const handleReviewOffer = async (offerId: string, productId: string, status: string, rejectionReason?: string) => {
+        setIsSavingOfferReview(true);
+        try {
+            await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
+                id: offerId,
+                status,
+                rejectionReason: rejectionReason || undefined,
+            });
+            const data = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId });
+            if (data?.sellerOffersForProduct) {
+                setOffersMap(prev => ({ ...prev, [productId]: data.sellerOffersForProduct }));
+            }
+            setCommentingOfferId(null);
+            setOfferCommentInput('');
+            alert(status === 'approved' ? 'Offre approuvée avec succès !' : 'Remarque envoyée au vendeur avec succès !');
+        } catch (err: any) {
+            alert('Erreur: ' + err.message);
+        } finally {
+            setIsSavingOfferReview(false);
+        }
+    };
 
-// --- MinimalPriceManager Component ---
-function MinimalPriceManager() {
-    const queryClient = useQueryClient();
-    const [minPrice, setMinPrice] = useState<string>('');
-    const [isUpdating, setIsUpdating] = useState(false);
+    // Fetch Products
+    const { data: productsData, isLoading: isLoadingProducts, error: productsError } = useQuery({
+        queryKey: ['marketplaceProducts'],
+        queryFn: () => fetchGraphQL(GET_MARKETPLACE_PRODUCTS, { options: { take: 500, sort: { createdAt: 'DESC' } } }),
+    });
 
+    // Fetch Collections
+    const { data: collectionsData } = useQuery({
+        queryKey: ['collections'],
+        queryFn: () => fetchGraphQL(GET_COLLECTIONS, { options: { take: 200 } }),
+    });
+
+    // Fetch Vendors
+    const { data: vendorsData } = useQuery({
+        queryKey: ['vendorsList'],
+        queryFn: () => fetchGraphQL(GET_VENDORS_LIST),
+    });
+
+    // Fetch Global Settings
     const { data: globalSettingsData } = useQuery({
         queryKey: ['globalSettings'],
-        queryFn: () => fetchGraphQL(GET_GLOBAL_SETTINGS)
+        queryFn: () => fetchGraphQL(GET_GLOBAL_SETTINGS),
     });
 
-    const currentMinPrice = globalSettingsData?.globalSettings?.customFields?.minimumMarketplacePrice ?? 0;
+    const products: MarketplaceProduct[] = productsData?.products?.items || [];
+    const collections = collectionsData?.collections?.items || [];
+    const vendors = vendorsData?.vendors?.items || [];
+    const minPrice = globalSettingsData?.globalSettings?.customFields?.minimumMarketplacePrice ?? 0;
 
-    useEffect(() => {
-        if (currentMinPrice !== undefined) {
-            setMinPrice(currentMinPrice.toString());
+    // KPI Metrics calculation
+    const metrics = useMemo(() => {
+        const totalProducts = products.length;
+        const officialCount = products.filter(p => !p.customFields?.vendor || p.customFields.vendor.name === 'Ahizan').length;
+        const vendorProposalCount = products.filter(p => !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan').length;
+        const pendingProducts = products.filter(p => (p.customFields?.approvalStatus || 'approved') === 'pending').length;
+        const approvedProducts = products.filter(p => (p.customFields?.approvalStatus || 'approved') === 'approved').length;
+        const totalVariants = products.reduce((acc, p) => acc + (p.variants?.length || 0), 0);
+
+        return {
+            totalProducts,
+            officialCount,
+            vendorProposalCount,
+            pendingProducts,
+            approvedProducts,
+            totalVariants,
+        };
+    }, [products]);
+
+    // Filtered Products
+    const filteredProducts = useMemo(() => {
+        return products.filter(p => {
+            const approvalStatus = p.customFields?.approvalStatus || 'approved';
+            const vendorId = p.customFields?.vendor?.id || '';
+            const isVendorProposal = !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan';
+
+            // Tab restriction
+            if (activeTab === 'pending' && approvalStatus !== 'pending') {
+                return false;
+            }
+            if (activeTab === 'official' && isVendorProposal) {
+                return false;
+            }
+            if (activeTab === 'vendor_proposals' && !isVendorProposal) {
+                return false;
+            }
+
+            // Search query filter
+            if (searchTerm.trim()) {
+                const term = searchTerm.toLowerCase();
+                const matchName = p.name.toLowerCase().includes(term);
+                const matchSku = p.variants?.some(v => v.sku?.toLowerCase().includes(term));
+                const matchVendor = p.customFields?.vendor?.name?.toLowerCase().includes(term);
+                if (!matchName && !matchSku && !matchVendor) return false;
+            }
+
+            // Category filter
+            if (selectedCategory !== 'all') {
+                const hasCategory = p.collections?.some(c => c.id === selectedCategory || c.name === selectedCategory);
+                if (!hasCategory) return false;
+            }
+
+            // Vendor filter
+            if (selectedVendor !== 'all') {
+                if (selectedVendor === 'ahizan_official') {
+                    if (vendorId) return false;
+                } else if (vendorId !== selectedVendor) {
+                    return false;
+                }
+            }
+
+            // Status filter
+            if (selectedStatus !== 'all' && approvalStatus !== selectedStatus) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [products, activeTab, searchTerm, selectedCategory, selectedVendor, selectedStatus]);
+
+    // Approval / Moderation Mutation
+    const approvalMutation = useMutation({
+        mutationFn: ({ id, approvalStatus, rejectionReason, convertToOfficialCatalog }: { id: string; approvalStatus: string; rejectionReason?: string; convertToOfficialCatalog?: boolean }) =>
+            fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
+                id,
+                status: approvalStatus,
+                rejectionReason: rejectionReason || null,
+                convertToOfficialCatalog: !!convertToOfficialCatalog,
+            }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            setReviewProduct(null);
+            setIsSubmittingReview(false);
+        },
+        onError: (err: any) => {
+            alert('Erreur lors de la modération: ' + err.message);
+            setIsSubmittingReview(false);
+        },
+    });
+
+    // Delete Product Mutation
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => fetchGraphQL(DELETE_PRODUCT, { id }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+        },
+        onError: (err: any) => {
+            alert('Erreur lors de la suppression: ' + err.message);
+        },
+    });
+
+    // Quick Action Handlers
+    const handleQuickApprove = (product: MarketplaceProduct) => {
+        if (confirm(`Adopter et publier "${product.name}" au catalogue officiel Ahizan (greffage automatique de l'offre vendeur) ?`)) {
+            approvalMutation.mutate({
+                id: product.id,
+                approvalStatus: 'approved',
+                convertToOfficialCatalog: true,
+                rejectionReason: '',
+            });
         }
-    }, [currentMinPrice]);
+    };
 
-    const updateMutation = useMutation({
+    const handleOpenReview = (product: MarketplaceProduct) => {
+        setReviewProduct(product);
+        setReviewDecision(product.customFields?.approvalStatus === 'rejected' ? 'rejected' : 'approved_official');
+        setRejectionReasonInput(product.customFields?.rejectionReason || '');
+    };
+
+    const handleSubmitReview = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!reviewProduct) return;
+
+        if (reviewDecision === 'rejected' && !rejectionReasonInput.trim()) {
+            alert('Veuillez indiquer un motif de refus pour informer le vendeur.');
+            return;
+        }
+
+        setIsSubmittingReview(true);
+        approvalMutation.mutate({
+            id: reviewProduct.id,
+            approvalStatus: reviewDecision === 'rejected' ? 'rejected' : 'approved',
+            convertToOfficialCatalog: reviewDecision === 'approved_official',
+            rejectionReason: reviewDecision === 'rejected' ? rejectionReasonInput : '',
+        });
+    };
+
+    const handleDeleteProduct = (product: MarketplaceProduct) => {
+        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement "${product.name}" ? Cette action est irréversible.`)) {
+            deleteMutation.mutate(product.id);
+        }
+    };
+
+    const handleOpenEditProduct = (product: MarketplaceProduct) => {
+        setEditingProduct(product);
+        setEditFormData({
+            name: product.name || '',
+            slug: product.slug || '',
+            description: product.description || '',
+            shortDescription: product.customFields?.shortDescription || '',
+            collectionIds: (product.collections || []).map(c => c.id),
+            enabled: product.enabled !== false,
+        });
+    };
+
+    const handleSaveProductEdit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingProduct) return;
+        setIsSavingProduct(true);
+        try {
+            await fetchGraphQL(ADMIN_UPDATE_PRODUCT, {
+                id: editingProduct.id,
+                input: {
+                    name: editFormData.name,
+                    slug: editFormData.slug,
+                    description: editFormData.description,
+                    shortDescription: editFormData.shortDescription,
+                    collectionIds: editFormData.collectionIds,
+                    enabled: editFormData.enabled,
+                }
+            });
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            setEditingProduct(null);
+            alert('Fiche produit Ahizan mise à jour avec succès !');
+        } catch (err: any) {
+            console.error('Error updating Ahizan product:', err);
+            alert('Erreur lors de la modification : ' + err.message);
+        } finally {
+            setIsSavingProduct(false);
+        }
+    };
+
+    // Minimum Price Setting Mutation
+    const [minPriceInput, setMinPriceInput] = useState<string>('');
+    const [isSavingMinPrice, setIsSavingMinPrice] = useState(false);
+
+    const minPriceMutation = useMutation({
         mutationFn: (price: number) => fetchGraphQL(UPDATE_GLOBAL_SETTINGS, {
             input: {
                 customFields: {
-                    minimumMarketplacePrice: price
-                }
-            }
+                    minimumMarketplacePrice: price,
+                },
+            },
         }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['globalSettings'] });
-            setIsUpdating(false);
-            alert('Prix minimum mis à jour avec succès!');
+            setIsSavingMinPrice(false);
+            alert('Prix minimum marketplace mis à jour avec succès !');
         },
         onError: (err: any) => {
-            setIsUpdating(false);
-            alert(err.message || 'Erreur lors de la mise à jour');
-        }
+            setIsSavingMinPrice(false);
+            alert('Erreur: ' + err.message);
+        },
     });
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSaveMinPrice = (e: React.FormEvent) => {
         e.preventDefault();
-        setIsUpdating(true);
-        updateMutation.mutate(Number(minPrice));
+        setIsSavingMinPrice(true);
+        minPriceMutation.mutate(Number(minPriceInput || minPrice));
     };
 
     return (
-        <div style={{ background: '#fef3c7', padding: '20px', borderRadius: '12px', border: '1px solid #fde68a', marginBottom: '24px' }}>
-            <h3 style={{ marginTop: 0, fontSize: '16px', color: '#92400e', marginBottom: '8px' }}>💰 Configuration du prix minimum du marché</h3>
-            <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#b45309' }}>Configure le montant minimal en FCFA auquel un vendeur peut lister un produit sur le marketplace.</p>
-            <form onSubmit={handleSave} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <div style={{ position: 'relative' }}>
-                    <input
-                        type="number"
-                        min="0"
-                        value={minPrice}
-                        onChange={e => setMinPrice(e.target.value)}
-                        style={{ padding: '8px 32px 8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '150px' }}
-                    />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', fontSize: '12px', fontWeight: 'bold' }}>FCFA</span>
+        <div style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#0f172a', padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+            
+            {/* ── 1. HEADER & ACTIONS ── */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '24px' }}>
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ background: '#0f172a', color: '#ffffff', width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 900 }}>
+                            🛍️
+                        </div>
+                        <div>
+                            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 900, letterSpacing: '-0.02em', color: '#0f172a' }}>
+                                Produits Marketplace &amp; Offres
+                            </h1>
+                            <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
+                                Gestion centralisée du catalogue Ahizan, des déclinaisons et des offres marchands greffées.
+                            </p>
+                        </div>
+                    </div>
                 </div>
-                <button
-                    type="submit"
-                    disabled={isUpdating}
-                    style={{ padding: '8px 16px', borderRadius: '6px', background: '#d97706', color: 'white', border: 'none', fontWeight: 'bold', cursor: isUpdating ? 'not-allowed' : 'pointer' }}
-                >
-                    {isUpdating ? 'Sauvegarde...' : 'Mettre à jour'}
-                </button>
-            </form>
-        </div>
-    );
-}
 
-// --- Create & Edit Product Modal ---
-function CreateEditProductModal({ isOpen, productId, onClose, vendors }: { isOpen: boolean; productId: string | null; onClose: () => void; vendors: any[] }) {
-    const queryClient = useQueryClient();
-    const isEdit = !!productId;
-
-    const [form, setForm] = useState({
-        name: '',
-        description: '',
-        shortDescription: '',
-        price: 0,
-        stock: 10,
-        onPromotion: false,
-        promotionalPrice: 0,
-        vendorId: '',
-        collectionIds: [] as string[],
-        assetIds: [] as string[],
-        featuredAssetId: ''
-    });
-
-    const [assets, setAssets] = useState<any[]>([]);
-    const [uploading, setUploading] = useState(false);
-
-    // Fetch collections
-    const { data: collectionsData } = useQuery({
-        queryKey: ['collections'],
-        queryFn: () => fetchGraphQL(GET_COLLECTIONS, { options: { take: 100, skip: 0 } }),
-        enabled: isOpen
-    });
-
-    const collections = collectionsData?.collections?.items || [];
-    const collectionTree = buildCollectionTree(collections);
-
-    // Fetch product details if editing
-    const { data: productDetail, isLoading: isLoadingProduct } = useQuery({
-        queryKey: ['productDetail', productId],
-        queryFn: () => fetchGraphQL(GET_PRODUCT_DETAIL, { id: productId }),
-        enabled: isEdit && isOpen
-    });
-
-    const [variantId, setVariantId] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (productDetail?.product) {
-            const p = productDetail.product;
-            const mainVariant = p.variants?.[0];
-            setVariantId(mainVariant?.id || null);
-
-            setForm({
-                name: p.name || '',
-                description: p.description || '',
-                shortDescription: p.customFields?.shortDescription || '',
-                price: mainVariant?.price || 0,
-                stock: mainVariant?.stockOnHand || 0,
-                onPromotion: mainVariant?.customFields?.onPromotion || false,
-                promotionalPrice: mainVariant?.customFields?.promotionalPrice || 0,
-                vendorId: p.customFields?.vendor?.id || '',
-                collectionIds: p.collections?.map((c: any) => c.id) || [],
-                assetIds: p.assets?.map((a: any) => a.id) || [],
-                featuredAssetId: p.featuredAsset?.id || ''
-            });
-            setAssets(p.assets || []);
-        } else if (!isEdit && isOpen) {
-            setForm({
-                name: '',
-                description: '',
-                shortDescription: '',
-                price: 0,
-                stock: 10,
-                onPromotion: false,
-                promotionalPrice: 0,
-                vendorId: vendors[0]?.id || '',
-                collectionIds: [],
-                assetIds: [],
-                featuredAssetId: ''
-            });
-            setAssets([]);
-            setVariantId(null);
-        }
-    }, [productDetail, productId, isOpen, isEdit, vendors]);
-
-    const mutationSubmit = useMutation({
-        mutationFn: async (variables: any) => {
-            if (isEdit) {
-                // 1. Update product base info
-                await fetchGraphQL(ADMIN_UPDATE_PRODUCT, {
-                    id: productId,
-                    input: {
-                        name: variables.name,
-                        description: variables.description,
-                        shortDescription: variables.shortDescription,
-                        collectionIds: variables.collectionIds,
-                        assetIds: variables.assetIds,
-                        featuredAssetId: variables.featuredAssetId
-                    },
-                    vendorId: variables.vendorId
-                });
-
-                // 2. Update variant price & stock
-                if (variantId) {
-                    await fetchGraphQL(ADMIN_UPDATE_PRODUCT_VARIANT, {
-                        input: {
-                            id: variantId,
-                            price: variables.price,
-                            stock: variables.stock,
-                            onPromotion: variables.onPromotion,
-                            promotionalPrice: variables.promotionalPrice
-                        }
-                    });
-                }
-            } else {
-                // Create product
-                await fetchGraphQL(ADMIN_CREATE_PRODUCT, {
-                    input: {
-                        name: variables.name,
-                        description: variables.description,
-                        shortDescription: variables.shortDescription,
-                        price: variables.price,
-                        stock: variables.stock,
-                        collectionIds: variables.collectionIds,
-                        assetIds: variables.assetIds,
-                        featuredAssetId: variables.featuredAssetId,
-                        onPromotion: variables.onPromotion,
-                        promotionalPrice: variables.promotionalPrice
-                    },
-                    vendorId: variables.vendorId
-                });
-            }
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
-            alert(isEdit ? 'Produit mis à jour avec succès !' : 'Nouveau produit créé avec succès !');
-            onClose();
-        },
-        onError: (err: any) => {
-            alert(err.message || 'Une erreur est survenue lors de l\'enregistrement');
-        }
-    });
-
-    if (!isOpen) return null;
-
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files) return;
-        setUploading(true);
-        try {
-            const files = Array.from(e.target.files);
-            const uploadedAssets = [];
-            for (const file of files) {
-                const asset = await uploadAsset(file);
-                uploadedAssets.push(asset);
-            }
-
-            const newAssetIds = [...form.assetIds, ...uploadedAssets.map(a => a.id)];
-            setAssets(prev => [...prev, ...uploadedAssets]);
-            setForm(prev => ({
-                ...prev,
-                assetIds: newAssetIds,
-                featuredAssetId: prev.featuredAssetId || uploadedAssets[0]?.id || ''
-            }));
-        } catch (err: any) {
-            alert('Erreur d\'upload : ' + err.message);
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const handleToggleCollection = (id: string) => {
-        setForm(prev => {
-            const next = prev.collectionIds.includes(id)
-                ? prev.collectionIds.filter(x => x !== id)
-                : [...prev.collectionIds, id];
-            return { ...prev, collectionIds: next };
-        });
-    };
-
-    const renderTreeNodes = (nodes: any[], depth = 0) => {
-        return nodes.map((node: any) => (
-            <div key={node.id} style={{ marginLeft: `${depth * 20}px`, marginY: '4px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                    <input
-                        type="checkbox"
-                        checked={form.collectionIds.includes(node.id)}
-                        onChange={() => handleToggleCollection(node.id)}
-                    />
-                    <span>{node.name}</span>
-                </label>
-                {node.children && node.children.length > 0 && renderTreeNodes(node.children, depth + 1)}
+                {/* View Tabs */}
+                <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => setActiveTab('all')}
+                        style={{
+                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'all' ? '#ffffff' : 'transparent',
+                            color: activeTab === 'all' ? '#0f172a' : '#64748b',
+                            boxShadow: activeTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        📦 Tous ({metrics.totalProducts})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('official')}
+                        style={{
+                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'official' ? '#ffffff' : 'transparent',
+                            color: activeTab === 'official' ? '#2563eb' : '#64748b',
+                            boxShadow: activeTab === 'official' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        🏛️ Catalogue Officiel Ahizan ({metrics.officialCount})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('vendor_proposals')}
+                        style={{
+                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'vendor_proposals' ? '#ffffff' : 'transparent',
+                            color: activeTab === 'vendor_proposals' ? '#d97706' : '#64748b',
+                            boxShadow: activeTab === 'vendor_proposals' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        🏪 Propositions Vendeurs ({metrics.vendorProposalCount})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('pending')}
+                        style={{
+                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                            background: activeTab === 'pending' ? '#ffffff' : 'transparent',
+                            color: activeTab === 'pending' ? '#dc2626' : '#64748b',
+                            boxShadow: activeTab === 'pending' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        ⏳ À valider
+                        {metrics.pendingProducts > 0 && (
+                            <span style={{ background: '#dc2626', color: '#ffffff', fontSize: '10px', fontWeight: 900, padding: '1px 6px', borderRadius: '10px' }}>
+                                {metrics.pendingProducts}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        style={{
+                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'settings' ? '#ffffff' : 'transparent',
+                            color: activeTab === 'settings' ? '#0f172a' : '#64748b',
+                            boxShadow: activeTab === 'settings' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        ⚙️ Paramètres
+                    </button>
+                </div>
             </div>
-        ));
-    };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        mutationSubmit.mutate(form);
-    };
-
-    return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 1000, backdropFilter: 'blur(4px)'
-        }} onClick={onClose}>
-            <div style={{
-                background: 'white', borderRadius: '16px', width: '90%', maxWidth: '750px', maxHeight: '90vh',
-                overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', position: 'relative',
-                padding: '24px'
-            }} onClick={e => e.stopPropagation()}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px', marginBottom: '16px' }}>
-                    <h3 style={{ margin: 0 }}>{isEdit ? 'Modifier le Produit' : 'Créer un Produit'}</h3>
-                    <button onClick={onClose} style={{ border: 'none', background: '#f3f4f6', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+            {/* ── 2. KPI SUMMARY CARDS ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Catalogue Ahizan</div>
+                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{metrics.totalProducts}</div>
+                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '2px' }}>{metrics.approvedProducts} produits en ligne</div>
                 </div>
+                <div style={{ background: metrics.pendingProducts > 0 ? '#fffbeb' : '#ffffff', border: metrics.pendingProducts > 0 ? '1px solid #fde68a' : '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: metrics.pendingProducts > 0 ? '#b45309' : '#64748b', letterSpacing: '0.05em' }}>En Attente d'Approbation</div>
+                    <div style={{ fontSize: '26px', fontWeight: 900, color: metrics.pendingProducts > 0 ? '#d97706' : '#0f172a', marginTop: '4px' }}>{metrics.pendingProducts}</div>
+                    <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 700, marginTop: '2px' }}>Nouveaux articles soumis par les vendeurs</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Déclinaisons &amp; Combinaisons</div>
+                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{metrics.totalVariants}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Variantes actives créées sur la plateforme</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Prix Minimum Garanti</div>
+                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{minPrice.toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 700, color: '#64748b' }}>FCFA</span></div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Seuil minimal autorisé à la vente</div>
+                </div>
+            </div>
 
-                {isLoadingProduct && isEdit ? <div style={{ padding: '20px', textAlign: 'center' }}>Chargement...</div> : (
-                    <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '16px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                            <label style={{ display: 'block' }}>
-                                <strong style={{ fontSize: '13px' }}>Nom du produit *</strong>
-                                <input required type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px' }} />
-                            </label>
-                            <label style={{ display: 'block' }}>
-                                <strong style={{ fontSize: '13px' }}>Vendeur Propriétaire *</strong>
-                                <select required value={form.vendorId} onChange={e => setForm({ ...form, vendorId: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px', background: 'white' }}>
-                                    <option value="">Sélectionner un vendeur...</option>
-                                    {vendors.map(v => (
-                                        <option key={v.id} value={v.id}>{v.name}</option>
-                                    ))}
-                                </select>
-                            </label>
+            {/* ── 3. TAB CONTENT: SETTINGS TAB ── */}
+            {activeTab === 'settings' && (
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '20px', padding: '28px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 16px 0' }}>Configuration du Marché &amp; Prix Minimum</h2>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px 0', maxWidth: '600px' }}>
+                        Définissez le montant minimal en FCFA auquel un vendeur peut créer une offre sur le catalogue Ahizan.
+                    </p>
+                    <form onSubmit={handleSaveMinPrice} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                type="number"
+                                min="0"
+                                placeholder={minPrice.toString()}
+                                value={minPriceInput !== '' ? minPriceInput : minPrice}
+                                onChange={e => setMinPriceInput(e.target.value)}
+                                style={{ width: '180px', padding: '10px 48px 10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700 }}
+                            />
+                            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>
+                                FCFA
+                            </span>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isSavingMinPrice}
+                            style={{ padding: '10px 20px', borderRadius: '10px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '13px', fontWeight: 700, cursor: isSavingMinPrice ? 'not-allowed' : 'pointer' }}
+                        >
+                            {isSavingMinPrice ? 'Sauvegarde...' : 'Enregistrer le seuil'}
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* ── 4. SEARCH & FILTER TOOLBAR ── */}
+            {activeTab !== 'settings' && (
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '16px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                    {/* Search Input */}
+                    <div style={{ flex: 1, minWidth: '260px' }}>
+                        <input
+                            type="text"
+                            placeholder="Rechercher par nom de produit, SKU ou vendeur..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc' }}
+                        />
+                    </div>
+
+                    {/* Category Filter */}
+                    <div style={{ minWidth: '180px' }}>
+                        <select
+                            value={selectedCategory}
+                            onChange={e => setSelectedCategory(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                        >
+                            <option value="all">Toutes les catégories</option>
+                            {collections.map((c: any) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Vendor Filter */}
+                    <div style={{ minWidth: '180px' }}>
+                        <select
+                            value={selectedVendor}
+                            onChange={e => setSelectedVendor(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                        >
+                            <option value="all">Tous les vendeurs</option>
+                            <option value="ahizan_official">Catalogue Officiel Ahizan</option>
+                            {vendors.map((v: any) => (
+                                <option key={v.id} value={v.id}>{v.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Status Filter */}
+                    {activeTab === 'all' && (
+                        <div style={{ minWidth: '150px' }}>
+                            <select
+                                value={selectedStatus}
+                                onChange={e => setSelectedStatus(e.target.value)}
+                                style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                            >
+                                <option value="all">Tous les statuts</option>
+                                <option value="approved">En ligne (Validé)</option>
+                                <option value="pending">En attente (Modération)</option>
+                                <option value="rejected">Rejeté</option>
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Reset Button */}
+                    {(searchTerm || selectedCategory !== 'all' || selectedVendor !== 'all' || selectedStatus !== 'all') && (
+                        <button
+                            onClick={() => {
+                                setSearchTerm('');
+                                setSelectedCategory('all');
+                                setSelectedVendor('all');
+                                setSelectedStatus('all');
+                            }}
+                            style={{ padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontSize: '12px', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}
+                        >
+                            Réinitialiser
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* ── 5. PRODUCTS MASTER-DETAIL TABLE ── */}
+            {activeTab !== 'settings' && (
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    {isLoadingProducts ? (
+                        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
+                            Chargement du catalogue marketplace...
+                        </div>
+                    ) : productsError ? (
+                        <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444', fontWeight: 700 }}>
+                            Erreur de chargement: {(productsError as Error).message}
+                        </div>
+                    ) : filteredProducts.length === 0 ? (
+                        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
+                            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
+                            <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Aucun produit correspondant</h3>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Ajustez vos critères de recherche ou vos filtres.</p>
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        <th style={{ padding: '14px 20px', width: '40px' }}></th>
+                                        <th style={{ padding: '14px 20px' }}>Produit &amp; Fiche Centrale</th>
+                                        <th style={{ padding: '14px 20px' }}>Catégorie</th>
+                                        <th style={{ padding: '14px 20px' }}>Vendeur Demandeur</th>
+                                        <th style={{ padding: '14px 20px' }}>Déclinaisons</th>
+                                        <th style={{ padding: '14px 20px' }}>Statut Modération</th>
+                                        <th style={{ padding: '14px 20px', textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredProducts.map((product) => {
+                                        const isExpanded = expandedProductId === product.id;
+                                        const approvalStatus = product.customFields?.approvalStatus || 'approved';
+                                        const isPending = approvalStatus === 'pending';
+                                        const isRejected = approvalStatus === 'rejected';
+                                        const vendorName = product.customFields?.vendor?.name || 'Catalogue Ahizan';
+                                        const mainVariant = product.variants?.[0];
+
+                                        return (
+                                            <React.Fragment key={product.id}>
+                                                <tr
+                                                    style={{
+                                                        borderBottom: isExpanded ? 'none' : '1px solid #f1f5f9',
+                                                        background: isExpanded ? '#f8fafc' : '#ffffff',
+                                                        transition: 'background 0.15s',
+                                                    }}
+                                                >
+                                                    {/* Expand Toggle */}
+                                                    <td style={{ padding: '14px 20px' }}>
+                                                        <button
+                                                            onClick={() => handleToggleExpandProduct(product.id)}
+                                                            style={{
+                                                                background: isExpanded ? '#0f172a' : '#f1f5f9',
+                                                                color: isExpanded ? '#ffffff' : '#475569',
+                                                                border: 'none', borderRadius: '6px', width: '24px', height: '24px',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                cursor: 'pointer', fontSize: '11px', fontWeight: 800
+                                                            }}
+                                                            title="Voir les variantes et offres"
+                                                        >
+                                                            {isExpanded ? '▼' : '▶'}
+                                                        </button>
+                                                    </td>
+
+                                                    {/* Product Identity */}
+                                                    <td style={{ padding: '14px 20px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                            {product.featuredAsset?.preview ? (
+                                                                <img
+                                                                    src={product.featuredAsset.preview}
+                                                                    alt={product.name}
+                                                                    style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                                                                />
+                                                            ) : (
+                                                                <div style={{ width: '44px', height: '44px', borderRadius: '8px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                                                                    📦
+                                                                </div>
+                                                            )}
+                                                            <div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                                    <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px' }}>{product.name}</span>
+                                                                    {product.customFields?.vendor ? (
+                                                                        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>
+                                                                            🏪 Proposition Vendeur
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>
+                                                                            🏛️ Catalogue Officiel Ahizan
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '2px' }}>
+                                                                    ID: #{product.id} • SKU: {mainVariant?.sku || 'N/A'} • /{product.slug}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Category */}
+                                                    <td style={{ padding: '14px 20px' }}>
+                                                        {product.collections && product.collections.length > 0 ? (
+                                                            <span style={{ background: '#f1f5f9', color: '#334155', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                                                                {product.collections[0].name}
+                                                            </span>
+                                                        ) : (
+                                                            <span style={{ color: '#94a3b8', fontSize: '11px' }}>Non classé</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Vendor Proposer */}
+                                                    <td style={{ padding: '14px 20px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            {product.customFields?.vendor?.logo?.preview ? (
+                                                                <img src={product.customFields.vendor.logo.preview} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                            ) : (
+                                                                <span style={{ fontSize: '14px' }}>🏪</span>
+                                                            )}
+                                                            <span style={{ fontWeight: 700, color: product.customFields?.vendor ? '#0f172a' : '#2563eb' }}>
+                                                                {vendorName}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Variants Count & Base Price */}
+                                                    <td style={{ padding: '14px 20px' }}>
+                                                        <div>
+                                                            <span style={{ fontWeight: 800, color: '#0f172a' }}>{product.variants?.length || 1} déclinaison(s)</span>
+                                                            <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 800 }}>
+                                                                {mainVariant?.price ? `${(mainVariant.price / 100).toLocaleString('fr-FR')} FCFA` : 'Prix sur offre'}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Moderation Status */}
+                                                    <td style={{ padding: '14px 20px' }}>
+                                                        {isPending ? (
+                                                            <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                ⏳ En attente validation
+                                                            </span>
+                                                        ) : isRejected ? (
+                                                            <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                ✕ Rejeté
+                                                            </span>
+                                                        ) : (
+                                                            <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                ✓ En ligne (Validé)
+                                                            </span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Actions */}
+                                                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                                                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                            {product.customFields?.vendor && (
+                                                                <button
+                                                                    onClick={() => handleQuickApprove(product)}
+                                                                    style={{ padding: '6px 12px', borderRadius: '8px', background: '#0284c7', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                    title="Adopter cette proposition pour en faire une fiche officielle Ahizan (greffe automatique de l'offre vendeur)"
+                                                                >
+                                                                    🏛️ Rendre Officiel Ahizan
+                                                                </button>
+                                                            )}
+
+                                                            <button
+                                                                onClick={() => handleOpenEditProduct(product)}
+                                                                style={{ padding: '6px 12px', borderRadius: '8px', background: '#2563eb', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                title="Modifier les informations officielles de la fiche produit Ahizan"
+                                                            >
+                                                                ✏️ Éditer Fiche Ahizan
+                                                            </button>
+
+                                                            {isPending && (
+                                                                <button
+                                                                    onClick={() => handleQuickApprove(product)}
+                                                                    style={{ padding: '6px 12px', borderRadius: '8px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                    title="Approuver directement"
+                                                                >
+                                                                    ✓ Approuver
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleOpenReview(product)}
+                                                                style={{ padding: '6px 12px', borderRadius: '8px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                            >
+                                                                Modérer
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteProduct(product)}
+                                                                style={{ padding: '6px 10px', borderRadius: '8px', background: '#fee2e2', color: '#dc2626', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                title="Supprimer le produit"
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                {/* ── EXPANDED DETAILS: SELLER OFFERS & VARIANTS MATRIX ── */}
+                                                {isExpanded && (
+                                                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                                        <td colSpan={7} style={{ padding: '0 20px 20px 20px' }}>
+                                                            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px', marginTop: '4px', display: 'grid', gap: '16px' }}>
+                                                                
+                                                                {/* 1. SELLER OFFERS BREAKDOWN WITH MODERATION & COMMENTS */}
+                                                                <div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                                        <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <span>🏪</span> Offres des Vendeurs Greffées sur ce Produit ({offersMap[product.id]?.length || 0})
+                                                                        </div>
+                                                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                            Consultez les détails des offres, validez-les ou envoyez des remarques de correction aux vendeurs.
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {loadingOffersProductId === product.id ? (
+                                                                        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                                                                            Chargement des offres vendeurs...
+                                                                        </div>
+                                                                    ) : !offersMap[product.id] || offersMap[product.id].length === 0 ? (
+                                                                        <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                                                                            Aucun vendeur ne s'est encore greffé sur ce produit.
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div style={{ display: 'grid', gap: '10px' }}>
+                                                                            {offersMap[product.id].map((offer: any) => {
+                                                                                const offerPrice = Math.round(offer.price / 100);
+                                                                                const promoPrice = offer.promotionalPrice ? Math.round(offer.promotionalPrice / 100) : null;
+                                                                                const isCommenting = commentingOfferId === offer.id;
+                                                                                const isCorrectionRequested = offer.status === 'correction_requested';
+                                                                                const isRejectedOffer = offer.status === 'rejected';
+
+                                                                                return (
+                                                                                    <div 
+                                                                                        key={offer.id}
+                                                                                        style={{
+                                                                                            padding: '14px',
+                                                                                            background: isCorrectionRequested ? '#fffbeb' : '#f8fafc',
+                                                                                            borderRadius: '10px',
+                                                                                            border: isCorrectionRequested ? '1px solid #fcd34d' : '1px solid #e2e8f0',
+                                                                                            fontSize: '12px',
+                                                                                            display: 'grid',
+                                                                                            gap: '10px'
+                                                                                        }}
+                                                                                    >
+                                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                                                                                            {/* Vendor Identity & Variant */}
+                                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                                                {offer.vendor?.logo?.preview ? (
+                                                                                                    <img src={offer.vendor.logo.preview} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                                                                ) : (
+                                                                                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>🏪</div>
+                                                                                                )}
+                                                                                                <div>
+                                                                                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
+                                                                                                        {offer.vendor?.name || 'Vendeur Marchand'}
+                                                                                                        <span style={{ fontWeight: 600, color: '#64748b', fontSize: '11px', marginLeft: '6px' }}>
+                                                                                                            • {offer.productVariant?.name || 'Déclinaison'}
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                    <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px' }}>
+                                                                                                        <span>SKU: <strong style={{ color: '#334155' }}>{offer.sku || offer.productVariant?.sku || 'N/A'}</strong></span>
+                                                                                                        <span>Stock: <strong style={{ color: offer.stock > 0 ? '#16a34a' : '#dc2626' }}>{offer.stock} unité(s)</strong></span>
+                                                                                                        <span>Livraison: <strong style={{ color: '#334155' }}>{offer.deliveryTimeValue} {offer.deliveryTimeUnit === 'HOURS' ? 'Heures' : 'Jours'}</strong></span>
+                                                                                                        <span>État: <strong style={{ color: '#334155' }}>{offer.condition === 'NEW' ? 'Neuf' : 'Occasion'}</strong></span>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            {/* Price & Moderation Actions */}
+                                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                                                                                <div style={{ textAlign: 'right' }}>
+                                                                                                    {promoPrice ? (
+                                                                                                        <div>
+                                                                                                            <span style={{ fontWeight: 900, color: '#dc2626', fontSize: '14px' }}>{promoPrice.toLocaleString('fr-FR')} FCFA</span>
+                                                                                                            <span style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '10px', marginLeft: '6px' }}>{offerPrice.toLocaleString('fr-FR')} FCFA</span>
+                                                                                                        </div>
+                                                                                                    ) : (
+                                                                                                        <span style={{ fontWeight: 900, color: '#0f172a', fontSize: '14px' }}>{offerPrice.toLocaleString('fr-FR')} FCFA</span>
+                                                                                                    )}
+                                                                                                    <div>
+                                                                                                        {isCorrectionRequested ? (
+                                                                                                            <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
+                                                                                                                ⚠️ Correction demandée
+                                                                                                            </span>
+                                                                                                        ) : isRejectedOffer ? (
+                                                                                                            <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
+                                                                                                                ✕ Rejetée
+                                                                                                            </span>
+                                                                                                        ) : (
+                                                                                                            <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
+                                                                                                                ✓ En ligne
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                                                                    {offer.status !== 'approved' && (
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            disabled={isSavingOfferReview}
+                                                                                                            onClick={() => handleReviewOffer(offer.id, product.id, 'approved')}
+                                                                                                            style={{ padding: '6px 10px', borderRadius: '6px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                        >
+                                                                                                            ✓ Valider
+                                                                                                        </button>
+                                                                                                    )}
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => {
+                                                                                                            setCommentingOfferId(isCommenting ? null : offer.id);
+                                                                                                            setOfferCommentInput(offer.rejectionReason || '');
+                                                                                                        }}
+                                                                                                        style={{ padding: '6px 10px', borderRadius: '6px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                    >
+                                                                                                        💬 Commenter
+                                                                                                    </button>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        {/* Rejection Reason / Existing Comment */}
+                                                                                        {offer.rejectionReason && !isCommenting && (
+                                                                                            <div style={{ padding: '8px 12px', background: '#fffbeb', border: '1px solid #fef08a', borderRadius: '6px', fontSize: '11px', color: '#92400e' }}>
+                                                                                                <strong>Remarque envoyée au vendeur :</strong> {offer.rejectionReason}
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {/* Inline Comment Box */}
+                                                                                        {isCommenting && (
+                                                                                            <div style={{ padding: '10px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'grid', gap: '8px' }}>
+                                                                                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#334155' }}>
+                                                                                                    Remarque / Correction demandée au vendeur :
+                                                                                                </label>
+                                                                                                <textarea
+                                                                                                    rows={2}
+                                                                                                    value={offerCommentInput}
+                                                                                                    onChange={(e) => setOfferCommentInput(e.target.value)}
+                                                                                                    placeholder="Ex: Merci d'ajuster le prix ou de fournir une photo plus claire pour cette déclinaison..."
+                                                                                                    style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', boxSizing: 'border-box' }}
+                                                                                                />
+                                                                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => setCommentingOfferId(null)}
+                                                                                                        style={{ padding: '5px 10px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                                                                                    >
+                                                                                                        Annuler
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        disabled={isSavingOfferReview || !offerCommentInput.trim()}
+                                                                                                        onClick={() => handleReviewOffer(offer.id, product.id, 'correction_requested', offerCommentInput)}
+                                                                                                        style={{ padding: '5px 12px', borderRadius: '6px', background: '#f59e0b', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                    >
+                                                                                                        Envoyer les corrections au vendeur ➔
+                                                                                                    </button>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* 2. BASE VARIANTS OVERVIEW */}
+                                                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                                                                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
+                                                                        🧬 Déclinaisons de la Fiche Centrale Ahizan ({product.variants?.length || 0})
+                                                                    </div>
+                                                                    <div style={{ display: 'grid', gap: '6px' }}>
+                                                                        {product.variants?.map((v, vIdx) => (
+                                                                            <div key={v.id || vIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #f1f5f9', fontSize: '11px' }}>
+                                                                                <span style={{ color: '#334155', fontWeight: 700 }}>#{vIdx + 1} {v.name || product.name}</span>
+                                                                                <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>SKU: {v.sku || 'N/A'}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── 6. MODERATION & APPROVAL MODAL ── */}
+            {reviewProduct && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '20px', maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>Modération &amp; Approbation Fiche Produit</h3>
+                                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Fiche soumise par : <strong>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong></p>
+                            </div>
+                            <button onClick={() => setReviewProduct(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '14px', fontWeight: 700 }}>✕</button>
                         </div>
 
-                        <label style={{ display: 'block' }}>
-                            <strong style={{ fontSize: '13px' }}>Description courte (ex: mini-phrase accrocheuse)</strong>
-                            <input type="text" value={form.shortDescription} onChange={e => setForm({ ...form, shortDescription: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px' }} />
-                        </label>
-
-                        <label style={{ display: 'block' }}>
-                            <strong style={{ fontSize: '13px' }}>Description détaillée *</strong>
-                            <textarea required rows={4} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px', fontFamily: 'inherit' }} />
-                        </label>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                            <label style={{ display: 'block' }}>
-                                <strong style={{ fontSize: '13px' }}>Prix de vente (FCFA) *</strong>
-                                <input required type="number" min="0" value={form.price} onChange={e => setForm({ ...form, price: Number(e.target.value) })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px' }} />
-                            </label>
-                            <label style={{ display: 'block' }}>
-                                <strong style={{ fontSize: '13px' }}>Quantité en Stock *</strong>
-                                <input required type="number" min="0" value={form.stock} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px' }} />
-                            </label>
-                        </div>
-
-                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                                <input type="checkbox" checked={form.onPromotion} onChange={e => setForm({ ...form, onPromotion: e.target.checked })} />
-                                <strong style={{ fontSize: '13px' }}>Ce produit est en promotion</strong>
-                            </label>
-                            {form.onPromotion && (
-                                <label style={{ display: 'block', marginTop: '12px' }}>
-                                    <strong style={{ fontSize: '13px' }}>Prix promotionnel (FCFA) *</strong>
-                                    <input required type="number" min="0" value={form.promotionalPrice} onChange={e => setForm({ ...form, promotionalPrice: Number(e.target.value) })} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', marginTop: '4px' }} />
-                                </label>
+                        {/* Product Summary Details */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                {reviewProduct.featuredAsset?.preview && (
+                                    <img src={reviewProduct.featuredAsset.preview} alt="" style={{ width: '56px', height: '56px', borderRadius: '8px', objectFit: 'cover' }} />
+                                )}
+                                <div>
+                                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{reviewProduct.name}</div>
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                        Catégorie : {reviewProduct.collections?.[0]?.name || 'Non classé'} • {reviewProduct.variants?.length || 1} déclinaison(s)
+                                    </div>
+                                </div>
+                            </div>
+                            {reviewProduct.description && (
+                                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', fontSize: '12px', color: '#475569', maxHeight: '100px', overflowY: 'auto' }}>
+                                    {reviewProduct.description.replace(/<[^>]*>/g, '').substring(0, 300)}...
+                                </div>
                             )}
                         </div>
 
-                        {/* Image Uploads */}
-                        <div>
-                            <strong style={{ fontSize: '13px', display: 'block', marginBottom: '6px' }}>Images du produit</strong>
-                            <input type="file" multiple accept="image/*" onChange={handleFileUpload} style={{ marginBottom: '12px' }} />
-                            {uploading && <div style={{ fontSize: '12px', color: '#2563eb' }}>Téléversement en cours...</div>}
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-                                {assets.map((asset: any) => (
-                                    <div key={asset.id} style={{ position: 'relative', border: form.featuredAssetId === asset.id ? '2px solid #2563eb' : '1px solid #cbd5e1', borderRadius: '6px', padding: '4px' }}>
-                                        <img src={asset.preview} alt="preview" style={{ width: '60px', height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
-                                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                                            <button type="button" onClick={() => setForm(prev => ({ ...prev, featuredAssetId: asset.id }))} style={{ fontSize: '9px', padding: '2px', background: form.featuredAssetId === asset.id ? '#2563eb' : '#f3f4f6', color: form.featuredAssetId === asset.id ? 'white' : 'black', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>★</button>
-                                            <button type="button" onClick={() => {
-                                                setAssets(prev => prev.filter(x => x.id !== asset.id));
-                                                setForm(prev => {
-                                                    const nextIds = prev.assetIds.filter(id => id !== asset.id);
-                                                    return {
-                                                        ...prev,
-                                                        assetIds: nextIds,
-                                                        featuredAssetId: prev.featuredAssetId === asset.id ? nextIds[0] || '' : prev.featuredAssetId
-                                                    };
-                                                });
-                                            }} style={{ fontSize: '9px', padding: '2px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✕</button>
+                        {/* Decision Form */}
+                        <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div>
+                                <label style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '8px' }}>
+                                    Décision Superadmin :
+                                </label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewDecision('approved_official')}
+                                        style={{
+                                            padding: '12px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', textAlign: 'left',
+                                            background: reviewDecision === 'approved_official' ? '#eff6ff' : '#f8fafc',
+                                            color: reviewDecision === 'approved_official' ? '#1d4ed8' : '#475569',
+                                            border: reviewDecision === 'approved_official' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                        }}
+                                    >
+                                        🏛️ <strong>Adopter comme Fiche Officielle Ahizan</strong>
+                                        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
+                                            Le produit intègre le catalogue officiel Ahizan et l'offre du vendeur y est automatiquement greffée.
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Collection Category Tree */}
-                        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-                            <strong style={{ fontSize: '13px', display: 'block', marginBottom: '8px' }}>Catégories / Collections de Destination</strong>
-                            <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #cbd5e1', padding: '12px', borderRadius: '6px' }}>
-                                {collectionTree.length > 0 ? renderTreeNodes(collectionTree) : <div style={{ fontStyle: 'italic', fontSize: '13px', color: '#64748b' }}>Aucune collection trouvée.</div>}
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #e5e7eb', paddingTop: '16px', marginTop: '8px' }}>
-                            <button type="button" onClick={onClose} style={{ padding: '10px 20px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}>Annuler</button>
-                            <button type="submit" disabled={mutationSubmit.isPending} style={{ padding: '10px 20px', borderRadius: '6px', border: 'none', background: '#2563eb', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
-                                {mutationSubmit.isPending ? 'Enregistrement...' : 'Enregistrer'}
-                            </button>
-                        </div>
-                    </form>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// --- Main List Component ---
-export function ProductListComponent() {
-    const queryClient = useQueryClient();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedVendorId, setSelectedVendorId] = useState('');
-    const [approvalStatus, setApprovalStatus] = useState('');
-    const [page, setPage] = useState(1);
-    const pageSize = 10;
-
-    const [togglingId, setTogglingId] = useState<string | null>(null);
-    const [reassigningProductId, setReassigningProductId] = useState<string | null>(null);
-    const [selectedNewVendorId, setSelectedNewVendorId] = useState('');
-
-    const [isCreateOpen, setIsCreateOpen] = useState(false);
-    const [editingProductId, setEditingProductId] = useState<string | null>(null);
-
-    // Queries
-    const { data: vendorsData } = useQuery({
-        queryKey: ['vendorsList'],
-        queryFn: () => fetchGraphQL(GET_VENDORS_LIST)
-    });
-    const vendorsList = vendorsData?.vendors?.items || [];
-
-    const queryVariables = {
-        options: {
-            take: pageSize,
-            skip: (page - 1) * pageSize,
-            sort: { createdAt: 'DESC' },
-            filter: {} as any
-        }
-    };
-
-    if (searchTerm) queryVariables.options.filter.name = { contains: searchTerm };
-    if (selectedVendorId) queryVariables.options.filter.vendorId = { eq: selectedVendorId };
-    if (approvalStatus) queryVariables.options.filter.approvalStatus = { eq: approvalStatus };
-
-    const { data: productsData, isLoading, error } = useQuery({
-        queryKey: ['products', page, searchTerm, selectedVendorId, approvalStatus],
-        queryFn: () => fetchGraphQL(GET_PRODUCTS, queryVariables)
-    });
-
-    const { items: products = [], totalItems = 0 } = productsData?.products || {};
-    const totalPages = Math.ceil(totalItems / pageSize);
-
-    // Mutations
-    const approveMutation = useMutation({
-        mutationFn: (variables: { id: string; enabled: boolean; approvalStatus: string; rejectionReason: string }) =>
-            fetchGraphQL(UPDATE_PRODUCT_APPROVAL, {
-                input: {
-                    id: variables.id,
-                    enabled: variables.enabled,
-                    customFields: {
-                        approvalStatus: variables.approvalStatus,
-                        rejectionReason: variables.rejectionReason
-                    }
-                }
-            }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
-            setTogglingId(null);
-        },
-        onError: (err: any) => {
-            alert(err.message || 'Erreur lors de la modération');
-            setTogglingId(null);
-        }
-    });
-
-    const reassignProductMutation = useMutation({
-        mutationFn: ({ productId, vendorId }: { productId: string; vendorId: string }) =>
-            fetchGraphQL(REASSIGN_PRODUCT, {
-                input: {
-                    id: productId,
-                    customFields: {
-                        vendor: vendorId ? { id: vendorId } : null
-                    }
-                }
-            }),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
-            setReassigningProductId(null);
-            setSelectedNewVendorId('');
-            alert('Produit réassigné avec succès!');
-        },
-        onError: (err: any) => {
-            alert(err.message || 'Erreur lors de la réassignation');
-        }
-    });
-
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => fetchGraphQL(
-            `mutation DeleteProduct($id: ID!) {
-                deleteProduct(id: $id) {
-                    result
-                    message
-                }
-            }`,
-            { id }
-        ),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['products'] });
-            alert('Produit supprimé définitivement.');
-            setTogglingId(null);
-        },
-        onError: (err: any) => {
-            alert(err.message || 'Erreur de suppression');
-            setTogglingId(null);
-        }
-    });
-
-    const handleApprove = (product: Product) => {
-        setTogglingId(product.id);
-        approveMutation.mutate({
-            id: product.id,
-            enabled: true,
-            approvalStatus: 'approved',
-            rejectionReason: ''
-        });
-    };
-
-    const handleReject = (product: Product) => {
-        const reason = prompt('Saisir le motif du refus / désactivation du produit :');
-        if (reason === null) return;
-        setTogglingId(product.id);
-        approveMutation.mutate({
-            id: product.id,
-            enabled: false,
-            approvalStatus: 'rejected',
-            rejectionReason: reason
-        });
-    };
-
-    const handleReassign = () => {
-        if (!reassigningProductId) return;
-        reassignProductMutation.mutate({
-            productId: reassigningProductId,
-            vendorId: selectedNewVendorId
-        });
-    };
-
-    const handleDelete = (product: Product) => {
-        if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement le produit "${product.name}" ? Cette action est irréversible.`)) return;
-        setTogglingId(product.id);
-        deleteMutation.mutate(product.id);
-    };
-
-    const renderPriceRange = (product: Product) => {
-        if (!product.variants || product.variants.length === 0) return 'N/A';
-        const prices = product.variants.map(v => v.price);
-        const min = Math.min(...prices);
-        const max = Math.max(...prices);
-        const currency = product.variants[0].currencyCode === 'USD' ? '$' : 'FCFA';
-
-        const hasAnyPromo = (product.variants as any).some((v: any) => v.customFields?.onPromotion && v.customFields?.promotionalPrice);
-        if (min === max) {
-            return <strong style={{ color: hasAnyPromo ? '#059669' : '#0f172a' }}>{min.toFixed(0)} {currency}</strong>;
-        }
-        return <strong style={{ color: hasAnyPromo ? '#059669' : '#0f172a' }}>{min.toFixed(0)} - {max.toFixed(0)} {currency}</strong>;
-    };
-
-    return (
-        <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif' }}>
-            <CreateEditProductModal 
-                isOpen={isCreateOpen || !!editingProductId} 
-                productId={editingProductId} 
-                onClose={() => { setIsCreateOpen(false); setEditingProductId(null); }} 
-                vendors={vendorsList}
-            />
-
-            <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0 }}>📦 Produits Marketplace</h1>
-                    <p style={{ color: '#6b7280', marginTop: '4px', fontSize: '14px' }}>Visualisez, filtrez, modifiez et modérez les produits de tous les vendeurs.</p>
-                </div>
-                <button 
-                    onClick={() => setIsCreateOpen(true)}
-                    style={{ background: '#2563eb', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
-                >
-                    + Créer un Produit
-                </button>
-            </div>
-
-            {/* Minimal Price Manager */}
-            <MinimalPriceManager />
-
-            {/* Category Manager Section */}
-            <CategoryManager />
-
-            {/* Filter Bar */}
-            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e5e7eb', marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <div style={{ flex: 1, minWidth: '240px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Rechercher un produit</label>
-                    <input
-                        type="text"
-                        placeholder="Nom du produit..."
-                        value={searchTerm}
-                        onChange={e => {
-                            setSearchTerm(e.target.value);
-                            setPage(1);
-                        }}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
-                    />
-                </div>
-                <div style={{ flex: 1, minWidth: '200px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Filtrer par Vendeur</label>
-                    <select
-                        value={selectedVendorId}
-                        onChange={e => {
-                            setSelectedVendorId(e.target.value);
-                            setPage(1);
-                        }}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', background: 'white' }}
-                    >
-                        <option value="">Tous les vendeurs</option>
-                        {vendorsList.map((v: any) => (
-                            <option key={v.id} value={v.id}>{v.name}</option>
-                        ))}
-                    </select>
-                </div>
-                <div style={{ flex: 1, minWidth: '200px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4b5563', marginBottom: '6px' }}>Statut de validation</label>
-                    <select
-                        value={approvalStatus}
-                        onChange={e => {
-                            setApprovalStatus(e.target.value);
-                            setPage(1);
-                        }}
-                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', background: 'white' }}
-                    >
-                        <option value="">Tous les statuts</option>
-                        <option value="pending">En attente (Non modérés)</option>
-                        <option value="approved">Approuvés (Publiés)</option>
-                        <option value="rejected">Refusés (Rejetés)</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Table layout */}
-            {isLoading ? <div style={{ textAlign: 'center', padding: '40px' }}>Chargement...</div> : error ? <div style={{ color: 'red' }}>Erreur: {(error as Error).message}</div> : (
-                <>
-                    <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
-                            <thead>
-                                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb', color: '#4b5563', fontWeight: 600 }}>
-                                    <th style={{ padding: '14px 16px' }}>Produit</th>
-                                    <th style={{ padding: '14px 16px' }}>Vendeur</th>
-                                    <th style={{ padding: '14px 16px' }}>Prix</th>
-                                    <th style={{ padding: '14px 16px' }}>Stock / Promo</th>
-                                    <th style={{ padding: '14px 16px' }}>Statut de Modération</th>
-                                    <th style={{ padding: '14px 16px', textAlign: 'right' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {products.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>Aucun produit trouvé</td>
-                                    </tr>
-                                ) : (
-                                    products.map((product: Product) => (
-                                        <tr key={product.id} style={{ borderBottom: '1px solid #f3f4f6', transition: 'background-color 0.1s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f9fafb'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                            <td style={{ padding: '14px 16px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#eee', backgroundImage: product.featuredAsset ? `url(${product.featuredAsset.preview})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0 }} />
-                                                    <div>
-                                                        <div style={{ fontWeight: 600, color: '#111827' }}>{product.name}</div>
-                                                        <div style={{ fontSize: '12px', color: '#9ca3af', fontFamily: 'monospace', marginTop: '2px' }}>ID: {product.id}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '14px 16px' }}>
-                                                {product.customFields?.vendor ? (
-                                                    <div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                            <span style={{ fontWeight: 500, color: '#374151' }}>{product.customFields.vendor.name}</span>
-                                                            <span style={{ 
-                                                                fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold',
-                                                                background: product.customFields.vendor.status === 'APPROVED' ? '#dcfce7' : product.customFields.vendor.status === 'PENDING' ? '#fef9c3' : '#fee2e2',
-                                                                color: product.customFields.vendor.status === 'APPROVED' ? '#166534' : product.customFields.vendor.status === 'PENDING' ? '#854d0e' : '#991b1b'
-                                                            }}>
-                                                                {product.customFields.vendor.status === 'APPROVED' ? 'Approuvé' : product.customFields.vendor.status === 'PENDING' ? 'En attente' : 'Suspendu'}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Zone: {product.customFields.vendor.zone || 'N/A'}</div>
-                                                    </div>
-                                                ) : (
-                                                    <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '13px' }}>Aucun vendeur</span>
-                                                )}
-                                            </td>
-                                            <td style={{ padding: '14px 16px' }}>
-                                                {renderPriceRange(product)}
-                                            </td>
-                                            <td style={{ padding: '14px 16px' }}>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                    <div>Stock: <strong>{product.variants?.[0]?.stockLevel || '0'}</strong></div>
-                                                    {(() => {
-                                                        const isPromo = (product.variants as any)?.[0]?.customFields?.onPromotion;
-                                                        const promoPrice = (product.variants as any)?.[0]?.customFields?.promotionalPrice;
-                                                        if (isPromo && promoPrice) {
-                                                            return (
-                                                                <span style={{ fontSize: '11px', background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '4px', width: 'fit-content', fontWeight: 'bold' }}>
-                                                                    Promo: {promoPrice.toLocaleString()} FCFA
-                                                                </span>
-                                                            );
-                                                        }
-                                                        return null;
-                                                    })()}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '14px 16px' }}>
-                                                {(() => {
-                                                    const status = product.customFields?.approvalStatus || 'pending';
-                                                    let bg = '#fee2e2';
-                                                    let fg = '#991b1b';
-                                                    let label = 'Refusé / Désactivé';
-                                                    if (status === 'pending') {
-                                                        bg = '#fef9c3';
-                                                        fg = '#854d0e';
-                                                        label = 'En attente';
-                                                    } else if (status === 'approved') {
-                                                        bg = '#dcfce7';
-                                                        fg = '#166534';
-                                                        label = 'Approuvé / En ligne';
-                                                    }
-                                                    return (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                            <span style={{
-                                                                background: bg,
-                                                                color: fg,
-                                                                fontSize: '12px',
-                                                                fontWeight: 700,
-                                                                padding: '4px 10px',
-                                                                borderRadius: '9999px',
-                                                                display: 'inline-block',
-                                                                width: 'fit-content'
-                                                            }}>
-                                                                {label}
-                                                            </span>
-                                                            {status === 'rejected' && product.customFields?.rejectionReason && (
-                                                                <span style={{ fontSize: '10px', color: '#ef4444', fontStyle: 'italic', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={product.customFields.rejectionReason}>
-                                                                    Motif: {product.customFields.rejectionReason}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </td>
-                                            <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                    {(() => {
-                                                        const status = product.customFields?.approvalStatus || 'pending';
-                                                        const isDisabled = togglingId === product.id;
-                                                        if (status === 'pending' || status === 'rejected') {
-                                                            return (
-                                                                <>
-                                                                    <button
-                                                                        onClick={() => handleApprove(product)}
-                                                                        disabled={isDisabled}
-                                                                        style={{
-                                                                            padding: '6px 12px',
-                                                                            borderRadius: '6px',
-                                                                            background: '#dcfce7',
-                                                                            color: '#15803d',
-                                                                            border: 'none',
-                                                                            cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                                            fontWeight: 600,
-                                                                            fontSize: '12px',
-                                                                            transition: 'opacity 0.1s'
-                                                                        }}
-                                                                    >
-                                                                        {isDisabled ? '...' : 'Approuver'}
-                                                                    </button>
-                                                                    {status !== 'rejected' && (
-                                                                        <button
-                                                                            onClick={() => handleReject(product)}
-                                                                            disabled={isDisabled}
-                                                                            style={{
-                                                                                padding: '6px 12px',
-                                                                                borderRadius: '6px',
-                                                                                background: '#fee2e2',
-                                                                                color: '#b91c1c',
-                                                                                border: 'none',
-                                                                                cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                                                fontWeight: 600,
-                                                                                fontSize: '12px',
-                                                                                transition: 'opacity 0.1s'
-                                                                            }}
-                                                                        >
-                                                                            {isDisabled ? '...' : 'Rejeter'}
-                                                                        </button>
-                                                                    )}
-                                                                </>
-                                                            );
-                                                        } else {
-                                                            // status is approved
-                                                            return (
-                                                                <button
-                                                                    onClick={() => handleReject(product)}
-                                                                    disabled={isDisabled}
-                                                                    style={{
-                                                                        padding: '6px 12px',
-                                                                        borderRadius: '6px',
-                                                                        background: '#fee2e2',
-                                                                        color: '#b91c1c',
-                                                                        border: 'none',
-                                                                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                                        fontWeight: 600,
-                                                                        fontSize: '12px',
-                                                                        transition: 'opacity 0.1s'
-                                                                    }}
-                                                                >
-                                                                    {isDisabled ? '...' : 'Désactiver / Rejeter'}
-                                                                </button>
-                                                            );
-                                                        }
-                                                    })()}
-                                                    {/* Bouton de réassignation */}
-                                                    <button
-                                                        onClick={() => setReassigningProductId(product.id)}
-                                                        disabled={togglingId === product.id}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            borderRadius: '6px',
-                                                            background: '#f3f4f6',
-                                                            color: '#4b5563',
-                                                            border: '1px solid #d1d5db',
-                                                            fontWeight: 600,
-                                                            fontSize: '12px',
-                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer'
-                                                        }}
-                                                    >
-                                                        Réassigner
-                                                    </button>
-                                                    {/* Custom Edit Overlay */}
-                                                    <button
-                                                        onClick={() => setEditingProductId(product.id)}
-                                                        disabled={togglingId === product.id}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            borderRadius: '6px',
-                                                            background: 'white',
-                                                            color: '#2563eb',
-                                                            border: '1px solid #cbd5e1',
-                                                            fontWeight: 600,
-                                                            fontSize: '12px',
-                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer'
-                                                        }}
-                                                    >
-                                                        Modifier
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(product)}
-                                                        disabled={togglingId === product.id}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            borderRadius: '6px',
-                                                            background: '#ef4444',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            cursor: togglingId === product.id ? 'not-allowed' : 'pointer',
-                                                            fontWeight: 600,
-                                                            fontSize: '12px',
-                                                            transition: 'opacity 0.1s'
-                                                        }}
-                                                        title="Supprimer définitivement le produit"
-                                                    >
-                                                        {togglingId === product.id ? '...' : 'Supprimer'}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Modal de réassignation */}
-                    {reassigningProductId && (
-                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                            <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                                <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '18px', fontWeight: 600 }}>Réassigner ce produit</h3>
-                                <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '16px' }}>Sélectionnez un nouveau vendeur pour ce produit. L'ancien vendeur perdra le contrôle de ce produit.</p>
-                                <select 
-                                    value={selectedNewVendorId} 
-                                    onChange={(e) => setSelectedNewVendorId(e.target.value)}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '16px', fontSize: '14px' }}
-                                >
-                                    <option value="">-- Aucun Vendeur (Retirer) --</option>
-                                    {vendorsList.map((v: any) => (
-                                        <option key={v.id} value={v.id}>{v.name}</option>
-                                    ))}
-                                </select>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                                    <button 
-                                        onClick={() => { setReassigningProductId(null); setSelectedNewVendorId(''); }}
-                                        style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
-                                    >
-                                        Annuler
                                     </button>
-                                    <button 
-                                        onClick={handleReassign}
-                                        disabled={reassignProductMutation.isPending}
-                                        style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: 'white', cursor: reassignProductMutation.isPending ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '13px' }}
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewDecision('approved_vendor')}
+                                        style={{
+                                            padding: '12px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', textAlign: 'left',
+                                            background: reviewDecision === 'approved_vendor' ? '#fef3c7' : '#f8fafc',
+                                            color: reviewDecision === 'approved_vendor' ? '#92400e' : '#475569',
+                                            border: reviewDecision === 'approved_vendor' ? '2px solid #f59e0b' : '1px solid #cbd5e1',
+                                        }}
                                     >
-                                        {reassignProductMutation.isPending ? 'En cours...' : 'Confirmer'}
+                                        🏪 <strong>Valider comme Proposition Vendeur Simple</strong>
+                                        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
+                                            Le produit reste attribué exclusivement à ce vendeur marchand.
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewDecision('rejected')}
+                                        style={{
+                                            padding: '12px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', textAlign: 'left',
+                                            background: reviewDecision === 'rejected' ? '#fee2e2' : '#f8fafc',
+                                            color: reviewDecision === 'rejected' ? '#991b1b' : '#475569',
+                                            border: reviewDecision === 'rejected' ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                                        }}
+                                    >
+                                        ✕ <strong>Rejeter la fiche</strong>
+                                        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
+                                            Refuser la proposition et notifier le motif de rejet au vendeur.
+                                        </div>
                                     </button>
                                 </div>
                             </div>
-                        </div>
-                    )}
 
-                    {/* Pagination */}
-                    {totalItems > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '24px' }}>
-                            <button
-                                disabled={page === 1}
-                                onClick={() => setPage(p => p - 1)}
-                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: page === 1 ? '#f3f4f6' : 'white', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: '13px' }}
-                            >
-                                Précédent
-                            </button>
-                            <span style={{ color: '#4b5563', fontSize: '13px' }}>Page {page} sur {totalPages}</span>
-                            <button
-                                disabled={page === totalPages}
-                                onClick={() => setPage(p => p + 1)}
-                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: page === totalPages ? '#f3f4f6' : 'white', cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: '13px' }}
-                            >
-                                Suivant
-                            </button>
-                        </div>
-                    )}
-                </>
+                            {reviewDecision === 'rejected' && (
+                                <div>
+                                    <label style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#991b1b', display: 'block', marginBottom: '6px' }}>
+                                        Motif du refus pour le vendeur * :
+                                    </label>
+                                    <textarea
+                                        required
+                                        rows={3}
+                                        value={rejectionReasonInput}
+                                        onChange={e => setRejectionReasonInput(e.target.value)}
+                                        placeholder="Ex: Photos non conformes, description insuffisante ou produit déjà existant au catalogue..."
+                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '12px', fontFamily: 'inherit' }}
+                                    />
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setReviewProduct(null)}
+                                    style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmittingReview}
+                                    style={{
+                                        padding: '10px 22px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                        background: reviewDecision === 'approved' ? '#16a34a' : '#dc2626',
+                                        color: '#ffffff',
+                                    }}
+                                >
+                                    {isSubmittingReview ? 'Enregistrement...' : reviewDecision === 'approved' ? 'Confirmer la validation' : 'Confirmer le rejet'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
+
+            {/* ── 7. MODAL: EDIT AHIZAN OFFICIAL PRODUCT INFO ── */}
+            {editingProduct && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '20px', maxWidth: '750px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                        
+                        {/* Modal Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                    <span style={{ background: '#eff6ff', color: '#2563eb', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
+                                        Catalogue Central Ahizan
+                                    </span>
+                                    <span style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>
+                                        ID: {editingProduct.id}
+                                    </span>
+                                </div>
+                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                                    Édition Fiche Produit Ahizan
+                                </h3>
+                                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                    Cette fiche constitue la référence officielle partagée par tous les vendeurs affiliés.
+                                </p>
+                            </div>
+                            <button onClick={() => setEditingProduct(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, color: '#64748b' }}>✕</button>
+                        </div>
+
+                        {/* Notice for Price / Stock */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontSize: '20px' }}>💡</span>
+                            <p style={{ margin: 0, fontSize: '12px', color: '#475569', lineHeight: '1.4' }}>
+                                <strong>Règle d'architecture :</strong> Les prix, stocks et remises ne sont pas fixés sur la fiche générale, mais sont librement définis par chaque vendeur dans ses <strong>offres greffées</strong>.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleSaveProductEdit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                            
+                            {/* Visuals Preview */}
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '8px' }}>
+                                    Visuels Officiels du Catalogue :
+                                </label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                    {editingProduct.featuredAsset?.preview ? (
+                                        <div style={{ position: 'relative' }}>
+                                            <img
+                                                src={editingProduct.featuredAsset.preview}
+                                                alt={editingProduct.name}
+                                                style={{ width: '70px', height: '70px', borderRadius: '10px', objectFit: 'cover', border: '2px solid #2563eb' }}
+                                            />
+                                            <span style={{ position: 'absolute', bottom: '2px', left: '2px', right: '2px', background: 'rgba(37,99,235,0.9)', color: '#ffffff', fontSize: '8px', fontWeight: 800, textAlign: 'center', borderRadius: '4px', padding: '1px 0' }}>
+                                                Principale
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div style={{ width: '70px', height: '70px', borderRadius: '10px', background: '#f1f5f9', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>
+                                            Sans image
+                                        </div>
+                                    )}
+
+                                    {editingProduct.assets && editingProduct.assets.filter(a => a.preview !== editingProduct.featuredAsset?.preview).map((asset, aIdx) => (
+                                        <img
+                                            key={asset.id || aIdx}
+                                            src={asset.preview}
+                                            alt={`Galerie ${aIdx + 1}`}
+                                            style={{ width: '70px', height: '70px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Nom du Produit */}
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                    Nom officiel du produit * :
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={editFormData.name}
+                                    onChange={e => setEditFormData({ ...editFormData, name: e.target.value })}
+                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700 }}
+                                />
+                            </div>
+
+                            {/* Slug URL */}
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                    Slug URL :
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editFormData.slug}
+                                    onChange={e => setEditFormData({ ...editFormData, slug: e.target.value })}
+                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                />
+                            </div>
+
+                            {/* Catégories / Collections */}
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                    Catégories / Collections Ahizan :
+                                </label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '130px', overflowY: 'auto', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#fafafa' }}>
+                                    {collections.map((c: any) => {
+                                        const isSelected = editFormData.collectionIds.includes(c.id);
+                                        return (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = isSelected 
+                                                        ? editFormData.collectionIds.filter(id => id !== c.id)
+                                                        : [...editFormData.collectionIds, c.id];
+                                                    setEditFormData({ ...editFormData, collectionIds: updated });
+                                                }}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '8px',
+                                                    fontSize: '12px',
+                                                    fontWeight: isSelected ? 800 : 500,
+                                                    border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                    background: isSelected ? '#eff6ff' : '#ffffff',
+                                                    color: isSelected ? '#2563eb' : '#475569',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                }}
+                                            >
+                                                <span>{isSelected ? '✓' : '+'}</span>
+                                                <span>{c.name}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Option Groups Summary */}
+                            {editingProduct.optionGroups && editingProduct.optionGroups.length > 0 && (
+                                <div>
+                                    <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                        Groupes d'options disponibles pour ce produit :
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {editingProduct.optionGroups.map((og) => (
+                                            <div key={og.id} style={{ padding: '8px 12px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                                                <strong style={{ color: '#0f172a' }}>{og.name} :</strong>{' '}
+                                                <span style={{ color: '#64748b' }}>
+                                                    {(og.options || []).map(o => o.name).join(', ') || 'Aucune option'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Description Courte */}
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                    Description Courte (Accroche) :
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    value={editFormData.shortDescription}
+                                    onChange={e => setEditFormData({ ...editFormData, shortDescription: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                                />
+                            </div>
+
+                            {/* Description Détaillée */}
+                            <div>
+                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                    Description Détaillée &amp; Fiche Technique :
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    value={editFormData.description}
+                                    onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px' }}
+                                />
+                            </div>
+
+                            {/* Switch En ligne */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                <input
+                                    type="checkbox"
+                                    id="prod-enabled"
+                                    checked={editFormData.enabled}
+                                    onChange={e => setEditFormData({ ...editFormData, enabled: e.target.checked })}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                />
+                                <div>
+                                    <label htmlFor="prod-enabled" style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', cursor: 'pointer', display: 'block' }}>
+                                        Produit Actif / En ligne sur la Marketplace Ahizan
+                                    </label>
+                                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                        Si désactivé, le produit et toutes ses offres affiliées ne seront plus visibles aux acheteurs.
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Form Actions */}
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginTop: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingProduct(null)}
+                                    style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingProduct}
+                                    style={{
+                                        padding: '10px 22px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                        background: '#2563eb', color: '#ffffff',
+                                    }}
+                                >
+                                    {isSavingProduct ? 'Enregistrement...' : 'Enregistrer la fiche Ahizan'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

@@ -17,8 +17,8 @@ export const LoginMutation = graphql(`
 `);
 
 export const AddToCartMutation = graphql(`
-    mutation AddToCart($variantId: ID!, $quantity: Int!) {
-        addItemToOrder(productVariantId: $variantId, quantity: $quantity) {
+    mutation AddToCart($variantId: ID!, $quantity: Int!, $customFields: OrderLineCustomFieldsInput) {
+        addItemToOrder(productVariantId: $variantId, quantity: $quantity, customFields: $customFields) {
             __typename
             ... on Order {
                 id

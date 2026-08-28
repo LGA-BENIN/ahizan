@@ -3,6 +3,7 @@ import { In, Not } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
+import { SellerOffer, ProductCondition, DeliveryTimeUnit } from '../entities/seller-offer.entity';
 import { OrderStatusService } from '../service/order-status.service';
 import { LikeService } from '../service/like.service';
 import { GeoZone } from '../../geo-engine/entities/geo-zone.entity';
@@ -623,6 +624,15 @@ export class VendorAdminResolver {
 
     @Mutation()
     @Allow(Permission.Authenticated)
+    async secondApproveWithdrawalRequest(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<boolean> {
+        return this.vendorService.secondApproveWithdrawal(ctx, id);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
     async rejectWithdrawalRequest(
         @Ctx() ctx: RequestContext,
         @Args('id') id: string,
@@ -897,7 +907,7 @@ export class VendorAdminResolver {
         @Args('input') input: any,
         @Args('vendorId') vendorId?: string,
     ): Promise<Product> {
-        const { collectionIds, facetValueIds, name, description, shortDescription, ...productInput } = input;
+        const { collectionIds, facetValueIds, name, description, shortDescription, slug, ...productInput } = input;
 
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
@@ -922,7 +932,7 @@ export class VendorAdminResolver {
             }
         }
 
-        if (name !== undefined || description !== undefined || shortDescription !== undefined) {
+        if (name !== undefined || description !== undefined || shortDescription !== undefined || slug !== undefined) {
             const existingProduct = await this.productService.findOne(ctx, id, ['translations']);
             const existingTranslation = existingProduct?.translations.find(t => t.languageCode === ctx.languageCode);
             
@@ -930,7 +940,7 @@ export class VendorAdminResolver {
                 languageCode: ctx.languageCode,
                 ...(existingTranslation ? { id: existingTranslation.id as string } : {}),
                 ...(name !== undefined ? { name } : {}),
-                ...(name !== undefined ? { slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') } : {}),
+                ...(slug !== undefined ? { slug } : (name !== undefined ? { slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') } : {})),
                 ...(description !== undefined ? { description } : {}),
                 customFields: {
                     ...(existingTranslation?.customFields || {}),
@@ -1002,6 +1012,91 @@ export class VendorAdminResolver {
         return this.connection.withTransaction(ctx, async (transactionalCtx: RequestContext) => {
             return this.productVariantService.update(transactionalCtx, [updateInput]).then(result => result[0]);
         });
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async adminReviewProduct(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string,
+        @Args('status') status: string,
+        @Args('rejectionReason') rejectionReason?: string,
+        @Args('convertToOfficialCatalog') convertToOfficialCatalog?: boolean,
+    ): Promise<Product> {
+        const product = await this.productService.findOne(ctx, id, ['variants', 'customFields.vendor']);
+        if (!product) throw new Error('Product not found');
+
+        const creatorVendor = (product.customFields as any)?.vendor;
+
+        // If converting to Official Ahizan Catalog and it had a creator vendor:
+        if (convertToOfficialCatalog && creatorVendor && status === 'approved') {
+            const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
+            for (const v of product.variants || []) {
+                let existingOffer = await sellerOfferRepo.findOne({
+                    where: {
+                        vendor: { id: creatorVendor.id },
+                        productVariant: { id: v.id },
+                    },
+                });
+                if (!existingOffer) {
+                    existingOffer = sellerOfferRepo.create({
+                        vendor: creatorVendor,
+                        productVariant: v,
+                        price: v.price || 0,
+                        stock: ((v as any).stockOnHand || (v as any).stockLevel || 5),
+                        sku: v.sku || null,
+                        status: 'approved',
+                        condition: ProductCondition.NEW,
+                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                        deliveryTimeValue: 2,
+                    });
+                    await sellerOfferRepo.save(existingOffer);
+                }
+            }
+
+            // Clear vendor so the product becomes officially owned by Ahizan
+            await this.connection.rawConnection.query('UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1', [id]);
+        }
+
+        const updateData: any = {
+            id,
+            enabled: status === 'approved',
+            customFields: {
+                approvalStatus: status,
+                rejectionReason: status === 'rejected' ? (rejectionReason || 'Non conforme aux critères Ahizan') : null,
+            }
+        };
+
+        const updated = await this.productService.update(ctx, updateData);
+        const finalProduct = await this.productService.findOne(ctx, id) as Product;
+        this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
+        return finalProduct;
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async adminReviewSellerOffer(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string,
+        @Args('status') status: string,
+        @Args('rejectionReason') rejectionReason?: string,
+    ): Promise<SellerOffer> {
+        const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+            where: { id },
+            relations: ['vendor', 'productVariant'],
+        });
+        if (!offer) throw new Error('Offre vendeur introuvable');
+        
+        offer.status = status;
+        if (status === 'rejected' || status === 'correction_requested') {
+            offer.rejectionReason = rejectionReason || 'Correction demandée par l\'administrateur';
+        } else if (rejectionReason) {
+            offer.rejectionReason = rejectionReason;
+        } else {
+            offer.rejectionReason = null;
+        }
+
+        return this.connection.getRepository(ctx, SellerOffer).save(offer);
     }
 
     /**

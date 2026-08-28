@@ -7,6 +7,7 @@ import {
     PaginatedList,
     Product,
     Order,
+    OrderLine,
     EventBus,
     Asset,
     User,
@@ -35,12 +36,14 @@ import {
     FulfillmentStateTransitionEvent,
 } from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
+import { SellerOffer } from '../entities/seller-offer.entity';
 import { WithdrawalRequest, WithdrawalStatus } from '../entities/withdrawal-request.entity';
 import { PlatformSettings } from '../entities/platform-settings.entity';
 import { VendorEvent, FundsReleasedEvent } from '../events/vendor-event';
 import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
 import { IsNull, In } from 'typeorm';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { ReplacementEngineService } from './replacement-engine.service';
 
 @Injectable()
 export class VendorService implements OnApplicationBootstrap {
@@ -60,6 +63,7 @@ export class VendorService implements OnApplicationBootstrap {
         private sellerService: SellerService,
         private administratorService: AdministratorService,
         private stockLocationService: StockLocationService,
+        private replacementEngineService: ReplacementEngineService,
     ) { }
 
     async findAll(
@@ -739,9 +743,24 @@ export class VendorService implements OnApplicationBootstrap {
         }
 
         // 3. Update the OrderLine custom field — column is 'customFieldsSellerstatus' (lowercase s)
+        let resolvedStatus = newStatus;
+        if (newStatus === 'refused') {
+            try {
+                const replacementResult = await this.replacementEngineService.findAndApplyReplacement(ctx, lineId, vendorId);
+                if (replacementResult.success && replacementResult.status === 'reassigned') {
+                    resolvedStatus = 'reassigned_to_other';
+                } else {
+                    resolvedStatus = 'reassigning';
+                }
+            } catch (replErr) {
+                console.error('[updateVendorOrderLineStatus] Replacement engine error:', replErr);
+                resolvedStatus = 'reassigning';
+            }
+        }
+
         await this.connection.rawConnection.query(
             `UPDATE order_line SET "customFieldsSellerstatus" = $1 WHERE id = $2`,
-            [newStatus, lineId]
+            [resolvedStatus, lineId]
         );
 
         // 4. Check all lines for this vendor in the order to aggregate the vendor suborder status
@@ -756,12 +775,14 @@ export class VendorService implements OnApplicationBootstrap {
 
         let allConfirmed = true;
         let allRefused = true;
+        let allReassigned = true;
         let someRefusedOrReassigning = false;
 
         for (const l of allVendorLines) {
             const status = l.customFieldsSellerstatus || 'pending';
             if (status !== 'confirmed') allConfirmed = false;
             if (status !== 'refused') allRefused = false;
+            if (status !== 'reassigned_to_other') allReassigned = false;
             if (status === 'refused' || status === 'reassigning') someRefusedOrReassigning = true;
         }
 
@@ -770,6 +791,8 @@ export class VendorService implements OnApplicationBootstrap {
             newVendorStatus = 'confirmed';
         } else if (allRefused) {
             newVendorStatus = 'refused';
+        } else if (allReassigned) {
+            newVendorStatus = 'reassigned_to_other';
         } else if (someRefusedOrReassigning) {
             newVendorStatus = 'reassigning';
         }
@@ -1444,37 +1467,127 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     async findAllProductsForVendor(ctx: RequestContext, vendorId: string): Promise<Product[]> {
-        const products = await this.connection.getRepository(ctx, Product)
-            .createQueryBuilder('product')
-            .leftJoinAndSelect('product.translations', 'translations')
-            .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
-            .leftJoinAndSelect('product.assets', 'assets')
-            .leftJoinAndSelect('product.variants', 'variants')
-            .leftJoinAndSelect('variants.productVariantPrices', 'prices')
-            .leftJoinAndSelect('variants.translations', 'variantTranslations')
-            .leftJoinAndSelect('variants.options', 'options')
-            .leftJoinAndSelect('options.group', 'group')
-            .leftJoinAndSelect('product.customFields.vendor', 'vendor')
-            .where('vendor.id = :vendorId', { vendorId })
-            .andWhere('product.deletedAt IS NULL')
-            .getMany();
+        // 1. Get all product IDs created by vendor OR tagged via SellerOffers
+        let productIds: string[] = [];
+        let rawOffers: any[] = [];
+        try {
+            const rawRes = await this.connection.rawConnection.query(`
+                SELECT DISTINCT p.id 
+                FROM product p 
+                WHERE p."deletedAt" IS NULL 
+                  AND (
+                    p.id IN (
+                      SELECT pv."productId" 
+                      FROM seller_offer so 
+                      INNER JOIN product_variant pv ON so."productVariantId" = pv.id 
+                      WHERE so."vendorId" = $1
+                    )
+                    OR p."customFieldsVendorid" = $1
+                  )
+            `, [vendorId]);
 
-        // Ensure each variant has its price populated from its prices array
-        for (const p of products) {
-            if (p.variants) {
-                for (const v of p.variants) {
-                    if (!v.price || v.price === 0) {
-                        const positivePrice = v.productVariantPrices?.find(pr => pr.price > 0)?.price;
-                        if (positivePrice) {
-                            v.price = positivePrice;
-                            v.priceWithTax = positivePrice;
-                        }
-                    }
-                }
+            productIds = (rawRes || []).map((r: any) => String(r.id));
+            if (productIds.length === 0) {
+                return [];
             }
+
+            rawOffers = await this.connection.rawConnection.query(`
+                SELECT id, "productVariantId", price, stock, sku, "onPromotion", "promotionalPrice", status, "rejectionReason"
+                FROM seller_offer
+                WHERE "vendorId" = $1
+            `, [vendorId]);
+        } catch (err) {
+            console.error('[findAllProductsForVendor] Direct query failed:', err);
+            return [];
         }
 
-        return products;
+        // 2. Load full products with all relations
+        let products: Product[] = [];
+        try {
+            products = await this.connection.getRepository(ctx, Product)
+                .createQueryBuilder('product')
+                .leftJoinAndSelect('product.translations', 'translations')
+                .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
+                .leftJoinAndSelect('product.assets', 'assets')
+                .leftJoinAndSelect('product.variants', 'variants')
+                .leftJoinAndSelect('variants.featuredAsset', 'variantFeaturedAsset')
+                .leftJoinAndSelect('variants.productVariantPrices', 'prices')
+                .leftJoinAndSelect('variants.translations', 'variantTranslations')
+                .leftJoinAndSelect('variants.options', 'options')
+                .leftJoinAndSelect('options.group', 'group')
+                .leftJoinAndSelect('options.translations', 'optionTranslations')
+                .leftJoinAndSelect('group.translations', 'groupTranslations')
+                .where('product.id IN (:...productIds)', { productIds })
+                .orderBy('product.createdAt', 'DESC')
+                .getMany();
+        } catch (err) {
+            console.error('[findAllProductsForVendor] Products QueryBuilder failed:', err);
+            return [];
+        }
+
+        // 3. Map offers by variantId for rapid lookup
+        const offerMap = new Map<string, any>();
+        for (const offer of rawOffers || []) {
+            offerMap.set(String(offer.productVariantId), offer);
+        }
+
+        // 4. Overlay seller-specific offer values on each product variant
+        const resultProducts: Product[] = [];
+        for (const p of products) {
+            if (p.variants) {
+                // Filter to ONLY the variants where this vendor has an offer
+                if (offerMap.size > 0) {
+                    p.variants = p.variants.filter(v => offerMap.has(String(v.id)));
+                }
+                if (p.variants.length === 0) {
+                    continue; // Skip product entirely if vendor has no active offer for any of its variants
+                }
+
+                for (const v of p.variants) {
+                    const variantIdStr = String(v.id);
+                    const offer = offerMap.get(variantIdStr);
+
+                    // Ensure human-friendly name (Product name + option values)
+                    const optNames = (v.options || []).map((o: any) => o.translations?.[0]?.name || o.name || o.code).filter(Boolean).join(' ');
+                    const baseProdName = p.translations?.[0]?.name || p.name || 'Produit';
+                    const currentName = v.translations?.[0]?.name || (v as any).name || '';
+                    if (!currentName || currentName.includes('Option ') || currentName.includes('Option 2') || currentName.startsWith('Option')) {
+                        const friendlyName = optNames ? `${baseProdName} ${optNames}` : baseProdName;
+                        if (v.translations?.[0]) v.translations[0].name = friendlyName;
+                        (v as any).name = friendlyName;
+                    }
+
+                    if (offer) {
+                        const offerPrice = Number(offer.price);
+                        const offerStock = Number(offer.stock);
+                        v.productVariantPrices = [
+                            {
+                                id: 'offer-' + v.id,
+                                price: offerPrice,
+                                currencyCode: ((ctx.channel as any)?.currencyCode || (ctx.channel as any)?.defaultCurrencyCode || 'XOF') as any,
+                            } as any,
+                        ];
+                        (v as any).listPrice = offerPrice;
+                        (v as any).stockOnHand = offerStock;
+                        if (offer.sku) v.sku = offer.sku;
+                        
+                        v.customFields = {
+                            ...(v.customFields || {}),
+                            onPromotion: offer.onPromotion,
+                            promotionalPrice: offer.promotionalPrice,
+                            offerStatus: offer.status,
+                            rejectionReason: offer.rejectionReason,
+                        } as any;
+                    }
+                }
+            } else {
+                continue;
+            }
+
+            resultProducts.push(p);
+        }
+
+        return resultProducts;
     }
 
     async create(ctx: RequestContext, input: {
@@ -2227,6 +2340,156 @@ export class VendorService implements OnApplicationBootstrap {
         return role;
     }
 
+    private async ensureFineGrainedRoles(ctx: RequestContext) {
+        const rolesToCreate = [
+            {
+                code: 'catalogue-manager',
+                description: 'Catalogue Manager - Gestion complète du catalogue',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadCatalog,
+                    Permission.CreateCatalog,
+                    Permission.UpdateCatalog,
+                    Permission.DeleteCatalog,
+                    Permission.ReadAsset,
+                    Permission.CreateAsset,
+                    Permission.UpdateAsset,
+                    Permission.DeleteAsset,
+                    Permission.ReadFacet,
+                    Permission.CreateFacet,
+                    Permission.UpdateFacet,
+                    Permission.DeleteFacet,
+                ]
+            },
+            {
+                code: 'catalogue-operator',
+                description: 'Catalogue Operator - Saisie et correction du catalogue',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadCatalog,
+                    Permission.CreateCatalog,
+                    Permission.UpdateCatalog,
+                    Permission.ReadAsset,
+                    Permission.CreateAsset,
+                    Permission.UpdateAsset,
+                    Permission.ReadFacet,
+                ]
+            },
+            {
+                code: 'seller-manager',
+                description: 'Seller Manager - Gestion et modération des vendeurs',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadCustomer,
+                    Permission.UpdateCustomer,
+                    Permission.ReadCatalog,
+                    Permission.UpdateCatalog,
+                ]
+            },
+            {
+                code: 'order-manager',
+                description: 'Order Manager - Gestion des commandes',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.UpdateOrder,
+                ]
+            },
+            {
+                code: 'customer-support',
+                description: 'Customer Support - Service client',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.ReadCustomer,
+                    Permission.ReadCatalog,
+                ]
+            },
+            {
+                code: 'logistics-manager',
+                description: 'Logistics Manager - Gestion logistique et expéditions',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.UpdateOrder,
+                    Permission.ReadShippingMethod,
+                    Permission.UpdateShippingMethod,
+                ]
+            },
+            {
+                code: 'hub-operator',
+                description: 'Hub Operator - Gestion des opérations de hub logistique',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.UpdateOrder,
+                ]
+            },
+            {
+                code: 'finance-manager',
+                description: 'Finance Manager - Gestion financière et validations payouts',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.UpdateOrder,
+                    Permission.ReadPaymentMethod,
+                    Permission.UpdatePaymentMethod,
+                ]
+            },
+            {
+                code: 'finance-operator',
+                description: 'Finance Operator - Opérations financières quotidiennes',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.ReadPaymentMethod,
+                ]
+            },
+            {
+                code: 'quality-manager',
+                description: 'Quality Manager - Contrôle qualité et validation produit',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadCatalog,
+                    Permission.UpdateCatalog,
+                ]
+            },
+            {
+                code: 'analyst',
+                description: 'Analyst - Reporting et statistiques',
+                permissions: [
+                    Permission.Authenticated,
+                    Permission.ReadOrder,
+                    Permission.ReadCatalog,
+                    Permission.ReadCustomer,
+                ]
+            }
+        ];
+
+        for (const r of rolesToCreate) {
+            try {
+                let existingRole = await this.connection.getRepository(ctx, Role).findOne({
+                    where: { code: r.code }
+                });
+                if (existingRole) {
+                    existingRole.permissions = r.permissions;
+                    existingRole.description = r.description;
+                    await this.connection.getRepository(ctx, Role).save(existingRole);
+                    console.log(`[Role Bootstrap] Updated role: ${r.code}`);
+                } else {
+                    await this.roleService.create(ctx, {
+                        code: r.code,
+                        description: r.description,
+                        permissions: r.permissions,
+                    });
+                    console.log(`[Role Bootstrap] Created role: ${r.code}`);
+                }
+            } catch (e: any) {
+                console.error(`[Role Bootstrap] Failed for ${r.code}:`, e.message);
+            }
+        }
+    }
+
     /**
      * Ensure that an approved Vendor has a native Vendure Seller, dedicated Channel,
      * Channel-scoped Role, and Administrator account.
@@ -2534,6 +2797,7 @@ export class VendorService implements OnApplicationBootstrap {
             await this.deduplicateVendorRecords();
             const ctx = await this.createBootstrapContext();
             await this.getOrCreateVendorRole(ctx);
+            await this.ensureFineGrainedRoles(ctx);
             await this.syncExistingApprovedVendors(ctx);
             console.log('VendorService: Bootstrapping complete. Vendor role ready.');
         } catch (e) {
@@ -3058,10 +3322,17 @@ export class VendorService implements OnApplicationBootstrap {
             throw new Error('Le montant demandé dépasse le solde disponible.');
         }
 
+        // Amounts > 25 000 FCFA require a second admin approval before processing
+        const DOUBLE_SIGNATURE_THRESHOLD = 25_000_00; // stored in subunits (cents)
+        const needsSecondApproval = amount > DOUBLE_SIGNATURE_THRESHOLD;
+        const initialStatus = needsSecondApproval
+            ? (WithdrawalStatus as any).PENDING_SECOND_APPROVAL
+            : WithdrawalStatus.PENDING;
+
         const withdrawal = this.connection.getRepository(ctx, WithdrawalRequest).create({
             vendor,
             amount,
-            status: WithdrawalStatus.PENDING,
+            status: initialStatus,
             mobileMoneyNumber: vendor.mobileMoneyNumber || vendor.phoneNumber
         });
         await this.connection.getRepository(ctx, WithdrawalRequest).save(withdrawal);
@@ -3083,11 +3354,45 @@ export class VendorService implements OnApplicationBootstrap {
         return true;
     }
 
+    /**
+     * Second admin signature for large withdrawals (> 25 000 FCFA).
+     * Transitions PENDING_SECOND_APPROVAL → PENDING, ready for the first admin to approve/pay.
+     */
+    async secondApproveWithdrawal(ctx: RequestContext, id: string): Promise<boolean> {
+        const repo = this.connection.getRepository(ctx, WithdrawalRequest);
+        const withdrawal = await repo.findOne({ where: { id }, relations: ['vendor', 'vendor.user'] });
+        if (!withdrawal) throw new Error('Demande de retrait introuvable');
+        if ((withdrawal.status as any) !== 'PENDING_SECOND_APPROVAL') {
+            throw new Error('Cette demande ne nécessite pas de double validation');
+        }
+
+        // Record approving admin id in transferReference for audit trail
+        withdrawal.transferReference = `SECOND_APPROVED_BY:${ctx.activeUserId?.toString() || 'unknown'}`;
+        withdrawal.status = WithdrawalStatus.PENDING;
+        await repo.save(withdrawal);
+
+        // Notify other admins that second approval has been given
+        try {
+            const vendorName = (withdrawal.vendor as any)?.name || 'Vendeur';
+            const formattedAmount = Number(withdrawal.amount).toLocaleString('fr-FR');
+            await this.connection.rawConnection.query(`
+                INSERT INTO notification_log ("createdAt", "updatedAt", "userId", "eventType", title, body, "actionUrl", channel, "targetRole", "isRead", "sendSuccess")
+                SELECT NOW(), NOW(), u.id, 'WITHDRAWAL_SECOND_APPROVED', '2ème Validation Accordée ✅', $1, '/admin/finance', 'IN_APP', 'ADMIN', false, true
+                FROM "user" u
+                INNER JOIN user_roles_role urr ON urr."userId" = u.id
+                INNER JOIN role r ON r.id = urr."roleId"
+                WHERE r.code = '__super_admin_role__' OR r.code = 'superadmin' OR u.identifier = 'superadmin'
+            `, [`Le retrait de ${formattedAmount} FCFA de "${vendorName}" a reçu sa 2ème validation. Il peut maintenant être traité.`]);
+        } catch (err) {}
+
+        return true;
+    }
+
     async approveWithdrawal(ctx: RequestContext, id: string): Promise<boolean> {
         const repo = this.connection.getRepository(ctx, WithdrawalRequest);
         const withdrawal = await repo.findOne({ where: { id }, relations: ['vendor', 'vendor.user'] });
         if (!withdrawal) throw new Error('Demande de retrait introuvable');
-        if (withdrawal.status !== WithdrawalStatus.PENDING) {
+        if (withdrawal.status !== WithdrawalStatus.PENDING && (withdrawal.status as any) !== 'PENDING_SECOND_APPROVAL') {
             throw new Error('La demande de retrait n\'est pas en attente');
         }
 

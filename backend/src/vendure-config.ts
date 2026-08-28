@@ -119,6 +119,11 @@ export const config: any = {
             { name: 'compareAtPrice', type: 'int', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Prix de comparaison (prix barré) en centimes' }] },
             { name: 'onPromotion', type: 'boolean', nullable: true, public: true, defaultValue: false, description: [{ languageCode: LanguageCode.fr, value: 'Indique si le produit est en promotion' }] },
             { name: 'promotionalPrice', type: 'int', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Prix promotionnel en centimes' }] },
+            { name: 'offerStatus', type: 'string', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Statut de modération de l\'offre' }] },
+            { name: 'rejectionReason', type: 'text', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Remarques ou corrections demandées par l\'administrateur' }] },
+            { name: 'deliveryTimeValue', type: 'int', nullable: true, public: true, defaultValue: 2, description: [{ languageCode: LanguageCode.fr, value: 'Délai de livraison numérique' }] },
+            { name: 'deliveryTimeUnit', type: 'string', nullable: true, public: true, defaultValue: 'DAYS', description: [{ languageCode: LanguageCode.fr, value: 'Unité du délai de livraison' }] },
+            { name: 'condition', type: 'string', nullable: true, public: true, defaultValue: 'NEW', description: [{ languageCode: LanguageCode.fr, value: 'État du produit' }] },
         ],
         Product: [
             { name: 'shortDescription', type: 'text', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Petite description' }] },

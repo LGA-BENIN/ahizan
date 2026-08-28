@@ -72,6 +72,20 @@ export const commonApiExtensions = `
         isVerified: Boolean!
     }
 
+    # ── Global Option Groups (for variant configurator) ──
+    type GlobalOptionValue {
+        id: ID!
+        code: String!
+        name: String!
+    }
+
+    type GlobalOptionGroup {
+        id: ID!
+        code: String!
+        name: String!
+        options: [GlobalOptionValue!]!
+    }
+
     input CreateVendorInput {
         name: String
         firstName: String
@@ -229,6 +243,7 @@ export const commonApiExtensions = `
         name: String!
         description: String!
         shortDescription: String
+        slug: String
         price: Int!
         stock: Int!
         collectionIds: [ID!]
@@ -244,10 +259,14 @@ export const commonApiExtensions = `
         promotionalPrice: Int
         optionGroups: [CreateVendorOptionGroupInput!]
         variants: [CreateVendorVariantInput!]
+        deliveryTimeValue: Int
+        deliveryTimeUnit: String
+        condition: String
     }
 
     input UpdateVendorProductInput {
         name: String
+        slug: String
         description: String
         shortDescription: String
         collectionIds: [ID!]
@@ -263,6 +282,9 @@ export const commonApiExtensions = `
         promotionalPrice: Int
         optionGroups: [CreateVendorOptionGroupInput!]
         variants: [CreateVendorVariantInput!]
+        deliveryTimeValue: Int
+        deliveryTimeUnit: String
+        condition: String
     }
 
     input UpdateVendorProductVariantInput {
@@ -439,6 +461,89 @@ export const commonApiExtensions = `
         pendingWithdrawalAmount: Float!
         currencyCode: String!
     }
+
+    enum ProductCondition {
+        NEW
+        USED
+    }
+
+    enum DeliveryTimeUnit {
+        HOURS
+        DAYS
+    }
+
+    type SellerOffer implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        vendor: Vendor!
+        productVariant: ProductVariant!
+        price: Int!
+        stock: Int!
+        sku: String
+        deliveryTimeValue: Int!
+        deliveryTimeUnit: DeliveryTimeUnit!
+        condition: ProductCondition!
+        onPromotion: Boolean
+        promotionalPrice: Int
+        featuredAssetId: ID
+        status: String
+        rejectionReason: String
+    }
+
+    input CreateSellerOfferInput {
+        productVariantId: ID!
+        price: Int!
+        stock: Int!
+        sku: String
+        deliveryTimeValue: Int
+        deliveryTimeUnit: DeliveryTimeUnit
+        condition: ProductCondition
+        onPromotion: Boolean
+        promotionalPrice: Int
+        featuredAssetId: ID
+        status: String
+        rejectionReason: String
+    }
+
+    input UpdateSellerOfferInput {
+        productVariantId: ID!
+        price: Int
+        stock: Int
+        sku: String
+        deliveryTimeValue: Int
+        deliveryTimeUnit: DeliveryTimeUnit
+        condition: ProductCondition
+        onPromotion: Boolean
+        promotionalPrice: Int
+        featuredAssetId: ID
+        status: String
+        rejectionReason: String
+    }
+
+    input TagVariantOfferInput {
+        variantId: ID
+        productVariantId: ID
+        optionIds: [ID!]
+        optionCodes: [String!]
+        optionNames: [String!]
+        name: String
+        sku: String
+        price: Int!
+        stock: Int!
+        onPromotion: Boolean
+        promotionalPrice: Int
+        featuredAssetId: ID
+        deliveryTimeValue: Int
+        deliveryTimeUnit: DeliveryTimeUnit
+        condition: ProductCondition
+    }
+
+    input TagProductWithVariantOffersInput {
+        productId: ID!
+        optionGroups: [CreateVendorOptionGroupInput!]
+        offers: [TagVariantOfferInput!]!
+    }
 `;
 
 export const shopApiExtensions = `
@@ -466,6 +571,9 @@ export const shopApiExtensions = `
         myVendorWalletStats: VendorWalletStats!
 
 
+        # Global option groups (for variant configurator in seller portal)
+        getGlobalOptionGroups: [GlobalOptionGroup!]!
+
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
 
@@ -487,6 +595,10 @@ export const shopApiExtensions = `
         conversationHistoryWithCustomer(customerId: ID!): [ChatMessage!]!
         isTyping(targetId: ID!, targetType: String!): Boolean!
         userOnlineStatus(targetId: ID!, targetType: String!): String!
+        sellerOffersForVariant(variantId: ID!): [SellerOffer!]!
+        sellerOffersForProduct(productId: ID!): [SellerOffer!]!
+        mySellerOffers: [SellerOffer!]!
+        searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
     }
 
     extend type Mutation {
@@ -523,6 +635,11 @@ export const shopApiExtensions = `
         modifyChatMessage(id: ID!, content: String!): ChatMessage!
         markChatMessageAsSeen(id: ID!): ChatMessage!
         setTyping(targetId: ID!, targetType: String!, typing: Boolean!): Boolean!
+        createOrUpdateSellerOffer(input: CreateSellerOfferInput!): SellerOffer!
+        deleteSellerOffer(variantId: ID!): Boolean!
+        tagProductWithVariantOffers(input: TagProductWithVariantOffersInput!): [SellerOffer!]!
+        updateMyVariantOffers(offers: [TagVariantOfferInput!]!): [SellerOffer!]!
+        normalizeProductWithAI(id: ID!): Product!
     }
 `;
 
@@ -551,8 +668,11 @@ export const adminApiExtensions = `
         adminConversations: [AdminConversation!]!
         adminChatHistory(customerId: ID!, vendorId: ID!): [ChatMessage!]!
         adminDirectChatHistory(targetId: ID!, targetType: String!): [ChatMessage!]!
-
-
+        sellerOffersForVariant(variantId: ID!): [SellerOffer!]!
+        sellerOffersForProduct(productId: ID!): [SellerOffer!]!
+        mySellerOffers: [SellerOffer!]!
+        getGlobalOptionGroups: [GlobalOptionGroup!]!
+        searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
     }
 
     extend type Mutation {
@@ -596,6 +716,8 @@ export const adminApiExtensions = `
         adminCreateProduct(input: CreateVendorProductInput!, vendorId: ID!): Product!
         adminUpdateProduct(id: ID!, input: UpdateVendorProductInput!, vendorId: ID): Product!
         adminUpdateProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
+        adminReviewProduct(id: ID!, status: String!, rejectionReason: String, convertToOfficialCatalog: Boolean): Product!
+        adminReviewSellerOffer(id: ID!, status: String!, rejectionReason: String): SellerOffer!
         
         # Order Management (Admin status updates & Reassignment)
         updateOrderAdminStatus(orderId: ID!, status: String!, vendorId: ID): Boolean!
@@ -606,6 +728,7 @@ export const adminApiExtensions = `
         reassignOrderLineToProduct(orderId: ID!, lineId: ID!, newProductId: ID, newProductName: String, newPrice: Float!, newVendorId: ID!): Boolean!
         deleteVendorOrder(orderId: ID!): Boolean!
         approveWithdrawalRequest(id: ID!): Boolean!
+        secondApproveWithdrawalRequest(id: ID!): Boolean!
         rejectWithdrawalRequest(id: ID!, reason: String): Boolean!
         deleteOrderAdmin(id: ID!): Boolean!
 
@@ -615,5 +738,10 @@ export const adminApiExtensions = `
         deleteChatMessage(id: ID!): ChatMessage!
         modifyChatMessage(id: ID!, content: String!): ChatMessage!
         markChatMessageAsSeen(id: ID!): ChatMessage!
+        createOrUpdateSellerOffer(input: CreateSellerOfferInput!): SellerOffer!
+        deleteSellerOffer(variantId: ID!): Boolean!
+        tagProductWithVariantOffers(input: TagProductWithVariantOffersInput!): [SellerOffer!]!
+        updateMyVariantOffers(offers: [TagVariantOfferInput!]!): [SellerOffer!]!
+        normalizeProductWithAI(id: ID!): Product!
     }
 `;

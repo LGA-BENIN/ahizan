@@ -2,7 +2,7 @@
 
 import { revalidateTag } from 'next/cache';
 import { mutate } from '@/lib/vendure/api';
-import { CreateMyProductMutation, UpdateMyProductMutation, UpdateMyProductVariantMutation, UploadVendorFileMutation, DeleteMyProductMutation } from '@/lib/vendure/vendor-product-mutations';
+import { CreateMyProductMutation, UpdateMyProductMutation, UpdateMyProductVariantMutation, UploadVendorFileMutation, DeleteMyProductMutation, TagProductWithVariantOffersMutation, UpdateMyVariantOffersMutation } from '@/lib/vendure/vendor-product-mutations';
 import { priceToSubunit } from '@/lib/format';
 
 export async function createProductAction(prevState: any, formData: FormData) {
@@ -35,6 +35,10 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const facetValueIds = JSON.parse(formData.get('facetValueIds') as string || '[]');
     const onPromotion = formData.get('onPromotion') === 'true';
     const promotionalPrice = priceToSubunit(parseInt(formData.get('promotionalPrice') as string) || 0);
+
+    const deliveryTimeValue = formData.get('deliveryTimeValue') ? parseInt(formData.get('deliveryTimeValue') as string) : 2;
+    const deliveryTimeUnit = (formData.get('deliveryTimeUnit') as string) || 'd';
+    const condition = (formData.get('condition') as string) || 'NEW';
 
     // Multi-variants parsing
     const rawVariants = formData.get('variants') as string;
@@ -77,6 +81,9 @@ export async function createProductAction(prevState: any, formData: FormData) {
                 onPromotion,
                 promotionalPrice: onPromotion ? promotionalPrice : undefined,
                 variants,
+                deliveryTimeValue,
+                deliveryTimeUnit,
+                condition,
             },
         } as any, { useAuthToken: true });
 
@@ -120,6 +127,10 @@ export async function updateProductAction(prevState: any, formData: FormData) {
     const onPromotion = formData.get('onPromotion') === 'true';
     const promotionalPrice = priceToSubunit(parseInt(formData.get('promotionalPrice') as string) || 0);
 
+    const deliveryTimeValue = formData.get('deliveryTimeValue') ? parseInt(formData.get('deliveryTimeValue') as string) : undefined;
+    const deliveryTimeUnit = formData.get('deliveryTimeUnit') as string || undefined;
+    const condition = formData.get('condition') as string || undefined;
+
     // Multi-variants parsing
     const rawVariants = formData.get('variants') as string;
     let variants: any[] | undefined = undefined;
@@ -158,6 +169,9 @@ export async function updateProductAction(prevState: any, formData: FormData) {
                 width,
                 height,
                 variants,
+                deliveryTimeValue,
+                deliveryTimeUnit,
+                condition,
             },
         } as any, { useAuthToken: true });
 
@@ -194,6 +208,33 @@ export async function deleteProductAction(id: string) {
     }
 }
 
+export async function updateMyVariantOffersAction(offers: any[]) {
+    try {
+        const formattedOffers = offers.map(off => ({
+            variantId: off.variantId,
+            price: priceToSubunit(parseInt(off.price) || 0),
+            stock: parseInt(off.stock) || 0,
+            sku: off.sku || undefined,
+            onPromotion: off.onPromotion === true,
+            promotionalPrice: off.onPromotion ? priceToSubunit(parseInt(off.promotionalPrice) || 0) : undefined,
+            featuredAssetId: off.featuredAssetId || undefined,
+            deliveryTimeValue: off.deliveryTimeValue ? parseInt(off.deliveryTimeValue) : undefined,
+            deliveryTimeUnit: off.deliveryTimeUnit || undefined,
+            condition: off.condition || undefined,
+        }));
+
+        await mutate(UpdateMyVariantOffersMutation, {
+            offers: formattedOffers,
+        }, { useAuthToken: true });
+
+        revalidateTag('vendor-products', 'max');
+        return { success: true };
+    } catch (e: any) {
+        console.error('[ACTION] Error updating variant offers:', e);
+        return { success: false, error: e.message };
+    }
+}
+
 export async function uploadFileAction(formData: FormData) {
     const file = formData.get('file') as File;
     if (!file) return { success: false, error: 'No file provided' };
@@ -208,3 +249,20 @@ export async function uploadFileAction(formData: FormData) {
         return { success: false, error: e.message };
     }
 }
+
+export async function tagProductWithVariantOffersAction(input: any) {
+    try {
+        const { data } = await mutate(TagProductWithVariantOffersMutation, {
+            input,
+        }, { useAuthToken: true });
+
+        revalidateTag('vendor-products', 'max');
+        return { success: true, offers: (data as any)?.tagProductWithVariantOffers };
+    } catch (e: any) {
+        console.error('[ACTION] Error tagging product with variant offers:', e.message);
+        return { success: false, error: e.message };
+    }
+}
+
+
+

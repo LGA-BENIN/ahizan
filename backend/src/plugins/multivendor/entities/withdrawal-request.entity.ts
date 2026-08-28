@@ -4,6 +4,7 @@ import { Vendor } from './vendor.entity';
 
 export enum WithdrawalStatus {
     PENDING = 'PENDING',
+    PENDING_SECOND_APPROVAL = 'PENDING_SECOND_APPROVAL',
     APPROVED = 'APPROVED',
     REJECTED = 'REJECTED'
 }
@@ -31,4 +32,7 @@ export class WithdrawalRequest extends VendureEntity {
 
     @Column({ nullable: true })
     transferReference: string;
+
+    @Column({ nullable: true })
+    firstApprovedById: string;
 }

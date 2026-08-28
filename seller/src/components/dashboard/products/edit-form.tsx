@@ -1,815 +1,975 @@
 'use client';
 
-import React from 'react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import ImageUploader, { type UploadedAsset } from '@/components/ImageUploader';
-import { updateProductAction } from '@/app/dashboard/products/actions';
+import { query } from '@/lib/vendure/api';
+import { tagProductWithVariantOffersAction, uploadFileAction } from '@/app/dashboard/products/actions';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Package, ImageIcon, Save, X, Trash2, Tag, Star, Percent, CheckCircle2, AlertTriangle, AlertOctagon, AlignLeft, Coins, Loader2, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { priceFromSubunit } from '@/lib/format';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import CategoryCheckboxTree from './category-checkbox-tree';
-import { TiptapEditor } from './tiptap-editor';
+import { 
+    Package, 
+    ImageIcon, 
+    Trash2, 
+    Tag, 
+    Percent, 
+    CheckCircle2, 
+    AlertTriangle, 
+    Loader2, 
+    Plus, 
+    Layers, 
+    Check, 
+    Eye,
+    ArrowLeft,
+    Sparkles,
+    SlidersHorizontal,
+    Camera,
+    UploadCloud,
+    Truck,
+    Info,
+    ChevronDown,
+    ChevronUp,
+    ShieldCheck
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { priceFromSubunit } from '@/lib/format';
+import Link from 'next/link';
+
+// Global option groups query
+const GET_GLOBAL_OPTION_GROUPS_QUERY = `
+  query GetGlobalOptionGroups {
+    getGlobalOptionGroups {
+      id
+      code
+      name
+      options {
+        id
+        code
+        name
+      }
+    }
+  }
+`;
 
 interface EditProductFormProps {
     product: any;
     collectionTree: any[];
 }
 
-interface VariantRow {
-    id: string;
+interface VariantOfferRow {
+    id: string; // ProductVariant ID or temp ID
     name: string;
+    optionIds: string[];
     sku: string;
     price: number;
     stock: number;
     onPromotion: boolean;
     promotionalPrice: number;
+    featuredAssetId?: string;
+    featuredAssetPreview?: string;
+    deliveryTimeValue: number;
+    deliveryTimeUnit: string;
+    condition: string;
+    rejectionReason?: string | null;
+    offerStatus?: string | null;
+    enabled: boolean;
+}
+
+interface OptionGroupSelection {
+    id: string;
+    code: string;
+    name: string;
+    selectedOptions: Array<{ id: string; code: string; name: string }>;
+    customValues: string[];
 }
 
 export default function EditProductForm({ product, collectionTree }: EditProductFormProps) {
     const router = useRouter();
-    const variant = product.variants?.[0];
-
-    const initialCategoryIds = (product.collections || []).map((coll: any) => String(coll.id));
-
-    const initialVariants: VariantRow[] = (product.variants && product.variants.length > 0)
-        ? product.variants.map((v: any, index: number) => ({
-            id: String(v.id),
-            name: v.name || `${product.name} - Option ${index + 1}`,
-            sku: v.sku || '',
-            price: v.priceWithTax ? priceFromSubunit(v.priceWithTax, v.currencyCode) : 0,
-            stock: v.stockOnHand ?? 0,
-            onPromotion: (v.customFields as any)?.onPromotion || false,
-            promotionalPrice: (v.customFields as any)?.promotionalPrice ? priceFromSubunit((v.customFields as any).promotionalPrice, v.currencyCode) : 0,
-        }))
-        : [{ id: 'new_1', name: product.name, sku: '', price: 0, stock: 5, onPromotion: false, promotionalPrice: 0 }];
-
-    const [hasMultipleVariants, setHasMultipleVariants] = useState(initialVariants.length > 1);
-    const [variants, setVariants] = useState<VariantRow[]>(initialVariants);
-
-    const [formData, setFormData] = useState({
-        name: product.name,
-        description: product.description || '',
-        shortDescription: product.customFields?.shortDescription || '',
-        price: variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode) : 0,
-        stock: variant?.stockOnHand !== undefined && variant?.stockOnHand !== null ? variant.stockOnHand : 0,
-        sku: variant?.sku || '',
-        weight: product.customFields?.weight !== undefined && product.customFields?.weight !== null ? String(product.customFields.weight) : '',
-        width: product.customFields?.width !== undefined && product.customFields?.width !== null ? String(product.customFields.width) : '',
-        height: product.customFields?.height !== undefined && product.customFields?.height !== null ? String(product.customFields.height) : '',
-        parentCategory: '',
-        category: JSON.stringify(initialCategoryIds),
-        enabled: product.enabled !== false || product.customFields?.approvalStatus === 'pending' || product.customFields?.approvalStatus === 'rejected',
-        onPromotion: (variant?.customFields as any)?.onPromotion || false,
-        promotionalPrice: (variant?.customFields as any)?.promotionalPrice ? priceFromSubunit((variant.customFields as any).promotionalPrice, variant.currencyCode) : 0,
-    });
-    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(initialCategoryIds);
-    const [assetIds, setAssetIds] = useState<string[]>(product.assets.map((a: any) => a.id));
-    const [previewImages, setPreviewImages] = useState(product.assets.map((a: any) => ({ id: a.id, preview: a.preview })));
-    const [featuredAssetId, setFeaturedAssetId] = useState<string | null>(
-        product.featuredAsset?.id || (product.assets.length > 0 ? product.assets[0].id : null)
-    );
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [facetValueIds, setFacetValueIds] = useState<string[]>(
-        (product.facetValues || []).map((fv: any) => String(fv.id))
-    );
-    const [allowedFacets, setAllowedFacets] = useState<any[]>([]);
-    const [loadingFacets, setLoadingFacets] = useState(false);
+    const [showOfficialDetails, setShowOfficialDetails] = useState(false);
+    const [showReconfigurator, setShowReconfigurator] = useState(false);
+    const [uploadingVariantId, setUploadingVariantId] = useState<string | null>(null);
 
-    const handleAddVariant = () => {
-        setVariants(prev => [
-            ...prev,
-            {
-                id: `new_${Date.now()}`,
-                name: '',
+    // Platform option groups state
+    const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+    const [loadingGroups, setLoadingGroups] = useState(false);
+    const [selectedGroups, setSelectedGroups] = useState<OptionGroupSelection[]>([]);
+    const [customOptionInputs, setCustomOptionInputs] = useState<Record<string, string>>({});
+
+    // Parse initial variant offers
+    const initialVariantOffers: VariantOfferRow[] = useMemo(() => {
+        if (!product.variants || product.variants.length === 0) {
+            return [{
+                id: 'default',
+                name: product.name,
+                optionIds: [],
                 sku: '',
-                price: formData.price,
-                stock: formData.stock,
+                price: 0,
+                stock: 5,
                 onPromotion: false,
                 promotionalPrice: 0,
+                featuredAssetId: product.featuredAsset?.id,
+                featuredAssetPreview: product.featuredAsset?.preview,
+                deliveryTimeValue: 2,
+                deliveryTimeUnit: 'DAYS',
+                condition: 'NEW',
+                enabled: true
+            }];
+        }
+
+        return product.variants.map((v: any, idx: number) => {
+            const vPrice = v.priceWithTax ? priceFromSubunit(v.priceWithTax, v.currencyCode || 'XOF') : 0;
+            const vPromo = (v.customFields as any)?.onPromotion || false;
+            const vPromoPrice = (v.customFields as any)?.promotionalPrice 
+                ? priceFromSubunit((v.customFields as any).promotionalPrice, v.currencyCode || 'XOF') 
+                : 0;
+
+            const optIds = (v.options || []).map((o: any) => String(o.id));
+            const optionsStr = (v.options || []).map((o: any) => o.name).filter(Boolean).join(' ');
+            const fallbackName = optionsStr ? `${product.name} ${optionsStr}` : product.name;
+            const resolvedName = v.name && !v.name.includes('Option ') && !v.name.includes('Option 2') ? v.name : fallbackName;
+
+            return {
+                id: String(v.id),
+                name: resolvedName,
+                optionIds: optIds,
+                sku: v.sku || '',
+                price: vPrice,
+                stock: v.stockOnHand !== undefined && v.stockOnHand !== null ? v.stockOnHand : 5,
+                onPromotion: vPromo,
+                promotionalPrice: vPromoPrice,
+                featuredAssetId: v.featuredAsset?.id || product.featuredAsset?.id,
+                featuredAssetPreview: v.featuredAsset?.preview || product.featuredAsset?.preview,
+                deliveryTimeValue: (v.customFields as any)?.deliveryTimeValue || 2,
+                deliveryTimeUnit: (v.customFields as any)?.deliveryTimeUnit || 'DAYS',
+                condition: (v.customFields as any)?.condition || 'NEW',
+                rejectionReason: (v.customFields as any)?.rejectionReason || null,
+                offerStatus: (v.customFields as any)?.offerStatus || null,
+                enabled: true
+            };
+        });
+    }, [product]);
+
+    const [variantOffers, setVariantOffers] = useState<VariantOfferRow[]>(initialVariantOffers);
+
+    // Fetch platform option groups
+    useEffect(() => {
+        async function fetchOptionGroups() {
+            setLoadingGroups(true);
+            try {
+                const res = await query(GET_GLOBAL_OPTION_GROUPS_QUERY, {});
+                if ((res.data as any)?.getGlobalOptionGroups) {
+                    setAvailableGroups((res.data as any).getGlobalOptionGroups);
+                }
+            } catch (err) {
+                console.error('[EditProductForm] Failed to load option groups:', err);
+            } finally {
+                setLoadingGroups(false);
             }
-        ]);
+        }
+        fetchOptionGroups();
+    }, []);
+
+    // Handlers for variant offers
+    const handleVariantChange = (id: string, field: keyof VariantOfferRow, value: any) => {
+        setVariantOffers(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
     };
 
     const handleRemoveVariant = (id: string) => {
-        if (variants.length <= 1) {
-            toast.warning('Le produit doit avoir au moins une déclinaison');
+        if (variantOffers.length <= 1) {
+            toast.warning('Votre offre doit contenir au moins une déclinaison.');
             return;
         }
-        setVariants(prev => prev.filter(v => v.id !== id));
+        setVariantOffers(prev => prev.filter(v => v.id !== id));
     };
 
-    const handleVariantChange = (id: string, field: keyof VariantRow, value: any) => {
-        setVariants(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
-    };
-
-    // Fetch allowed facets for a collection
-    const fetchAllowedFacets = async (collectionIds: string[]) => {
-        if (!collectionIds || collectionIds.length === 0) { setAllowedFacets([]); return; }
-        setLoadingFacets(true);
+    // Handle variant image upload
+    const handleVariantImageUpload = async (variantId: string, file: File) => {
+        setUploadingVariantId(variantId);
         try {
-            const { query } = await import('@/lib/vendure/api');
-            const { GetCollectionAllowedFacetsQuery } = await import('@/lib/vendure/queries');
-            const results = await Promise.all(
-                collectionIds.map((id: string) => query(GetCollectionAllowedFacetsQuery, { collectionId: id }).catch((err: any) => {
-                    console.error('[EditProductForm] Failed to fetch allowed facets for', id, err);
-                    return { data: null };
-                }))
-            );
-            const allFacetsMap = new Map();
-            for (const res of results) {
-                const mapping = (res.data as any)?.collectionAllowedFacets;
-                if (mapping?.allowedFacets) {
-                    for (const facet of mapping.allowedFacets) {
-                        allFacetsMap.set(facet.id, facet);
-                    }
-                }
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await uploadFileAction(formData);
+
+            if (res.success && res.asset) {
+                setVariantOffers(prev => prev.map(v => 
+                    v.id === variantId 
+                        ? { ...v, featuredAssetId: res.asset.id, featuredAssetPreview: res.asset.preview } 
+                        : v
+                ));
+                toast.success('Visuel de la déclinaison mis à jour');
+            } else {
+                toast.error(res.error || 'Erreur lors du téléversement');
             }
-            setAllowedFacets(Array.from(allFacetsMap.values()));
-        } catch (err) {
-            console.error('[EditProductForm] Failed to fetch allowed facets:', err);
-            setAllowedFacets([]);
+        } catch (err: any) {
+            toast.error(err.message || 'Erreur lors du téléversement');
         } finally {
-            setLoadingFacets(false);
+            setUploadingVariantId(null);
         }
     };
 
-    // Initialize allowed facets on mount
-    useEffect(() => {
-        if (initialCategoryIds.length > 0) {
-            fetchAllowedFacets(initialCategoryIds);
-        }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleCategoriesChange = (ids: string[]) => {
-        setSelectedCategoryIds(ids);
-        setFormData((prev: any) => ({ ...prev, category: JSON.stringify(ids) }));
-        setFacetValueIds([]);
-        fetchAllowedFacets(ids);
+    // Option groups selection helpers
+    const toggleGroup = (group: any) => {
+        setSelectedGroups(prev => {
+            const exists = prev.find(g => g.id === group.id);
+            if (exists) {
+                return prev.filter(g => g.id !== group.id);
+            } else {
+                return [...prev, {
+                    id: group.id,
+                    code: group.code,
+                    name: group.name,
+                    selectedOptions: [],
+                    customValues: []
+                }];
+            }
+        });
     };
 
+    const toggleOption = (groupId: string, option: any) => {
+        setSelectedGroups(prev => prev.map(g => {
+            if (g.id !== groupId) return g;
+            const exists = g.selectedOptions.find(o => o.id === option.id);
+            const newOpts = exists 
+                ? g.selectedOptions.filter(o => o.id !== option.id)
+                : [...g.selectedOptions, option];
+            return { ...g, selectedOptions: newOpts };
+        }));
+    };
+
+    const handleAddCustomValue = (groupId: string) => {
+        const val = (customOptionInputs[groupId] || '').trim();
+        if (!val) return;
+
+        setSelectedGroups(prev => prev.map(g => {
+            if (g.id !== groupId) return g;
+            if (g.customValues.includes(val) || g.selectedOptions.some(o => o.name.toLowerCase() === val.toLowerCase())) {
+                toast.warning(`La valeur "${val}" existe déjà.`);
+                return g;
+            }
+            return { ...g, customValues: [...g.customValues, val] };
+        }));
+
+        setCustomOptionInputs(prev => ({ ...prev, [groupId]: '' }));
+    };
+
+    const handleRemoveCustomValue = (groupId: string, val: string) => {
+        setSelectedGroups(prev => prev.map(g => {
+            if (g.id !== groupId) return g;
+            return { ...g, customValues: g.customValues.filter(v => v !== val) };
+        }));
+    };
+
+    // Generate Cartesian Matrix of Variant Offers
+    const handleGenerateMatrix = () => {
+        const activeSelections = selectedGroups.map(g => {
+            const items = [
+                ...g.selectedOptions.map(o => ({ id: o.id, name: o.name, groupName: g.name })),
+                ...g.customValues.map(v => ({ id: `custom_${g.code}_${v}`, name: v, groupName: g.name }))
+            ];
+            return { groupName: g.name, items };
+        }).filter(s => s.items.length > 0);
+
+        if (activeSelections.length === 0) {
+            toast.error('Veuillez sélectionner au moins une valeur dans les groupes d\'options.');
+            return;
+        }
+
+        const cartesian = (arrays: any[][]): any[][] => {
+            return arrays.reduce((acc, curr) => 
+                acc.flatMap(d => curr.map(e => [...d, e])), 
+                [[]] as any[][]
+            );
+        };
+
+        const combinations = cartesian(activeSelections.map(s => s.items));
+        const defaultPrice = variantOffers[0]?.price || 1000;
+        const defaultStock = variantOffers[0]?.stock || 5;
+
+        const newGeneratedVariants: VariantOfferRow[] = combinations.map((combo, idx) => {
+            const variantName = `${product.name} ${combo.map(c => c.name).join(' ')}`;
+            const optIds = combo.map(c => c.id).filter(id => !id.startsWith('custom_'));
+
+            return {
+                id: `gen_${Date.now()}_${idx}`,
+                name: variantName,
+                optionIds: optIds,
+                sku: `${product.slug?.toUpperCase().slice(0, 4) || 'OFFER'}-${idx + 1}`,
+                price: defaultPrice,
+                stock: defaultStock,
+                onPromotion: false,
+                promotionalPrice: 0,
+                featuredAssetId: product.featuredAsset?.id,
+                featuredAssetPreview: product.featuredAsset?.preview,
+                deliveryTimeValue: 2,
+                deliveryTimeUnit: 'DAYS',
+                condition: 'NEW',
+                enabled: true
+            };
+        });
+
+        setVariantOffers(newGeneratedVariants);
+        setShowReconfigurator(false);
+        toast.success(`${newGeneratedVariants.length} déclinaison(s) générée(s) avec succès !`);
+    };
+
+    // Submit handler
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-        try {
-            const data = new FormData();
-            data.append('id', product.id);
-            if (variant) data.append('variantId', variant.id);
 
-            data.append('name', formData.name);
-            data.append('description', formData.description);
-            data.append('shortDescription', formData.shortDescription);
-            data.append('price', formData.price.toString());
-            data.append('stock', formData.stock.toString());
-            data.append('sku', formData.sku);
-            data.append('weight', formData.weight);
-            data.append('width', formData.width);
-            data.append('height', formData.height);
-            data.append('category', formData.category);
-            data.append('enabled', formData.enabled.toString());
-            data.append('assetIds', JSON.stringify(assetIds));
-            data.append('featuredAssetId', featuredAssetId || '');
-            data.append('facetValueIds', JSON.stringify(facetValueIds));
-            data.append('onPromotion', formData.onPromotion.toString());
-            data.append('promotionalPrice', formData.promotionalPrice.toString());
-            if (hasMultipleVariants && variants.length > 0) {
-                data.append('variants', JSON.stringify(variants));
+        const activeOffers = variantOffers.filter(v => v.enabled);
+        if (activeOffers.length === 0) {
+            toast.error('Veuillez activer au moins une déclinaison pour votre offre.');
+            setIsSubmitting(false);
+            return;
+        }
+
+        // Validate prices & stocks
+        for (const off of activeOffers) {
+            if (!off.price || off.price <= 0) {
+                toast.error(`Le prix de la déclinaison "${off.name}" doit être supérieur à 0 FCFA.`);
+                setIsSubmitting(false);
+                return;
             }
+            if (off.onPromotion) {
+                if (!off.promotionalPrice || off.promotionalPrice >= off.price) {
+                    toast.error(`Le prix promotionnel pour "${off.name}" doit être inférieur au prix normal (${off.price.toLocaleString('fr-FR')} FCFA).`);
+                    setIsSubmitting(false);
+                    return;
+                }
+            }
+        }
 
-            const result = await updateProductAction(null, data);
+        try {
+            // Prepare TagProductWithVariantOffers input
+            const payload: any = {
+                productId: product.id,
+                offers: activeOffers.map(v => ({
+                    variantId: v.id && !v.id.startsWith('gen_') && !v.id.startsWith('new_') ? v.id : undefined,
+                    productVariantId: v.id && !v.id.startsWith('gen_') && !v.id.startsWith('new_') ? v.id : undefined,
+                    optionIds: v.optionIds && v.optionIds.length > 0 ? v.optionIds : undefined,
+                    sku: v.sku || undefined,
+                    price: Math.round(v.price * 100), // convert to subunit
+                    stock: Number(v.stock) || 0,
+                    onPromotion: v.onPromotion,
+                    promotionalPrice: v.onPromotion && v.promotionalPrice ? Math.round(v.promotionalPrice * 100) : undefined,
+                    featuredAssetId: v.featuredAssetId || undefined,
+                    deliveryTimeValue: Number(v.deliveryTimeValue) || 2,
+                    deliveryTimeUnit: v.deliveryTimeUnit || 'DAYS',
+                    condition: v.condition || 'NEW',
+                }))
+            };
 
-            if (result.success) {
-                toast.success('Produit mis à jour avec succès');
+            const res = await tagProductWithVariantOffersAction(payload);
+            if (res.success) {
+                toast.success('Vos offres ont été mises à jour avec succès !');
                 router.push('/dashboard/products');
                 router.refresh();
             } else {
-                toast.error('Erreur: ' + result.error);
+                toast.error(res.error || 'Erreur lors de la mise à jour de vos offres');
             }
-        } catch (err) {
-            console.error('Error updating product:', err);
-            toast.error('Erreur inattendue');
+        } catch (err: any) {
+            console.error('[EditProductForm] Submit error:', err);
+            toast.error(err.message || 'Une erreur inattendue est survenue');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const removeAsset = (assetId: string) => {
-        setAssetIds(assetIds.filter(id => id !== assetId));
-        setPreviewImages(previewImages.filter((a: any) => a.id !== assetId));
-        if (featuredAssetId === assetId) {
-            const remaining = assetIds.filter(id => id !== assetId);
-            setFeaturedAssetId(remaining.length > 0 ? remaining[0] : null);
-        }
-    };
-
     return (
-        <form onSubmit={handleSubmit} className="max-w-6xl mx-auto space-y-8 pb-20">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                
-                {/* Left Column: Product Info & Facets (7 Cols) */}
-                <div className="lg:col-span-7 space-y-8">
-                    {/* Section: Identité */}
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <Tag className="w-4 h-4 text-primary" />
-                            <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Modifier l'identité du produit</h3>
+        <form onSubmit={handleSubmit} className="space-y-8">
+
+            {/* Superadmin Corrections / Remarks Banner */}
+            {(() => {
+                const productCorrection = product.customFields?.rejectionReason;
+                const variantRemarks = variantOffers.filter(v => !!v.rejectionReason);
+                const hasCorrection = !!productCorrection || variantRemarks.length > 0 || product.customFields?.approvalStatus === 'correction_requested';
+
+                if (!hasCorrection) return null;
+
+                return (
+                    <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-5 md:p-6 space-y-3 animate-in fade-in duration-300">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center shrink-0">
+                                <AlertTriangle className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-sm md:text-base text-amber-700 dark:text-amber-400">
+                                    📢 Remarques et Corrections Demandées par l&apos;Administration
+                                </h3>
+                                <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                                    Veuillez ajuster les points mentionnés ci-dessous avant d&apos;enregistrer vos modifications.
+                                </p>
+                            </div>
                         </div>
-                        <div className="p-6 sm:p-8 space-y-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="name" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nom du produit *</Label>
-                                <Input
-                                    id="name"
-                                    required
-                                    className="h-12 rounded-xl bg-card border-border focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300"
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                />
+
+                        <div className="space-y-2 pt-1">
+                            {productCorrection && (
+                                <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-200 font-medium">
+                                    <strong>Remarque globale :</strong> {productCorrection}
+                                </div>
+                            )}
+                            {variantRemarks.map((v, i) => (
+                                <div key={v.id || i} className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-900 dark:text-amber-200 font-medium">
+                                    <strong>Déclinaison &laquo; {v.name} &raquo; :</strong> {v.rejectionReason}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
+            
+            {/* 1. Bloc Fiche Officielle Ahizan (Lecture Seule) */}
+            <div className="bg-muted/30 border border-border/80 rounded-2xl p-5 md:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                    Catalogue Central Ahizan
+                                </span>
+                                <span className="text-xs text-muted-foreground font-medium">
+                                    Fiche N° {product.id}
+                                </span>
                             </div>
+                            <h2 className="text-lg md:text-xl font-serif font-black text-foreground mt-0.5">
+                                {product.name}
+                            </h2>
+                        </div>
+                    </div>
 
-                            {/* Visibility Switch */}
-                            {(() => {
-                                const isPendingOrRejected = product.customFields?.approvalStatus === 'pending' || product.customFields?.approvalStatus === 'rejected';
-                                return (
-                                    <div className="flex items-center justify-between p-4 bg-muted/5 border border-border rounded-xl shadow-sm">
-                                        <div className="space-y-0.5">
-                                            <Label htmlFor="enabled" className="text-xs font-bold text-foreground">Visibilité du produit</Label>
-                                            <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">
-                                                {isPendingOrRejected 
-                                                    ? "Sera visible automatiquement après validation" 
-                                                    : (formData.enabled ? "En ligne (visible en boutique)" : "Masqué (brouillon / indisponible)")}
-                                            </p>
-                                        </div>
-                                        <Switch 
-                                            id="enabled"
-                                            checked={formData.enabled}
-                                            disabled={isPendingOrRejected}
-                                            onCheckedChange={checked => setFormData({ ...formData, enabled: checked })}
-                                        />
-                                    </div>
-                                );
-                            })()}
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowOfficialDetails(!showOfficialDetails)}
+                        className="text-xs font-bold gap-1.5 self-start sm:self-auto rounded-xl"
+                    >
+                        <Info className="w-3.5 h-3.5" />
+                        {showOfficialDetails ? 'Masquer les détails' : 'Voir les détails de référence'}
+                        {showOfficialDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </Button>
+                </div>
 
-                            {/* Categories Selection */}
-                            <div className="space-y-2">
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Catégories de classement *</Label>
-                                <CategoryCheckboxTree
-                                    collectionTree={collectionTree}
-                                    selectedIds={selectedCategoryIds}
-                                    onChange={handleCategoriesChange}
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    Cette fiche produit appartient au catalogue centralisé Ahizan. En tant que vendeur, vous définissez vos conditions commerciales (vos tarifs, stocks, photos d&apos;offres et délais de livraison) sur les déclinaisons ci-dessous.
+                </p>
+
+                {/* Extended Details Drawer */}
+                {showOfficialDetails && (
+                    <div className="pt-4 border-t border-border/60 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in duration-300">
+                        <div className="flex items-center gap-3 bg-card p-3 rounded-xl border border-border">
+                            {product.featuredAsset?.preview ? (
+                                <img 
+                                    src={product.featuredAsset.preview} 
+                                    alt={product.name} 
+                                    className="w-14 h-14 object-cover rounded-lg shrink-0 border"
                                 />
+                            ) : (
+                                <div className="w-14 h-14 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                                </div>
+                            )}
+                            <div className="min-w-0 text-xs space-y-1">
+                                <div className="font-bold truncate">{product.name}</div>
+                                <div className="text-[11px] text-muted-foreground truncate">Slug: {product.slug}</div>
                             </div>
+                        </div>
 
-                            {/* Validation Status Notice */}
-                            {(() => {
-                                const approvalStatus = product.customFields?.approvalStatus || 'pending';
-                                const reason = product.customFields?.rejectionReason;
-                                
-                                if (approvalStatus === 'pending') {
+                        <div className="md:col-span-2 bg-card p-3 rounded-xl border border-border text-xs space-y-1.5">
+                            <div className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Description de référence :</div>
+                            <div 
+                                className="line-clamp-3 text-muted-foreground text-xs leading-relaxed prose prose-sm max-w-none"
+                                dangerouslySetInnerHTML={{ __html: product.description || '<i>Aucune description fournie</i>' }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* 2. Reconfigurateur de Groupes d'Options (Accordeon / Modal) */}
+            <div className="bg-card border border-border rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <Layers className="w-5 h-5 text-primary" />
+                            <h3 className="text-lg font-bold text-foreground">
+                                Mes Déclinaisons &amp; Offres Commerciales
+                            </h3>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Définissez vos prix, stocks, promotions, visuels et délais pour chaque déclinaison.
+                        </p>
+                    </div>
+
+                    <Button
+                        type="button"
+                        variant={showReconfigurator ? "secondary" : "default"}
+                        onClick={() => setShowReconfigurator(!showReconfigurator)}
+                        className="text-xs font-bold gap-2 rounded-xl shrink-0"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        {showReconfigurator ? 'Fermer le configurateur' : '⚡ Reconfigurer les groupes d\'options'}
+                    </Button>
+                </div>
+
+                {/* Option Groups Selector Matrix Generator */}
+                {showReconfigurator && (
+                    <div className="p-5 rounded-2xl bg-muted/40 border border-primary/20 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-1">
+                            <h4 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                <SlidersHorizontal className="w-4 h-4 text-primary" />
+                                1. Sélectionnez les Groupes d&apos;Options de la plateforme
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                                Cochez les groupes d&apos;options pertinents (ex: Couleur, Taille, Modèle) pour générer votre grille de variantes.
+                            </p>
+                        </div>
+
+                        {loadingGroups ? (
+                            <div className="flex items-center justify-center p-8 gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                Chargement des groupes d&apos;options...
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {availableGroups.map((group) => {
+                                    const isSelected = selectedGroups.some(g => g.id === group.id);
                                     return (
-                                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-3.5 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-300">
-                                            <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                                            <div>
-                                                <h4 className="text-xs font-black uppercase tracking-wider">Modération en cours</h4>
-                                                <p className="text-xs mt-1 leading-relaxed font-medium">Ce produit est actuellement en cours d'examen par nos équipes. Il sera mis en ligne dès validation.</p>
-                                            </div>
-                                        </div>
+                                        <button
+                                            key={group.id}
+                                            type="button"
+                                            onClick={() => toggleGroup(group)}
+                                            className={cn(
+                                                "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border cursor-pointer",
+                                                isSelected 
+                                                    ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                                                    : "bg-card hover:bg-muted text-foreground border-border"
+                                            )}
+                                        >
+                                            {group.name}
+                                            {isSelected && <Check className="w-3.5 h-3.5" />}
+                                        </button>
                                     );
-                                }
-                                
-                                if (approvalStatus === 'approved') {
-                                    return (
-                                        <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex items-start gap-3.5 text-green-800 dark:bg-green-950/20 dark:border-green-900/30 dark:text-green-300">
-                                            <CheckCircle2 className="w-5 h-5 shrink-0 text-green-600 dark:text-green-400 mt-0.5" />
-                                            <div>
-                                                <h4 className="text-xs font-black uppercase tracking-wider">Produit Approuvé</h4>
-                                                <p className="text-xs mt-1 leading-relaxed font-medium">Ce produit est validé et visible publiquement sur la plateforme.</p>
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                
-                                if (approvalStatus === 'rejected') {
-                                    return (
-                                        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-start gap-3.5 text-red-800 dark:bg-red-950/20 dark:border-red-900/30 dark:text-red-300">
-                                            <AlertOctagon className="w-5 h-5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
-                                            <div>
-                                                <h4 className="text-xs font-black uppercase tracking-wider">Produit Refusé</h4>
-                                                <p className="text-xs mt-1 leading-relaxed font-medium">Ce produit n'a pas été validé par la modération.</p>
-                                                {reason && (
-                                                    <div className="mt-2 text-xs font-semibold bg-red-100/50 dark:bg-red-950/40 p-3 rounded-lg border border-red-200/50 dark:border-red-900/30">
-                                                        Motif : {reason}
+                                })}
+                            </div>
+                        )}
+
+                        {/* Configurer les valeurs pour chaque groupe sélectionné */}
+                        {selectedGroups.length > 0 && (
+                            <div className="space-y-4 pt-2">
+                                <h4 className="text-xs font-black text-foreground uppercase tracking-wider">
+                                    2. Définissez les valeurs pour chaque groupe
+                                </h4>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {selectedGroups.map((selGroup) => {
+                                        const originalGroup = availableGroups.find(g => g.id === selGroup.id);
+                                        const predefinedOptions = originalGroup?.options || [];
+
+                                        return (
+                                            <div key={selGroup.id} className="p-4 rounded-xl bg-card border border-border space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-bold text-xs text-foreground uppercase tracking-wider">
+                                                        {selGroup.name}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground font-semibold">
+                                                        {selGroup.selectedOptions.length + selGroup.customValues.length} valeur(s)
+                                                    </span>
+                                                </div>
+
+                                                {/* Options prédéfinies */}
+                                                {predefinedOptions.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                                                        {predefinedOptions.map((opt: any) => {
+                                                            const isChecked = selGroup.selectedOptions.some(o => o.id === opt.id);
+                                                            return (
+                                                                <button
+                                                                    key={opt.id}
+                                                                    type="button"
+                                                                    onClick={() => toggleOption(selGroup.id, opt)}
+                                                                    className={cn(
+                                                                        "px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all border cursor-pointer",
+                                                                        isChecked 
+                                                                            ? "bg-primary/15 text-primary border-primary/30 font-bold" 
+                                                                            : "bg-muted/50 hover:bg-muted text-muted-foreground border-transparent"
+                                                                    )}
+                                                                >
+                                                                    {opt.name}
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
-                                                <p className="text-[9px] font-black uppercase tracking-wider mt-3 text-red-750">Corrigez les informations ci-dessous et enregistrez pour le soumettre à nouveau.</p>
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                return null;
-                            })()}
 
-                            {/* Short Description */}
-                            <div className="space-y-2">
-                                <Label htmlFor="shortDescription" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description Courte (max. 180 caractères)</Label>
-                                <Textarea
-                                    id="shortDescription"
-                                    rows={2}
-                                    maxLength={180}
-                                    className="rounded-xl bg-card border-border resize-none min-h-[70px] focus-visible:ring-2 focus-visible:ring-primary/10 transition-all duration-300"
-                                    value={formData.shortDescription}
-                                    onChange={e => setFormData({ ...formData, shortDescription: e.target.value })}
-                                    placeholder="Une phrase simple et attrayante pour présenter votre produit..."
-                                />
-                                <div className="text-right text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                                    {formData.shortDescription.length}/180 caractères
-                                </div>
-                            </div>
-
-                            {/* Long Description using Tiptap */}
-                            <div className="space-y-2">
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description Détaillée</Label>
-                                <TiptapEditor
-                                    value={formData.description}
-                                    onChange={(html: string) => setFormData(prev => ({ ...prev, description: html }))}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Section: Logistique & Dimensions */}
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <Package className="w-4 h-4 text-primary" />
-                            <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Logistique & Dimensions (Optionnel)</h3>
-                        </div>
-                        <div className="p-6 sm:p-8 space-y-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Code Article (SKU)</Label>
-                                    <Input
-                                        value={formData.sku}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, sku: e.target.value })}
-                                        placeholder="Ex: PRD-TSHIRT-001"
-                                        className="h-11 rounded-xl bg-card border-border font-mono text-sm"
-                                        autoComplete="off"
-                                    />
-                                    <p className="text-[9px] text-muted-foreground">Généré automatiquement si laissé vide.</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Poids (kg)</Label>
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={formData.weight}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, weight: e.target.value })}
-                                        placeholder="Ex: 0.5"
-                                        className="h-11 rounded-xl bg-card border-border text-sm"
-                                        autoComplete="off"
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Largeur (cm)</Label>
-                                    <Input
-                                        type="number"
-                                        step="0.1"
-                                        min="0"
-                                        value={formData.width}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, width: e.target.value })}
-                                        placeholder="Ex: 20"
-                                        className="h-11 rounded-xl bg-card border-border text-sm"
-                                        autoComplete="off"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hauteur (cm)</Label>
-                                    <Input
-                                        type="number"
-                                        step="0.1"
-                                        min="0"
-                                        value={formData.height}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, height: e.target.value })}
-                                        placeholder="Ex: 15"
-                                        className="h-11 rounded-xl bg-card border-border text-sm"
-                                        autoComplete="off"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Section: Déclinaisons & Variantes Multiples */}
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Tag className="w-4 h-4 text-primary" />
-                                <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Déclinaisons & Variantes ({variants.length})</h3>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="hasMultipleVariants"
-                                    checked={hasMultipleVariants}
-                                    onChange={(e) => setHasMultipleVariants(e.target.checked)}
-                                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                                />
-                                <Label htmlFor="hasMultipleVariants" className="text-xs font-bold text-foreground cursor-pointer">
-                                    Plusieurs options (Tailles, Couleurs...)
-                                </Label>
-                            </div>
-                        </div>
-                        {hasMultipleVariants && (
-                            <div className="p-6 space-y-4 animate-in fade-in duration-300">
-                                <p className="text-xs text-muted-foreground font-medium">
-                                    Définissez les différentes options pour ce produit avec leur prix et stock respectifs.
-                                </p>
-                                <div className="space-y-3">
-                                    {variants.map((v: VariantRow, index: number) => (
-                                        <div key={v.id} className="p-4 rounded-xl border border-border bg-muted/10 space-y-3">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span className="text-xs font-black text-foreground">Déclinaison #{index + 1}</span>
-                                                {variants.length > 1 && (
+                                                {/* Valeurs personnalisées */}
+                                                <div className="flex items-center gap-1.5 pt-1">
+                                                    <Input
+                                                        placeholder={`Ajouter une valeur (ex: XL, Rouge...)`}
+                                                        value={customOptionInputs[selGroup.id] || ''}
+                                                        onChange={(e) => setCustomOptionInputs({ ...customOptionInputs, [selGroup.id]: e.target.value })}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleAddCustomValue(selGroup.id);
+                                                            }
+                                                        }}
+                                                        className="h-8 text-xs rounded-lg"
+                                                    />
                                                     <Button
                                                         type="button"
-                                                        variant="ghost"
                                                         size="sm"
-                                                        onClick={() => handleRemoveVariant(v.id)}
-                                                        className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                                                        onClick={() => handleAddCustomValue(selGroup.id)}
+                                                        className="h-8 px-3 rounded-lg text-xs font-bold shrink-0"
                                                     >
-                                                        Supprimer
+                                                        <Plus className="w-3.5 h-3.5" />
                                                     </Button>
+                                                </div>
+
+                                                {selGroup.customValues.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 pt-1">
+                                                        {selGroup.customValues.map(cv => (
+                                                            <span key={cv} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground text-[10px] font-bold">
+                                                                {cv}
+                                                                <button type="button" onClick={() => handleRemoveCustomValue(selGroup.id, cv)} className="hover:text-destructive">
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            </span>
+                                                        ))}
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Nom / Option (ex: XL - Bleu)</Label>
-                                                    <Input
-                                                        value={v.name}
-                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'name', e.target.value)}
-                                                        placeholder="Ex: Taille XL"
-                                                        className="h-10 rounded-lg text-sm mt-1"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">SKU (Code Article)</Label>
-                                                    <Input
-                                                        value={v.sku}
-                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'sku', e.target.value)}
-                                                        placeholder="Optionnel"
-                                                        className="h-10 rounded-lg font-mono text-sm mt-1"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Prix (CFA) *</Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={v.price || ''}
-                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'price', Math.max(0, parseInt(e.target.value) || 0))}
-                                                        placeholder="0"
-                                                        className="h-10 rounded-lg font-bold text-sm mt-1"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Stock *</Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        value={v.stock || ''}
-                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantChange(v.id, 'stock', Math.max(0, parseInt(e.target.value) || 0))}
-                                                        placeholder="5"
-                                                        className="h-10 rounded-lg font-bold text-sm mt-1"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={handleAddVariant}
-                                    className="w-full rounded-xl border-dashed h-11 text-xs font-bold uppercase tracking-wider"
-                                >
-                                    + Ajouter une déclinaison
-                                </Button>
+
+                                <div className="pt-3 flex justify-end">
+                                    <Button
+                                        type="button"
+                                        onClick={handleGenerateMatrix}
+                                        className="h-10 px-6 rounded-xl bg-primary text-primary-foreground font-black text-xs uppercase tracking-wider gap-2 shadow-md shadow-primary/20"
+                                    >
+                                        <Sparkles className="w-4 h-4" />
+                                        Générer la grille des combinaisons
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </div>
+                )}
 
-                    {/* Section: Caractéristiques (Facet Values) */}
-                    {selectedCategoryIds.length > 0 && (
-                        <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                            <div className="px-6 py-4 bg-muted/30 border-b border-border flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                    <AlignLeft className="w-4 h-4 text-primary" />
-                                    <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Attributs & Spécifications</h3>
-                                </div>
-                                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Sélectionnez les détails techniques pour optimiser les filtres client.</p>
-                            </div>
-                            <div className="p-6 sm:p-8">
-                                {loadingFacets ? (
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground py-4 animate-pulse">
-                                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                                        <span>Recherche des attributs disponibles...</span>
+                {/* 3. Grille des Déclinaisons & Offres Commerciales */}
+                <div className="space-y-4">
+                    {variantOffers.map((variant, index) => (
+                        <div 
+                            key={variant.id || index}
+                            className={cn(
+                                "p-4 md:p-5 rounded-2xl border transition-all space-y-4",
+                                variant.enabled 
+                                    ? "bg-card border-border shadow-xs" 
+                                    : "bg-muted/20 border-border/50 opacity-60"
+                            )}
+                        >
+                            {/* Variant-specific correction callout on top */}
+                            {variant.rejectionReason && (
+                                <div className="p-3.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200 font-medium flex items-start gap-2.5 animate-in fade-in">
+                                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                                    <div className="space-y-0.5">
+                                        <span className="font-bold uppercase tracking-wider text-[10px] text-amber-700 dark:text-amber-400 block">
+                                            Demande de correction de l'administrateur :
+                                        </span>
+                                        <p className="text-xs leading-relaxed">{variant.rejectionReason}</p>
                                     </div>
-                                ) : allowedFacets.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground py-4 italic">Aucun attribut spécifique n'est disponible pour ces catégories.</p>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {allowedFacets.map((facet: any) => {
-                                            const selectedFvId = facetValueIds.find((id: string) =>
-                                                facet.values?.some((fv: any) => String(fv.id) === id)
-                                            );
-                                            const isBadgeStyle = facet.values && facet.values.length <= 6;
-                                            return (
-                                                <div key={facet.id} className="p-4 border border-border/60 rounded-xl bg-muted/10 hover:bg-muted/20 transition-colors">
-                                                    <Label className="text-xs font-bold text-foreground mb-2 block">
-                                                        {facet.name}
-                                                        <span className="text-[10px] text-muted-foreground font-normal ml-1">(Sélectionnez une option)</span>
-                                                    </Label>
-                                                    {(() => {
-                                                        const autreKey = `autre:${facet.id}`;
-                                                        const autreTextKey = facetValueIds.find((id: string) => id.startsWith(`autre:${facet.id}:`));
-                                                        const autreSelected = selectedFvId === autreKey || !!autreTextKey;
-                                                        return isBadgeStyle ? (
-                                                            <div className="space-y-2">
-                                                                <div className="flex flex-wrap gap-2 mt-2">
-                                                                    {facet.values.map((fv: any) => {
-                                                                        const isSelected = selectedFvId === String(fv.id);
-                                                                        return (
-                                                                            <button
-                                                                                key={String(fv.id)}
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    setFacetValueIds((prev: string[]) => {
-                                                                                        const without = prev.filter(id => !facet.values?.some((fv2: any) => String(fv2.id) === id) && !id.startsWith(`autre:${facet.id}`));
-                                                                                        return isSelected ? without : [...without, String(fv.id)];
-                                                                                    });
-                                                                                }}
-                                                                                className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 cursor-pointer ${
-                                                                                    isSelected
-                                                                                        ? "bg-primary text-primary-foreground border-primary shadow-sm hover:bg-primary/95"
-                                                                                        : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                                                                                }`}
-                                                                            >
-                                                                                {fv.name}
-                                                                            </button>
-                                                                        );
-                                                                    })}
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            setFacetValueIds((prev: string[]) => {
-                                                                                const without = prev.filter(id => !facet.values?.some((fv2: any) => String(fv2.id) === id) && !id.startsWith(`autre:${facet.id}`));
-                                                                                return autreSelected ? without : [...without, autreKey];
-                                                                            });
-                                                                        }}
-                                                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border border-dashed transition-all duration-200 cursor-pointer ${
-                                                                            autreSelected
-                                                                                ? "bg-primary/10 text-primary border-primary"
-                                                                                : "bg-background text-muted-foreground border-muted-foreground/40 hover:bg-muted"
-                                                                        }`}
-                                                                    >
-                                                                        ✏️ Autre
-                                                                    </button>
-                                                                </div>
-                                                                {autreSelected && (
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder={`Préciser la valeur pour ${facet.name}…`}
-                                                                        defaultValue={autreTextKey ? autreTextKey.split(':').slice(2).join(':') : ''}
-                                                                        className="w-full h-10 rounded-xl border border-primary/40 bg-background px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                                                        onChange={(e) => {
-                                                                            const val = e.target.value;
-                                                                            setFacetValueIds((prev: string[]) => {
-                                                                                const without = prev.filter(id => !id.startsWith(`autre:${facet.id}`));
-                                                                                return val.trim() ? [...without, `autre:${facet.id}:${val}`] : [...without, autreKey];
-                                                                            });
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="space-y-2">
-                                                                <Select
-                                                                    value={autreSelected ? autreKey : (selectedFvId || '')}
-                                                                    onValueChange={(v) => {
-                                                                        setFacetValueIds((prev: string[]) => {
-                                                                            const without = prev.filter(id => !facet.values?.some((fv: any) => String(fv.id) === id) && !id.startsWith(`autre:${facet.id}`));
-                                                                            return v ? [...without, v] : without;
-                                                                        });
-                                                                    }}
-                                                                >
-                                                                    <SelectTrigger className="h-11 rounded-xl bg-background border-border">
-                                                                        <SelectValue placeholder={`Sélectionner ${facet.name}`} />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent className="rounded-xl">
-                                                                        {facet.values?.map((fv: any) => (
-                                                                            <SelectItem key={String(fv.id)} value={String(fv.id)}>{fv.name}</SelectItem>
-                                                                        ))}
-                                                                        <SelectItem value={autreKey}>✏️ Autre</SelectItem>
-                                                                    </SelectContent>
-                                                                </Select>
-                                                                {autreSelected && (
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder={`Préciser la valeur pour ${facet.name}…`}
-                                                                        defaultValue={autreTextKey ? autreTextKey.split(':').slice(2).join(':') : ''}
-                                                                        className="w-full h-10 rounded-xl border border-primary/40 bg-background px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                                                        onChange={(e) => {
-                                                                            const val = e.target.value;
-                                                                            setFacetValueIds((prev: string[]) => {
-                                                                                const without = prev.filter(id => !id.startsWith(`autre:${facet.id}`));
-                                                                                return val.trim() ? [...without, `autre:${facet.id}:${val}`] : [...without, autreKey];
-                                                                            });
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Right Column: Pricing, Inventory & Media (5 Cols) */}
-                <div className="lg:col-span-5 space-y-8">
-                    {/* Section: Tarification & Stock */}
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <Coins className="w-4 h-4 text-primary" />
-                            <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Tarification & Stock</h3>
-                        </div>
-                        <div className="p-6 sm:p-8 space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="price" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix de vente (CFA) *</Label>
-                                    <Input
-                                        id="price"
-                                        type="number"
-                                        min="0"
-                                        required
-                                        className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2"
-                                        value={formData.price}
-                                        onChange={e => setFormData({ ...formData, price: Math.max(0, parseInt(e.target.value) || 0) })}
-                                    />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="stock" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stock Restant</Label>
-                                    <Input
-                                        id="stock"
-                                        type="number"
-                                        min="0"
-                                        required
-                                        className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2"
-                                        value={formData.stock}
-                                        onChange={e => setFormData({ ...formData, stock: Math.max(0, parseInt(e.target.value) || 0) })}
-                                    />
-                                </div>
-                            </div>
+                            )}
 
-                            {/* Promotion Config */}
-                            <div className="pt-6 border-t border-border space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
                                 <div className="flex items-center gap-3">
-                                    <input
-                                        type="checkbox"
-                                        id="onPromotion"
-                                        checked={formData.onPromotion}
-                                        onChange={(e) => setFormData({ ...formData, onPromotion: e.target.checked, promotionalPrice: e.target.checked ? formData.promotionalPrice : 0 })}
-                                        className="w-5 h-5 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                                    />
-                                    <Label htmlFor="onPromotion" className="text-xs font-bold uppercase tracking-wider text-foreground cursor-pointer">Activer une promotion</Label>
+                                    {/* Variant Image Upload Button */}
+                                    <div className="relative group shrink-0">
+                                        <label className="w-14 h-14 rounded-xl border border-dashed border-border group-hover:border-primary flex flex-col items-center justify-center bg-muted/30 cursor-pointer overflow-hidden transition-all relative">
+                                            {variant.featuredAssetPreview ? (
+                                                <img 
+                                                    src={variant.featuredAssetPreview} 
+                                                    alt={variant.name} 
+                                                    className="w-full h-full object-cover" 
+                                                />
+                                            ) : (
+                                                <Camera className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            )}
+                                            {uploadingVariantId === variant.id ? (
+                                                <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                                                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                                </div>
+                                            ) : (
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                    <UploadCloud className="w-4 h-4 text-white" />
+                                                </div>
+                                            )}
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                className="hidden" 
+                                                disabled={uploadingVariantId === variant.id}
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleVariantImageUpload(variant.id, file);
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="font-bold text-sm text-foreground">
+                                            {variant.name}
+                                        </h4>
+                                        <span className="text-[10px] text-muted-foreground font-mono">
+                                            Déclinaison #{index + 1}
+                                        </span>
+                                    </div>
                                 </div>
 
-                                {formData.onPromotion && (
-                                    <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Promotionnel (CFA)</Label>
-                                            <Input
-                                                type="number"
-                                                min="0"
-                                                value={formData.promotionalPrice || ''}
-                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                                                    const value = Math.max(0, parseInt(e.target.value) || 0);
-                                                    if (value > formData.price) {
-                                                        return; // Prevent promotional price from being higher than original price
-                                                    }
-                                                    setFormData({ ...formData, promotionalPrice: value });
-                                                }}
-                                                className="h-12 rounded-xl bg-card border-border font-bold text-lg focus-visible:ring-2"
-                                                max={formData.price}
-                                            />
-                                            {formData.promotionalPrice > formData.price && (
-                                                <p className="text-xs text-destructive">Doit être inférieur au prix initial</p>
-                                            )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Réduction</Label>
-                                            <div className="h-12 rounded-xl bg-muted/30 border border-border flex items-center px-4">
-                                                <Percent className="w-4 h-4 text-primary mr-2" />
-                                                <span className="font-bold text-lg text-primary">
-                                                    {formData.price > 0 && formData.promotionalPrice > 0
-                                                        ? Math.round(((formData.price - formData.promotionalPrice) / formData.price) * 100)
-                                                        : 0}%
+                                <div className="flex items-center gap-3 self-end sm:self-auto">
+                                    <div className="flex items-center gap-2">
+                                        <Switch
+                                            checked={variant.enabled}
+                                            onCheckedChange={(checked) => handleVariantChange(variant.id, 'enabled', checked)}
+                                            id={`enable-${variant.id}`}
+                                        />
+                                        <Label htmlFor={`enable-${variant.id}`} className="text-xs font-semibold cursor-pointer">
+                                            {variant.enabled ? 'Actif' : 'Désactivé'}
+                                        </Label>
+                                    </div>
+
+                                    {variantOffers.length > 1 && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleRemoveVariant(variant.id)}
+                                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Inputs Matrix */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                {/* Regular Price */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-foreground flex items-center gap-1">
+                                        <Tag className="w-3.5 h-3.5 text-primary" />
+                                        Prix normal (FCFA) *
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        required
+                                        value={variant.price || ''}
+                                        onChange={(e) => handleVariantChange(variant.id, 'price', parseInt(e.target.value) || 0)}
+                                        placeholder="Ex: 5000"
+                                        className="h-9 text-xs font-bold rounded-xl"
+                                    />
+                                </div>
+
+                                {/* Stock */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-foreground flex items-center gap-1">
+                                        <Package className="w-3.5 h-3.5 text-primary" />
+                                        Stock disponible *
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={0}
+                                        required
+                                        value={variant.stock !== undefined ? variant.stock : ''}
+                                        onChange={(e) => handleVariantChange(variant.id, 'stock', parseInt(e.target.value) || 0)}
+                                        placeholder="Ex: 10"
+                                        className="h-9 text-xs font-bold rounded-xl"
+                                    />
+                                </div>
+
+                                {/* SKU */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-foreground">
+                                        SKU / Réf. Vendeur
+                                    </Label>
+                                    <Input
+                                        type="text"
+                                        value={variant.sku || ''}
+                                        onChange={(e) => handleVariantChange(variant.id, 'sku', e.target.value)}
+                                        placeholder="Ex: REF-ROUGE-L"
+                                        className="h-9 text-xs rounded-xl"
+                                    />
+                                </div>
+
+                                {/* État / Condition */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-foreground">
+                                        État du produit
+                                    </Label>
+                                    <Select 
+                                        value={variant.condition || 'NEW'} 
+                                        onValueChange={(val) => handleVariantChange(variant.id, 'condition', val)}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs rounded-xl">
+                                            <SelectValue placeholder="État" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="NEW">Neuf</SelectItem>
+                                            <SelectItem value="USED_LIKE_NEW">Comme neuf</SelectItem>
+                                            <SelectItem value="USED_GOOD">Bon état</SelectItem>
+                                            <SelectItem value="REFURBISHED">Reconditionné</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Promotional & Delivery Details */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                                {/* Enhanced Promotion Toggle & Box */}
+                                <div className={cn(
+                                    "col-span-1 md:col-span-2 p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5",
+                                    variant.onPromotion 
+                                        ? "bg-rose-500/5 border-rose-500/30 shadow-xs" 
+                                        : "bg-muted/30 border-border/70"
+                                )}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn(
+                                                "w-7 h-7 rounded-lg flex items-center justify-center",
+                                                variant.onPromotion ? "bg-rose-500 text-white" : "bg-muted text-muted-foreground"
+                                            )}>
+                                                <Percent className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor={`promo-${variant.id}`} className="text-xs font-bold flex items-center gap-1.5 cursor-pointer text-foreground">
+                                                    Activer une promotion
+                                                </Label>
+                                                <span className="text-[10px] text-muted-foreground">
+                                                    Appliquer un prix réduit et attirer plus de clients
                                                 </span>
                                             </div>
                                         </div>
+                                        <Switch
+                                            id={`promo-${variant.id}`}
+                                            checked={variant.onPromotion}
+                                            onCheckedChange={(checked) => handleVariantChange(variant.id, 'onPromotion', checked)}
+                                        />
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
 
-                    {/* Section: Photos */}
-                    <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 bg-muted/30 border-b border-border flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4 text-primary" />
-                            <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Gestion des photos</h3>
-                        </div>
-                        <div className="p-6 sm:p-8 space-y-6">
-                            {/* Gallery Preview Grid */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {previewImages.map((asset: any) => (
-                                    <div key={asset.id} className="group relative aspect-[4/3] rounded-xl overflow-hidden border border-border/80 shadow-inner">
-                                        <img src={asset.preview} alt="Produit" className="w-full h-full object-cover" />
-                                        <button 
-                                            type="button"
-                                            onClick={() => setFeaturedAssetId(asset.id)}
-                                            className={`absolute top-2 left-2 p-1.5 rounded-full shadow-md transition-all cursor-pointer ${
-                                                featuredAssetId === asset.id 
-                                                    ? 'bg-primary text-white' 
-                                                    : 'bg-white/90 text-muted-foreground hover:bg-white'
-                                            }`}
-                                            title={featuredAssetId === asset.id ? 'Photo principale' : 'Définir comme principale'}
+                                    {variant.onPromotion ? (
+                                        <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                                                <div>
+                                                    <Label className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                                                        Prix Promo (FCFA) *
+                                                    </Label>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        placeholder="Ex: 4000"
+                                                        value={variant.promotionalPrice || ''}
+                                                        onChange={(e) => handleVariantChange(variant.id, 'promotionalPrice', parseInt(e.target.value) || 0)}
+                                                        className="h-9 text-xs font-bold text-rose-600 bg-background border-rose-200 dark:border-rose-900/50 rounded-xl mt-1"
+                                                    />
+                                                </div>
+                                                {variant.price && variant.promotionalPrice && variant.promotionalPrice < variant.price ? (
+                                                    <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-0.5">
+                                                        <div className="text-[11px] font-black flex items-center justify-between">
+                                                            <span>Remise : -{Math.round(((variant.price - variant.promotionalPrice) / variant.price) * 100)}%</span>
+                                                            <span className="line-through text-muted-foreground text-[10px]">{variant.price.toLocaleString('fr-FR')} F</span>
+                                                        </div>
+                                                        <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                                                            Économie : {(variant.price - variant.promotionalPrice).toLocaleString('fr-FR')} FCFA
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[10px] text-muted-foreground italic">
+                                                        Indiquez un prix inférieur au prix normal ({variant.price || 0} FCFA).
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-[10px] text-muted-foreground italic">
+                                            Aucune promotion active sur cette déclinaison.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Délai de livraison */}
+                                <div className="p-3.5 rounded-2xl bg-muted/30 border border-border/70 space-y-2 flex flex-col justify-between">
+                                    <Label className="text-xs font-bold flex items-center gap-1.5">
+                                        <Truck className="w-3.5 h-3.5 text-primary" />
+                                        Délai d&apos;expédition estimé
+                                    </Label>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            value={variant.deliveryTimeValue || 2}
+                                            onChange={(e) => handleVariantChange(variant.id, 'deliveryTimeValue', parseInt(e.target.value) || 1)}
+                                            className="h-8 text-xs font-bold rounded-lg"
+                                        />
+                                        <Select
+                                            value={variant.deliveryTimeUnit || 'DAYS'}
+                                            onValueChange={(val) => handleVariantChange(variant.id, 'deliveryTimeUnit', val)}
                                         >
-                                            <Star className={`w-3.5 h-3.5 ${featuredAssetId === asset.id ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={() => removeAsset(asset.id)}
-                                            className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-md p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md cursor-pointer hover:bg-destructive/90"
-                                            title="Supprimer la photo"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                            <SelectTrigger className="h-8 text-xs rounded-lg">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="HOURS">Heures</SelectItem>
+                                                <SelectItem value="DAYS">Jours</SelectItem>
+                                                <SelectItem value="WEEKS">Semaines</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
-                                ))}
-                            </div>
-
-                            {/* Uploader */}
-                            <div className="p-4 rounded-xl border border-border border-dashed bg-muted/5">
-                                <ImageUploader 
-                                    assets={previewImages}
-                                    featuredAssetId={featuredAssetId}
-                                    onAssetsChange={(newAssets) => {
-                                        setPreviewImages(newAssets);
-                                        setAssetIds(newAssets.map(a => a.id));
-                                    }}
-                                    onFeaturedChange={setFeaturedAssetId}
-                                />
-                            </div>
-
-                            {/* Actions Buttons */}
-                            <div className="pt-6 border-t border-border flex flex-col gap-3">
-                                <Button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-xs uppercase tracking-widest shadow-lg shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
-                                >
-                                    <Save className="w-4 h-4" />
-                                    {isSubmitting ? 'Enregistrement en cours...' : 'Enregistrer les modifications'}
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() => router.back()}
-                                    className="w-full h-11 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-                                >
-                                    Annuler & Retour
-                                </Button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    ))}
                 </div>
             </div>
+
+            {/* 4. Footer Submit Action */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border">
+                <Link href="/dashboard/products" className="w-full sm:w-auto">
+                    <Button type="button" variant="outline" className="w-full sm:w-auto h-11 px-6 rounded-xl font-bold text-xs">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Retour à mes produits
+                    </Button>
+                </Link>
+
+                <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto h-11 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-widest gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+                >
+                    {isSubmitting ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Enregistrement...
+                        </>
+                    ) : (
+                        <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            Enregistrer mes offres
+                        </>
+                    )}
+                </Button>
+            </div>
+
         </form>
     );
 }

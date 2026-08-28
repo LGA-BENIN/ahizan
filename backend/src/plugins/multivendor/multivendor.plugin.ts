@@ -13,9 +13,12 @@ import { PlatformSettingsService } from './service/platform-settings.service';
 import { OrderStatusService } from './service/order-status.service';
 import { LikeService } from './service/like.service';
 import { ChatService } from './service/chat.service';
+import { SellerOfferService } from './service/seller-offer.service';
+import { ReplacementEngineService } from './service/replacement-engine.service';
+import { AiNormalizerService } from './service/ai-normalizer.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
 import { VendorResolver, VendorAdminResolver, WithdrawalRequestEntityResolver } from './api/vendor.resolver';
-import { VendorShopResolver, ProductVariantShopResolver } from './api/vendor-shop.resolver';
+import { VendorShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver } from './api/vendor-shop.resolver';
 import { VendorShopApiResolver } from './api/vendor-shop-api.resolver';
 import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './api/platform-settings.resolver';
 import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-status.resolver';
@@ -25,11 +28,12 @@ import { ChatAdminResolver } from './api/chat-admin.resolver';
 import { gql } from 'graphql-tag';
 import { GeoEnginePlugin } from '../geo-engine/geo-engine.plugin';
 import { AhizanNotificationsPlugin } from '../notifications/ahizan-notifications.plugin';
+import { SellerOffer } from './entities/seller-offer.entity';
 
 @VendurePlugin({
     imports: [PluginCommonModule, GeoEnginePlugin, AhizanNotificationsPlugin],
 
-    entities: [Vendor, PlatformSettings, OrderStatus, VendorLike, ProductLike, ChatMessage, WithdrawalRequest],
+    entities: [Vendor, PlatformSettings, OrderStatus, VendorLike, ProductLike, ChatMessage, WithdrawalRequest, SellerOffer],
 
     providers: [
         VendorService,
@@ -38,6 +42,9 @@ import { AhizanNotificationsPlugin } from '../notifications/ahizan-notifications
         OrderStatusService,
         LikeService,
         ChatService,
+        SellerOfferService,
+        ReplacementEngineService,
+        AiNormalizerService,
     ],
 
     dashboard: './dashboard',
@@ -50,7 +57,7 @@ ${commonApiExtensions}
 
 ${adminApiExtensions}
         `,
-        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver, WithdrawalRequestEntityResolver],
+        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver, WithdrawalRequestEntityResolver],
     },
 
     shopApiExtensions: {
@@ -59,7 +66,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductVariantShopResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver, WithdrawalRequestEntityResolver],
+        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductVariantShopResolver, SellerOfferEntityResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver, WithdrawalRequestEntityResolver],
     },
 
     configuration: (config: any) => {
@@ -150,6 +157,24 @@ ${shopApiExtensions}
             public: true,
             nullable: true,
             label: [{ languageCode: 'fr' as any, value: 'Motif de rejet' }],
+        });
+
+        pushUnique(config.customFields.Product, {
+            name: 'fqsScore',
+            type: 'int',
+            public: true,
+            nullable: true,
+            defaultValue: 0,
+            label: [{ languageCode: 'fr' as any, value: 'Score de Qualité Fiche (FQS)' }],
+        });
+
+        pushUnique(config.customFields.Product, {
+            name: 'aiNormalized',
+            type: 'boolean',
+            public: true,
+            nullable: true,
+            defaultValue: false,
+            label: [{ languageCode: 'fr' as any, value: 'Normalisé par IA' }],
         });
 
         // ---------------------------

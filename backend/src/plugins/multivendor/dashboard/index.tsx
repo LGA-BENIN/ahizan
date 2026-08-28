@@ -12,6 +12,7 @@ import { PaymentManagementComponent } from './payment-management';
 import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
 import { VendorSelector } from './vendor-selector';
 import { SuivreDiscussionsComponent } from './suivre-discussions';
+import { EmployeeRolesManagementComponent } from './employee-roles-management';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -157,6 +158,20 @@ export default defineDashboardExtension({
         {
             path: 'extensions/suivre-discussions',
             component: withQueryClient(SuivreDiscussionsComponent),
+        },
+        {
+            path: 'roles-employees',
+            component: withQueryClient(EmployeeRolesManagementComponent),
+            navMenuItem: {
+                id: 'roles-employees',
+                title: 'Rôles & Employés',
+                sectionId: 'marketplace',
+                url: '/roles-employees',
+            },
+        },
+        {
+            path: 'extensions/roles-employees',
+            component: withQueryClient(EmployeeRolesManagementComponent),
         },
     ],
     navSections: [

@@ -489,6 +489,9 @@ export const GetOrderDetailQuery = graphql(`
                 sellerStatus
                 adminStatus
                 vendorStatuses
+                isConsolidated
+                hubArrivalDate
+                deliveryMissionStatus
             }
             customer {
                 id

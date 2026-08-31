@@ -14,26 +14,13 @@ import {
     AlertCircle, 
     Check, 
     X,
-    HelpCircle,
-    Truck,
     Printer,
-    Send
+    Boxes
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { updateOrderLineSellerStatusAction, fulfillVendorOrderAction } from '@/app/dashboard/orders/actions';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { updateOrderLineSellerStatusAction, updateOrderSellerStatusAction } from '@/app/dashboard/orders/actions';
 
 interface OrderDetailClientProps {
     order: any;
@@ -41,10 +28,6 @@ interface OrderDetailClientProps {
 
 export default function OrderDetailClient({ order }: OrderDetailClientProps) {
     const [loading, setLoading] = useState(false);
-    const [isFulfillModalOpen, setIsFulfillModalOpen] = useState(false);
-    const [carrier, setCarrier] = useState('Livreur Express (Moto)');
-    const [customCarrier, setCustomCarrier] = useState('');
-    const [trackingCode, setTrackingCode] = useState('');
     const router = useRouter();
 
     const lines = order.lines || [];
@@ -58,6 +41,8 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         return s === 'refused' || s === 'reassigning' || s === 'reassigned_to_other';
     });
     const hasPendingLines = pendingLines.length > 0;
+    const allLinesConfirmed = lines.length > 0 && lines.every((l: any) => (l.customFields?.sellerStatus || 'pending') === 'confirmed');
+    const isReadyForPickup = order.customFields?.sellerStatus === 'ready_for_pickup' || order.customFields?.sellerStatus === 'confirmed';
     
     // Validate All button is shown only if there are pending lines and NO rejected/reassigned lines
     const showValidateAll = !hasRejectedLines && hasPendingLines;
@@ -68,7 +53,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         try {
             const res = await updateOrderLineSellerStatusAction(lineId, status);
             if (res.success) {
-                toast.success(status === 'confirmed' ? "Article validé." : "Article refusé (mis en réassignation).");
+                toast.success(status === 'confirmed' ? "Article validé et préparé." : "Article refusé (mis en réassignation).");
                 router.refresh();
             } else {
                 toast.error(res.error || "Erreur lors de la mise à jour.");
@@ -91,7 +76,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
             if (errors.length > 0) {
                 toast.error("Certains articles n'ont pas pu être validés.");
             } else {
-                toast.success("Tous les articles ont été validés avec succès !");
+                toast.success("Tous les articles ont été validés et préparés !");
             }
             router.refresh();
         } catch (e: any) {
@@ -101,23 +86,16 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         }
     };
 
-    // Handle order fulfillment / shipping
-    const handleFulfillOrder = async () => {
-        const finalCarrier = carrier === 'Autre' ? customCarrier.trim() : carrier;
-        if (!finalCarrier) {
-            toast.error("Veuillez renseigner le nom du transporteur ou du livreur.");
-            return;
-        }
-
+    // Handle marking order package ready for Ahizan logistics pickup
+    const handleMarkReadyForPickup = async () => {
         setLoading(true);
         try {
-            const res = await fulfillVendorOrderAction(order.id, finalCarrier, trackingCode);
+            const res = await updateOrderSellerStatusAction(order.id, 'ready_for_pickup');
             if (res.success) {
-                toast.success("Commande marquée comme expédiée ! Le client a été notifié.");
-                setIsFulfillModalOpen(false);
+                toast.success("Colis marqué comme prêt ! Les équipes de ramassage Ahizan ont été notifiées.");
                 router.refresh();
             } else {
-                toast.error(res.error || "Erreur lors de l'enregistrement de l'expédition.");
+                toast.error(res.error || "Erreur lors de la notification.");
             }
         } catch (e: any) {
             toast.error("Erreur de communication avec le serveur.");
@@ -152,6 +130,10 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         }
     };
 
+    const subTotal = order.subTotalWithTax || order.subTotal || 0;
+    const shipping = order.shippingWithTax || order.shipping || 0;
+    const total = subTotal + shipping;
+
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 print:m-0 print:p-0">
             {/* Header */}
@@ -185,13 +167,14 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                             Bon de livraison
                         </Button>
 
-                        {!isShippedOrDelivered && order.state !== 'Cancelled' && (
+                        {allLinesConfirmed && !isShippedOrDelivered && (
                             <Button 
-                                onClick={() => setIsFulfillModalOpen(true)}
+                                onClick={handleMarkReadyForPickup}
+                                disabled={loading || isReadyForPickup}
                                 className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-xl font-bold uppercase text-xs tracking-wider h-11 px-5 flex items-center gap-2 shadow-lg shadow-brand-navy/20"
                             >
-                                <Truck className="w-4 h-4" />
-                                Expédier la commande
+                                <Boxes className="w-4 h-4" />
+                                {isReadyForPickup ? 'Colis Prêt pour Ramassage' : '📦 Colis prêt pour ramassage Ahizan'}
                             </Button>
                         )}
 
@@ -199,9 +182,10 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                             <Button 
                                 onClick={handleValidateAll}
                                 disabled={loading}
-                                className="bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold uppercase text-xs tracking-wider h-11 px-5"
+                                className="bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold uppercase text-xs tracking-wider h-11 px-5 flex items-center gap-2"
                             >
-                                {loading ? 'Validation...' : 'Valider Tout'}
+                                <Check className="w-4 h-4" />
+                                {loading ? 'Validation...' : 'Valider & Préparer Tout'}
                             </Button>
                         )}
                         {!showValidateAll && hasPendingLines && (
@@ -213,80 +197,6 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     </div>
                 </div>
             </div>
-
-            {/* Modal Expédition Fulfillment */}
-            <Dialog open={isFulfillModalOpen} onOpenChange={setIsFulfillModalOpen}>
-                <DialogContent className="sm:max-w-[480px] rounded-3xl">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-serif font-black flex items-center gap-2">
-                            <Truck className="w-5 h-5 text-primary" />
-                            Expédier la commande #{order.code}
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-muted-foreground font-medium">
-                            Renseignez les détails du transporteur pour notifier automatiquement le client par SMS, Email et Notification Push.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-3">
-                        <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider">Transporteur / Livreur</Label>
-                            <Select value={carrier} onValueChange={setCarrier}>
-                                <SelectTrigger className="rounded-xl h-11">
-                                    <SelectValue placeholder="Sélectionner le mode de livraison" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl">
-                                    <SelectItem value="Livreur Express (Moto)">Livreur Express (Moto)</SelectItem>
-                                    <SelectItem value="Ahizan Express">Ahizan Express</SelectItem>
-                                    <SelectItem value="DHL Express">DHL Express</SelectItem>
-                                    <SelectItem value="Retrait en Boutique / Main propre">Retrait en Boutique / Main propre</SelectItem>
-                                    <SelectItem value="Autre">Autre transporteur...</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {carrier === 'Autre' && (
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider">Nom du transporteur</Label>
-                                <Input 
-                                    placeholder="Ex: Chronopost, Transporteur Privé" 
-                                    value={customCarrier} 
-                                    onChange={(e: any) => setCustomCarrier(e.target.value)}
-                                    className="rounded-xl h-11"
-                                />
-                            </div>
-                        )}
-
-                        <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider">N° de Suivi / Contact Livreur (optionnel)</Label>
-                            <Input 
-                                placeholder="Ex: +229 97 00 00 00 ou N° de colis" 
-                                value={trackingCode} 
-                                onChange={(e: any) => setTrackingCode(e.target.value)}
-                                className="rounded-xl h-11"
-                            />
-                        </div>
-                    </div>
-
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button 
-                            variant="outline" 
-                            onClick={() => setIsFulfillModalOpen(false)}
-                            className="rounded-xl h-11 font-bold text-xs uppercase"
-                        >
-                            Annuler
-                        </Button>
-                        <Button 
-                            onClick={handleFulfillOrder}
-                            disabled={loading}
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl h-11 px-6 font-bold text-xs uppercase flex items-center gap-2"
-                        >
-                            <Send className="w-4 h-4" />
-                            {loading ? 'Expédition...' : 'Confirmer l\'expédition'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Customer Info */}
@@ -349,15 +259,15 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     <div className="space-y-3">
                         <div className="flex justify-between items-center py-2 border-b border-border/50">
                             <span className="text-xs font-bold text-muted-foreground uppercase">Sous-total</span>
-                            <span className="text-sm font-bold">{formatPrice(order.subTotalWithTax)}</span>
+                            <span className="text-sm font-bold">{formatPrice(subTotal)}</span>
                         </div>
                         <div className="flex justify-between items-center py-2 border-b border-border/50">
                             <span className="text-xs font-bold text-muted-foreground uppercase">Livraison</span>
-                            <span className="text-sm font-bold">{formatPrice(order.shippingWithTax)}</span>
+                            <span className="text-sm font-bold">{formatPrice(shipping)}</span>
                         </div>
                         <div className="pt-2 flex justify-between items-center">
                             <span className="text-sm font-black text-brand-navy uppercase">Total</span>
-                            <span className="text-2xl font-serif font-black text-brand-navy underline decoration-brand-red decoration-4 transition-all">{formatPrice(order.totalWithTax)}</span>
+                            <span className="text-2xl font-serif font-black text-brand-navy underline decoration-brand-red decoration-4 transition-all">{formatPrice(total)}</span>
                         </div>
                     </div>
                 </div>

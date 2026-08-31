@@ -36,7 +36,18 @@ export class PromotionalOrderItemPriceCalculationStrategy implements OrderItemPr
                 }
             });
             if (offer) {
-                price = offer.price;
+                price = offer.onPromotion && offer.promotionalPrice ? Number(offer.promotionalPrice) : Number(offer.price);
+            }
+        } else {
+            // Find lowest seller offer for this variant if no vendor pre-assigned
+            const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+                where: {
+                    productVariant: { id: productVariant.id }
+                },
+                order: { price: 'ASC' }
+            });
+            if (offer) {
+                price = offer.onPromotion && offer.promotionalPrice ? Number(offer.promotionalPrice) : Number(offer.price);
             }
         }
 

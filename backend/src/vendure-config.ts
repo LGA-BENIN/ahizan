@@ -115,6 +115,30 @@ export const config: any = {
         User: [
             { name: 'passwordResetCodeExpiresAt', type: 'datetime', public: false, label: [{ languageCode: LanguageCode.fr, value: 'Expiration du code de réinitialisation' }] },
         ],
+        StockLocation: [
+            { name: 'latitude', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Latitude Boutique' }] },
+            { name: 'longitude', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Longitude Boutique' }] },
+            { name: 'city', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Ville' }] },
+            { name: 'neighborhood', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Quartier' }] },
+            { name: 'vendorId', type: 'int', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'ID Vendeur Propriétaire' }] },
+            { name: 'openingHours', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Horaires d\'ouverture' }] },
+        ],
+        Channel: [
+            { name: 'vendorId', type: 'int', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'ID Vendeur Associé' }] },
+            { name: 'commissionRate', type: 'float', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Taux de commission (%)' }] },
+            { name: 'kycStatus', type: 'string', nullable: true, public: true, defaultValue: 'PENDING', label: [{ languageCode: LanguageCode.fr, value: 'Statut KYC' }] },
+        ],
+        Order: [
+            { name: 'deliveryOtp', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Code OTP de Livraison' }] },
+            { name: 'isConsolidated', type: 'boolean', nullable: true, public: true, defaultValue: false, label: [{ languageCode: LanguageCode.fr, value: 'Consolidé au Hub' }] },
+            { name: 'hubArrivalDate', type: 'datetime', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Date arrivée au Hub' }] },
+            { name: 'replacementHoldStatus', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Statut Remplacement' }] },
+            { name: 'deliveryMissionStatus', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Statut Mission Logistique' }] },
+        ],
+        OrderLine: [
+            { name: 'sellerOfferId', type: 'string', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'ID Offre Vendeur' }] },
+            { name: 'preparationStatus', type: 'string', nullable: true, public: true, defaultValue: 'PENDING', label: [{ languageCode: LanguageCode.fr, value: 'Statut Préparation' }] },
+        ],
         ProductVariant: [
             { name: 'compareAtPrice', type: 'int', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Prix de comparaison (prix barré) en centimes' }] },
             { name: 'onPromotion', type: 'boolean', nullable: true, public: true, defaultValue: false, description: [{ languageCode: LanguageCode.fr, value: 'Indique si le produit est en promotion' }] },
@@ -124,6 +148,8 @@ export const config: any = {
             { name: 'deliveryTimeValue', type: 'int', nullable: true, public: true, defaultValue: 2, description: [{ languageCode: LanguageCode.fr, value: 'Délai de livraison numérique' }] },
             { name: 'deliveryTimeUnit', type: 'string', nullable: true, public: true, defaultValue: 'DAYS', description: [{ languageCode: LanguageCode.fr, value: 'Unité du délai de livraison' }] },
             { name: 'condition', type: 'string', nullable: true, public: true, defaultValue: 'NEW', description: [{ languageCode: LanguageCode.fr, value: 'État du produit' }] },
+            { name: 'vendorSku', type: 'string', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'SKU propre à la boutique du vendeur' }] },
+            { name: 'ean', type: 'string', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Code EAN-13 / Code-barres international' }] },
         ],
         Product: [
             { name: 'shortDescription', type: 'text', nullable: true, public: true, label: [{ languageCode: LanguageCode.fr, value: 'Petite description' }] },

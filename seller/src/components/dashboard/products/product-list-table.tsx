@@ -17,6 +17,8 @@ import {
     ChevronRight,
     AlertTriangle,
     AlertCircle,
+    MessageSquare,
+    X,
     Sparkles
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -41,6 +43,13 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
 
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+    const [activeRemarkVariant, setActiveRemarkVariant] = useState<{
+        variantName: string;
+        productName: string;
+        remark: string;
+        status?: string;
+        productId: string;
+    } | null>(null);
     const pageSize = 10;
 
     // Reset all filters
@@ -164,16 +173,10 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2.5 shrink-0">
-                    <Link href="/dashboard/products/affiliate">
-                        <Button variant="outline" className="h-11 px-5 rounded-xl border-border bg-card hover:bg-muted font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 uppercase text-[10px] tracking-widest cursor-pointer">
-                            <Sparkles className="w-4 h-4 text-primary" />
-                            S'affilier (Greffage)
-                        </Button>
-                    </Link>
                     <Link href="/dashboard/products/new">
-                        <Button className="h-11 px-6 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold flex items-center gap-2 shadow-md transition-all active:scale-95 uppercase text-[10px] tracking-widest cursor-pointer">
-                            <Plus className="w-4 h-4" />
-                            Nouveau produit
+                        <Button className="h-11 px-6 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold flex items-center gap-2.5 shadow-md transition-all active:scale-95 uppercase text-xs tracking-wider cursor-pointer">
+                            <Plus className="w-5 h-5" />
+                            Ajouter un produit
                         </Button>
                     </Link>
                 </div>
@@ -475,15 +478,43 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                                                     const adminReason = v.customFields?.rejectionReason;
 
                                                                     return (
-                                                                        <div key={v.id || vIdx} className="p-3.5 rounded-xl bg-muted/20 border border-border/80 flex flex-col justify-between gap-2.5 text-xs">
-                                                                            {/* Admin Rejection / Correction comment */}
+                                                                        <div key={v.id || vIdx} className={cn(
+                                                                            "p-3.5 rounded-xl border flex flex-col justify-between gap-2.5 text-xs transition-all",
+                                                                            adminReason 
+                                                                                ? "bg-amber-500/10 border-amber-500/40 shadow-xs" 
+                                                                                : "bg-muted/20 border-border/80"
+                                                                        )}>
+                                                                            {/* Admin Rejection / Correction comment notice badge */}
                                                                             {adminReason && (
-                                                                                <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] text-amber-900 dark:text-amber-300 flex items-start gap-1.5 leading-snug">
-                                                                                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                                                                                    <div>
-                                                                                        <span className="font-bold">Correction admin :</span> {adminReason}
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e: React.MouseEvent) => {
+                                                                                        e.stopPropagation();
+                                                                                        setActiveRemarkVariant({
+                                                                                            variantName: resolvedVariantName,
+                                                                                            productName: product.name,
+                                                                                            remark: adminReason,
+                                                                                            status: v.customFields?.offerStatus,
+                                                                                            productId: product.id
+                                                                                        });
+                                                                                    }}
+                                                                                    className="w-full text-left p-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-950 dark:text-amber-200 flex items-start gap-2 transition-colors cursor-pointer group/rem"
+                                                                                >
+                                                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 group-hover/rem:scale-110 transition-transform" />
+                                                                                    <div className="flex-1 min-w-0">
+                                                                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                                                                            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 dark:text-amber-300">
+                                                                                                ⚠️ Remarque Administrateur
+                                                                                            </span>
+                                                                                            <span className="text-[10px] font-semibold text-amber-700 underline shrink-0">
+                                                                                                Lire ➔
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <p className="line-clamp-2 text-xs text-amber-900/90 dark:text-amber-200 font-medium">
+                                                                                            {adminReason}
+                                                                                        </p>
                                                                                     </div>
-                                                                                </div>
+                                                                                </button>
                                                                             )}
 
                                                                             <div className="flex items-center justify-between gap-3">
@@ -542,10 +573,10 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                 </div>
 
                 {/* Pagination */}
-                <div className="px-6 py-4 bg-muted/20 border-t border-border flex justify-between items-center">
-                    <p className="text-xs text-muted-foreground">
+                <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-muted/10">
+                    <p className="text-xs text-muted-foreground font-medium">
                         Affichage de <span className="font-bold text-foreground">
-                            {filteredProducts.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+                            {Math.min((currentPage - 1) * pageSize + 1, filteredProducts.length)}
                         </span> à <span className="font-bold text-foreground">
                             {Math.min(filteredProducts.length, currentPage * pageSize)}
                         </span> sur <span className="font-bold text-foreground">{filteredProducts.length}</span> produits
@@ -573,6 +604,71 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                     </div>
                 </div>
             </div>
+
+            {/* Admin Remark Detail Modal */}
+            {activeRemarkVariant && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-card border border-border rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95">
+                        <div className="flex items-start justify-between gap-4 border-b border-border/80 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 shrink-0">
+                                    <MessageSquare className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-base text-foreground">
+                                        Remarque de l'Administrateur
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {activeRemarkVariant.variantName}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setActiveRemarkVariant(null)}
+                                className="w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-2">
+                                <span className="font-bold text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300 block">
+                                    Message de correction :
+                                </span>
+                                <p className="text-sm text-amber-950 dark:text-amber-100 font-medium leading-relaxed whitespace-pre-wrap">
+                                    {activeRemarkVariant.remark}
+                                </p>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Veuillez apporter les modifications nécessaires sur cette déclinaison (prix, stock, visuel ou conformité) pour soumettre à nouveau l'offre à l'équipe Ahizan.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setActiveRemarkVariant(null)}
+                                className="rounded-xl"
+                            >
+                                Fermer
+                            </Button>
+                            <Link href={`/dashboard/products/${activeRemarkVariant.productId}`}>
+                                <Button
+                                    type="button"
+                                    className="bg-primary text-primary-foreground font-bold rounded-xl gap-2 shadow-sm shadow-primary/20"
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                    Modifier la déclinaison
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Floating Help Action Button (FAB) (Stitch) */}
             <button 

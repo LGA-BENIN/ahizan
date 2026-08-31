@@ -28,6 +28,14 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     const productName = product.name || product.productName || "Produit";
     const productSlug = product.slug || product.productSlug || product.id || product.productId;
     
+    const vendorParam = product.vendorId || product.vendor?.id || (product.customFields as any)?.vendor?.id;
+    const variantParam = product.productVariantId || product.variants?.[0]?.id;
+    const queryParams = new URLSearchParams();
+    if (vendorParam) queryParams.set('vendorId', String(vendorParam));
+    if (variantParam) queryParams.set('variantId', String(variantParam));
+    const queryString = queryParams.toString();
+    const productDetailHref = `/product/${productSlug}${queryString ? `?${queryString}` : ''}`;
+    
     const imageUrl = getAssetUrl(product.featuredAsset?.preview || product.productAsset?.preview || product.assets?.[0]?.preview);
     const isImageGif = isGif(imageUrl);
     const defaultImage = themeSettings?.defaultProductImage;
@@ -241,7 +249,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
         return (
             <>
                 <Link
-                    href={`/product/${productSlug}`}
+                    href={productDetailHref}
                     className={`group flex items-center rounded-xl overflow-hidden p-2.5 gap-4 transition-all duration-300 ${cardThemeClass}`}
                 >
                     <div className="w-28 h-28 relative bg-muted shrink-0 rounded-lg overflow-hidden">
@@ -378,7 +386,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     return (
         <>
             <Link
-                href={`/product/${productSlug}`}
+                href={productDetailHref}
                 className={`group block rounded-xl overflow-hidden transition-all duration-300 ${cardThemeClass}`}
             >
                 <div className="aspect-square relative bg-muted">

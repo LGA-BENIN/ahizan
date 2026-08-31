@@ -91,26 +91,39 @@ export async function query<TResult = any, TVariables = any>(
     headers[VENDURE_CHANNEL_TOKEN_HEADER] = channelToken || VENDURE_CHANNEL_TOKEN;
 
     // Check for files in variables to determine if we need multipart/form-data
-    const files: { file: File, variablePath: string }[] = [];
+    const files: { file: File | Blob; variablePath: string }[] = [];
 
-    const extractFiles = (obj: any, path: string = 'variables') => {
-        if (!obj) return;
-        if (typeof obj === 'object') {
-            for (const key in obj) {
-                const value = obj[key];
-                const newPath = path ? `${path}.${key}` : key;
-                if (value instanceof File) {
-                    files.push({ file: value, variablePath: newPath });
-                } else if (typeof value === 'object' && value !== null) {
-                    extractFiles(value, newPath);
-                }
-            }
-        }
+    const isFileOrBlob = (val: any): boolean => {
+        if (!val || typeof val !== 'object') return false;
+        if (typeof File !== 'undefined' && val instanceof File) return true;
+        if (typeof Blob !== 'undefined' && val instanceof Blob) return true;
+        // Duck-typing for Next.js / undici / node FormData file objects
+        if (typeof val.arrayBuffer === 'function' && (val.name !== undefined || val.type !== undefined)) return true;
+        return false;
     };
 
-    if (variables) {
-        extractFiles(variables);
-    }
+    const processVariables = (obj: any, path: string = 'variables'): any => {
+        if (obj === null || obj === undefined) return obj;
+        if (isFileOrBlob(obj)) {
+            files.push({ file: obj, variablePath: path });
+            return null;
+        }
+        if (Array.isArray(obj)) {
+            return obj.map((item, index) => processVariables(item, `${path}.${index}`));
+        }
+        if (typeof obj === 'object') {
+            const result: Record<string, any> = {};
+            for (const key in obj) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    result[key] = processVariables(obj[key], path ? `${path}.${key}` : key);
+                }
+            }
+            return result;
+        }
+        return obj;
+    };
+
+    const processedVariables = variables ? processVariables(variables, 'variables') : variables;
 
     let body: any;
 
@@ -118,13 +131,8 @@ export async function query<TResult = any, TVariables = any>(
         const formData = new FormData();
         const operations = {
             query: typeof document === 'string' ? document : print(document),
-            variables: variables || {}
+            variables: processedVariables || {}
         };
-
-        // We need to nullify the file fields in the operations object strictly for the map to work correctly
-        // But for simplicity, we keep variables as is, server should handle it.
-        // However, standard spec says null.
-        // Let's rely on map.
 
         formData.append('operations', JSON.stringify(operations));
 
@@ -139,7 +147,7 @@ export async function query<TResult = any, TVariables = any>(
         });
 
         body = formData;
-        delete headers['Content-Type']; // Let browser set boundary
+        delete headers['Content-Type']; // Let browser/fetch set boundary with multipart/form-data
     } else {
         body = JSON.stringify({
             query: typeof document === 'string' ? document : print(document),
@@ -148,7 +156,9 @@ export async function query<TResult = any, TVariables = any>(
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    // 60s timeout for file uploads, 15s for normal API calls
+    const timeoutMs = files.length > 0 ? 60000 : 15000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
         const response = await fetch(VENDURE_API_URL!, {

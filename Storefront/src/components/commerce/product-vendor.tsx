@@ -50,41 +50,57 @@ const GET_SELLER_OFFERS = `
     }
 `;
 
+import { decodeId } from '@/lib/hash-utils';
+
 interface ProductVendorProps {
     productSlug: string;
+    vendorId?: string;
+    variantId?: string;
 }
 
-export async function ProductVendor({ productSlug }: ProductVendorProps) {
+export async function ProductVendor({ productSlug, vendorId, variantId }: ProductVendorProps) {
     try {
         const data = await rawQuery(GET_PRODUCT_VENDOR_AND_OFFERS, {
             variables: { slug: productSlug },
         });
         const product = data?.product;
         const vendor = product?.customFields?.vendor;
-        const firstVariantId = product?.variants?.[0]?.id;
+        const targetVariantId = variantId || product?.variants?.[0]?.id;
 
-        // Fetch seller offers for the first variant
+        // Fetch seller offers for the target variant
         let offers: any[] = [];
-        if (firstVariantId) {
+        if (targetVariantId) {
             try {
                 const offersData = await rawQuery(GET_SELLER_OFFERS, {
-                    variables: { variantId: firstVariantId },
+                    variables: { variantId: targetVariantId },
                 });
                 offers = offersData?.sellerOffersForVariant || [];
             } catch (e) {
-                // silently fail if offers not available
                 console.warn('[ProductVendor] Could not fetch seller offers:', e);
             }
         }
 
-        // If there are multiple seller offers, show the multi-vendor panel
-        if (offers.length > 1) {
+        // If a specific vendorId was specified in the URL/navigation, prioritize showing that vendor's badge
+        if (vendorId) {
+            const rawVendorId = decodeId(vendorId) || vendorId;
+            const matchedOffer = offers.find(o => String(o.vendor?.id) === String(rawVendorId) || String(o.vendor?.id) === String(vendorId));
+            if (matchedOffer?.vendor) {
+                return <VendorBadge vendor={matchedOffer.vendor} />;
+            }
+            if (vendor && (String(vendor.id) === String(rawVendorId) || String(vendor.id) === String(vendorId))) {
+                return <VendorBadge vendor={vendor} />;
+            }
+        }
+
+        // If there are multiple seller offers and no specific vendor was requested, show the multi-vendor panel
+        if (offers.length > 1 && !vendorId) {
             return <SellerOffersPanel offers={offers} />;
         }
 
-        // Otherwise just show the vendor badge
-        if (!vendor) return null;
-        return <VendorBadge vendor={vendor} />;
+        // Otherwise show the vendor badge from product or first offer
+        const activeVendor = (offers.length > 0 ? offers[0]?.vendor : null) || vendor;
+        if (!activeVendor) return null;
+        return <VendorBadge vendor={activeVendor} />;
     } catch {
         return null;
     }

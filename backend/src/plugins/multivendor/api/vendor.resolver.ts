@@ -1022,40 +1022,64 @@ export class VendorAdminResolver {
         @Args('status') status: string,
         @Args('rejectionReason') rejectionReason?: string,
         @Args('convertToOfficialCatalog') convertToOfficialCatalog?: boolean,
+        @Args('name') name?: string,
+        @Args('slug') slug?: string,
+        @Args('shortDescription') shortDescription?: string,
+        @Args('description') description?: string,
+        @Args('officialSku') officialSku?: string,
+        @Args('ean') ean?: string,
+        @Args('collectionIds') collectionIds?: string[],
+        @Args('facetValueIds') facetValueIds?: string[],
+        @Args('approveVendorOffer') approveVendorOffer?: boolean,
     ): Promise<Product> {
-        const product = await this.productService.findOne(ctx, id, ['variants', 'customFields.vendor']);
+        const product = await this.productService.findOne(ctx, id, ['variants', 'customFields.vendor', 'translations']);
         if (!product) throw new Error('Product not found');
 
         const creatorVendor = (product.customFields as any)?.vendor;
+        const isOfferApproved = approveVendorOffer !== false;
+        const offerStatus = isOfferApproved ? 'approved' : 'pending';
 
-        // If converting to Official Ahizan Catalog and it had a creator vendor:
-        if (convertToOfficialCatalog && creatorVendor && status === 'approved') {
-            const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
-            for (const v of product.variants || []) {
-                let existingOffer = await sellerOfferRepo.findOne({
-                    where: {
-                        vendor: { id: creatorVendor.id },
-                        productVariant: { id: v.id },
-                    },
-                });
-                if (!existingOffer) {
-                    existingOffer = sellerOfferRepo.create({
-                        vendor: creatorVendor,
-                        productVariant: v,
-                        price: v.price || 0,
-                        stock: ((v as any).stockOnHand || (v as any).stockLevel || 5),
-                        sku: v.sku || null,
-                        status: 'approved',
-                        condition: ProductCondition.NEW,
-                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
-                        deliveryTimeValue: 2,
+        // Synchronize variants enabled state & offerStatus
+        for (const v of product.variants || []) {
+            await this.connection.rawConnection.query(
+                `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "updatedAt" = NOW() WHERE id = $3`,
+                [isOfferApproved, isOfferApproved ? 'APPROVED' : 'PENDING', v.id]
+            );
+        }
+
+        // If converting to Official Ahizan Catalog:
+        if (convertToOfficialCatalog) {
+            if (creatorVendor) {
+                const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
+                for (const v of product.variants || []) {
+                    let existingOffer = await sellerOfferRepo.findOne({
+                        where: {
+                            vendor: { id: creatorVendor.id },
+                            productVariant: { id: v.id },
+                        },
                     });
-                    await sellerOfferRepo.save(existingOffer);
+                    if (!existingOffer) {
+                        existingOffer = sellerOfferRepo.create({
+                            vendor: creatorVendor,
+                            productVariant: v,
+                            price: v.price || 0,
+                            stock: ((v as any).stockOnHand || (v as any).stockLevel || 5),
+                            sku: v.sku || null,
+                            status: offerStatus,
+                            condition: ProductCondition.NEW,
+                            deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                            deliveryTimeValue: 2,
+                        });
+                        await sellerOfferRepo.save(existingOffer);
+                    } else {
+                        existingOffer.status = offerStatus;
+                        await sellerOfferRepo.save(existingOffer);
+                    }
                 }
-            }
 
-            // Clear vendor so the product becomes officially owned by Ahizan
-            await this.connection.rawConnection.query('UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1', [id]);
+                // Clear vendor on Product so it becomes an official central Ahizan catalog item
+                await this.connection.rawConnection.query('UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1', [id]);
+            }
         }
 
         const updateData: any = {
@@ -1064,10 +1088,46 @@ export class VendorAdminResolver {
             customFields: {
                 approvalStatus: status,
                 rejectionReason: status === 'rejected' ? (rejectionReason || 'Non conforme aux critères Ahizan') : null,
+                ...(shortDescription !== undefined ? { shortDescription } : {}),
             }
         };
 
+        if (facetValueIds && facetValueIds.length > 0) {
+            updateData.facetValueIds = facetValueIds;
+        }
+
+        if ((name && name.trim()) || (description && description.trim()) || (slug && slug.trim()) || (shortDescription && shortDescription.trim())) {
+            const existingTranslation = product.translations?.find(t => t.languageCode === ctx.languageCode);
+            const targetName = (name && name.trim()) || existingTranslation?.name || (product as any).name || 'Produit';
+            const targetSlug = (slug && slug.trim()) || (name && name.trim() ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : (existingTranslation?.slug || (product as any).slug || 'produit'));
+            const targetDescription = (description !== undefined && description !== null && description.trim() !== '') ? description : (existingTranslation?.description || (product as any).description || '');
+
+            updateData.translations = [{
+                languageCode: ctx.languageCode,
+                ...(existingTranslation ? { id: existingTranslation.id as string } : {}),
+                name: targetName,
+                slug: targetSlug,
+                description: targetDescription,
+                customFields: {
+                    ...(shortDescription !== undefined ? { shortDescription } : {}),
+                }
+            }];
+        }
+
         const updated = await this.productService.update(ctx, updateData);
+
+        if (officialSku) {
+            await this.connection.rawConnection.query('UPDATE product_variant SET sku = $1 WHERE "productId" = $2', [officialSku, id]);
+        }
+        if (ean) {
+            await this.connection.rawConnection.query('UPDATE product_variant SET "customFieldsEan" = $1 WHERE "productId" = $2', [ean, id]);
+        }
+
+        if (collectionIds && collectionIds.length > 0 && product.variants && product.variants.length > 0) {
+            const variantIds = product.variants.map(v => String(v.id));
+            await this.addVariantsToCollections(ctx, variantIds, collectionIds).catch(() => null);
+        }
+
         const finalProduct = await this.productService.findOne(ctx, id) as Product;
         this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
         return finalProduct;
@@ -1096,7 +1156,58 @@ export class VendorAdminResolver {
             offer.rejectionReason = null;
         }
 
-        return this.connection.getRepository(ctx, SellerOffer).save(offer);
+        const savedOffer = await this.connection.getRepository(ctx, SellerOffer).save(offer);
+
+        // Synchronize underlying ProductVariant enabled state and offerStatus
+        if (offer.productVariant?.id) {
+            const isApproved = status === 'approved';
+            await this.connection.rawConnection.query(
+                `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "updatedAt" = NOW() WHERE id = $3`,
+                [isApproved, isApproved ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.productVariant.id]
+            );
+        }
+
+        return savedOffer;
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async reassignVariantToProduct(
+        @Ctx() ctx: RequestContext,
+        @Args('variantId') variantId: string,
+        @Args('targetProductId') targetProductId: string,
+        @Args('approveOffer') approveOffer?: boolean,
+    ): Promise<ProductVariant> {
+        return this.vendorService.reassignVariantToProduct(ctx, variantId, targetProductId, approveOffer);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async createOfficialProductFromVariant(
+        @Ctx() ctx: RequestContext,
+        @Args('variantId') variantId: string,
+        @Args('name') name: string,
+        @Args('slug') slug?: string,
+        @Args('shortDescription') shortDescription?: string,
+        @Args('description') description?: string,
+        @Args('officialSku') officialSku?: string,
+        @Args('ean') ean?: string,
+        @Args('collectionIds') collectionIds?: string[],
+        @Args('facetValueIds') facetValueIds?: string[],
+        @Args('approveOffer') approveOffer?: boolean,
+    ): Promise<Product> {
+        return this.vendorService.createOfficialProductFromVariant(ctx, {
+            variantId,
+            name,
+            slug,
+            shortDescription,
+            description,
+            officialSku,
+            ean,
+            collectionIds,
+            facetValueIds,
+            approveOffer,
+        });
     }
 
     /**

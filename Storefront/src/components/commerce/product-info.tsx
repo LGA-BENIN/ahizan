@@ -81,15 +81,29 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         return product.variants[0]?.id || '';
     });
 
-    // Initialize selected options from URL
+    // Initialize selected options from URL or default to the first variant's options
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
         const initialOptions: Record<string, string> = {};
 
-        // Load from URL search params
+        // 1. Check if specific variantId passed in searchParams
+        let matchedVariant = null;
+        if (searchParams?.variantId) {
+            matchedVariant = product.variants.find(v => String(v.id) === String(searchParams.variantId));
+        }
+
+        if (matchedVariant && matchedVariant.options) {
+            matchedVariant.options.forEach(opt => {
+                const gId = (opt as any).groupId || opt.group?.id;
+                if (gId) {
+                    initialOptions[gId] = opt.id;
+                }
+            });
+        }
+
+        // 2. Load from URL search params
         product.optionGroups.forEach((group) => {
-            const paramValue = searchParams[group.code];
+            const paramValue = searchParams?.[group.code];
             if (typeof paramValue === 'string') {
-                // Find the option by code
                 const option = group.options.find((opt) => opt.code === paramValue);
                 if (option) {
                     initialOptions[group.id] = option.id;
@@ -97,8 +111,45 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             }
         });
 
+        // 3. For any missing option groups, pre-select from the first variant (product.variants[0])
+        const defaultVariant = product.variants[0];
+        if (defaultVariant && defaultVariant.options) {
+            defaultVariant.options.forEach(opt => {
+                const gId = (opt as any).groupId || opt.group?.id;
+                if (gId && !initialOptions[gId]) {
+                    initialOptions[gId] = opt.id;
+                }
+            });
+        }
+
+        // 4. Fallback: if any group is still unselected, select its first option
+        product.optionGroups.forEach((group) => {
+            if (!initialOptions[group.id] && group.options.length > 0) {
+                initialOptions[group.id] = group.options[0].id;
+            }
+        });
+
         return initialOptions;
     });
+
+    // Get all option IDs that actually belong to available variants
+    const availableOptionIds = useMemo(() => {
+        const ids = new Set<string>();
+        product.variants.forEach((v) => {
+            (v.options || []).forEach((opt) => ids.add(String(opt.id)));
+        });
+        return ids;
+    }, [product.variants]);
+
+    // Filter option groups to only display groups and options that actually exist in variants
+    const filteredOptionGroups = useMemo(() => {
+        return product.optionGroups
+            .map((group) => ({
+                ...group,
+                options: group.options.filter((opt) => availableOptionIds.has(String(opt.id))),
+            }))
+            .filter((group) => group.options.length > 0);
+    }, [product.optionGroups, availableOptionIds]);
 
     // Find the matching variant based on selected options or selected variant id
     const selectedVariant = useMemo(() => {
@@ -109,18 +160,17 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
 
         // If product has option groups
         if (product.optionGroups.length > 0) {
-            if (Object.keys(selectedOptions).length !== product.optionGroups.length) {
-                return null;
+            const selectedOptionIds = Object.values(selectedOptions);
+            if (selectedOptionIds.length > 0) {
+                const found = product.variants.find((variant) => {
+                    const variantOptionIds = variant.options.map((opt) => opt.id);
+                    return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
+                });
+                if (found) return found;
             }
-
-            return product.variants.find((variant) => {
-                const variantOptionIds = variant.options.map((opt) => opt.id);
-                const selectedOptionIds = Object.values(selectedOptions);
-                return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
-            }) || null;
         }
 
-        // If product has direct variants without option groups
+        // If product has direct variants without option groups or fallback to selectedVariantId / first variant
         return product.variants.find(v => v.id === selectedVariantId) || product.variants[0];
     }, [selectedOptions, product.variants, product.optionGroups, selectedVariantId]);
 
@@ -134,11 +184,11 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         const group = product.optionGroups.find((g) => g.id === groupId);
         const option = group?.options.find((opt) => opt.id === optionId);
 
-        if (group && option) {
-            // Update URL with option code
-            const params = new URLSearchParams(currentSearchParams);
+        if (group && option && typeof window !== 'undefined') {
+            // Update URL shallowly without triggering full page RSC reload
+            const params = new URLSearchParams(window.location.search);
             params.set(group.code, option.code);
-            router.push(`${pathname}?${params.toString()}`, {scroll: false});
+            window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
         }
     };
 
@@ -153,6 +203,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                 toast.success('Ajouté au panier', {
                     description: `${product.name} a été ajouté à votre panier`,
                 });
+                router.refresh();
 
                 // Reset the added state after 2 seconds
                 setTimeout(() => setIsAdded(false), 2000);
@@ -238,10 +289,10 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                 </div>
             )}
 
-            {/* Option Groups */}
-            {product.optionGroups.length > 0 && (
+            {/* Option Groups (Filtered only to options available in active variants) */}
+            {filteredOptionGroups.length > 0 && (
                 <div className="space-y-4 pt-4 border-t">
-                    {product.optionGroups.map((group) => (
+                    {filteredOptionGroups.map((group) => (
                         <div key={group.id} className="space-y-2">
                             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
                                 {group.name}

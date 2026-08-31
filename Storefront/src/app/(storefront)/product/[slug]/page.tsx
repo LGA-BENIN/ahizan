@@ -199,7 +199,11 @@ function ProductOverview({ config, product, searchParams, slug, whatsappNumber }
                         {showVendor && (
                             <div className="pt-4 border-t">
                                 <Suspense fallback={null}>
-                                    <ProductVendor productSlug={slug} />
+                                    <ProductVendor 
+                                        productSlug={slug} 
+                                        vendorId={searchParams?.vendorId as string | undefined}
+                                        variantId={searchParams?.variantId as string | undefined}
+                                    />
                                 </Suspense>
                             </div>
                         )}

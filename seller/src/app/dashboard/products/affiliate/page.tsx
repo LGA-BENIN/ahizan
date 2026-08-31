@@ -168,19 +168,20 @@ interface GeneratedVariantRow {
 
 interface AffiliateProductPageProps {
     initialSelectedProduct?: any;
+    initialSearchTerm?: string;
     onBack?: () => void;
 }
 
-function AffiliateProductPageContent({ initialSelectedProduct, onBack }: AffiliateProductPageProps = {}) {
+function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm, onBack }: AffiliateProductPageProps = {}) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const productIdFromQuery = searchParams?.get('id') || searchParams?.get('productId');
+    const productIdFromQuery = searchParams?.get('id') || searchParams?.get('productId') || searchParams?.get('term');
 
     // Step state: 1: Search & Select | 2: Option Groups & Combinations Config | 3: Grid Offers Configuration
     const [step, setStep] = useState<1 | 2 | 3>(1);
 
     // Step 1 State: Search
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(initialSearchTerm || searchParams?.get('term') || '');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedProductSummary, setSelectedProductSummary] = useState<any | null>(null);
@@ -590,10 +591,10 @@ function AffiliateProductPageContent({ initialSelectedProduct, onBack }: Affilia
                     </Link>
                     <div>
                         <h1 className="text-2xl md:text-3xl font-serif font-black tracking-tight text-foreground">
-                            S'affilier à un Produit (Greffage d'Offres)
+                            Vendre un Article Existant
                         </h1>
                         <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
-                            Sélectionnez un article du catalogue Ahizan, configurez vos déclinaisons et publiez vos offres commerciales.
+                            Recherchez l'article dans le catalogue Ahizan et indiquez simplement vos prix et stocks pour commencer à vendre.
                         </p>
                     </div>
                 </div>
@@ -1243,7 +1244,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, onBack }: Affilia
                                 ) : (
                                     <CheckCircle2 className="w-5 h-5" />
                                 )}
-                                Confirmer et Greffer mes Offres
+                                Envoyer mes Offres pour Validation
                             </Button>
                         </div>
                     </form>

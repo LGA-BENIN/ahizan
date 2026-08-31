@@ -345,23 +345,43 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         }
 
         try {
+            const optionGroupsPayload = selectedGroups.length > 0 ? selectedGroups.map(g => ({
+                name: g.name,
+                code: g.code,
+                options: [
+                    ...g.selectedOptions.map(o => ({ name: o.name, code: o.code })),
+                    ...g.customValues.map(v => ({ name: v, code: v.toLowerCase().replace(/[^a-z0-9]+/g, '-') }))
+                ]
+            })) : undefined;
+
             // Prepare TagProductWithVariantOffers input
             const payload: any = {
                 productId: product.id,
-                offers: activeOffers.map(v => ({
-                    variantId: v.id && !v.id.startsWith('gen_') && !v.id.startsWith('new_') ? v.id : undefined,
-                    productVariantId: v.id && !v.id.startsWith('gen_') && !v.id.startsWith('new_') ? v.id : undefined,
-                    optionIds: v.optionIds && v.optionIds.length > 0 ? v.optionIds : undefined,
-                    sku: v.sku || undefined,
-                    price: Math.round(v.price * 100), // convert to subunit
-                    stock: Number(v.stock) || 0,
-                    onPromotion: v.onPromotion,
-                    promotionalPrice: v.onPromotion && v.promotionalPrice ? Math.round(v.promotionalPrice * 100) : undefined,
-                    featuredAssetId: v.featuredAssetId || undefined,
-                    deliveryTimeValue: Number(v.deliveryTimeValue) || 2,
-                    deliveryTimeUnit: v.deliveryTimeUnit || 'DAYS',
-                    condition: v.condition || 'NEW',
-                }))
+                optionGroups: optionGroupsPayload,
+                offers: activeOffers.map(v => {
+                    let optionNames: string[] = [];
+                    if (v.name && product.name && v.name.startsWith(product.name)) {
+                        const rawOptsStr = v.name.substring(product.name.length).trim().replace(/^-\s*/, '');
+                        optionNames = rawOptsStr.split(/\s+/).filter(Boolean);
+                    }
+
+                    return {
+                        variantId: v.id && !v.id.startsWith('gen_') && !v.id.startsWith('new_') ? v.id : undefined,
+                        productVariantId: v.id && !v.id.startsWith('gen_') && !v.id.startsWith('new_') ? v.id : undefined,
+                        optionIds: v.optionIds && v.optionIds.length > 0 ? v.optionIds : undefined,
+                        optionNames: optionNames.length > 0 ? optionNames : undefined,
+                        name: v.name,
+                        sku: v.sku && v.sku.trim() !== '' ? v.sku.trim() : undefined,
+                        price: Math.round(v.price * 100), // convert to subunit
+                        stock: Number(v.stock) || 0,
+                        onPromotion: v.onPromotion,
+                        promotionalPrice: v.onPromotion && v.promotionalPrice ? Math.round(v.promotionalPrice * 100) : undefined,
+                        featuredAssetId: v.featuredAssetId || undefined,
+                        deliveryTimeValue: Number(v.deliveryTimeValue) || 2,
+                        deliveryTimeUnit: v.deliveryTimeUnit || 'DAYS',
+                        condition: v.condition || 'NEW',
+                    };
+                })
             };
 
             const res = await tagProductWithVariantOffersAction(payload);

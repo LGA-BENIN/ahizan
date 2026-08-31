@@ -4,7 +4,8 @@ import {
     RequestContext, 
     ProductVariant, 
     ProductVariantService,
-    StockLocationService
+    StockLocationService,
+    ChannelService
 } from '@vendure/core';
 import { SellerOffer, DeliveryTimeUnit, ProductCondition } from '../entities/seller-offer.entity';
 import { Vendor } from '../entities/vendor.entity';
@@ -15,6 +16,7 @@ export class SellerOfferService {
         private connection: TransactionalConnection,
         private productVariantService: ProductVariantService,
         private stockLocationService: StockLocationService,
+        private channelService: ChannelService,
     ) {}
 
     async getOffersForVariant(ctx: RequestContext, variantId: string): Promise<SellerOffer[]> {
@@ -81,7 +83,17 @@ export class SellerOfferService {
             }
         });
 
-        const variant = await this.connection.getEntityOrThrow(ctx, ProductVariant, variantId);
+        let variant = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: variantId }
+        });
+        if (!variant) {
+            variant = await this.connection.rawConnection.getRepository(ProductVariant).findOne({
+                where: { id: Number(variantId) } as any
+            }) as any;
+        }
+        if (!variant) {
+            throw new Error(`ProductVariant with ID ${variantId} not found`);
+        }
 
         if (!offer) {
             offer = repo.create({
@@ -96,7 +108,7 @@ export class SellerOfferService {
                 onPromotion: input.onPromotion ?? false,
                 promotionalPrice: input.promotionalPrice ?? null,
                 featuredAssetId: input.featuredAssetId ?? null,
-                status: input.status ?? 'approved',
+                status: input.status ?? 'pending',
                 rejectionReason: input.rejectionReason ?? null,
             });
         } else {
@@ -117,23 +129,32 @@ export class SellerOfferService {
 
         // Synchronize stock level with Vendure's native StockLocation for this Vendor
         try {
-            const adminCtx = RequestContext.empty(); // use admin context to query system-wide stock locations
+            const defaultChannel = await this.channelService.getDefaultChannel();
+            const adminCtx = new RequestContext({
+                apiType: 'admin',
+                isAuthorized: true,
+                authorizedAsOwnerOnly: false,
+                channel: defaultChannel,
+                languageCode: ctx.languageCode || 'fr',
+            });
             const stockLocations = await this.stockLocationService.findAll(adminCtx);
             const vendorStockLocation = stockLocations.items.find((sl: any) => sl.name === `${vendor.name} Stock`);
             
             if (vendorStockLocation) {
-                await this.productVariantService.update(ctx, [
-                    {
-                        id: variantId,
-                        sku: input.sku || variant.sku || '',
-                        stockLevels: [
-                            {
-                                stockLocationId: vendorStockLocation.id,
-                                stockOnHand: input.stock,
-                            }
-                        ]
-                    }
-                ]);
+                const stockUpdatePayload: any = {
+                    id: variantId,
+                    stockLevels: [
+                        {
+                            stockLocationId: vendorStockLocation.id,
+                            stockOnHand: input.stock,
+                        }
+                    ]
+                };
+                const validSku = (input.sku && String(input.sku).trim() !== '') 
+                    ? String(input.sku).trim() 
+                    : (variant.sku && String(variant.sku).trim() !== '' ? String(variant.sku).trim() : `VND-OFFER-${variantId}`);
+                stockUpdatePayload.sku = validSku;
+                await this.productVariantService.update(adminCtx, [stockUpdatePayload]);
                 console.log(`[SellerOfferService] Synced stock of ${input.stock} for variant ${variantId} in location ${vendorStockLocation.name}`);
             } else {
                 console.warn(`[SellerOfferService] No stock location found named "${vendor.name} Stock" to sync.`);
@@ -164,14 +185,24 @@ export class SellerOfferService {
 
         // Reset stock level to 0 in vendor's stock location
         try {
-            const adminCtx = RequestContext.empty();
+            const defaultChannel = await this.channelService.getDefaultChannel();
+            const adminCtx = new RequestContext({
+                apiType: 'admin',
+                isAuthorized: true,
+                authorizedAsOwnerOnly: false,
+                channel: defaultChannel,
+                languageCode: ctx.languageCode || 'fr',
+            });
             const stockLocations = await this.stockLocationService.findAll(adminCtx);
             const vendorStockLocation = stockLocations.items.find((sl: any) => sl.name === `${vendor.name} Stock`);
             
             if (vendorStockLocation) {
-                await this.productVariantService.update(ctx, [
+                const variant = await this.connection.getRepository(adminCtx, ProductVariant).findOne({ where: { id: variantId } });
+                const validSku = variant?.sku && String(variant.sku).trim() !== '' ? String(variant.sku).trim() : `VND-OFFER-${variantId}`;
+                await this.productVariantService.update(adminCtx, [
                     {
                         id: variantId,
+                        sku: validSku,
                         stockLevels: [
                             {
                                 stockLocationId: vendorStockLocation.id,

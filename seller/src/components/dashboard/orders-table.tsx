@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     Search, 
@@ -16,16 +16,85 @@ import {
     Package,
     Clock,
     X,
-    CheckCircle2
+    CheckCircle2,
+    AlertCircle,
+    Timer,
+    Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/format';
-import { updateOrderSellerStatusAction } from '@/app/dashboard/orders/actions';
+import { updateOrderSellerStatusAction, markOrderReadyForPickupAction, refuseOrderAction } from '@/app/dashboard/orders/actions';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
 interface OrdersTableProps {
     initialOrders: any[];
+}
+
+function SlaCountdown({ createdAt, sellerStatus }: { createdAt: string; sellerStatus?: string }) {
+    const [timeLeft, setTimeLeft] = useState<number>(0);
+
+    useEffect(() => {
+        const calculateRemaining = () => {
+            const created = new Date(createdAt).getTime();
+            const slaDuration = 24 * 60 * 60 * 1000; // 24 heures de délai SLA
+            const elapsed = Date.now() - created;
+            const remaining = Math.max(0, slaDuration - elapsed);
+            return remaining;
+        };
+
+        setTimeLeft(calculateRemaining());
+        const interval = setInterval(() => {
+            setTimeLeft(calculateRemaining());
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [createdAt]);
+
+    if (sellerStatus === 'confirmed') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-600 border border-green-500/20">
+                <Check className="w-3 h-3" /> Validé à temps
+            </span>
+        );
+    }
+
+    if (sellerStatus === 'refused') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-600 border border-red-500/20">
+                <X className="w-3 h-3" /> Refusé
+            </span>
+        );
+    }
+
+    const hours = Math.floor(timeLeft / (60 * 60 * 1000));
+    const minutes = Math.floor((timeLeft % (60 * 60 * 1000)) / (60 * 1000));
+    const seconds = Math.floor((timeLeft % (60 * 1000)) / 1000);
+    const formatted = hours > 0 
+        ? `${hours}h ${String(minutes).padStart(2, '0')}m`
+        : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+    if (timeLeft === 0) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 border border-amber-500/30">
+                <AlertCircle className="w-3 h-3" /> Délai dépassé
+            </span>
+        );
+    }
+
+    if (hours === 0 && minutes < 30) {
+        return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-600 border border-red-500/20 animate-pulse">
+                <Timer className="w-3 h-3" /> {formatted} (Urgent)
+            </span>
+        );
+    }
+
+    return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+            <Clock className="w-3 h-3" /> {formatted} restant
+        </span>
+    );
 }
 
 export default function OrdersTable({ initialOrders }: OrdersTableProps) {
@@ -76,6 +145,59 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                 }));
             } else {
                 toast.error(res.error || "Erreur lors de la confirmation");
+            }
+        });
+    };
+
+    // Handle ready for pickup action
+    const handleMarkReadyForPickup = async (orderId: string, vendorId: string) => {
+        startTransition(async () => {
+            const res = await markOrderReadyForPickupAction(orderId, vendorId);
+            if (res.success) {
+                toast.success('Mission de collecte créée ! Le coursier a été notifié.');
+                setOrders(prev => prev.map(o => {
+                    if (o.id === orderId) {
+                        return {
+                            ...o,
+                            customFields: {
+                                ...o.customFields,
+                                sellerStatus: 'confirmed',
+                                deliveryMissionStatus: 'PICKUP_READY'
+                            }
+                        };
+                    }
+                    return o;
+                }));
+            } else {
+                toast.error(res.error || "Erreur lors de la mise en collecte");
+            }
+        });
+    };
+
+    // Handle order refusal
+    const handleRefuseOrder = async (orderId: string) => {
+        if (!confirm('Êtes-vous sûr de vouloir refuser cette commande ? Le moteur intelligent réaffectera automatiquement le produit à un autre vendeur partenaire.')) {
+            return;
+        }
+
+        startTransition(async () => {
+            const res = await refuseOrderAction(orderId);
+            if (res.success) {
+                toast.success('Commande refusée. Réaffectation automatique initiée.');
+                setOrders(prev => prev.map(o => {
+                    if (o.id === orderId) {
+                        return {
+                            ...o,
+                            customFields: {
+                                ...o.customFields,
+                                sellerStatus: 'refused'
+                            }
+                        };
+                    }
+                    return o;
+                }));
+            } else {
+                toast.error(res.error || "Erreur lors du refus de la commande");
             }
         });
     };
@@ -159,7 +281,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-serif font-black tracking-tight text-foreground">Mes Ventes</h1>
-                        <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">Suivi et gestion de vos expéditions en temps réel</p>
+                        <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">Suivi des expéditions & SLA de préparation 30 minutes</p>
                     </div>
                     <Button 
                         onClick={exportToCSV}
@@ -170,7 +292,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                     </Button>
                 </div>
 
-                {/* Filter Tabs horizontaux de Stitch */}
+                {/* Filter Tabs horizontaux */}
                 <div className="flex items-center border-b border-border overflow-x-auto scrollbar-hide w-full gap-2">
                     <button 
                         onClick={() => setFilterTab('all')}
@@ -192,7 +314,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                 : "border-transparent text-muted-foreground hover:text-foreground"
                         )}
                     >
-                        À expédier ({orders.filter(o => o.customFields?.sellerStatus !== 'confirmed' && o.customFields?.sellerStatus !== 'refused').length})
+                        À préparer / SLA ({orders.filter(o => o.customFields?.sellerStatus !== 'confirmed' && o.customFields?.sellerStatus !== 'refused').length})
                     </button>
                     <button 
                         onClick={() => setFilterTab('attente')}
@@ -227,6 +349,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                     <th className="px-6 py-4">ID Commande</th>
                                     <th className="px-6 py-4">Client</th>
                                     <th className="px-6 py-4">Date</th>
+                                    <th className="px-6 py-4">SLA (30 min)</th>
                                     <th className="px-6 py-4 text-right">Montant</th>
                                     <th className="px-6 py-4">Statut</th>
                                     <th className="px-6 py-4 text-right">Actions</th>
@@ -235,6 +358,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                             <tbody className="divide-y divide-border">
                                 {filteredOrders.length > 0 ? (
                                     filteredOrders.map((order: any) => {
+                                        const vendorId = order.customFields?.assignedVendor?.id || order.customFields?.vendor?.id || '1';
                                         return (
                                             <tr 
                                                 key={order.id} 
@@ -262,6 +386,9 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                         minute: '2-digit'
                                                     })}
                                                 </td>
+                                                <td className="px-6 py-5 whitespace-nowrap">
+                                                    <SlaCountdown createdAt={order.createdAt || order.updatedAt} sellerStatus={order.customFields?.sellerStatus} />
+                                                </td>
                                                 <td className="px-6 py-5 whitespace-nowrap text-right font-bold text-foreground text-sm">
                                                     {formatPrice(order.totalWithTax, order.currencyCode)}
                                                 </td>
@@ -285,15 +412,25 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                         >
                                                             <Printer className="w-4 h-4" />
                                                         </button>
-                                                        {order.customFields?.sellerStatus !== 'confirmed' && (
-                                                            <button 
-                                                                onClick={() => handleConfirmShipment(order.id)}
-                                                                className="p-2 text-muted-foreground hover:text-green-600 hover:bg-green-50 rounded-lg border border-transparent hover:border-border transition-all"
-                                                                title="Confirmer l'envoi"
-                                                                disabled={isPending}
-                                                            >
-                                                                <Truck className="w-4 h-4" />
-                                                            </button>
+                                                        {order.customFields?.sellerStatus !== 'confirmed' && order.customFields?.sellerStatus !== 'refused' && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={() => handleMarkReadyForPickup(order.id, vendorId)}
+                                                                    className="px-2.5 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1 transition-all"
+                                                                    title="Prêt pour collecte coursier"
+                                                                    disabled={isPending}
+                                                                >
+                                                                    <Truck className="w-3.5 h-3.5" /> Prêt collecte
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleRefuseOrder(order.id)}
+                                                                    className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-border transition-all"
+                                                                    title="Refuser la commande (Déclenche le remplacement)"
+                                                                    disabled={isPending}
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </td>
@@ -302,7 +439,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={6} className="p-16 text-center text-muted-foreground">
+                                        <td colSpan={7} className="p-16 text-center text-muted-foreground">
                                             <p className="text-sm font-medium">Aucune commande correspondante.</p>
                                         </td>
                                     </tr>

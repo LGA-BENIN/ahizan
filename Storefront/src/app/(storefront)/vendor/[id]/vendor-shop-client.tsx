@@ -515,7 +515,10 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                     {viewMode === 'grid' ? (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {paginatedProducts.map(product => (
-                                                <VendorProductCard key={product.id} product={product} />
+                                                <VendorProductCard 
+                                                    key={product.id} 
+                                                    product={{ ...product, vendorId: vendor.id }} 
+                                                />
                                             ))}
                                         </div>
                                     ) : (
@@ -523,11 +526,12 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                         <div className="space-y-4">
                                             {paginatedProducts.map(product => {
                                                 const price = product.variants?.[0]?.priceWithTax || 0;
+                                                const variantId = product.variants?.[0]?.id || '';
                                                 const featuredImageUrl = product.featuredAsset?.preview ? getAssetUrl(product.featuredAsset.preview) : null;
                                                 return (
                                                     <Link 
                                                         key={product.id} 
-                                                        href={`/product/${product.slug}`}
+                                                        href={`/product/${product.slug}?vendorId=${vendor.id}${variantId ? `&variantId=${variantId}` : ''}`}
                                                         className="flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 hover:shadow-md transition-shadow group no-underline text-inherit"
                                                     >
                                                         <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center">

@@ -99,9 +99,11 @@ export default function ImageUploader({
                 if (!featuredAssetId && updatedAssets.length > 0) onFeaturedChange(updatedAssets[0].id);
                 toast.success('Image ajoutée');
             } else {
-                toast.error('Échec de l\'envoi');
+                toast.error(result.error ? `Échec de l'envoi : ${result.error}` : 'Échec de l\'envoi');
             }
-        } catch { toast.error('Erreur lors de l\'envoi'); }
+        } catch (err: any) {
+            toast.error('Erreur lors de l\'envoi : ' + (err?.message || err));
+        }
         setUploading(false); setUploadingCount(0);
         if (onUploadingChange) onUploadingChange(false);
         setCurrentFile(null); setCurrentImageSrc('');

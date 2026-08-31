@@ -127,27 +127,47 @@ export class ReplacementEngineService {
             const newVendor = best.offer.vendor;
             const newChannelId = newVendor.channelId;
 
-            // Update order line
-            await this.connection.rawConnection.query(
-                `UPDATE order_line 
-                 SET "customFieldsAssignedvendorid" = $1, 
-                     "customFieldsSellerstatus" = 'pending',
-                     "sellerChannelId" = $2
-                 WHERE id = $3`,
-                [newVendor.id, newChannelId, orderLineId]
-            );
+            line.sellerChannelId = newChannelId ? (newChannelId.toString() as any) : line.sellerChannelId;
+            if (!line.customFields) {
+                (line as any).customFields = {};
+            }
+            (line.customFields as any).assignedVendor = newVendor;
+            (line.customFields as any).sellerStatus = 'pending';
+            (line.customFields as any).sellerOfferId = best.offer.id.toString();
 
-            console.log(`[ReplacementEngine] Automatically reassigned OrderLine ${orderLineId} to Vendor ${newVendor.name} (${newVendor.id}). Price diff was ${best.priceDiffAbs} cents.`);
+            await repo.save(line);
+
+            // Update parent order status
+            if (order) {
+                const orderRepo = this.connection.getRepository(ctx, Order);
+                if (!order.customFields) {
+                    (order as any).customFields = {};
+                }
+                (order.customFields as any).replacementHoldStatus = 'REASSIGNED_AUTOMATIC';
+                await orderRepo.save(order);
+            }
+
+            console.log(`[ReplacementEngine] ✅ Automatically reassigned OrderLine ${orderLineId} to Vendor ${newVendor.name} (${newVendor.id}). Price diff was ${best.priceDiffAbs} cents.`);
             
             return { success: true, status: 'reassigned', newVendorId: newVendor.id.toString() };
         } else {
             // Price is too high, block delivery and alert marketplace manager for manual resolution
-            await this.connection.rawConnection.query(
-                `UPDATE order_line SET "customFieldsSellerstatus" = 'reassigning' WHERE id = $1`,
-                [orderLineId]
-            );
+            if (!line.customFields) {
+                (line as any).customFields = {};
+            }
+            (line.customFields as any).sellerStatus = 'reassigning';
+            await repo.save(line);
 
-            console.warn(`[ReplacementEngine] Automatic replacement failed for OrderLine ${orderLineId}. Best alternative was too expensive (+${best.priceDiffAbs} cents).`);
+            if (order) {
+                const orderRepo = this.connection.getRepository(ctx, Order);
+                if (!order.customFields) {
+                    (order as any).customFields = {};
+                }
+                (order.customFields as any).replacementHoldStatus = 'MANUAL_HOLD_REQUIRED';
+                await orderRepo.save(order);
+            }
+
+            console.warn(`[ReplacementEngine] ⚠️ Automatic replacement on hold for OrderLine ${orderLineId}. Best alternative was too expensive (+${best.priceDiffAbs} cents).`);
             
             return { success: false, status: 'manual_required' };
         }

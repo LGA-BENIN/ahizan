@@ -62,148 +62,42 @@ export class AhizanOrderSellerStrategy implements OrderSellerStrategy {
 
     /**
      * Called whenever an item is added to an active order.
-     * Determines which vendor channel owns this order line.
+     * Assigns the best seller to orderLine.customFields.assignedVendor while keeping
+     * the line visible in the customer's cart in the default channel.
      */
     async setOrderLineSellerChannel(ctx: RequestContext, orderLine: OrderLine): Promise<Channel | undefined> {
-        // Ensure assignedVendor and order relations are hydrated
-        await this.entityHydrator.hydrate(ctx, orderLine, {
-            relations: ['order', 'customFields.assignedVendor', 'customFields.assignedVendor.channel']
-        });
-
         let vendor = (orderLine.customFields as any)?.assignedVendor;
-
         if (vendor) {
-            if (vendor.channel) {
-                return vendor.channel;
-            }
-            // Fetch channel if not hydrated
-            const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
-                where: { id: vendor.id },
-                relations: ['channel'],
-            });
-            if (vendorEntity?.channel) {
-                return vendorEntity.channel;
-            }
+            return undefined;
         }
 
-        const orderId = orderLine.order?.id;
-
-        // If no assignedVendor is set, find the best offer using selection engine
-        const offers = await this.sellerOfferService.getOffersForVariant(ctx, orderLine.productVariant.id.toString());
-        if (offers.length > 0) {
-            // Apply Logistics Selection Algorithm (Section 5.3):
-            // 1. Grouping: Prefer vendor who already has items in this same order/cart
-            const existingVendorIds = new Set<string>();
-            try {
-                if (orderId) {
-                    const order = await this.connection.getRepository(ctx, Order).findOne({
-                        where: { id: orderId },
-                        relations: ['lines', 'lines.customFields.assignedVendor']
-                    });
-                    if (order?.lines) {
-                        for (const line of order.lines) {
-                            const v = (line.customFields as any)?.assignedVendor;
-                            if (v && !idsAreEqual(line.id, orderLine.id)) {
-                                existingVendorIds.add(v.id.toString());
-                            }
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('[AhizanOrderSellerStrategy] Error loading order lines for grouping check:', err);
-            }
-
-            // Resolve customer coordinates for proximity check
-            let lat: number | null = null;
-            let lng: number | null = null;
-            try {
-                if (orderId) {
-                    const order = await this.connection.getRepository(ctx, Order).findOne({
-                        where: { id: orderId }
-                    });
-                    if (order?.shippingAddress) {
-                        lat = order.shippingAddress.customFields?.latitude;
-                        lng = order.shippingAddress.customFields?.longitude;
-                        if (lat == null || lng == null) {
-                            const city = (order.shippingAddress.city || '').toLowerCase();
-                            if (city.includes('cotonou')) { lat = 6.3654; lng = 2.4183; }
-                            else if (city.includes('porto') || city.includes('novo')) { lat = 6.4969; lng = 2.6289; }
-                            else if (city.includes('parakou')) { lat = 9.3371; lng = 2.6303; }
-                            else if (city.includes('calavi') || city.includes('abomey')) { lat = 6.4485; lng = 2.3556; }
-                            else if (city.includes('ouidah')) { lat = 6.3631; lng = 2.0851; }
-                            else if (city.includes('bohicon')) { lat = 7.1783; lng = 2.0667; }
-                        }
-                    }
-                }
-            } catch (err) {}
-
-            const sortedOffers = offers.sort((a, b) => {
-                // Priority 1: Check if vendor already has another item in cart
-                const aInCart = existingVendorIds.has((a.vendor as any).id.toString()) ? 1 : 0;
-                const bInCart = existingVendorIds.has((b.vendor as any).id.toString()) ? 1 : 0;
-                if (aInCart !== bInCart) {
-                    return bInCart - aInCart; // vendor in cart first
-                }
-
-                // Priority 2: Proximity if coordinates are available
-                if (lat != null && lng != null) {
-                    const distA = a.vendor.latitude != null && a.vendor.longitude != null 
-                        ? this.getDistanceKm(lat, lng, a.vendor.latitude, a.vendor.longitude)
-                        : 9999;
-                    const distB = b.vendor.latitude != null && b.vendor.longitude != null 
-                        ? this.getDistanceKm(lat, lng, b.vendor.latitude, b.vendor.longitude)
-                        : 9999;
-                    if (Math.abs(distA - distB) > 1) { // diff > 1km
-                        return distA - distB; // closer vendor first
-                    }
-                }
-
-                // Priority 3: Price
-                if (a.price !== b.price) {
-                    return a.price - b.price; // lowest price first
-                }
-
-                // Priority 4: Rating
-                const ratingA = a.vendor?.rating || 0;
-                const ratingB = b.vendor?.rating || 0;
-                return ratingB - ratingA; // highest rating first
-            });
-
-            const bestOffer = sortedOffers[0];
-            
-            // Assign this vendor to the order line custom fields
-            (orderLine.customFields as any).assignedVendor = bestOffer.vendor;
-            await this.connection.getRepository(ctx, OrderLine).save(orderLine);
-
-            if (bestOffer.vendor?.channel) {
-                return bestOffer.vendor.channel;
-            }
-            // Hydrate channel if missing
-            const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
-                where: { id: bestOffer.vendor.id },
-                relations: ['channel'],
-            });
-            if (vendorEntity?.channel) {
-                return vendorEntity.channel;
-            }
+        const variantId = orderLine.productVariant?.id?.toString();
+        if (!variantId) {
+            return undefined;
         }
 
-        // Fallback to legacy Product.customFields.vendor for safety
-        await this.entityHydrator.hydrate(ctx, orderLine.productVariant, {
-            relations: ['product', 'product.customFields.vendor', 'product.customFields.vendor.channel']
-        });
-        const legacyVendor = (orderLine.productVariant.product?.customFields as any)?.vendor;
-        if (legacyVendor) {
-            const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
-                where: { id: legacyVendor.id },
-                relations: ['channel'],
-            });
-            if (vendorEntity?.channel) {
-                // Also set it on orderLine for consistency
-                (orderLine.customFields as any).assignedVendor = legacyVendor;
-                await this.connection.getRepository(ctx, OrderLine).save(orderLine);
-                return vendorEntity.channel;
+        try {
+            // Find best offer using sellerOfferService
+            const offers = await this.sellerOfferService.getOffersForVariant(ctx, variantId);
+            if (offers && offers.length > 0) {
+                // Apply selection algorithm: Lowest price first, then highest rating
+                const sortedOffers = offers.sort((a, b) => {
+                    if (a.price !== b.price) {
+                        return a.price - b.price;
+                    }
+                    const ratingA = a.vendor?.rating || 0;
+                    const ratingB = b.vendor?.rating || 0;
+                    return ratingB - ratingA;
+                });
+                const bestOffer = sortedOffers[0];
+
+                if (!orderLine.customFields) {
+                    (orderLine as any).customFields = {};
+                }
+                (orderLine.customFields as any).assignedVendor = bestOffer.vendor;
             }
+        } catch (err) {
+            console.error('[AhizanOrderSellerStrategy] Error assigning vendor to order line:', err);
         }
 
         return undefined;
@@ -217,23 +111,61 @@ export class AhizanOrderSellerStrategy implements OrderSellerStrategy {
             relations: [
                 'lines',
                 'lines.sellerChannel',
+                'lines.customFields.assignedVendor',
+                'lines.customFields.assignedVendor.channel',
                 'shippingLines',
                 'shippingLines.shippingMethod',
                 'shippingLines.shippingMethod.channels',
             ],
         });
 
+        const defaultChannel = await this.channelService.getDefaultChannel(ctx);
         const splitContents = new Map<string, SplitOrderContents>();
 
         for (const line of order.lines) {
-            if (!line.sellerChannelId) {
+            let channelId = line.sellerChannelId?.toString();
+            
+            if (!channelId) {
+                const assignedVendor = (line.customFields as any)?.assignedVendor;
+                if (assignedVendor && (assignedVendor as any).channel?.id) {
+                    channelId = (assignedVendor as any).channel.id.toString();
+                } else if (assignedVendor && (assignedVendor as any).id) {
+                    const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
+                        where: { id: (assignedVendor as any).id },
+                        relations: ['channel'],
+                    });
+                    if (vendorEntity?.channel?.id) {
+                        channelId = vendorEntity.channel.id.toString();
+                    }
+                }
+            }
+
+            if (!channelId) {
+                // Fallback: find best offer vendor's channel
+                const offers = await this.sellerOfferService.getOffersForVariant(ctx, line.productVariant.id.toString());
+                if (offers.length > 0) {
+                    const bestVendor = offers[0].vendor;
+                    const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
+                        where: { id: (bestVendor as any).id },
+                        relations: ['channel'],
+                    });
+                    if (vendorEntity?.channel?.id) {
+                        channelId = vendorEntity.channel.id.toString();
+                    }
+                }
+            }
+
+            // If no seller channel is found, or if the channel is the default channel:
+            // Skip creating a separate SellerOrder. In Vendure multivendor architecture,
+            // default channel lines remain on the aggregate order.
+            if (!channelId || idsAreEqual(channelId, defaultChannel.id)) {
                 continue;
             }
-            const channelId = line.sellerChannelId.toString();
+
             let contents = splitContents.get(channelId);
             if (!contents) {
                 contents = {
-                    channelId: line.sellerChannelId,
+                    channelId: channelId as any,
                     state: 'ArrangingPayment',
                     lines: [],
                     shippingLines: [],

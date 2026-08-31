@@ -65,6 +65,76 @@ export const commonApiExtensions = `
         markets: [Market!]
     }
 
+    type Settlement implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        vendor: Vendor!
+        order: Order!
+        grossAmount: Int!
+        commissionAmount: Int!
+        commissionRate: Float!
+        shippingFeeShare: Int!
+        penaltyAmount: Int!
+        netAmount: Int!
+        status: String!
+        releaseDate: DateTime
+    }
+
+    type Payout implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        vendor: Vendor!
+        amount: Int!
+        currencyCode: String!
+        paymentMethod: String!
+        destinationProvider: String
+        destinationAccount: String
+        status: String!
+        initiatedBy: User
+        approvedBy: User
+        approvedAt: DateTime
+        transactionReference: String
+        rejectionReason: String
+        failureReason: String
+    }
+
+    type DeliveryMission implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        order: Order!
+        vendor: Vendor
+        type: String!
+        status: String!
+        driverName: String
+        driverPhone: String
+        pickupAddress: String
+        deliveryAddress: String
+        otpCode: String
+        otpVerifiedAt: DateTime
+    }
+
+    type DeliveryVerificationResult {
+        success: Boolean!
+        message: String!
+    }
+
+    type HubArrivalResult {
+        isFullyConsolidated: Boolean!
+    }
+
+    type FinalDispatchResult {
+        mission: DeliveryMission!
+        otpCode: String!
+    }
+
+    type VendorBalanceResult {
+        availableBalance: Int!
+        heldBalance: Int!
+    }
+
     type EmailRolesResult {
         exists: Boolean!
         hasClientRole: Boolean!
@@ -599,6 +669,8 @@ export const shopApiExtensions = `
         sellerOffersForProduct(productId: ID!): [SellerOffer!]!
         mySellerOffers: [SellerOffer!]!
         searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
+        vendorSettlements(vendorId: ID!): [Settlement!]!
+        vendorAvailableBalance(vendorId: ID!): VendorBalanceResult!
     }
 
     extend type Mutation {
@@ -623,6 +695,16 @@ export const shopApiExtensions = `
         addVendorRoleToExistingClient: Vendor!
         addClientRoleToExistingVendor: Boolean!
         requestVendorWithdrawal(amount: Int!): Boolean!
+
+        # Logistics Hub & Delivery with OTP Mutations
+        markReadyForPickup(orderId: ID!, vendorId: ID!): DeliveryMission!
+        recordHubArrival(orderId: ID!, vendorId: ID): HubArrivalResult!
+        dispatchForFinalDelivery(orderId: ID!, driverName: String!, driverPhone: String!): FinalDispatchResult!
+        verifyDeliveryOtp(orderCode: String!, otpCode: String!): DeliveryVerificationResult!
+
+        # Settlements & Payouts Mutations (4-Eyes)
+        requestPayout(vendorId: ID!, amount: Int!, paymentMethod: String, provider: String, accountNumber: String): Payout!
+        approvePayout(payoutId: ID!): Payout!
 
         # Likes system mutations (Shop API)
         toggleLikeVendor(id: ID!): Boolean!
@@ -673,6 +755,8 @@ export const adminApiExtensions = `
         mySellerOffers: [SellerOffer!]!
         getGlobalOptionGroups: [GlobalOptionGroup!]!
         searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
+        vendorSettlements(vendorId: ID!): [Settlement!]!
+        vendorAvailableBalance(vendorId: ID!): VendorBalanceResult!
     }
 
     extend type Mutation {
@@ -685,6 +769,16 @@ export const adminApiExtensions = `
         fulfillMyVendorOrder(orderId: ID!, trackingCode: String, carrier: String): VendorFulfillmentResult!
         continueOrderWithoutReassigning(orderId: ID!, lineId: ID): Boolean!
         cancelCustomerOrder(orderId: ID!): Boolean!
+
+        # Logistics Hub & Delivery with OTP Mutations (Admin)
+        markReadyForPickup(orderId: ID!, vendorId: ID!): DeliveryMission!
+        recordHubArrival(orderId: ID!, vendorId: ID): HubArrivalResult!
+        dispatchForFinalDelivery(orderId: ID!, driverName: String!, driverPhone: String!): FinalDispatchResult!
+        verifyDeliveryOtp(orderCode: String!, otpCode: String!): DeliveryVerificationResult!
+
+        # Settlements & Payouts Mutations (Admin - 4-Eyes)
+        requestPayout(vendorId: ID!, amount: Int!, paymentMethod: String, provider: String, accountNumber: String): Payout!
+        approvePayout(payoutId: ID!): Payout!
 
         # Unified account: add roles to existing accounts
         addVendorRoleToExistingClient: Vendor!
@@ -716,8 +810,35 @@ export const adminApiExtensions = `
         adminCreateProduct(input: CreateVendorProductInput!, vendorId: ID!): Product!
         adminUpdateProduct(id: ID!, input: UpdateVendorProductInput!, vendorId: ID): Product!
         adminUpdateProductVariant(input: UpdateVendorProductVariantInput!): ProductVariant!
-        adminReviewProduct(id: ID!, status: String!, rejectionReason: String, convertToOfficialCatalog: Boolean): Product!
+        adminReviewProduct(
+            id: ID!
+            status: String!
+            rejectionReason: String
+            convertToOfficialCatalog: Boolean
+            name: String
+            slug: String
+            shortDescription: String
+            description: String
+            officialSku: String
+            ean: String
+            collectionIds: [ID!]
+            facetValueIds: [ID!]
+            approveVendorOffer: Boolean
+        ): Product!
         adminReviewSellerOffer(id: ID!, status: String!, rejectionReason: String): SellerOffer!
+        reassignVariantToProduct(variantId: ID!, targetProductId: ID!, approveOffer: Boolean): ProductVariant!
+        createOfficialProductFromVariant(
+            variantId: ID!
+            name: String!
+            slug: String
+            shortDescription: String
+            description: String
+            officialSku: String
+            ean: String
+            collectionIds: [ID!]
+            facetValueIds: [ID!]
+            approveOffer: Boolean
+        ): Product!
         
         # Order Management (Admin status updates & Reassignment)
         updateOrderAdminStatus(orderId: ID!, status: String!, vendorId: ID): Boolean!

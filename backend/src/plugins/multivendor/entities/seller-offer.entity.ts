@@ -1,5 +1,5 @@
 import { Entity, ManyToOne, Index, Column } from 'typeorm';
-import { VendureEntity, DeepPartial, ProductVariant } from '@vendure/core';
+import { VendureEntity, DeepPartial, ProductVariant, StockLocation } from '@vendure/core';
 import { Vendor } from './vendor.entity';
 
 export enum ProductCondition {
@@ -13,7 +13,7 @@ export enum DeliveryTimeUnit {
 }
 
 @Entity()
-@Index(['vendor', 'productVariant'], { unique: true })
+@Index(['vendor', 'productVariant', 'stockLocation'], { unique: false })
 export class SellerOffer extends VendureEntity {
     constructor(input?: DeepPartial<SellerOffer>) {
         super(input);
@@ -24,6 +24,9 @@ export class SellerOffer extends VendureEntity {
 
     @ManyToOne(type => ProductVariant, { onDelete: 'CASCADE' })
     productVariant: ProductVariant;
+
+    @ManyToOne(type => StockLocation, { nullable: true, onDelete: 'SET NULL' })
+    stockLocation: StockLocation | null;
 
     @Column({ type: 'int' })
     price: number; // Price in cents/subunits (e.g. 15000000 for 150 000 FCFA)

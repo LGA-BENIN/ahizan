@@ -200,45 +200,79 @@ export default async function OrderDetailPage(props: any) {
 
                 {/* Right Column - Shipping, Billing, Payment */}
                 <div className="space-y-6">
-                    {/* Delivery & Shipping Tracking Status */}
+                    {/* Delivery & Shipping Tracking Status & OTP Code */}
                     <Card className="border-2 border-primary/20 shadow-sm overflow-hidden">
                         <CardHeader className="bg-primary/5 pb-3">
                             <CardTitle className="text-base flex items-center justify-between">
                                 <span>Suivi & Statut de livraison</span>
                                 <Badge className={
-                                    order.customFields?.adminStatus === 'delivered' ? 'bg-emerald-600' :
-                                    order.customFields?.adminStatus === 'shipped' || order.customFields?.adminStatus === 'in_transit' ? 'bg-blue-600' :
-                                    order.customFields?.adminStatus === 'cancelled' ? 'bg-rose-600' : 'bg-amber-600'
+                                    order.state === 'Delivered' || order.customFields?.adminStatus === 'delivered' ? 'bg-emerald-600' :
+                                    order.customFields?.deliveryMissionStatus === 'OUT_FOR_DELIVERY' || order.customFields?.adminStatus === 'shipped' ? 'bg-blue-600' :
+                                    order.customFields?.isConsolidated ? 'bg-purple-600' :
+                                    order.state === 'Cancelled' ? 'bg-rose-600' : 'bg-amber-600'
                                 }>
                                     {
-                                        order.customFields?.adminStatus === 'delivered' ? 'Livrée' :
+                                        order.state === 'Delivered' || order.customFields?.adminStatus === 'delivered' ? 'Livrée' :
+                                        order.customFields?.deliveryMissionStatus === 'OUT_FOR_DELIVERY' ? 'En cours de livraison' :
+                                        order.customFields?.isConsolidated ? 'Au Hub Central Ahizan' :
                                         order.customFields?.adminStatus === 'shipped' ? 'Expédiée' :
-                                        order.customFields?.adminStatus === 'in_transit' ? 'En transit' :
-                                        order.customFields?.adminStatus === 'cancelled' ? 'Annulée' : 'En attente d\'expédition'
+                                        order.state === 'Cancelled' ? 'Annulée' : 'En préparation'
                                     }
                                 </Badge>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-4 space-y-3 text-sm">
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-muted-foreground font-medium">Validation Vendeur :</span>
-                                <span className="font-bold text-foreground">
-                                    {
-                                        order.customFields?.sellerStatus === 'confirmed' ? '✅ Confirmée' :
-                                        order.customFields?.sellerStatus === 'refused' ? '❌ Refusée' : '⏳ En attente'
-                                    }
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-muted-foreground font-medium">Statut d'expédition :</span>
-                                <span className="font-bold text-foreground">
-                                    {
-                                        order.customFields?.adminStatus === 'delivered' ? '📦 Colis Livré' :
-                                        order.customFields?.adminStatus === 'shipped' ? '🚚 Expédiée' :
-                                        order.customFields?.adminStatus === 'in_transit' ? '✈️ En transit' :
-                                        order.customFields?.adminStatus === 'cancelled' ? '❌ Annulée' : '⏳ Préparation du colis'
-                                    }
-                                </span>
+                        <CardContent className="pt-4 space-y-4 text-sm">
+                            {/* OTP Code Box for Customer */}
+                            {order.customFields?.deliveryOtp && order.state !== 'Delivered' && (
+                                <div className="p-4 bg-primary/10 border-2 border-primary/30 rounded-2xl text-center space-y-2">
+                                    <p className="text-xs font-black uppercase tracking-wider text-primary">Code Secret de Livraison (OTP)</p>
+                                    <div className="text-3xl font-mono font-black tracking-widest text-foreground bg-card py-2 px-6 rounded-xl border border-primary/20 inline-block shadow-sm">
+                                        {order.customFields.deliveryOtp}
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground font-medium">
+                                        Communiquez ce code à 6 chiffres exclusivement au livreur lors de la remise en main propre de votre colis.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Logistics Step-by-Step Breakdown */}
+                            <div className="space-y-2.5 border-t border-border pt-3">
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-bold text-[10px]">1</span>
+                                    <span className="font-medium text-foreground">Commande reçue & validée par les vendeurs</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                                        order.customFields?.isConsolidated || order.state === 'Delivered' || order.customFields?.deliveryMissionStatus === 'OUT_FOR_DELIVERY'
+                                            ? 'bg-emerald-500/20 text-emerald-600'
+                                            : 'bg-muted text-muted-foreground'
+                                    }`}>2</span>
+                                    <span className={order.customFields?.isConsolidated || order.state === 'Delivered' ? 'font-medium text-foreground' : 'text-muted-foreground'}>
+                                        Collecte boutique & transfert vers le Hub
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                                        order.customFields?.isConsolidated
+                                            ? 'bg-purple-500/20 text-purple-600'
+                                            : 'bg-muted text-muted-foreground'
+                                    }`}>3</span>
+                                    <span className={order.customFields?.isConsolidated ? 'font-bold text-foreground' : 'text-muted-foreground'}>
+                                        Regroupement & consolidation au Hub Central Ahizan
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs">
+                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                                        order.state === 'Delivered'
+                                            ? 'bg-emerald-500/20 text-emerald-600'
+                                            : order.customFields?.deliveryMissionStatus === 'OUT_FOR_DELIVERY'
+                                            ? 'bg-blue-500/20 text-blue-600 animate-pulse'
+                                            : 'bg-muted text-muted-foreground'
+                                    }`}>4</span>
+                                    <span className={order.state === 'Delivered' || order.customFields?.deliveryMissionStatus === 'OUT_FOR_DELIVERY' ? 'font-medium text-foreground' : 'text-muted-foreground'}>
+                                        {order.state === 'Delivered' ? 'Colis livré avec validation OTP ✅' : 'Livraison finale en cours avec code OTP'}
+                                    </span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

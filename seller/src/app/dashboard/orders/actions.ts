@@ -183,3 +183,73 @@ export async function fulfillVendorOrderAction(orderId: string, carrier: string,
         return { success: false, error: e.message };
     }
 }
+
+export async function markOrderReadyForPickupAction(orderId: string, vendorId: string) {
+    try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+            headers[VENDURE_AUTH_TOKEN_HEADER] = token;
+        }
+
+        const res = await fetch(VENDURE_API_URL!, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: `mutation MarkReadyForPickup($orderId: ID!, $vendorId: ID!) {
+                    markReadyForPickup(orderId: $orderId, vendorId: $vendorId) {
+                        id
+                        status
+                        type
+                    }
+                }`,
+                variables: { orderId, vendorId },
+            }),
+            cache: 'no-store',
+        });
+        const json = await res.json();
+        if (json.errors) {
+            return { success: false, error: json.errors[0].message };
+        }
+        return { success: true, mission: json.data?.markReadyForPickup };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function refuseOrderAction(orderId: string) {
+    try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+            headers[VENDURE_AUTH_TOKEN_HEADER] = token;
+        }
+
+        const res = await fetch(VENDURE_API_URL!, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: `mutation RefuseOrder($orderId: ID!) {
+                    updateMyOrderSellerStatus(orderId: $orderId, statusCode: "refused")
+                }`,
+                variables: { orderId },
+            }),
+            cache: 'no-store',
+        });
+        const json = await res.json();
+        if (json.errors) {
+            return { success: false, error: json.errors[0].message };
+        }
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}

@@ -1,13 +1,32 @@
-import {cookies} from 'next/headers';
+import {cookies, headers} from 'next/headers';
 
 const AUTH_TOKEN_COOKIE = process.env.VENDURE_AUTH_TOKEN_COOKIE || 'vendure-auth-token';
-const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || '.ahizan.com';
+const DEFAULT_COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || '.ahizan.com';
+
+async function getCookieOptions() {
+    let domain: string | undefined = undefined;
+    let isSecure = false;
+    try {
+        const headerList = await headers();
+        const host = headerList.get('host') || headerList.get('x-forwarded-host') || '';
+        const proto = headerList.get('x-forwarded-proto') || '';
+        
+        if (host.includes('ahizan.com')) {
+            domain = DEFAULT_COOKIE_DOMAIN;
+        }
+        isSecure = proto === 'https' || (process.env.NODE_ENV === 'production' && host.includes('ahizan.com'));
+    } catch {
+        domain = undefined;
+        isSecure = false;
+    }
+    return { domain, isSecure };
+}
 
 export async function setAuthToken(token: string) {
-    const isSecure = process.env.NODE_ENV === 'production';
+    const { domain, isSecure } = await getCookieOptions();
     const cookieStore = await cookies();
     cookieStore.set(AUTH_TOKEN_COOKIE, token, {
-        domain: isSecure ? COOKIE_DOMAIN : undefined,
+        domain,
         path: '/',
         httpOnly: true,
         secure: isSecure,
@@ -26,11 +45,11 @@ export async function getAuthToken(): Promise<string | undefined> {
 }
 
 export async function removeAuthToken() {
-    const isSecure = process.env.NODE_ENV === 'production';
+    const { domain } = await getCookieOptions();
     const cookieStore = await cookies();
     cookieStore.delete({
         name: AUTH_TOKEN_COOKIE,
-        domain: isSecure ? COOKIE_DOMAIN : undefined,
+        domain,
         path: '/'
     });
 }

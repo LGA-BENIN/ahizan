@@ -445,6 +445,16 @@ export default function WalletClientContent({
                                 </div>
                             </div>
 
+                            {Number(withdrawAmount) >= 25000 && (
+                                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2.5">
+                                    <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                                    <div>
+                                        <strong className="block font-bold">Double signature requise (Principe des 4 yeux)</strong>
+                                        <span>Pour les montants ≥ 25 000 FCFA, une validation par le Responsable Financier Ahizan est automatiquement requise sous 24h ouvrées.</span>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex items-center gap-3 pt-2">
                                 <Button 
                                     type="button" 

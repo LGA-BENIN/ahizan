@@ -6,9 +6,9 @@ import { CreateMyProductMutation, UpdateMyProductMutation, UpdateMyProductVarian
 import { priceToSubunit } from '@/lib/format';
 
 export async function createProductAction(prevState: any, formData: FormData) {
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
-    const shortDescription = formData.get('shortDescription') as string;
+    const name = (formData.get('name') as string) || '';
+    const description = (formData.get('description') as string) || (formData.get('shortDescription') as string) || name || 'Description de l\'article';
+    const shortDescription = (formData.get('shortDescription') as string) || description;
     const price = priceToSubunit(parseInt(formData.get('price') as string) || 0);
     const stock = parseInt(formData.get('stock') as string) || 0;
     const sku = (formData.get('sku') as string) || undefined;

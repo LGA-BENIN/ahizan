@@ -8,7 +8,7 @@ import { ProductLike } from './entities/product-like.entity';
 import { ChatMessage } from './entities/chat-message.entity';
 import { WithdrawalRequest } from './entities/withdrawal-request.entity';
 import { VendorService } from './service/vendor.service';
-import { VendorOrderSubscriber } from './service/vendor-event.subscriber';
+import { VendorOrderSubscriber, RolePermissionsSubscriber } from './service/vendor-event.subscriber';
 import { PlatformSettingsService } from './service/platform-settings.service';
 import { OrderStatusService } from './service/order-status.service';
 import { LikeService } from './service/like.service';
@@ -18,7 +18,7 @@ import { ReplacementEngineService } from './service/replacement-engine.service';
 import { AiNormalizerService } from './service/ai-normalizer.service';
 import { adminApiExtensions, shopApiExtensions, commonApiExtensions } from './api/api-extensions';
 import { VendorResolver, VendorAdminResolver, WithdrawalRequestEntityResolver } from './api/vendor.resolver';
-import { VendorShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver } from './api/vendor-shop.resolver';
+import { VendorShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver, ProductShopResolver } from './api/vendor-shop.resolver';
 import { VendorShopApiResolver } from './api/vendor-shop-api.resolver';
 import { PlatformSettingsAdminResolver, PlatformSettingsShopResolver } from './api/platform-settings.resolver';
 import { OrderStatusAdminResolver, OrderStatusShopResolver } from './api/order-status.resolver';
@@ -29,15 +29,37 @@ import { gql } from 'graphql-tag';
 import { GeoEnginePlugin } from '../geo-engine/geo-engine.plugin';
 import { AhizanNotificationsPlugin } from '../notifications/ahizan-notifications.plugin';
 import { SellerOffer } from './entities/seller-offer.entity';
+import { Settlement } from './entities/settlement.entity';
+import { Payout } from './entities/payout.entity';
+import { DeliveryMission } from './entities/delivery-mission.entity';
+import { Dispute } from './entities/dispute.entity';
+import { LogisticsHubService } from './service/logistics-hub.service';
+import { SettlementService } from './service/settlement.service';
+import { LogisticsHubAdminResolver } from './api/logistics-hub.resolver';
+import { SettlementAdminResolver } from './api/settlement.resolver';
 
 @VendurePlugin({
     imports: [PluginCommonModule, GeoEnginePlugin, AhizanNotificationsPlugin],
 
-    entities: [Vendor, PlatformSettings, OrderStatus, VendorLike, ProductLike, ChatMessage, WithdrawalRequest, SellerOffer],
+    entities: [
+        Vendor, 
+        PlatformSettings, 
+        OrderStatus, 
+        VendorLike, 
+        ProductLike, 
+        ChatMessage, 
+        WithdrawalRequest, 
+        SellerOffer,
+        Settlement,
+        Payout,
+        DeliveryMission,
+        Dispute
+    ],
 
     providers: [
         VendorService,
         VendorOrderSubscriber,
+        RolePermissionsSubscriber,
         PlatformSettingsService,
         OrderStatusService,
         LikeService,
@@ -45,6 +67,8 @@ import { SellerOffer } from './entities/seller-offer.entity';
         SellerOfferService,
         ReplacementEngineService,
         AiNormalizerService,
+        LogisticsHubService,
+        SettlementService,
     ],
 
     dashboard: './dashboard',
@@ -57,7 +81,7 @@ ${commonApiExtensions}
 
 ${adminApiExtensions}
         `,
-        resolvers: [VendorAdminResolver, VendorShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver, WithdrawalRequestEntityResolver],
+        resolvers: [VendorAdminResolver, VendorShopResolver, ProductShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver, PlatformSettingsAdminResolver, OrderStatusAdminResolver, LikeAdminResolver, ChatAdminResolver, WithdrawalRequestEntityResolver, LogisticsHubAdminResolver, SettlementAdminResolver],
     },
 
     shopApiExtensions: {
@@ -66,7 +90,7 @@ ${commonApiExtensions}
 
 ${shopApiExtensions}
         `,
-        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductVariantShopResolver, SellerOfferEntityResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver, WithdrawalRequestEntityResolver],
+        resolvers: [VendorResolver, VendorShopResolver, VendorShopApiResolver, ProductShopResolver, ProductVariantShopResolver, SellerOfferEntityResolver, PlatformSettingsShopResolver, OrderStatusShopResolver, LikeShopResolver, ChatResolver, WithdrawalRequestEntityResolver, LogisticsHubAdminResolver, SettlementAdminResolver],
     },
 
     configuration: (config: any) => {
@@ -297,6 +321,35 @@ ${shopApiExtensions}
             defaultValue: false,
         });
 
+        pushUnique(config.customFields.Order, {
+            name: 'deliveryOtp',
+            type: 'string',
+            public: true,
+            nullable: true,
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'isConsolidated',
+            type: 'boolean',
+            public: true,
+            nullable: true,
+            defaultValue: false,
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'hubArrivalDate',
+            type: 'datetime',
+            public: true,
+            nullable: true,
+        });
+
+        pushUnique(config.customFields.Order, {
+            name: 'deliveryMissionStatus',
+            type: 'string',
+            public: true,
+            nullable: true,
+        });
+
         // ---------------------------
         // PERMISSIONS SAFE INIT
         // ---------------------------
@@ -331,6 +384,31 @@ export class MultivendorPlugin implements OnApplicationBootstrap {
     ) {}
 
     async onApplicationBootstrap() {
+        try {
+            await this.connection.rawConnection.query(`
+                CREATE OR REPLACE FUNCTION ignore_duplicate_order_channels()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM order_channels_channel 
+                        WHERE "orderId" = NEW."orderId" AND "channelId" = NEW."channelId"
+                    ) THEN
+                        RETURN NULL;
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                DROP TRIGGER IF EXISTS trg_ignore_duplicate_order_channels ON order_channels_channel;
+                CREATE TRIGGER trg_ignore_duplicate_order_channels
+                BEFORE INSERT ON order_channels_channel
+                FOR EACH ROW
+                EXECUTE FUNCTION ignore_duplicate_order_channels();
+            `);
+        } catch (e) {
+            console.error('[MultivendorPlugin] Failed to ensure ignore_duplicate_order_channels trigger:', e);
+        }
+
         // Delay reindex slightly to let the app fully initialize
         setTimeout(async () => {
             try {

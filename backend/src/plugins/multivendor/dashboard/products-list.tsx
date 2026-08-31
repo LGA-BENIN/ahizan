@@ -220,6 +220,84 @@ const ADMIN_UPDATE_PRODUCT = `
             name
             slug
             enabled
+            featuredAsset {
+                id
+                preview
+            }
+            assets {
+                id
+                preview
+            }
+        }
+    }
+`;
+
+const REASSIGN_VARIANT_TO_PRODUCT = `
+    mutation ReassignVariantToProduct($variantId: ID!, $targetProductId: ID!, $approveOffer: Boolean) {
+        reassignVariantToProduct(variantId: $variantId, targetProductId: $targetProductId, approveOffer: $approveOffer) {
+            id
+            name
+            sku
+            product {
+                id
+                name
+            }
+        }
+    }
+`;
+
+const CREATE_OFFICIAL_PRODUCT_FROM_VARIANT = `
+    mutation CreateOfficialProductFromVariant(
+        $variantId: ID!
+        $name: String!
+        $slug: String
+        $shortDescription: String
+        $description: String
+        $officialSku: String
+        $ean: String
+        $collectionIds: [ID!]
+        $facetValueIds: [ID!]
+        $approveOffer: Boolean
+    ) {
+        createOfficialProductFromVariant(
+            variantId: $variantId
+            name: $name
+            slug: $slug
+            shortDescription: $shortDescription
+            description: $description
+            officialSku: $officialSku
+            ean: $ean
+            collectionIds: $collectionIds
+            facetValueIds: $facetValueIds
+            approveOffer: $approveOffer
+        ) {
+            id
+            name
+        }
+    }
+`;
+
+const SEARCH_OFFICIAL_PRODUCTS = `
+    query SearchOfficialProducts($term: String, $take: Int) {
+        searchOfficialProducts(term: $term, take: $take) {
+            items {
+                id
+                name
+                slug
+                featuredAsset {
+                    preview
+                }
+                collections {
+                    id
+                    name
+                }
+                variants {
+                    id
+                    name
+                    sku
+                }
+            }
+            totalItems
         }
     }
 `;
@@ -266,13 +344,58 @@ const ADMIN_REVIEW_SELLER_OFFER = `
 `;
 
 const ADMIN_REVIEW_PRODUCT = `
-    mutation AdminReviewProduct($id: ID!, $status: String!, $rejectionReason: String, $convertToOfficialCatalog: Boolean) {
-        adminReviewProduct(id: $id, status: $status, rejectionReason: $rejectionReason, convertToOfficialCatalog: $convertToOfficialCatalog) {
+    mutation AdminReviewProduct(
+        $id: ID!
+        $status: String!
+        $rejectionReason: String
+        $convertToOfficialCatalog: Boolean
+        $name: String
+        $slug: String
+        $shortDescription: String
+        $description: String
+        $officialSku: String
+        $ean: String
+        $collectionIds: [ID!]
+        $facetValueIds: [ID!]
+        $approveVendorOffer: Boolean
+    ) {
+        adminReviewProduct(
+            id: $id
+            status: $status
+            rejectionReason: $rejectionReason
+            convertToOfficialCatalog: $convertToOfficialCatalog
+            name: $name
+            slug: $slug
+            shortDescription: $shortDescription
+            description: $description
+            officialSku: $officialSku
+            ean: $ean
+            collectionIds: $collectionIds
+            facetValueIds: $facetValueIds
+            approveVendorOffer: $approveVendorOffer
+        ) {
             id
             enabled
             customFields {
                 approvalStatus
                 rejectionReason
+            }
+        }
+    }
+`;
+
+const GET_FACETS = `
+    query GetFacets {
+        facets(options: { take: 100 }) {
+            items {
+                id
+                name
+                code
+                values {
+                    id
+                    name
+                    code
+                }
             }
         }
     }
@@ -297,24 +420,63 @@ async function fetchGraphQL(query: string, variables?: any) {
     return json.data;
 }
 
+// Helper Multi-Part File Uploader
+async function uploadAssetFile(file: File): Promise<{ id: string; preview: string }> {
+    const formData = new FormData();
+    formData.append('operations', JSON.stringify({
+        query: `mutation UploadVendorFile($file: Upload!) { uploadVendorFile(file: $file) { id preview } }`,
+        variables: { file: null }
+    }));
+    formData.append('map', JSON.stringify({ '0': ['variables.file'] }));
+    formData.append('0', file);
+
+    const response = await fetch('/admin-api', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+    });
+    const json = await response.json();
+    if (json.errors) throw new Error(json.errors[0].message);
+    return json.data.uploadVendorFile;
+}
+
 export function ProductListComponent() {
     const queryClient = useQueryClient();
 
-    // Active View Tab: 'all' | 'official' | 'vendor_proposals' | 'pending' | 'settings'
-    const [activeTab, setActiveTab] = useState<'all' | 'official' | 'vendor_proposals' | 'pending' | 'settings'>('all');
+    // Helper formatPrice
+    const formatPrice = (val?: number | null) => (val ? `${(val / 100).toLocaleString('fr-FR')} FCFA` : '0 FCFA');
 
-    // Search and Filters
+    // Active View Tab: 'official' | 'vendor_proposals' | 'pending' | 'settings'
+    const [activeTab, setActiveTab] = useState<'official' | 'vendor_proposals' | 'pending' | 'settings'>('official');
+
+    // Search, Filters & Sorting
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedVendor, setSelectedVendor] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
+    const [sortBy, setSortBy] = useState<'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'variants_desc'>('created_desc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
     const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
 
     // Modal state for Approval Review
     const [reviewProduct, setReviewProduct] = useState<MarketplaceProduct | null>(null);
     const [reviewDecision, setReviewDecision] = useState<'approved_official' | 'approved_vendor' | 'rejected'>('approved_official');
     const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+    const [rejectScope, setRejectScope] = useState<'all' | 'specific_offer'>('all');
+    const [rejectedOfferIds, setRejectedOfferIds] = useState<string[]>([]);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+    // Form state for creating/promoting to Official Product inside Review Modal
+    const [officialTitle, setOfficialTitle] = useState('');
+    const [officialSlug, setOfficialSlug] = useState('');
+    const [officialShortDescription, setOfficialShortDescription] = useState('');
+    const [officialDescription, setOfficialDescription] = useState('');
+    const [officialSku, setOfficialSku] = useState('');
+    const [officialEan, setOfficialEan] = useState('');
+    const [officialCollectionIds, setOfficialCollectionIds] = useState<string[]>([]);
+    const [officialFacetValueIds, setOfficialFacetValueIds] = useState<string[]>([]);
+    const [approveVendorOfferCheckbox, setApproveVendorOfferCheckbox] = useState(true);
 
     // Modal state for Editing Ahizan Product
     const [editingProduct, setEditingProduct] = useState<MarketplaceProduct | null>(null);
@@ -333,7 +495,34 @@ export function ProductListComponent() {
         collectionIds: [],
         enabled: true,
     });
+    const [editAssets, setEditAssets] = useState<Array<{ id: string; preview: string }>>([]);
+    const [editFeaturedAssetId, setEditFeaturedAssetId] = useState<string | null>(null);
+    const [isUploadingAssets, setIsUploadingAssets] = useState(false);
     const [isSavingProduct, setIsSavingProduct] = useState(false);
+
+    // Modal state for Regrafting a Variant to another Product ("Greffer à un autre produit")
+    const [regraftModalData, setRegraftModalData] = useState<{
+        variant: any;
+        offer?: any;
+        currentProduct: MarketplaceProduct;
+    } | null>(null);
+    const [regraftTab, setRegraftTab] = useState<'existing' | 'new_official'>('existing');
+    const [regraftSearchTerm, setRegraftSearchTerm] = useState('');
+    const [regraftSearchResults, setRegraftSearchResults] = useState<any[]>([]);
+    const [isLoadingRegraftSearch, setIsLoadingRegraftSearch] = useState(false);
+    const [selectedTargetProduct, setSelectedTargetProduct] = useState<any | null>(null);
+    const [isSubmittingRegraft, setIsSubmittingRegraft] = useState(false);
+
+    // Form states for creating a new official product from regraft modal
+    const [regraftNewTitle, setRegraftNewTitle] = useState('');
+    const [regraftNewSlug, setRegraftNewSlug] = useState('');
+    const [regraftNewShortDesc, setRegraftNewShortDesc] = useState('');
+    const [regraftNewDesc, setRegraftNewDesc] = useState('');
+    const [regraftNewSku, setRegraftNewSku] = useState('');
+    const [regraftNewEan, setRegraftNewEan] = useState('');
+    const [regraftNewCollectionIds, setRegraftNewCollectionIds] = useState<string[]>([]);
+    const [regraftNewFacetValueIds, setRegraftNewFacetValueIds] = useState<string[]>([]);
+    const [regraftNewApproveOffer, setRegraftNewApproveOffer] = useState(true);
 
     // Seller Offers state & handlers
     const [offersMap, setOffersMap] = useState<Record<string, any[]>>({});
@@ -409,8 +598,15 @@ export function ProductListComponent() {
         queryFn: () => fetchGraphQL(GET_GLOBAL_SETTINGS),
     });
 
+    // Fetch Facets
+    const { data: facetsData } = useQuery({
+        queryKey: ['facetsList'],
+        queryFn: () => fetchGraphQL(GET_FACETS),
+    });
+
     const products: MarketplaceProduct[] = productsData?.products?.items || [];
     const collections = collectionsData?.collections?.items || [];
+    const facets = facetsData?.facets?.items || [];
     const vendors = vendorsData?.vendors?.items || [];
     const minPrice = globalSettingsData?.globalSettings?.customFields?.minimumMarketplacePrice ?? 0;
 
@@ -419,7 +615,11 @@ export function ProductListComponent() {
         const totalProducts = products.length;
         const officialCount = products.filter(p => !p.customFields?.vendor || p.customFields.vendor.name === 'Ahizan').length;
         const vendorProposalCount = products.filter(p => !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan').length;
-        const pendingProducts = products.filter(p => (p.customFields?.approvalStatus || 'approved') === 'pending').length;
+        const pendingProducts = products.filter(p => {
+            const approvalStatus = p.customFields?.approvalStatus || 'approved';
+            const hasPendingVariants = p.variants?.some(v => (v.customFields as any)?.offerStatus === 'PENDING' || (v as any).customFieldsOfferstatus === 'PENDING');
+            return approvalStatus === 'pending' || hasPendingVariants;
+        }).length;
         const approvedProducts = products.filter(p => (p.customFields?.approvalStatus || 'approved') === 'approved').length;
         const totalVariants = products.reduce((acc, p) => acc + (p.variants?.length || 0), 0);
 
@@ -433,15 +633,27 @@ export function ProductListComponent() {
         };
     }, [products]);
 
+    // Tab switcher with clean reset
+    const handleTabChange = (newTab: 'official' | 'vendor_proposals' | 'pending' | 'settings') => {
+        setActiveTab(newTab);
+        setCurrentPage(1);
+        setSelectedVendor('all');
+        setSelectedStatus('all');
+        setSelectedCategory('all');
+        setSearchTerm('');
+    };
+
     // Filtered Products
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const approvalStatus = p.customFields?.approvalStatus || 'approved';
             const vendorId = p.customFields?.vendor?.id || '';
             const isVendorProposal = !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan';
+            const hasPendingVariants = p.variants?.some(v => (v.customFields as any)?.offerStatus === 'PENDING' || (v as any).customFieldsOfferstatus === 'PENDING');
+            const isPending = approvalStatus === 'pending' || hasPendingVariants;
 
             // Tab restriction
-            if (activeTab === 'pending' && approvalStatus !== 'pending') {
+            if (activeTab === 'pending' && !isPending) {
                 return false;
             }
             if (activeTab === 'official' && isVendorProposal) {
@@ -484,14 +696,59 @@ export function ProductListComponent() {
         });
     }, [products, activeTab, searchTerm, selectedCategory, selectedVendor, selectedStatus]);
 
+    // Sorted Products
+    const sortedProducts = useMemo(() => {
+        const list = [...filteredProducts];
+        list.sort((a, b) => {
+            if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+            if (sortBy === 'name_desc') return b.name.localeCompare(a.name);
+            if (sortBy === 'price_asc') return (a.variants?.[0]?.price || 0) - (b.variants?.[0]?.price || 0);
+            if (sortBy === 'price_desc') return (b.variants?.[0]?.price || 0) - (a.variants?.[0]?.price || 0);
+            if (sortBy === 'variants_desc') return (b.variants?.length || 0) - (a.variants?.length || 0);
+            if (sortBy === 'created_asc') return Number(a.id) - Number(b.id);
+            return Number(b.id) - Number(a.id); // default created_desc
+        });
+        return list;
+    }, [filteredProducts, sortBy]);
+
+    // Paginated Products
+    const totalPages = Math.max(1, Math.ceil(sortedProducts.length / itemsPerPage));
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return sortedProducts.slice(start, start + itemsPerPage);
+    }, [sortedProducts, currentPage, itemsPerPage]);
+
     // Approval / Moderation Mutation
     const approvalMutation = useMutation({
-        mutationFn: ({ id, approvalStatus, rejectionReason, convertToOfficialCatalog }: { id: string; approvalStatus: string; rejectionReason?: string; convertToOfficialCatalog?: boolean }) =>
+        mutationFn: (variables: {
+            id: string;
+            approvalStatus: string;
+            rejectionReason?: string;
+            convertToOfficialCatalog?: boolean;
+            name?: string;
+            slug?: string;
+            shortDescription?: string;
+            description?: string;
+            officialSku?: string;
+            ean?: string;
+            collectionIds?: string[];
+            facetValueIds?: string[];
+            approveVendorOffer?: boolean;
+        }) =>
             fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
-                id,
-                status: approvalStatus,
-                rejectionReason: rejectionReason || null,
-                convertToOfficialCatalog: !!convertToOfficialCatalog,
+                id: variables.id,
+                status: variables.approvalStatus,
+                rejectionReason: variables.rejectionReason || null,
+                convertToOfficialCatalog: !!variables.convertToOfficialCatalog,
+                name: variables.name || null,
+                slug: variables.slug || null,
+                shortDescription: variables.shortDescription || null,
+                description: variables.description || null,
+                officialSku: variables.officialSku || null,
+                ean: variables.ean || null,
+                collectionIds: variables.collectionIds || null,
+                facetValueIds: variables.facetValueIds || null,
+                approveVendorOffer: variables.approveVendorOffer !== undefined ? variables.approveVendorOffer : true,
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
@@ -527,13 +784,117 @@ export function ProductListComponent() {
         }
     };
 
-    const handleOpenReview = (product: MarketplaceProduct) => {
+    const handleOpenReview = async (product: MarketplaceProduct) => {
         setReviewProduct(product);
         setReviewDecision(product.customFields?.approvalStatus === 'rejected' ? 'rejected' : 'approved_official');
         setRejectionReasonInput(product.customFields?.rejectionReason || '');
+        setRejectScope('all');
+        setRejectedOfferIds([]);
+        setRegraftSearchTerm('');
+        setSelectedTargetProduct(null);
+        setIsLoadingRegraftSearch(true);
+
+        // Pre-fill Official Product form fields from vendor submission
+        setOfficialTitle(product.name || '');
+        setOfficialSlug(product.slug || (product.name ? product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : ''));
+        setOfficialShortDescription(product.customFields?.shortDescription || '');
+        setOfficialDescription(product.description || '');
+        setOfficialSku(product.variants?.[0]?.sku || `AHZ-${product.id}`);
+        setOfficialEan((product.variants?.[0]?.customFields as any)?.ean || '');
+        setOfficialCollectionIds((product.collections || []).map((c: any) => c.id));
+        setOfficialFacetValueIds((product.facetValues || []).map((f: any) => f.id));
+        setApproveVendorOfferCheckbox(true);
+
+        try {
+            // Fetch live seller offers and official products concurrently
+            const [offersData, officialProdsData] = await Promise.all([
+                fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: product.id }).catch(() => null),
+                fetchGraphQL(SEARCH_OFFICIAL_PRODUCTS, { term: '', take: 20 }).catch(() => null)
+            ]);
+
+            if (offersData?.sellerOffersForProduct) {
+                setOffersMap(prev => ({ ...prev, [product.id]: offersData.sellerOffersForProduct }));
+            }
+
+            const items = (officialProdsData?.searchOfficialProducts?.items || []).filter((p: any) => String(p.id) !== String(product.id));
+            setRegraftSearchResults(items);
+        } catch (err) {
+            console.error('Error prefetching offers or official products:', err);
+        } finally {
+            setIsLoadingRegraftSearch(false);
+        }
     };
 
-    const handleSubmitReview = (e: React.FormEvent) => {
+    const handleReviewAndReassign = async (targetProduct: any) => {
+        if (!reviewProduct || !targetProduct) return;
+
+        setIsSubmittingReview(true);
+        try {
+            // Find all variant IDs to move from:
+            // 1. reviewProduct.variants
+            // 2. offersMap[reviewProduct.id]
+            // 3. Fallback direct GraphQL fetch
+            let variantIds: string[] = [];
+
+            if (reviewProduct.variants && reviewProduct.variants.length > 0) {
+                variantIds = reviewProduct.variants.map((v: any) => String(v.id)).filter(Boolean);
+            }
+
+            if (variantIds.length === 0 && offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) {
+                variantIds = offersMap[reviewProduct.id]
+                    .map((off: any) => off.productVariant?.id)
+                    .filter(Boolean)
+                    .map(String);
+            }
+
+            if (variantIds.length === 0) {
+                // Fallback: Fetch product with variants directly from GraphQL
+                const freshProd = await fetchGraphQL(`
+                    query GetProductVariantsDirect($id: ID!) {
+                        product(id: $id) {
+                            id
+                            variants {
+                                id
+                            }
+                        }
+                    }
+                `, { id: reviewProduct.id });
+                if (freshProd?.product?.variants && freshProd.product.variants.length > 0) {
+                    variantIds = freshProd.product.variants.map((v: any) => String(v.id)).filter(Boolean);
+                }
+            }
+
+            if (variantIds.length === 0) {
+                alert('Aucune déclinaison trouvée sur cette proposition.');
+                setIsSubmittingReview(false);
+                return;
+            }
+
+            for (const varId of variantIds) {
+                await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                    variantId: varId,
+                    targetProductId: targetProduct.id,
+                    approveOffer: approveVendorOfferCheckbox,
+                });
+            }
+
+            // If the source proposition product is distinct from target product, clean up the empty proposition shell
+            if (String(reviewProduct.id) !== String(targetProduct.id) && reviewProduct.customFields?.vendor) {
+                await fetchGraphQL(DELETE_PRODUCT, { id: reviewProduct.id }).catch(() => null);
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            alert(`Déclinaisons raccordées avec succès sur la fiche officielle "${targetProduct.name}" !`);
+            setReviewProduct(null);
+        } catch (err: any) {
+            console.error('Error reassigning variant:', err);
+            alert('Erreur lors du raccordement : ' + err.message);
+        } finally {
+            setIsSubmittingReview(false);
+        }
+    };
+
+    const handleSubmitReview = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!reviewProduct) return;
 
@@ -543,12 +904,61 @@ export function ProductListComponent() {
         }
 
         setIsSubmittingReview(true);
-        approvalMutation.mutate({
-            id: reviewProduct.id,
-            approvalStatus: reviewDecision === 'rejected' ? 'rejected' : 'approved',
-            convertToOfficialCatalog: reviewDecision === 'approved_official',
-            rejectionReason: reviewDecision === 'rejected' ? rejectionReasonInput : '',
-        });
+        if (reviewDecision === 'approved_official') {
+            approvalMutation.mutate({
+                id: reviewProduct.id,
+                approvalStatus: 'approved',
+                convertToOfficialCatalog: true,
+                name: officialTitle.trim() || reviewProduct.name,
+                slug: officialSlug.trim() || undefined,
+                shortDescription: officialShortDescription.trim(),
+                description: officialDescription.trim(),
+                officialSku: officialSku.trim() || undefined,
+                ean: officialEan.trim() || undefined,
+                collectionIds: officialCollectionIds.length > 0 ? officialCollectionIds : undefined,
+                facetValueIds: officialFacetValueIds.length > 0 ? officialFacetValueIds : undefined,
+                approveVendorOffer: approveVendorOfferCheckbox,
+                rejectionReason: '',
+            });
+        } else if (reviewDecision === 'rejected') {
+            if (rejectScope === 'specific_offer' && rejectedOfferIds.length > 0) {
+                try {
+                    for (const offerId of rejectedOfferIds) {
+                        await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
+                            id: offerId,
+                            status: 'rejected',
+                            rejectionReason: rejectionReasonInput,
+                        });
+                    }
+                    await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                    const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: reviewProduct.id });
+                    if (updatedOffers?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [reviewProduct.id]: updatedOffers.sellerOffersForProduct }));
+                    }
+                    alert(`${rejectedOfferIds.length} offre(s) spécifique(s) rejetée(s) avec succès.`);
+                    setReviewProduct(null);
+                } catch (err: any) {
+                    alert('Erreur lors du rejet des offres : ' + err.message);
+                } finally {
+                    setIsSubmittingReview(false);
+                }
+                return;
+            }
+
+            approvalMutation.mutate({
+                id: reviewProduct.id,
+                approvalStatus: 'rejected',
+                convertToOfficialCatalog: false,
+                rejectionReason: rejectionReasonInput,
+            });
+        } else {
+            approvalMutation.mutate({
+                id: reviewProduct.id,
+                approvalStatus: 'approved',
+                convertToOfficialCatalog: false,
+                rejectionReason: '',
+            });
+        }
     };
 
     const handleDeleteProduct = (product: MarketplaceProduct) => {
@@ -567,6 +977,71 @@ export function ProductListComponent() {
             collectionIds: (product.collections || []).map(c => c.id),
             enabled: product.enabled !== false,
         });
+
+        // Initialize assets list
+        const initialAssets: Array<{ id: string; preview: string }> = [];
+        const seenIds: { [key: string]: boolean } = {};
+
+        if (product.featuredAsset?.id && product.featuredAsset.preview) {
+            initialAssets.push({ id: product.featuredAsset.id, preview: product.featuredAsset.preview });
+            seenIds[product.featuredAsset.id] = true;
+        }
+
+        if (product.assets && product.assets.length > 0) {
+            for (const a of product.assets) {
+                if (a?.id && a.preview && !seenIds[a.id]) {
+                    initialAssets.push({ id: a.id, preview: a.preview });
+                    seenIds[a.id] = true;
+                }
+            }
+        }
+
+        setEditAssets(initialAssets);
+        setEditFeaturedAssetId(product.featuredAsset?.id || (initialAssets[0]?.id ?? null));
+    };
+
+    const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setIsUploadingAssets(true);
+        try {
+            const uploadedAssets: Array<{ id: string; preview: string }> = [];
+            for (let i = 0; i < files.length; i++) {
+                const asset = await uploadAssetFile(files[i]);
+                if (asset?.id) {
+                    uploadedAssets.push(asset);
+                }
+            }
+
+            setEditAssets(prev => {
+                const next = [...prev, ...uploadedAssets];
+                if (!editFeaturedAssetId && next.length > 0) {
+                    setEditFeaturedAssetId(next[0].id);
+                }
+                return next;
+            });
+        } catch (err: any) {
+            console.error('Asset upload error:', err);
+            alert('Erreur lors du téléversement : ' + err.message);
+        } finally {
+            setIsUploadingAssets(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleSetFeaturedAsset = (assetId: string) => {
+        setEditFeaturedAssetId(assetId);
+    };
+
+    const handleRemoveAsset = (assetId: string) => {
+        setEditAssets(prev => {
+            const filtered = prev.filter(a => a.id !== assetId);
+            if (editFeaturedAssetId === assetId) {
+                setEditFeaturedAssetId(filtered.length > 0 ? filtered[0].id : null);
+            }
+            return filtered;
+        });
     };
 
     const handleSaveProductEdit = async (e: React.FormEvent) => {
@@ -583,6 +1058,8 @@ export function ProductListComponent() {
                     shortDescription: editFormData.shortDescription,
                     collectionIds: editFormData.collectionIds,
                     enabled: editFormData.enabled,
+                    featuredAssetId: editFeaturedAssetId,
+                    assetIds: editAssets.map(a => a.id),
                 }
             });
             await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
@@ -593,6 +1070,142 @@ export function ProductListComponent() {
             alert('Erreur lors de la modification : ' + err.message);
         } finally {
             setIsSavingProduct(false);
+        }
+    };
+
+    // Handlers for "Greffer à un autre produit"
+    const handleOpenRegraftModal = async (variant: any, currentProduct: MarketplaceProduct, offer?: any) => {
+        setRegraftModalData({ variant, currentProduct, offer });
+        setRegraftTab('existing');
+        setSelectedTargetProduct(null);
+        setRegraftSearchTerm('');
+        setIsLoadingRegraftSearch(true);
+
+        // Pre-fill creation fields for the new official product tab
+        const defaultName = variant?.name || currentProduct.name || '';
+        setRegraftNewTitle(defaultName);
+        setRegraftNewSlug(defaultName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+        setRegraftNewShortDesc(currentProduct.customFields?.shortDescription || '');
+        setRegraftNewDesc(currentProduct.description || '');
+        setRegraftNewSku(variant?.sku || offer?.sku || `AHZ-${variant?.id || currentProduct.id}`);
+        setRegraftNewEan((variant?.customFields as any)?.ean || '');
+        setRegraftNewCollectionIds((currentProduct.collections || []).map((c: any) => c.id));
+        setRegraftNewFacetValueIds(((currentProduct as any).facetValues || []).map((f: any) => f.id));
+        setRegraftNewApproveOffer(true);
+
+        try {
+            const data = await fetchGraphQL(SEARCH_OFFICIAL_PRODUCTS, { term: '', take: 20 });
+            const items = (data?.searchOfficialProducts?.items || []).filter((p: any) => String(p.id) !== String(currentProduct.id));
+            setRegraftSearchResults(items);
+        } catch (err) {
+            console.error('Error searching products for regraft:', err);
+        } finally {
+            setIsLoadingRegraftSearch(false);
+        }
+    };
+
+    const handleSearchTargetProducts = async (term: string) => {
+        setRegraftSearchTerm(term);
+        if (!regraftModalData) return;
+        setIsLoadingRegraftSearch(true);
+        try {
+            const data = await fetchGraphQL(SEARCH_OFFICIAL_PRODUCTS, { term: term.trim() || undefined, take: 20 });
+            const items = (data?.searchOfficialProducts?.items || []).filter((p: any) => String(p.id) !== String(regraftModalData.currentProduct.id));
+            setRegraftSearchResults(items);
+        } catch (err) {
+            console.error('Error searching products for regraft:', err);
+        } finally {
+            setIsLoadingRegraftSearch(false);
+        }
+    };
+
+    const handleConfirmRegraft = async () => {
+        if (!regraftModalData || !selectedTargetProduct) return;
+        const variantId = regraftModalData.variant?.id || regraftModalData.offer?.productVariant?.id;
+        if (!variantId) {
+            alert('Déclinaison introuvable');
+            return;
+        }
+
+        setIsSubmittingRegraft(true);
+        try {
+            await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                variantId,
+                targetProductId: selectedTargetProduct.id,
+            });
+
+            // Invalidate products query
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+
+            // Refresh offers for current product and target product
+            if (regraftModalData.currentProduct?.id) {
+                const currentData = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: regraftModalData.currentProduct.id });
+                if (currentData?.sellerOffersForProduct) {
+                    setOffersMap(prev => ({ ...prev, [regraftModalData.currentProduct.id]: currentData.sellerOffersForProduct }));
+                }
+            }
+            if (selectedTargetProduct.id) {
+                const targetData = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: selectedTargetProduct.id });
+                if (targetData?.sellerOffersForProduct) {
+                    setOffersMap(prev => ({ ...prev, [selectedTargetProduct.id]: targetData.sellerOffersForProduct }));
+                }
+            }
+
+            alert(`Déclinaison transférée avec succès sous "${selectedTargetProduct.name}" !`);
+            setRegraftModalData(null);
+            setSelectedTargetProduct(null);
+        } catch (err: any) {
+            console.error('Error regrafting variant to product:', err);
+            alert('Erreur lors du transfert : ' + err.message);
+        } finally {
+            setIsSubmittingRegraft(false);
+        }
+    };
+
+    const handleCreateOfficialAndRegraft = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!regraftModalData) return;
+        const variantId = regraftModalData.variant?.id || regraftModalData.offer?.productVariant?.id;
+        if (!variantId) {
+            alert('ID de déclinaison introuvable.');
+            return;
+        }
+
+        if (!regraftNewTitle.trim()) {
+            alert('Veuillez renseigner le nom de la nouvelle fiche officielle.');
+            return;
+        }
+
+        setIsSubmittingRegraft(true);
+        try {
+            const data = await fetchGraphQL(CREATE_OFFICIAL_PRODUCT_FROM_VARIANT, {
+                variantId,
+                name: regraftNewTitle.trim(),
+                slug: regraftNewSlug.trim() || undefined,
+                shortDescription: regraftNewShortDesc.trim() || undefined,
+                description: regraftNewDesc.trim() || undefined,
+                officialSku: regraftNewSku.trim() || undefined,
+                ean: regraftNewEan.trim() || undefined,
+                collectionIds: regraftNewCollectionIds.length > 0 ? regraftNewCollectionIds : undefined,
+                facetValueIds: regraftNewFacetValueIds.length > 0 ? regraftNewFacetValueIds : undefined,
+                approveOffer: regraftNewApproveOffer,
+            });
+
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            if (regraftModalData.currentProduct?.id) {
+                const currentData = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: regraftModalData.currentProduct.id });
+                if (currentData?.sellerOffersForProduct) {
+                    setOffersMap(prev => ({ ...prev, [regraftModalData.currentProduct.id]: currentData.sellerOffersForProduct }));
+                }
+            }
+
+            alert(`Nouvelle fiche officielle "${data?.createOfficialProductFromVariant?.name || regraftNewTitle}" créée avec succès et déclinaison rattachée !`);
+            setRegraftModalData(null);
+        } catch (err: any) {
+            console.error('Error creating official product from variant:', err);
+            alert('Erreur lors de la création de la fiche : ' + err.message);
+        } finally {
+            setIsSubmittingRegraft(false);
         }
     };
 
@@ -629,123 +1242,104 @@ export function ProductListComponent() {
         <div style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: '#0f172a', padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
             
             {/* ── 1. HEADER & ACTIONS ── */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ background: '#0f172a', color: '#ffffff', width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 900 }}>
-                            🛍️
-                        </div>
-                        <div>
-                            <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 900, letterSpacing: '-0.02em', color: '#0f172a' }}>
-                                Produits Marketplace &amp; Offres
-                            </h1>
-                            <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
-                                Gestion centralisée du catalogue Ahizan, des déclinaisons et des offres marchands greffées.
-                            </p>
-                        </div>
-                    </div>
+                    <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a' }}>
+                        Gestion du Catalogue &amp; Offres Vendeurs
+                    </h1>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
+                        Supervision du catalogue officiel Ahizan, modération des propositions et raccordement des offres marchands.
+                    </p>
                 </div>
 
-                {/* View Tabs */}
-                <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                {/* Navigation 4 Onglets Stricts */}
+                <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
                     <button
-                        onClick={() => setActiveTab('all')}
+                        onClick={() => handleTabChange('official')}
                         style={{
-                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                            background: activeTab === 'all' ? '#ffffff' : 'transparent',
-                            color: activeTab === 'all' ? '#0f172a' : '#64748b',
-                            boxShadow: activeTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.2s',
-                        }}
-                    >
-                        📦 Tous ({metrics.totalProducts})
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('official')}
-                        style={{
-                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                            background: activeTab === 'official' ? '#ffffff' : 'transparent',
-                            color: activeTab === 'official' ? '#2563eb' : '#64748b',
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'official' ? '#0f172a' : 'transparent',
+                            color: activeTab === 'official' ? '#ffffff' : '#64748b',
                             boxShadow: activeTab === 'official' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.2s',
+                            transition: 'all 0.15s',
                         }}
                     >
-                        🏛️ Catalogue Officiel Ahizan ({metrics.officialCount})
+                        Catalogue Officiel Ahizan ({metrics.officialCount})
                     </button>
                     <button
-                        onClick={() => setActiveTab('vendor_proposals')}
+                        onClick={() => handleTabChange('vendor_proposals')}
                         style={{
-                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                            background: activeTab === 'vendor_proposals' ? '#ffffff' : 'transparent',
-                            color: activeTab === 'vendor_proposals' ? '#d97706' : '#64748b',
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'vendor_proposals' ? '#0f172a' : 'transparent',
+                            color: activeTab === 'vendor_proposals' ? '#ffffff' : '#64748b',
                             boxShadow: activeTab === 'vendor_proposals' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.2s',
+                            transition: 'all 0.15s',
                         }}
                     >
-                        🏪 Propositions Vendeurs ({metrics.vendorProposalCount})
+                        Propositions Vendeurs ({metrics.vendorProposalCount})
                     </button>
                     <button
-                        onClick={() => setActiveTab('pending')}
+                        onClick={() => handleTabChange('pending')}
                         style={{
-                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-                            background: activeTab === 'pending' ? '#ffffff' : 'transparent',
-                            color: activeTab === 'pending' ? '#dc2626' : '#64748b',
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                            background: activeTab === 'pending' ? '#0f172a' : 'transparent',
+                            color: activeTab === 'pending' ? '#ffffff' : '#64748b',
                             boxShadow: activeTab === 'pending' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.2s',
+                            transition: 'all 0.15s',
                         }}
                     >
-                        ⏳ À valider
+                        À valider
                         {metrics.pendingProducts > 0 && (
-                            <span style={{ background: '#dc2626', color: '#ffffff', fontSize: '10px', fontWeight: 900, padding: '1px 6px', borderRadius: '10px' }}>
+                            <span style={{ background: '#dc2626', color: '#ffffff', fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '8px' }}>
                                 {metrics.pendingProducts}
                             </span>
                         )}
                     </button>
                     <button
-                        onClick={() => setActiveTab('settings')}
+                        onClick={() => handleTabChange('settings')}
                         style={{
-                            padding: '8px 14px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
-                            background: activeTab === 'settings' ? '#ffffff' : 'transparent',
-                            color: activeTab === 'settings' ? '#0f172a' : '#64748b',
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'settings' ? '#0f172a' : 'transparent',
+                            color: activeTab === 'settings' ? '#ffffff' : '#64748b',
                             boxShadow: activeTab === 'settings' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            transition: 'all 0.2s',
+                            transition: 'all 0.15s',
                         }}
                     >
-                        ⚙️ Paramètres
+                        Paramètres
                     </button>
                 </div>
             </div>
 
-            {/* ── 2. KPI SUMMARY CARDS ── */}
+            {/* ── 2. STATS OVERVIEW CARDS ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Catalogue Ahizan</div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{metrics.totalProducts}</div>
-                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, marginTop: '2px' }}>{metrics.approvedProducts} produits en ligne</div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Catalogue Officiel</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{metrics.officialCount}</div>
+                    <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>Fiches mères actives</div>
                 </div>
-                <div style={{ background: metrics.pendingProducts > 0 ? '#fffbeb' : '#ffffff', border: metrics.pendingProducts > 0 ? '1px solid #fde68a' : '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: metrics.pendingProducts > 0 ? '#b45309' : '#64748b', letterSpacing: '0.05em' }}>En Attente d'Approbation</div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: metrics.pendingProducts > 0 ? '#d97706' : '#0f172a', marginTop: '4px' }}>{metrics.pendingProducts}</div>
-                    <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 700, marginTop: '2px' }}>Nouveaux articles soumis par les vendeurs</div>
+                <div style={{ background: metrics.pendingProducts > 0 ? '#fffbeb' : '#ffffff', border: metrics.pendingProducts > 0 ? '1px solid #fde68a' : '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: metrics.pendingProducts > 0 ? '#b45309' : '#64748b', letterSpacing: '0.05em' }}>En Attente d'Examen</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: metrics.pendingProducts > 0 ? '#d97706' : '#0f172a', marginTop: '4px' }}>{metrics.pendingProducts}</div>
+                    <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 600, marginTop: '2px' }}>Articles à valider ou raccorder</div>
                 </div>
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Déclinaisons &amp; Combinaisons</div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{metrics.totalVariants}</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Variantes actives créées sur la plateforme</div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Déclinaisons Totales</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{metrics.totalVariants}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Variantes et offres actives</div>
                 </div>
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Prix Minimum Garanti</div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{minPrice.toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 700, color: '#64748b' }}>FCFA</span></div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Prix Minimum Garanti</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{minPrice.toLocaleString('fr-FR')} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FCFA</span></div>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Seuil minimal autorisé à la vente</div>
                 </div>
             </div>
 
             {/* ── 3. TAB CONTENT: SETTINGS TAB ── */}
             {activeTab === 'settings' && (
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '20px', padding: '28px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                    <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 16px 0' }}>Configuration du Marché &amp; Prix Minimum</h2>
-                    <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px 0', maxWidth: '600px' }}>
-                        Définissez le montant minimal en FCFA auquel un vendeur peut créer une offre sur le catalogue Ahizan.
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                    <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>Configuration du Marché &amp; Prix Minimum</h2>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px 0', maxWidth: '600px' }}>
+                        Définissez le montant minimal en FCFA à partir duquel un vendeur marchand peut créer une offre sur le catalogue Ahizan.
                     </p>
                     <form onSubmit={handleSaveMinPrice} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <div style={{ position: 'relative' }}>
@@ -755,16 +1349,16 @@ export function ProductListComponent() {
                                 placeholder={minPrice.toString()}
                                 value={minPriceInput !== '' ? minPriceInput : minPrice}
                                 onChange={e => setMinPriceInput(e.target.value)}
-                                style={{ width: '180px', padding: '10px 48px 10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700 }}
+                                style={{ width: '180px', padding: '10px 48px 10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700 }}
                             />
-                            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 800, color: '#94a3b8' }}>
+                            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
                                 FCFA
                             </span>
                         </div>
                         <button
                             type="submit"
                             disabled={isSavingMinPrice}
-                            style={{ padding: '10px 20px', borderRadius: '10px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '13px', fontWeight: 700, cursor: isSavingMinPrice ? 'not-allowed' : 'pointer' }}
+                            style={{ padding: '10px 20px', borderRadius: '8px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '12px', fontWeight: 700, cursor: isSavingMinPrice ? 'not-allowed' : 'pointer' }}
                         >
                             {isSavingMinPrice ? 'Sauvegarde...' : 'Enregistrer le seuil'}
                         </button>
@@ -774,24 +1368,41 @@ export function ProductListComponent() {
 
             {/* ── 4. SEARCH & FILTER TOOLBAR ── */}
             {activeTab !== 'settings' && (
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '18px', padding: '16px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                     {/* Search Input */}
-                    <div style={{ flex: 1, minWidth: '260px' }}>
+                    <div style={{ flex: 1, minWidth: '220px' }}>
                         <input
                             type="text"
                             placeholder="Rechercher par nom de produit, SKU ou vendeur..."
                             value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc' }}
+                            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#f8fafc' }}
                         />
                     </div>
 
+                    {/* Sort Selector */}
+                    <div style={{ minWidth: '170px' }}>
+                        <select
+                            value={sortBy}
+                            onChange={e => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#0f172a', cursor: 'pointer' }}
+                        >
+                            <option value="created_desc">Trier : Plus récents</option>
+                            <option value="created_asc">Trier : Plus anciens</option>
+                            <option value="name_asc">Trier : Nom (A - Z)</option>
+                            <option value="name_desc">Trier : Nom (Z - A)</option>
+                            <option value="price_asc">Trier : Prix croissant</option>
+                            <option value="price_desc">Trier : Prix décroissant</option>
+                            <option value="variants_desc">Trier : Déclinaisons</option>
+                        </select>
+                    </div>
+
                     {/* Category Filter */}
-                    <div style={{ minWidth: '180px' }}>
+                    <div style={{ minWidth: '160px' }}>
                         <select
                             value={selectedCategory}
-                            onChange={e => setSelectedCategory(e.target.value)}
-                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                            onChange={e => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
                         >
                             <option value="all">Toutes les catégories</option>
                             {collections.map((c: any) => (
@@ -801,11 +1412,11 @@ export function ProductListComponent() {
                     </div>
 
                     {/* Vendor Filter */}
-                    <div style={{ minWidth: '180px' }}>
+                    <div style={{ minWidth: '160px' }}>
                         <select
                             value={selectedVendor}
-                            onChange={e => setSelectedVendor(e.target.value)}
-                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                            onChange={e => { setSelectedVendor(e.target.value); setCurrentPage(1); }}
+                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
                         >
                             <option value="all">Tous les vendeurs</option>
                             <option value="ahizan_official">Catalogue Officiel Ahizan</option>
@@ -816,71 +1427,55 @@ export function ProductListComponent() {
                     </div>
 
                     {/* Status Filter */}
-                    {activeTab === 'all' && (
-                        <div style={{ minWidth: '150px' }}>
+                    {activeTab === 'vendor_proposals' && (
+                        <div style={{ minWidth: '140px' }}>
                             <select
                                 value={selectedStatus}
-                                onChange={e => setSelectedStatus(e.target.value)}
-                                style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                                onChange={e => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
                             >
                                 <option value="all">Tous les statuts</option>
-                                <option value="approved">En ligne (Validé)</option>
+                                <option value="approved">Validé (En ligne)</option>
                                 <option value="pending">En attente (Modération)</option>
                                 <option value="rejected">Rejeté</option>
                             </select>
                         </div>
-                    )}
-
-                    {/* Reset Button */}
-                    {(searchTerm || selectedCategory !== 'all' || selectedVendor !== 'all' || selectedStatus !== 'all') && (
-                        <button
-                            onClick={() => {
-                                setSearchTerm('');
-                                setSelectedCategory('all');
-                                setSelectedVendor('all');
-                                setSelectedStatus('all');
-                            }}
-                            style={{ padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#f1f5f9', fontSize: '12px', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}
-                        >
-                            Réinitialiser
-                        </button>
                     )}
                 </div>
             )}
 
             {/* ── 5. PRODUCTS MASTER-DETAIL TABLE ── */}
             {activeTab !== 'settings' && (
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
                     {isLoadingProducts ? (
-                        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
-                            Chargement du catalogue marketplace...
+                        <div style={{ padding: '50px', textAlign: 'center', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                            Chargement des produits en cours...
                         </div>
                     ) : productsError ? (
-                        <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444', fontWeight: 700 }}>
-                            Erreur de chargement: {(productsError as Error).message}
+                        <div style={{ padding: '30px', textAlign: 'center', color: '#ef4444', fontSize: '13px', fontWeight: 700 }}>
+                            Erreur de chargement : {(productsError as Error).message}
                         </div>
-                    ) : filteredProducts.length === 0 ? (
-                        <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-                            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
-                            <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Aucun produit correspondant</h3>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Ajustez vos critères de recherche ou vos filtres.</p>
+                    ) : sortedProducts.length === 0 ? (
+                        <div style={{ padding: '50px', textAlign: 'center', color: '#64748b' }}>
+                            <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Aucun produit dans cette section</h3>
+                            <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>Ajustez vos filtres de recherche ou sélectionnez un autre onglet.</p>
                         </div>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                                 <thead>
                                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        <th style={{ padding: '14px 20px', width: '40px' }}></th>
-                                        <th style={{ padding: '14px 20px' }}>Produit &amp; Fiche Centrale</th>
-                                        <th style={{ padding: '14px 20px' }}>Catégorie</th>
-                                        <th style={{ padding: '14px 20px' }}>Vendeur Demandeur</th>
-                                        <th style={{ padding: '14px 20px' }}>Déclinaisons</th>
-                                        <th style={{ padding: '14px 20px' }}>Statut Modération</th>
-                                        <th style={{ padding: '14px 20px', textAlign: 'right' }}>Actions</th>
+                                        <th style={{ padding: '12px 18px', width: '36px' }}></th>
+                                        <th style={{ padding: '12px 18px' }}>Produit</th>
+                                        <th style={{ padding: '12px 18px' }}>Catégorie</th>
+                                        <th style={{ padding: '12px 18px' }}>Vendeur Marchand</th>
+                                        <th style={{ padding: '12px 18px' }}>Déclinaisons / Offres</th>
+                                        <th style={{ padding: '12px 18px' }}>Statut</th>
+                                        <th style={{ padding: '12px 18px', textAlign: 'right' }}>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredProducts.map((product) => {
+                                    {paginatedProducts.map((product) => {
                                         const isExpanded = expandedProductId === product.id;
                                         const approvalStatus = product.customFields?.approvalStatus || 'approved';
                                         const isPending = approvalStatus === 'pending';
@@ -898,7 +1493,7 @@ export function ProductListComponent() {
                                                     }}
                                                 >
                                                     {/* Expand Toggle */}
-                                                    <td style={{ padding: '14px 20px' }}>
+                                                    <td style={{ padding: '12px 18px' }}>
                                                         <button
                                                             onClick={() => handleToggleExpandProduct(product.id)}
                                                             style={{
@@ -906,38 +1501,38 @@ export function ProductListComponent() {
                                                                 color: isExpanded ? '#ffffff' : '#475569',
                                                                 border: 'none', borderRadius: '6px', width: '24px', height: '24px',
                                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                cursor: 'pointer', fontSize: '11px', fontWeight: 800
+                                                                cursor: 'pointer', fontSize: '10px', fontWeight: 800
                                                             }}
-                                                            title="Voir les variantes et offres"
+                                                            title="Afficher les déclinaisons rattachées"
                                                         >
                                                             {isExpanded ? '▼' : '▶'}
                                                         </button>
                                                     </td>
 
                                                     {/* Product Identity */}
-                                                    <td style={{ padding: '14px 20px' }}>
+                                                    <td style={{ padding: '12px 18px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                             {product.featuredAsset?.preview ? (
                                                                 <img
                                                                     src={product.featuredAsset.preview}
                                                                     alt={product.name}
-                                                                    style={{ width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                                                                    style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
                                                                 />
                                                             ) : (
-                                                                <div style={{ width: '44px', height: '44px', borderRadius: '8px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
-                                                                    📦
+                                                                <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
+                                                                    IMG
                                                                 </div>
                                                             )}
                                                             <div>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                                    <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px' }}>{product.name}</span>
+                                                                    <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>{product.name}</span>
                                                                     {product.customFields?.vendor ? (
-                                                                        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>
-                                                                            🏪 Proposition Vendeur
+                                                                        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                                                                            Proposition Vendeur
                                                                         </span>
                                                                     ) : (
-                                                                        <span style={{ background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', padding: '1px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>
-                                                                            🏛️ Catalogue Officiel Ahizan
+                                                                        <span style={{ background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                                                                            Catalogue Officiel Ahizan
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -949,9 +1544,9 @@ export function ProductListComponent() {
                                                     </td>
 
                                                     {/* Category */}
-                                                    <td style={{ padding: '14px 20px' }}>
+                                                    <td style={{ padding: '12px 18px' }}>
                                                         {product.collections && product.collections.length > 0 ? (
-                                                            <span style={{ background: '#f1f5f9', color: '#334155', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                                                            <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600 }}>
                                                                 {product.collections[0].name}
                                                             </span>
                                                         ) : (
@@ -959,91 +1554,80 @@ export function ProductListComponent() {
                                                         )}
                                                     </td>
 
-                                                    {/* Vendor Proposer */}
-                                                    <td style={{ padding: '14px 20px' }}>
+                                                    {/* Vendor */}
+                                                    <td style={{ padding: '12px 18px' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             {product.customFields?.vendor?.logo?.preview ? (
-                                                                <img src={product.customFields.vendor.logo.preview} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
-                                                            ) : (
-                                                                <span style={{ fontSize: '14px' }}>🏪</span>
-                                                            )}
-                                                            <span style={{ fontWeight: 700, color: product.customFields?.vendor ? '#0f172a' : '#2563eb' }}>
+                                                                <img src={product.customFields.vendor.logo.preview} alt="" style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} />
+                                                            ) : null}
+                                                            <span style={{ fontWeight: 600, color: product.customFields?.vendor ? '#0f172a' : '#2563eb' }}>
                                                                 {vendorName}
                                                             </span>
                                                         </div>
                                                     </td>
 
                                                     {/* Variants Count & Base Price */}
-                                                    <td style={{ padding: '14px 20px' }}>
+                                                    <td style={{ padding: '12px 18px' }}>
                                                         <div>
-                                                            <span style={{ fontWeight: 800, color: '#0f172a' }}>{product.variants?.length || 1} déclinaison(s)</span>
-                                                            <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 800 }}>
-                                                                {mainVariant?.price ? `${(mainVariant.price / 100).toLocaleString('fr-FR')} FCFA` : 'Prix sur offre'}
+                                                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{product.variants?.length || 1} déclinaison(s)</span>
+                                                            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
+                                                                {mainVariant?.price ? `${(mainVariant.price / 100).toLocaleString('fr-FR')} FCFA` : 'Sur offre'}
                                                             </div>
                                                         </div>
                                                     </td>
 
-                                                    {/* Moderation Status */}
-                                                    <td style={{ padding: '14px 20px' }}>
+                                                    {/* Status Badge */}
+                                                    <td style={{ padding: '12px 18px' }}>
                                                         {isPending ? (
-                                                            <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                ⏳ En attente validation
+                                                            <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                En attente
                                                             </span>
                                                         ) : isRejected ? (
-                                                            <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                ✕ Rejeté
+                                                            <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                Rejeté
                                                             </span>
                                                         ) : (
-                                                            <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                                ✓ En ligne (Validé)
+                                                            <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                Validé
                                                             </span>
                                                         )}
                                                     </td>
 
-                                                    {/* Actions */}
-                                                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                                                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                            {product.customFields?.vendor && (
-                                                                <button
-                                                                    onClick={() => handleQuickApprove(product)}
-                                                                    style={{ padding: '6px 12px', borderRadius: '8px', background: '#0284c7', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                                    title="Adopter cette proposition pour en faire une fiche officielle Ahizan (greffe automatique de l'offre vendeur)"
-                                                                >
-                                                                    🏛️ Rendre Officiel Ahizan
-                                                                </button>
-                                                            )}
-
+                                                    {/* Clean Action Column */}
+                                                    <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                                                        {activeTab === 'official' ? (
                                                             <button
                                                                 onClick={() => handleOpenEditProduct(product)}
-                                                                style={{ padding: '6px 12px', borderRadius: '8px', background: '#2563eb', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                title="Modifier les informations officielles de la fiche produit Ahizan"
+                                                                style={{
+                                                                    padding: '7px 14px',
+                                                                    borderRadius: '8px',
+                                                                    background: '#0f172a',
+                                                                    color: '#ffffff',
+                                                                    border: 'none',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                }}
                                                             >
-                                                                ✏️ Éditer Fiche Ahizan
+                                                                Modifier
                                                             </button>
-
-                                                            {isPending && (
-                                                                <button
-                                                                    onClick={() => handleQuickApprove(product)}
-                                                                    style={{ padding: '6px 12px', borderRadius: '8px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                    title="Approuver directement"
-                                                                >
-                                                                    ✓ Approuver
-                                                                </button>
-                                                            )}
+                                                        ) : (
                                                             <button
                                                                 onClick={() => handleOpenReview(product)}
-                                                                style={{ padding: '6px 12px', borderRadius: '8px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                style={{
+                                                                    padding: '7px 14px',
+                                                                    borderRadius: '8px',
+                                                                    background: '#0f172a',
+                                                                    color: '#ffffff',
+                                                                    border: 'none',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                }}
                                                             >
-                                                                Modérer
+                                                                Examiner
                                                             </button>
-                                                            <button
-                                                                onClick={() => handleDeleteProduct(product)}
-                                                                style={{ padding: '6px 10px', borderRadius: '8px', background: '#fee2e2', color: '#dc2626', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                title="Supprimer le produit"
-                                                            >
-                                                                🗑️
-                                                            </button>
-                                                        </div>
+                                                        )}
                                                     </td>
                                                 </tr>
 
@@ -1146,16 +1730,47 @@ export function ProductListComponent() {
                                                                                                     </div>
                                                                                                 </div>
 
-                                                                                                <div style={{ display: 'flex', gap: '6px' }}>
-                                                                                                    {offer.status !== 'approved' && (
-                                                                                                        <button
-                                                                                                            type="button"
-                                                                                                            disabled={isSavingOfferReview}
-                                                                                                            onClick={() => handleReviewOffer(offer.id, product.id, 'approved')}
-                                                                                                            style={{ padding: '6px 10px', borderRadius: '6px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                                                        >
-                                                                                                            ✓ Valider
-                                                                                                        </button>
+                                                                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                                                                    {offer.status === 'approved' ? (
+                                                                                                        <>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                disabled={isSavingOfferReview}
+                                                                                                                onClick={() => handleReviewOffer(offer.id, product.id, 'disabled')}
+                                                                                                                style={{ padding: '6px 10px', borderRadius: '6px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                                title="Désactiver / Dévalider cette offre commerciale (masquée du Storefront)"
+                                                                                                            >
+                                                                                                                ⏸️ Désactiver
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                disabled={isSavingOfferReview}
+                                                                                                                onClick={() => handleReviewOffer(offer.id, product.id, 'rejected')}
+                                                                                                                style={{ padding: '6px 10px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                                title="Rejeter et retirer cette offre commerciale"
+                                                                                                            >
+                                                                                                                ❌ Rejeter
+                                                                                                            </button>
+                                                                                                        </>
+                                                                                                    ) : (
+                                                                                                        <>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                disabled={isSavingOfferReview}
+                                                                                                                onClick={() => handleReviewOffer(offer.id, product.id, 'approved')}
+                                                                                                                style={{ padding: '6px 10px', borderRadius: '6px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                            >
+                                                                                                                ✓ Valider &amp; Activer
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                disabled={isSavingOfferReview}
+                                                                                                                onClick={() => handleReviewOffer(offer.id, product.id, 'rejected')}
+                                                                                                                style={{ padding: '6px 10px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                                                            >
+                                                                                                                ❌ Rejeter
+                                                                                                            </button>
+                                                                                                        </>
                                                                                                     )}
                                                                                                     <button
                                                                                                         type="button"
@@ -1166,6 +1781,14 @@ export function ProductListComponent() {
                                                                                                         style={{ padding: '6px 10px', borderRadius: '6px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
                                                                                                     >
                                                                                                         💬 Commenter
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => handleOpenRegraftModal(offer.productVariant, product, offer)}
+                                                                                                        style={{ padding: '6px 10px', borderRadius: '6px', background: '#4f46e5', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                                                        title="Déplacer/Greffer cette déclinaison sous un autre produit officiel Ahizan"
+                                                                                                    >
+                                                                                                        🔗 Greffer ailleurs
                                                                                                     </button>
                                                                                                 </div>
                                                                                             </div>
@@ -1224,14 +1847,22 @@ export function ProductListComponent() {
                                                                     </div>
                                                                     <div style={{ display: 'grid', gap: '6px' }}>
                                                                         {product.variants?.map((v, vIdx) => (
-                                                                            <div key={v.id || vIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #f1f5f9', fontSize: '11px' }}>
-                                                                                <span style={{ color: '#334155', fontWeight: 700 }}>#{vIdx + 1} {v.name || product.name}</span>
-                                                                                <span style={{ fontFamily: 'monospace', color: '#94a3b8' }}>SKU: {v.sku || 'N/A'}</span>
+                                                                            <div key={v.id || vIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9', fontSize: '11px' }}>
+                                                                                <div>
+                                                                                    <span style={{ color: '#334155', fontWeight: 700 }}>#{vIdx + 1} {v.name || product.name}</span>
+                                                                                    <span style={{ fontFamily: 'monospace', color: '#94a3b8', marginLeft: '8px' }}>SKU: {v.sku || 'N/A'}</span>
+                                                                                </div>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleOpenRegraftModal(v, product)}
+                                                                                    style={{ padding: '4px 8px', borderRadius: '6px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe', fontSize: '10px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                                                                >
+                                                                                    🔗 Raccorder ailleurs
+                                                                                </button>
                                                                             </div>
                                                                         ))}
                                                                     </div>
                                                                 </div>
-
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1243,135 +1874,746 @@ export function ProductListComponent() {
                             </table>
                         </div>
                     )}
+
+                    {/* ── PAGINATION BAR ── */}
+                    {activeTab !== 'settings' && sortedProducts.length > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '12px' }}>
+                            <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                                Affichage de <strong style={{ color: '#0f172a' }}>{(currentPage - 1) * itemsPerPage + 1}</strong> à <strong style={{ color: '#0f172a' }}>{Math.min(currentPage * itemsPerPage, sortedProducts.length)}</strong> sur <strong style={{ color: '#0f172a' }}>{sortedProducts.length}</strong> produits
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                                    style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 600, background: '#ffffff', color: '#334155' }}
+                                >
+                                    <option value={10}>10 par page</option>
+                                    <option value={25}>25 par page</option>
+                                    <option value={50}>50 par page</option>
+                                    <option value={100}>100 par page</option>
+                                </select>
+
+                                <button
+                                    type="button"
+                                    disabled={currentPage <= 1}
+                                    onClick={() => setCurrentPage(1)}
+                                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 700, cursor: currentPage <= 1 ? 'not-allowed' : 'pointer', opacity: currentPage <= 1 ? 0.4 : 1 }}
+                                >
+                                    « Premier
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={currentPage <= 1}
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 700, cursor: currentPage <= 1 ? 'not-allowed' : 'pointer', opacity: currentPage <= 1 ? 0.4 : 1 }}
+                                >
+                                    ‹ Précédent
+                                </button>
+                                
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', padding: '0 4px' }}>
+                                    Page {currentPage} / {totalPages}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 700, cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer', opacity: currentPage >= totalPages ? 0.4 : 1 }}
+                                >
+                                    Suivant ›
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 700, cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer', opacity: currentPage >= totalPages ? 0.4 : 1 }}
+                                >
+                                    Dernier »
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {/* ── 6. MODERATION & APPROVAL MODAL ── */}
+            {/* ── 6. UNIFIED MODERATION & CATALOG BINDING MODAL ── */}
             {reviewProduct && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-                    <div style={{ background: '#ffffff', borderRadius: '20px', maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '24px', maxWidth: '750px', width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
                             <div>
-                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>Modération &amp; Approbation Fiche Produit</h3>
-                                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748b' }}>Fiche soumise par : <strong>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong></p>
+                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>Modération &amp; Raccordement Catalogue</h3>
+                                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                    Proposition soumise par : <strong style={{ color: '#0f172a' }}>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong>
+                                </p>
                             </div>
-                            <button onClick={() => setReviewProduct(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '14px', fontWeight: 700 }}>✕</button>
+                            <button onClick={() => setReviewProduct(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '15px', fontWeight: 800, color: '#64748b' }}>✕</button>
                         </div>
 
-                        {/* Product Summary Details */}
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
-                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                {reviewProduct.featuredAsset?.preview && (
-                                    <img src={reviewProduct.featuredAsset.preview} alt="" style={{ width: '56px', height: '56px', borderRadius: '8px', objectFit: 'cover' }} />
-                                )}
-                                <div>
-                                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{reviewProduct.name}</div>
-                                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                                        Catégorie : {reviewProduct.collections?.[0]?.name || 'Non classé'} • {reviewProduct.variants?.length || 1} déclinaison(s)
+                        {/* Product & Vendor Summary Card */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                                    {reviewProduct.featuredAsset?.preview && (
+                                        <img src={reviewProduct.featuredAsset.preview} alt="" style={{ width: '68px', height: '68px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                                    )}
+                                    <div>
+                                        <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>{reviewProduct.name}</div>
+                                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                            Catégorie : <strong>{reviewProduct.collections?.[0]?.name || 'Non classé'}</strong> • {reviewProduct.variants?.length || 1} déclinaison(s)
+                                        </div>
+                                        {reviewProduct.customFields?.vendor && (
+                                            <div style={{ fontSize: '11px', color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px', display: 'inline-block', marginTop: '4px', fontWeight: 700 }}>
+                                                🏪 Boutique Marchande : {reviewProduct.customFields.vendor.name} ({reviewProduct.customFields.vendor.zone || 'Zone Nationale'})
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
-                            {reviewProduct.description && (
-                                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', fontSize: '12px', color: '#475569', maxHeight: '100px', overflowY: 'auto' }}>
-                                    {reviewProduct.description.replace(/<[^>]*>/g, '').substring(0, 300)}...
+
+                                {/* Global Product Status Badge */}
+                                <div>
+                                    {reviewProduct.customFields?.approvalStatus === 'approved' ? (
+                                        <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
+                                            ✓ Fiche Validée
+                                        </span>
+                                    ) : reviewProduct.customFields?.approvalStatus === 'rejected' ? (
+                                        <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
+                                            ✕ Fiche Rejetée
+                                        </span>
+                                    ) : (
+                                        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
+                                            ⏳ En attente de Modération
+                                        </span>
+                                    )}
                                 </div>
-                            )}
+                            </div>
+
+                            {/* Detailed Breakdown of All Submitted Offers & Variants with Individual Actions */}
+                            <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span>📋</span> Déclinaisons &amp; Offres Commerciales Soumises ({offersMap[reviewProduct.id]?.length || reviewProduct.variants?.length || 0}) :
+                                    </div>
+                                    <span style={{ fontSize: '10px', color: '#64748b' }}>Examinez le prix, stock, condition et délai de chaque offre</span>
+                                </div>
+
+                                <div style={{ display: 'grid', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                                    {(offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) ? (
+                                        offersMap[reviewProduct.id].map((offer: any, idx: number) => {
+                                            const isApproved = offer.status === 'approved';
+                                            const isRejected = offer.status === 'rejected';
+                                            const isCorrection = offer.status === 'correction_requested';
+                                            return (
+                                                <div key={offer.id || idx} style={{ background: '#ffffff', border: isApproved ? '1px solid #bbf7d0' : isRejected ? '1px solid #fecaca' : '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                                                    <div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                                                                {offer.productVariant?.name || `Déclinaison #${idx + 1}`}
+                                                            </strong>
+                                                            {offer.sku && (
+                                                                <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#0284c7', background: '#f0f9ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                                    SKU: {offer.sku}
+                                                                </span>
+                                                            )}
+                                                            <span style={{ fontSize: '10px', color: '#475569', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                                                                {offer.condition === 'NEW' ? '✨ Neuf' : offer.condition || 'Neuf'}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', display: 'flex', gap: '12px' }}>
+                                                            <span>Vendeur : <strong style={{ color: '#0f172a' }}>{offer.vendor?.name || reviewProduct.customFields?.vendor?.name || 'Vendeur'}</strong></span>
+                                                            <span>Stock : <strong style={{ color: offer.stock > 0 ? '#16a34a' : '#dc2626' }}>{offer.stock} unités</strong></span>
+                                                            <span>Expédition : <strong>{offer.deliveryTimeValue ? `${offer.deliveryTimeValue} ${offer.deliveryTimeUnit || 'jours'}` : '24-48h'}</strong></span>
+                                                        </div>
+                                                        {offer.rejectionReason && (
+                                                            <div style={{ fontSize: '10px', color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '4px', marginTop: '4px' }}>
+                                                                ⚠️ Motif : {offer.rejectionReason}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                        <div style={{ textAlign: 'right' }}>
+                                                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#16a34a' }}>
+                                                                {formatPrice(offer.price)}
+                                                            </div>
+                                                            <div style={{ marginTop: '2px' }}>
+                                                                {isApproved ? (
+                                                                    <span style={{ background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>✓ Validée</span>
+                                                                ) : isRejected ? (
+                                                                    <span style={{ background: '#fee2e2', color: '#991b1b', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>✕ Rejetée</span>
+                                                                ) : isCorrection ? (
+                                                                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>⚠️ Correction</span>
+                                                                ) : (
+                                                                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>⏳ En attente</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            {offer.status !== 'approved' ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleReviewOffer(offer.id, reviewProduct.id, 'approved')}
+                                                                    style={{ padding: '5px 8px', borderRadius: '6px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                    title="Approuver cette offre commerciale"
+                                                                >
+                                                                    ✓
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleReviewOffer(offer.id, reviewProduct.id, 'disabled')}
+                                                                    style={{ padding: '5px 8px', borderRadius: '6px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                    title="Mettre en pause / Dévalider"
+                                                                >
+                                                                    ⏸️
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setReviewDecision('rejected');
+                                                                    setRejectScope('specific_offer');
+                                                                    setRejectedOfferIds([offer.id]);
+                                                                }}
+                                                                style={{ padding: '5px 8px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                title="Rejeter spécifiquement cette offre"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                                                         (reviewProduct.variants || []).map((v: any, idx: number) => (
+                                            <div key={v.id || idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <strong style={{ fontSize: '13px', color: '#0f172a' }}>{v.name || `Déclinaison #${idx + 1}`}</strong>
+                                                        {v.sku && <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#0284c7' }}>({v.sku})</span>}
+                                                    </div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                                        Vendeur : <strong>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong> • Stock : <strong>{v.stockLevel ?? (v.stockOnHand || 0)}</strong>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ fontSize: '14px', fontWeight: 900, color: '#16a34a' }}>
+                                                        {formatPrice(v.price)}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setReviewDecision('rejected');
+                                                            setRejectScope('specific_offer');
+                                                            setRejectedOfferIds([v.id]);
+                                                        }}
+                                                        style={{ padding: '5px 8px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                        title="Rejeter spécifiquement cette déclinaison"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Decision Form */}
-                        <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            <div>
-                                <label style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '8px' }}>
-                                    Décision Superadmin :
-                                </label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setReviewDecision('approved_official')}
-                                        style={{
-                                            padding: '12px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', textAlign: 'left',
-                                            background: reviewDecision === 'approved_official' ? '#eff6ff' : '#f8fafc',
-                                            color: reviewDecision === 'approved_official' ? '#1d4ed8' : '#475569',
-                                            border: reviewDecision === 'approved_official' ? '2px solid #2563eb' : '1px solid #cbd5e1',
-                                        }}
-                                    >
-                                        🏛️ <strong>Adopter comme Fiche Officielle Ahizan</strong>
-                                        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
-                                            Le produit intègre le catalogue officiel Ahizan et l'offre du vendeur y est automatiquement greffée.
-                                        </div>
-                                    </button>
+                        {/* Navigation Tabs for 3 Actions */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px', background: '#f1f5f9', padding: '6px', borderRadius: '14px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setReviewDecision('approved_vendor')}
+                                style={{
+                                    padding: '10px 12px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                    background: reviewDecision === 'approved_vendor' ? '#ffffff' : 'transparent',
+                                    color: reviewDecision === 'approved_vendor' ? '#0284c7' : '#64748b',
+                                    boxShadow: reviewDecision === 'approved_vendor' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                🔗 1. Relier à l'Existant
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setReviewDecision('approved_official')}
+                                style={{
+                                    padding: '10px 12px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                    background: reviewDecision === 'approved_official' ? '#ffffff' : 'transparent',
+                                    color: reviewDecision === 'approved_official' ? '#2563eb' : '#64748b',
+                                    boxShadow: reviewDecision === 'approved_official' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                🏛️ 2. Créer Fiche Officielle
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setReviewDecision('rejected')}
+                                style={{
+                                    padding: '10px 12px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                    background: reviewDecision === 'rejected' ? '#ffffff' : 'transparent',
+                                    color: reviewDecision === 'rejected' ? '#dc2626' : '#64748b',
+                                    boxShadow: reviewDecision === 'rejected' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                ❌ 3. Refuser / Corriger
+                            </button>
+                        </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setReviewDecision('approved_vendor')}
-                                        style={{
-                                            padding: '12px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', textAlign: 'left',
-                                            background: reviewDecision === 'approved_vendor' ? '#fef3c7' : '#f8fafc',
-                                            color: reviewDecision === 'approved_vendor' ? '#92400e' : '#475569',
-                                            border: reviewDecision === 'approved_vendor' ? '2px solid #f59e0b' : '1px solid #cbd5e1',
-                                        }}
-                                    >
-                                        🏪 <strong>Valider comme Proposition Vendeur Simple</strong>
-                                        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
-                                            Le produit reste attribué exclusivement à ce vendeur marchand.
-                                        </div>
-                                    </button>
+                        {/* TAB 1: BIND TO EXISTING OFFICIAL PRODUCT */}
+                        {reviewDecision === 'approved_vendor' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                                    Recherchez et sélectionnez la <strong>fiche produit officielle Ahizan</strong> dans le catalogue central pour y rattacher automatiquement cette déclinaison vendeur :
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Rechercher une fiche officielle par nom (ex: Samsung S24, iPhone...)"
+                                    value={regraftSearchTerm}
+                                    onChange={e => handleSearchTargetProducts(e.target.value)}
+                                    style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
+                                />
+                                {isLoadingRegraftSearch ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>Recherche en cours...</div>
+                                ) : (
+                                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px', background: '#f8fafc' }}>
+                                        {regraftSearchResults.length === 0 ? (
+                                            <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
+                                                Aucun produit officiel correspondant trouvé. Tapez un autre mot-clé ou choisissez l'onglet <strong>"2. Créer Fiche Officielle"</strong>.
+                                            </div>
+                                        ) : (
+                                            regraftSearchResults.map((prod: any) => {
+                                                const isSelected = selectedTargetProduct?.id === prod.id;
+                                                return (
+                                                    <div
+                                                        key={prod.id}
+                                                        onClick={() => setSelectedTargetProduct(prod)}
+                                                        style={{
+                                                            padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                            background: isSelected ? '#eff6ff' : '#ffffff',
+                                                            border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                                            transition: 'all 0.15s',
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                            {prod.featuredAsset?.preview && (
+                                                                <img src={prod.featuredAsset.preview} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
+                                                            )}
+                                                            <div>
+                                                                <strong style={{ fontSize: '13px', color: '#0f172a' }}>{prod.name}</strong>
+                                                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                    {prod.collections?.[0]?.name || 'Catalogue'} • {prod.variants?.length || 0} offre(s) déjà greffée(s)
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {isSelected && <span style={{ fontSize: '16px', color: '#2563eb', fontWeight: 900 }}>✓</span>}
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                )}
 
+                                {/* Offer Approval Toggle in Tab 1 */}
+                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <input
+                                        type="checkbox"
+                                        id="approveVendorOfferReassignToggle"
+                                        checked={approveVendorOfferCheckbox}
+                                        onChange={e => setApproveVendorOfferCheckbox(e.target.checked)}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                    <label htmlFor="approveVendorOfferReassignToggle" style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
+                                        Approuver également l'offre commerciale du vendeur immédiatement (Prix : {formatPrice(reviewProduct.variants?.[0]?.price || 0)})
+                                    </label>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                                     <button
                                         type="button"
-                                        onClick={() => setReviewDecision('rejected')}
+                                        onClick={() => setReviewProduct(null)}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!selectedTargetProduct || isSubmittingReview}
+                                        onClick={() => handleReviewAndReassign(selectedTargetProduct)}
                                         style={{
-                                            padding: '12px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', textAlign: 'left',
-                                            background: reviewDecision === 'rejected' ? '#fee2e2' : '#f8fafc',
-                                            color: reviewDecision === 'rejected' ? '#991b1b' : '#475569',
-                                            border: reviewDecision === 'rejected' ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                                            padding: '10px 22px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: selectedTargetProduct ? 'pointer' : 'not-allowed',
+                                            background: selectedTargetProduct ? '#0284c7' : '#94a3b8',
+                                            color: '#ffffff',
                                         }}
                                     >
-                                        ✕ <strong>Rejeter la fiche</strong>
-                                        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 0.85, marginTop: '2px' }}>
-                                            Refuser la proposition et notifier le motif de rejet au vendeur.
-                                        </div>
+                                        {isSubmittingReview ? 'Raccordement...' : '🔗 Raccorder à ce Produit Officiel'}
                                     </button>
                                 </div>
                             </div>
+                        )}
 
-                            {reviewDecision === 'rejected' && (
+                        {/* TAB 2: CREATE / PROMOTE TO OFFICIAL PRODUCT (WITH FULL EDITING & OFFER APPROVAL TOGGLE) */}
+                        {reviewDecision === 'approved_official' && (
+                            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                                    Personnalisez la <strong>nouvelle fiche produit officielle Ahizan</strong>. Ce produit mère deviendra la référence unique du catalogue central et recevra la déclinaison du vendeur.
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Titre Officiel Ahizan *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={officialTitle}
+                                            onChange={e => setOfficialTitle(e.target.value)}
+                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Slug SEO Unique
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={officialSlug}
+                                            onChange={e => setOfficialSlug(e.target.value)}
+                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* SKU Officiel & Code EAN-13 */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            SKU Officiel Central Ahizan *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={officialSku}
+                                            onChange={e => setOfficialSku(e.target.value)}
+                                            placeholder="Ex: AHZ-S24U-TITANIUM"
+                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Code-barres International EAN-13 (Optionnel)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={officialEan}
+                                            onChange={e => setOfficialEan(e.target.value)}
+                                            placeholder="Ex: 8806091234567"
+                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Arborescence Catégories & Sous-Catégories (Multi-sélection) */}
                                 <div>
-                                    <label style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#991b1b', display: 'block', marginBottom: '6px' }}>
-                                        Motif du refus pour le vendeur * :
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                                        Arborescence Catégories &amp; Sous-Catégories Ahizan ({officialCollectionIds.length} sélectionnée(s)) :
+                                    </label>
+                                    <div style={{ maxHeight: '130px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '6px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', background: '#f8fafc' }}>
+                                        {collections.map((c: any) => {
+                                            const isSelected = officialCollectionIds.includes(c.id);
+                                            return (
+                                                <button
+                                                    key={c.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (isSelected) {
+                                                            setOfficialCollectionIds(officialCollectionIds.filter(id => id !== c.id));
+                                                        } else {
+                                                            setOfficialCollectionIds([...officialCollectionIds, c.id]);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '16px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                        background: isSelected ? '#2563eb' : '#ffffff',
+                                                        color: isSelected ? '#ffffff' : '#475569',
+                                                        transition: 'all 0.15s',
+                                                    }}
+                                                >
+                                                    {isSelected ? '✓ ' : '+ '}{c.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Attributs & Facettes du Catalogue Ahizan */}
+                                {facets.length > 0 && (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                                            Attributs &amp; Facettes du Catalogue ({officialFacetValueIds.length} sélectionné(s)) :
+                                        </label>
+                                        <div style={{ maxHeight: '130px', overflowY: 'auto', display: 'grid', gap: '8px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', background: '#f8fafc' }}>
+                                            {facets.map((facet: any) => (
+                                                <div key={facet.id}>
+                                                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                                        {facet.name} :
+                                                    </div>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                        {facet.values?.map((val: any) => {
+                                                            const isSelected = officialFacetValueIds.includes(val.id);
+                                                            return (
+                                                                <button
+                                                                    key={val.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (isSelected) {
+                                                                            setOfficialFacetValueIds(officialFacetValueIds.filter(id => id !== val.id));
+                                                                        } else {
+                                                                            setOfficialFacetValueIds([...officialFacetValueIds, val.id]);
+                                                                        }
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '4px 10px',
+                                                                        borderRadius: '16px',
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 600,
+                                                                        cursor: 'pointer',
+                                                                        border: isSelected ? '1px solid #0284c7' : '1px solid #cbd5e1',
+                                                                        background: isSelected ? '#0284c7' : '#ffffff',
+                                                                        color: isSelected ? '#ffffff' : '#475569',
+                                                                        transition: 'all 0.15s',
+                                                                    }}
+                                                                >
+                                                                    {isSelected ? '✓ ' : ''}{val.name}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                        Petite Description (Accroche)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: Écran OLED 120Hz, 256Go, Appareil photo 50MP..."
+                                        value={officialShortDescription}
+                                        onChange={e => setOfficialShortDescription(e.target.value)}
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                        Description Détaillée Officielle
+                                    </label>
+                                    <textarea
+                                        rows={4}
+                                        placeholder="Description complète des caractéristiques officielles du produit..."
+                                        value={officialDescription}
+                                        onChange={e => setOfficialDescription(e.target.value)}
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                    />
+                                </div>
+
+                                {/* Offer Approval Toggle */}
+                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <input
+                                        type="checkbox"
+                                        id="approveVendorOfferToggle"
+                                        checked={approveVendorOfferCheckbox}
+                                        onChange={e => setApproveVendorOfferCheckbox(e.target.checked)}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                    />
+                                    <label htmlFor="approveVendorOfferToggle" style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
+                                        Approuver également l'offre commerciale du vendeur immédiatement (Prix : {formatPrice(reviewProduct.variants?.[0]?.price || 0)})
+                                    </label>
+                                </div>
+                                {!approveVendorOfferCheckbox && (
+                                    <div style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fef08a', padding: '10px', borderRadius: '8px' }}>
+                                        ℹ️ La fiche officielle sera créée et publiée, et la déclinaison du vendeur y sera rattachée en statut <strong>En attente</strong>. Vous pourrez ensuite examiner et modérer son offre de prix séparément.
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewProduct(null)}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingReview || !officialTitle.trim()}
+                                        style={{
+                                            padding: '10px 24px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                            background: '#2563eb',
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        {isSubmittingReview ? 'Création...' : '🏛️ Créer la Fiche Officielle & Rattacher'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* TAB 3: REJECT WITH SCOPE & FEEDBACK */}
+                        {reviewDecision === 'rejected' && (
+                            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '14px' }}>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#991b1b', marginBottom: '8px' }}>
+                                        Que souhaitez-vous refuser / renvoyer en correction ?
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#7f1d1d', fontWeight: 700, cursor: 'pointer' }}>
+                                            <input
+                                                type="radio"
+                                                name="rejectScope"
+                                                checked={rejectScope === 'all'}
+                                                onChange={() => setRejectScope('all')}
+                                            />
+                                            Refuser toute la proposition produit (la fiche et toutes ses déclinaisons)
+                                        </label>
+                                        {((offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) || (reviewProduct.variants && reviewProduct.variants.length > 0)) && (
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#7f1d1d', fontWeight: 700, cursor: 'pointer' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="rejectScope"
+                                                    checked={rejectScope === 'specific_offer'}
+                                                    onChange={() => setRejectScope('specific_offer')}
+                                                />
+                                                Refuser uniquement des déclinaisons / offres spécifiques (conserver le produit)
+                                            </label>
+                                        )}
+                                    </div>
+
+                                    {rejectScope === 'specific_offer' && (
+                                        <div style={{ marginTop: '12px', display: 'grid', gap: '6px', maxHeight: '140px', overflowY: 'auto', background: '#ffffff', padding: '8px', borderRadius: '8px', border: '1px solid #fca5a5' }}>
+                                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b' }}>Cochez la ou les offres / déclinaisons à refuser :</div>
+                                            {(offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) ? (
+                                                offersMap[reviewProduct.id].map((off: any) => {
+                                                    const isChecked = rejectedOfferIds.includes(off.id);
+                                                    return (
+                                                        <label key={off.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', padding: '6px 8px', background: isChecked ? '#fee2e2' : '#f8fafc', borderRadius: '6px', cursor: 'pointer' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={e => {
+                                                                        if (e.target.checked) {
+                                                                            setRejectedOfferIds([...rejectedOfferIds, off.id]);
+                                                                        } else {
+                                                                            setRejectedOfferIds(rejectedOfferIds.filter(id => id !== off.id));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <strong>{off.productVariant?.name || 'Déclinaison'}</strong> ({off.sku || 'SKU N/A'})
+                                                            </div>
+                                                            <span style={{ fontWeight: 800, color: '#16a34a' }}>{formatPrice(off.price)}</span>
+                                                        </label>
+                                                    );
+                                                })
+                                            ) : (
+                                                (reviewProduct.variants || []).map((v: any, idx: number) => {
+                                                    const isChecked = rejectedOfferIds.includes(v.id);
+                                                    return (
+                                                        <label key={v.id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', padding: '6px 8px', background: isChecked ? '#fee2e2' : '#f8fafc', borderRadius: '6px', cursor: 'pointer' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isChecked}
+                                                                    onChange={e => {
+                                                                        if (e.target.checked) {
+                                                                            setRejectedOfferIds([...rejectedOfferIds, v.id]);
+                                                                        } else {
+                                                                            setRejectedOfferIds(rejectedOfferIds.filter(id => id !== v.id));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <strong>{v.name || `Déclinaison #${idx + 1}`}</strong> {v.sku && <span>({v.sku})</span>}
+                                                            </div>
+                                                            <span style={{ fontWeight: 800, color: '#16a34a' }}>{formatPrice(v.price)}</span>
+                                                        </label>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    )}
+                                </div>800, color: '#16a34a' }}>{formatPrice(off.price)}</span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <div style={{ fontSize: '12px', color: '#991b1b', lineHeight: '1.5', fontWeight: 700, marginBottom: '6px' }}>
+                                        Motifs rapides de refus :
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        {['Photos floues / non conformes', 'Description insuffisante', 'Doublon existant au catalogue', 'Prix anormal / non conforme', 'Délai d\'expédition non réaliste', 'Produit non conforme à la charte'].map((chip) => (
+                                            <button
+                                                key={chip}
+                                                type="button"
+                                                onClick={() => setRejectionReasonInput(chip)}
+                                                style={{ padding: '5px 12px', borderRadius: '14px', border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                            >
+                                                + {chip}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                        Message d'explication détaillé pour le vendeur *
                                     </label>
                                     <textarea
                                         required
                                         rows={3}
                                         value={rejectionReasonInput}
                                         onChange={e => setRejectionReasonInput(e.target.value)}
-                                        placeholder="Ex: Photos non conformes, description insuffisante ou produit déjà existant au catalogue..."
-                                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '12px', fontFamily: 'inherit' }}
+                                        placeholder="Expliquez clairement ce que le vendeur doit corriger (photos, prix, stock, description)..."
+                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' }}
                                     />
                                 </div>
-                            )}
 
-                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setReviewProduct(null)}
-                                    style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                                >
-                                    Annuler
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSubmittingReview}
-                                    style={{
-                                        padding: '10px 22px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
-                                        background: reviewDecision === 'approved' ? '#16a34a' : '#dc2626',
-                                        color: '#ffffff',
-                                    }}
-                                >
-                                    {isSubmittingReview ? 'Enregistrement...' : reviewDecision === 'approved' ? 'Confirmer la validation' : 'Confirmer le rejet'}
-                                </button>
-                            </div>
-                        </form>
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewProduct(null)}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingReview || !rejectionReasonInput.trim() || (rejectScope === 'specific_offer' && rejectedOfferIds.length === 0)}
+                                        style={{
+                                            padding: '10px 24px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                            background: '#dc2626',
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        {isSubmittingReview ? 'Envoi...' : rejectScope === 'specific_offer' ? `❌ Rejeter ${rejectedOfferIds.length} offre(s) sélectionnée(s)` : '❌ Confirmer le Refus de la Proposition'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}
@@ -1412,38 +2654,115 @@ export function ProductListComponent() {
 
                         <form onSubmit={handleSaveProductEdit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                             
-                            {/* Visuals Preview */}
-                            <div>
-                                <label style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '8px' }}>
-                                    Visuels Officiels du Catalogue :
-                                </label>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                                    {editingProduct.featuredAsset?.preview ? (
-                                        <div style={{ position: 'relative' }}>
-                                            <img
-                                                src={editingProduct.featuredAsset.preview}
-                                                alt={editingProduct.name}
-                                                style={{ width: '70px', height: '70px', borderRadius: '10px', objectFit: 'cover', border: '2px solid #2563eb' }}
-                                            />
-                                            <span style={{ position: 'absolute', bottom: '2px', left: '2px', right: '2px', background: 'rgba(37,99,235,0.9)', color: '#ffffff', fontSize: '8px', fontWeight: 800, textAlign: 'center', borderRadius: '4px', padding: '1px 0' }}>
-                                                Principale
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <div style={{ width: '70px', height: '70px', borderRadius: '10px', background: '#f1f5f9', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>
-                                            Sans image
-                                        </div>
-                                    )}
-
-                                    {editingProduct.assets && editingProduct.assets.filter(a => a.preview !== editingProduct.featuredAsset?.preview).map((asset, aIdx) => (
-                                        <img
-                                            key={asset.id || aIdx}
-                                            src={asset.preview}
-                                            alt={`Galerie ${aIdx + 1}`}
-                                            style={{ width: '70px', height: '70px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #cbd5e1' }}
+                            {/* Visuals Management with Upload & Primary Star */}
+                            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <div>
+                                        <label style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'block' }}>
+                                            📸 Photos Officielles du Produit ({editAssets.length})
+                                        </label>
+                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                            Sélectionnez l'image principale (⭐) et ajoutez de nouveaux visuels pour la fiche.
+                                        </span>
+                                    </div>
+                                    <label style={{
+                                        padding: '7px 14px',
+                                        borderRadius: '8px',
+                                        background: isUploadingAssets ? '#94a3b8' : '#2563eb',
+                                        color: '#ffffff',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        cursor: isUploadingAssets ? 'not-allowed' : 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                    }}>
+                                        <span>{isUploadingAssets ? '⏳ Téléversement...' : '➕ Ajouter des photos'}</span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            accept="image/*"
+                                            disabled={isUploadingAssets}
+                                            onChange={handleAssetUpload}
+                                            style={{ display: 'none' }}
                                         />
-                                    ))}
+                                    </label>
                                 </div>
+
+                                {editAssets.length === 0 ? (
+                                    <div style={{ padding: '24px', background: '#ffffff', border: '2px dashed #cbd5e1', borderRadius: '10px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                                        Aucune photo attachée à ce produit. Cliquez sur "Ajouter des photos" ci-dessus.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px', marginTop: '10px' }}>
+                                        {editAssets.map((asset, index) => {
+                                            const isFeatured = editFeaturedAssetId === asset.id || (!editFeaturedAssetId && index === 0);
+                                            return (
+                                                <div
+                                                    key={asset.id || index}
+                                                    style={{
+                                                        position: 'relative',
+                                                        borderRadius: '10px',
+                                                        overflow: 'hidden',
+                                                        border: isFeatured ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                                                        background: '#ffffff',
+                                                        boxShadow: isFeatured ? '0 0 0 2px rgba(37,99,235,0.2)' : 'none',
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={asset.preview}
+                                                        alt=""
+                                                        style={{ width: '100%', height: '100px', objectFit: 'cover', display: 'block' }}
+                                                    />
+
+                                                    {/* Primary Star / Featured Badge */}
+                                                    <div style={{ position: 'absolute', top: '4px', left: '4px' }}>
+                                                        {isFeatured ? (
+                                                            <span style={{ background: '#2563eb', color: '#ffffff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                                                                ⭐ Principale
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSetFeaturedAsset(asset.id)}
+                                                                style={{ background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(2px)', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '2px 5px', fontSize: '10px', cursor: 'pointer' }}
+                                                                title="Définir comme photo principale"
+                                                            >
+                                                                ☆ Choisir
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Delete Asset Button */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveAsset(asset.id)}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: '4px',
+                                                            right: '4px',
+                                                            background: 'rgba(220,38,38,0.85)',
+                                                            color: '#ffffff',
+                                                            border: 'none',
+                                                            borderRadius: '50%',
+                                                            width: '20px',
+                                                            height: '20px',
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                        }}
+                                                        title="Retirer cette photo"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Nom du Produit */}
@@ -1598,6 +2917,393 @@ export function ProductListComponent() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── 8. MODAL: REGRAFT VARIANT TO ANOTHER PRODUCT ("Greffer à un autre produit") ── */}
+            {regraftModalData && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '20px', maxWidth: '720px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                        
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>🔗</span> Greffer la Déclinaison à un Produit Officiel
+                                </h3>
+                                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                    Déplacez cette déclinaison (et toutes ses offres marchandes) sous une fiche officielle existante ou créez une nouvelle fiche dédiée.
+                                </p>
+                            </div>
+                            <button onClick={() => setRegraftModalData(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '14px', fontWeight: 700 }}>✕</button>
+                        </div>
+
+                        {/* Current Source Info */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
+                                📦 Déclinaison source à déplacer :
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                                        {regraftModalData.variant?.name || regraftModalData.offer?.productVariant?.name || regraftModalData.currentProduct.name}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                        Produit actuel : <strong>{regraftModalData.currentProduct.name}</strong> • SKU : <span style={{ fontFamily: 'monospace' }}>{regraftModalData.variant?.sku || regraftModalData.offer?.sku || 'N/A'}</span>
+                                    </div>
+                                </div>
+                                {regraftModalData.offer?.vendor && (
+                                    <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                                        Offre de : {regraftModalData.offer.vendor.name}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Navigation Tabs between Linking vs Creating */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '18px', background: '#f1f5f9', padding: '6px', borderRadius: '12px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setRegraftTab('existing')}
+                                style={{
+                                    padding: '10px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                    background: regraftTab === 'existing' ? '#ffffff' : 'transparent',
+                                    color: regraftTab === 'existing' ? '#2563eb' : '#64748b',
+                                    boxShadow: regraftTab === 'existing' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                🔗 1. Relier à un Produit Existant
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setRegraftTab('new_official')}
+                                style={{
+                                    padding: '10px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
+                                    background: regraftTab === 'new_official' ? '#ffffff' : 'transparent',
+                                    color: regraftTab === 'new_official' ? '#059669' : '#64748b',
+                                    boxShadow: regraftTab === 'new_official' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none',
+                                    transition: 'all 0.15s'
+                                }}
+                            >
+                                🏛️ 2. Créer une Nouvelle Fiche Officielle
+                            </button>
+                        </div>
+
+                        {/* TAB 1: RELIER À UN PRODUIT EXISTANT */}
+                        {regraftTab === 'existing' && (
+                            <div>
+                                {/* Search Target Product */}
+                                <div style={{ marginBottom: '16px' }}>
+                                    <label style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                                        Rechercher le Nouveau Produit Cible Ahizan :
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={regraftSearchTerm}
+                                        onChange={(e) => handleSearchTargetProducts(e.target.value)}
+                                        placeholder="Ex: Tapez le nom du produit cible (Samsung Galaxy S24, iPhone 15...)"
+                                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                    />
+                                </div>
+
+                                {/* Target Product Search Results */}
+                                <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '8px', marginBottom: '16px', background: '#fafafa' }}>
+                                    {isLoadingRegraftSearch ? (
+                                        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                                            Recherche des fiches officielles Ahizan...
+                                        </div>
+                                    ) : regraftSearchResults.length === 0 ? (
+                                        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                                            Aucun autre produit officiel trouvé.
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'grid', gap: '6px' }}>
+                                            {regraftSearchResults.map((prod) => {
+                                                const isSelected = selectedTargetProduct?.id === prod.id;
+                                                return (
+                                                    <div
+                                                        key={prod.id}
+                                                        onClick={() => setSelectedTargetProduct(prod)}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            padding: '10px 12px',
+                                                            borderRadius: '8px',
+                                                            cursor: 'pointer',
+                                                            background: isSelected ? '#eff6ff' : '#ffffff',
+                                                            border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                                            transition: 'all 0.15s ease',
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                            {prod.featuredAsset?.preview ? (
+                                                                <img src={prod.featuredAsset.preview} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
+                                                            ) : (
+                                                                <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>📦</div>
+                                                            )}
+                                                            <div>
+                                                                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>{prod.name}</div>
+                                                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                    ID: {prod.id} • {prod.variants?.length || 0} déclinaison(s) existante(s)
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            {isSelected ? (
+                                                                <span style={{ background: '#2563eb', color: '#ffffff', fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px' }}>
+                                                                    ✓ Sélectionné
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ fontSize: '11px', color: '#64748b' }}>Choisir ➔</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Confirmation Summary & Actions */}
+                                {selectedTargetProduct && (
+                                    <div style={{ padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '10px', fontSize: '12px', color: '#065f46', marginBottom: '16px' }}>
+                                        <strong>Action :</strong> La déclinaison sera immédiatement déplacée sous la fiche officielle <strong>"{selectedTargetProduct.name}"</strong>.
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setRegraftModalData(null)}
+                                        style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!selectedTargetProduct || isSubmittingRegraft}
+                                        onClick={handleConfirmRegraft}
+                                        style={{
+                                            padding: '10px 20px',
+                                            borderRadius: '8px',
+                                            border: 'none',
+                                            fontSize: '12px',
+                                            fontWeight: 800,
+                                            cursor: !selectedTargetProduct || isSubmittingRegraft ? 'not-allowed' : 'pointer',
+                                            background: !selectedTargetProduct ? '#94a3b8' : '#2563eb',
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        {isSubmittingRegraft ? 'Transfert en cours...' : 'Confirmer le Greffage ➔'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 2: CRÉER UNE NOUVELLE FICHE OFFICIELLE DÉDIÉE */}
+                        {regraftTab === 'new_official' && (
+                            <form onSubmit={handleCreateOfficialAndRegraft} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div style={{ fontSize: '12px', color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '10px 14px', borderRadius: '10px' }}>
+                                    💡 Renseignez les informations de la nouvelle fiche produit officielle Ahizan. Cette déclinaison (et son offre marchande) y sera directement greffée.
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Nom Officiel du Produit (Catalogue Central) *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={regraftNewTitle}
+                                            onChange={e => {
+                                                setRegraftNewTitle(e.target.value);
+                                                setRegraftNewSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+                                            }}
+                                            placeholder="Ex: Câble de charge rapide 4-en-1 65W..."
+                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Slug URL
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={regraftNewSlug}
+                                            onChange={e => setRegraftNewSlug(e.target.value)}
+                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            SKU Officiel Central
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={regraftNewSku}
+                                            onChange={e => setRegraftNewSku(e.target.value)}
+                                            placeholder="Ex: AHZ-CAB-65W"
+                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Code EAN-13 (Code-barres)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={regraftNewEan}
+                                            onChange={e => setRegraftNewEan(e.target.value)}
+                                            placeholder="Ex: 3700123456789"
+                                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Multi-Categories Badges */}
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                        Catégories &amp; Rayons Catalogue (cliquez pour associer) :
+                                    </label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '100px', overflowY: 'auto', padding: '8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        {(collectionsData?.collections?.items || []).map((col: any) => {
+                                            const isSelected = regraftNewCollectionIds.includes(col.id);
+                                            return (
+                                                <button
+                                                    key={col.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (isSelected) {
+                                                            setRegraftNewCollectionIds(regraftNewCollectionIds.filter(id => id !== col.id));
+                                                        } else {
+                                                            setRegraftNewCollectionIds([...regraftNewCollectionIds, col.id]);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        padding: '4px 10px', borderRadius: '16px', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                                                        border: isSelected ? '1px solid #059669' : '1px solid #cbd5e1',
+                                                        background: isSelected ? '#059669' : '#ffffff',
+                                                        color: isSelected ? '#ffffff' : '#334155',
+                                                    }}
+                                                >
+                                                    {isSelected ? '✓ ' : '+ '}{col.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Multi-Facets Badges */}
+                                {facetsData?.facets?.items && facetsData.facets.items.length > 0 && (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                            Facettes &amp; Filtres de recherche :
+                                        </label>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '100px', overflowY: 'auto', padding: '8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                            {facetsData.facets.items.map((facet: any) =>
+                                                (facet.values || []).map((fv: any) => {
+                                                    const isSelected = regraftNewFacetValueIds.includes(fv.id);
+                                                    return (
+                                                        <button
+                                                            key={fv.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (isSelected) {
+                                                                    setRegraftNewFacetValueIds(regraftNewFacetValueIds.filter(id => id !== fv.id));
+                                                                } else {
+                                                                    setRegraftNewFacetValueIds([...regraftNewFacetValueIds, fv.id]);
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                padding: '4px 10px', borderRadius: '16px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                                                                border: isSelected ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                                                                background: isSelected ? '#0284c7' : '#ffffff',
+                                                                color: isSelected ? '#ffffff' : '#475569',
+                                                            }}
+                                                        >
+                                                            {facet.name}: {fv.name}
+                                                        </button>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                        Description Courte
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={regraftNewShortDesc}
+                                        onChange={e => setRegraftNewShortDesc(e.target.value)}
+                                        placeholder="Accroche commerciale brève..."
+                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                        Description Détaillée
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={regraftNewDesc}
+                                        onChange={e => setRegraftNewDesc(e.target.value)}
+                                        placeholder="Description complète du produit..."
+                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                    />
+                                </div>
+
+                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <input
+                                        type="checkbox"
+                                        id="regraftNewApproveOfferToggle"
+                                        checked={regraftNewApproveOffer}
+                                        onChange={e => setRegraftNewApproveOffer(e.target.checked)}
+                                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                                    />
+                                    <label htmlFor="regraftNewApproveOfferToggle" style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
+                                        Approuver et activer immédiatement l'offre commerciale du vendeur sur cette nouvelle fiche
+                                    </label>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setRegraftModalData(null)}
+                                        style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingRegraft || !regraftNewTitle.trim()}
+                                        style={{
+                                            padding: '10px 22px',
+                                            borderRadius: '8px',
+                                            border: 'none',
+                                            fontSize: '12px',
+                                            fontWeight: 800,
+                                            cursor: isSubmittingRegraft || !regraftNewTitle.trim() ? 'not-allowed' : 'pointer',
+                                            background: '#059669',
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        {isSubmittingRegraft ? 'Création en cours...' : '🏛️ Créer la Fiche & Transférer'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
                     </div>
                 </div>
             )}

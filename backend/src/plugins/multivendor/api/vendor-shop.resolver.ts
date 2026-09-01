@@ -478,8 +478,18 @@ export class VendorShopResolver {
                 createdOffers.push(savedOffer);
             }
 
-            this.eventBus.publish(new ProductEvent(transactionalCtx, updatedProduct, 'updated', { id: updatedProduct.id }));
-            return createdOffers;
+                if ((product.customFields as any)?.approvalStatus === 'rejected' || (product.customFields as any)?.approvalStatus === 'needs_information') {
+                    await this.productService.update(transactionalCtx, {
+                        id: product.id,
+                        customFields: {
+                            approvalStatus: 'pending',
+                            rejectionReason: null,
+                        }
+                    });
+                }
+
+                this.eventBus.publish(new ProductEvent(transactionalCtx, updatedProduct, 'updated', { id: updatedProduct.id }));
+                return createdOffers;
             } catch (err: any) {
                 console.error('[tagProductWithVariantOffers] ERROR STACK TRACE:', err.message, err.stack);
                 throw err;
@@ -1539,6 +1549,17 @@ export class VendorShopResolver {
                 }
             }
 
+            // Clear any previous rejection/remarque reason on product, variants, and seller_offers
+            try {
+                await this.connection.rawConnection.query(`
+                    UPDATE product SET "customFieldsRejectionreason" = NULL WHERE id = $1;
+                    UPDATE product_variant SET "customFieldsRejectionreason" = NULL WHERE "productId" = $1;
+                    UPDATE seller_offer SET "rejectionReason" = NULL, status = 'pending' WHERE "productVariantId" IN (SELECT id FROM product_variant WHERE "productId" = $1);
+                `, [id]);
+            } catch (e) {
+                console.error('[updateMyProduct] Failed to clear rejectionReason:', e);
+            }
+
             // 7. Re-fetch and emit event so the search index is updated via Job Queue
             const finalProduct = await this.productService.findOne(transactionalCtx, id) as Product;
             this.eventBus.publish(new ProductEvent(transactionalCtx, finalProduct, 'updated', { id }));
@@ -1758,10 +1779,7 @@ export class VendorShopResolver {
         @Ctx() ctx: RequestContext,
         @Args() args: { file: any }
     ): Promise<Asset> {
-        const vendor = await this.myVendorProfile(ctx);
-        if (!vendor) {
-            throw new Error('No vendor profile found for this user');
-        }
+        const vendor = await this.myVendorProfile(ctx).catch(() => null);
 
         // Check if file is a GIF - if so, skip Sharp processing to preserve animation
         const isGif = args.file.mimetype === 'image/gif' || args.file.filename?.toLowerCase().endsWith('.gif');
@@ -1800,9 +1818,10 @@ export class VendorShopResolver {
         }
 
         const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
+        const tags = vendor ? ['vendor', `vendorId:${vendor.id}`] : ['admin'];
         return this.assetService.create(adminCtx, {
             file: args.file,
-            tags: ['vendor', `vendorId:${vendor.id}`]
+            tags
         }) as Promise<Asset>;
     }
 

@@ -20,8 +20,12 @@ export class SellerOfferService {
     ) {}
 
     async getOffersForVariant(ctx: RequestContext, variantId: string): Promise<SellerOffer[]> {
+        const where: any = { productVariant: { id: variantId } };
+        if (ctx.apiType === 'shop') {
+            where.status = 'approved';
+        }
         return this.connection.getRepository(ctx, SellerOffer).find({
-            where: { productVariant: { id: variantId } },
+            where,
             relations: ['vendor', 'vendor.logo', 'productVariant'],
         });
     }
@@ -121,8 +125,16 @@ export class SellerOfferService {
             if (input.onPromotion !== undefined) offer.onPromotion = input.onPromotion;
             if (input.promotionalPrice !== undefined) offer.promotionalPrice = input.promotionalPrice;
             if (input.featuredAssetId !== undefined) offer.featuredAssetId = input.featuredAssetId;
-            if (input.status !== undefined) offer.status = input.status;
-            if (input.rejectionReason !== undefined) offer.rejectionReason = input.rejectionReason;
+            if (input.status !== undefined) {
+                offer.status = input.status;
+            } else {
+                offer.status = 'pending';
+            }
+            if (input.rejectionReason !== undefined) {
+                offer.rejectionReason = input.rejectionReason;
+            } else if (input.status === undefined) {
+                offer.rejectionReason = null;
+            }
         }
 
         const savedOffer = await repo.save(offer);

@@ -143,6 +143,7 @@ const GET_MARKETPLACE_PRODUCTS = `
                         onPromotion
                         promotionalPrice
                         compareAtPrice
+                        offerStatus
                     }
                 }
             }
@@ -440,14 +441,181 @@ async function uploadAssetFile(file: File): Promise<{ id: string; preview: strin
     return json.data.uploadVendorFile;
 }
 
+// Interactive Image Cropper Modal for Superadmin
+interface AdminImageCropModalProps {
+    imageSrc: string;
+    file: File;
+    onClose: () => void;
+    onCropComplete: (file: File) => void;
+    onSkip: (file: File) => void;
+}
+
+function AdminImageCropModal({ imageSrc, file, onClose, onCropComplete, onSkip }: AdminImageCropModalProps) {
+    const [zoom, setZoom] = useState(1);
+    const [rotation, setRotation] = useState(0);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const imgRef = React.useRef<HTMLImageElement>(null);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging) return;
+        setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    };
+
+    const handleMouseUp = () => setIsDragging(false);
+
+    const handleApplyCrop = () => {
+        const image = imgRef.current;
+        if (!image) return onSkip(file);
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return onSkip(file);
+
+        const targetSize = 800;
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, targetSize, targetSize);
+
+        ctx.save();
+        ctx.translate(targetSize / 2, targetSize / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.scale(zoom, zoom);
+
+        const aspect = (image.naturalWidth || 800) / (image.naturalHeight || 800);
+        let drawWidth = targetSize;
+        let drawHeight = targetSize;
+        if (aspect > 1) {
+            drawHeight = targetSize / aspect;
+        } else {
+            drawWidth = targetSize * aspect;
+        }
+
+        ctx.drawImage(
+            image,
+            -drawWidth / 2 + pan.x / zoom,
+            -drawHeight / 2 + pan.y / zoom,
+            drawWidth,
+            drawHeight
+        );
+        ctx.restore();
+
+        canvas.toBlob((blob) => {
+            if (!blob) return onSkip(file);
+            const croppedFile = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
+            onCropComplete(croppedFile);
+        }, 'image/jpeg', 0.92);
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '520px', width: '100%', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>✂️ Rognage &amp; Cadrage de l'Image</h3>
+                    <button type="button" onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                </div>
+
+                <div style={{ padding: '20px', background: '#f1f5f9', display: 'flex', justifyContent: 'center', alignItems: 'center', userSelect: 'none' }}>
+                    <div
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        style={{ width: '320px', height: '320px', overflow: 'hidden', position: 'relative', border: '2px dashed #0284c7', borderRadius: '12px', cursor: isDragging ? 'grabbing' : 'grab', background: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                    >
+                        <img
+                            ref={imgRef}
+                            src={imageSrc}
+                            alt="Crop Preview"
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'contain',
+                                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+                                transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                                pointerEvents: 'none'
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div style={{ padding: '16px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'grid', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', width: '60px' }}>Zoom:</span>
+                        <input
+                            type="range"
+                            min="0.2"
+                            max="5.0"
+                            step="0.05"
+                            value={zoom}
+                            onChange={e => setZoom(parseFloat(e.target.value))}
+                            style={{ flex: 1 }}
+                        />
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{Math.round(zoom * 100)}%</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        <button
+                            type="button"
+                            onClick={() => setRotation(r => (r - 90) % 360)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                            🔄 -90°
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRotation(r => (r + 90) % 360)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                            🔄 +90°
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setRotation(0); }}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                            Réinitialiser
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginTop: '4px' }}>
+                        <button
+                            type="button"
+                            onClick={() => onSkip(file)}
+                            style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#475569', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            Conserver sans rogner
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleApplyCrop}
+                            style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: '#2563eb', color: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            Appliquer le rognage
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export function ProductListComponent() {
     const queryClient = useQueryClient();
 
     // Helper formatPrice
-    const formatPrice = (val?: number | null) => (val ? `${(val / 100).toLocaleString('fr-FR')} FCFA` : '0 FCFA');
+    const formatPrice = (val?: number | null) => (val ? `${Math.round(val).toLocaleString('fr-FR')} FCFA` : '0 FCFA');
 
-    // Active View Tab: 'official' | 'vendor_proposals' | 'pending' | 'settings'
-    const [activeTab, setActiveTab] = useState<'official' | 'vendor_proposals' | 'pending' | 'settings'>('official');
+    // Active View Tab: 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings'
+    const [activeTab, setActiveTab] = useState<'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings'>('official');
 
     // Search, Filters & Sorting
     const [searchTerm, setSearchTerm] = useState('');
@@ -499,6 +667,12 @@ export function ProductListComponent() {
     const [editFeaturedAssetId, setEditFeaturedAssetId] = useState<string | null>(null);
     const [isUploadingAssets, setIsUploadingAssets] = useState(false);
     const [isSavingProduct, setIsSavingProduct] = useState(false);
+    const [adminCropState, setAdminCropState] = useState<{
+        queue: File[];
+        currentIndex: number;
+        currentSrc: string;
+        currentFile: File;
+    } | null>(null);
 
     // Modal state for Regrafting a Variant to another Product ("Greffer à un autre produit")
     const [regraftModalData, setRegraftModalData] = useState<{
@@ -620,6 +794,13 @@ export function ProductListComponent() {
             const hasPendingVariants = p.variants?.some(v => (v.customFields as any)?.offerStatus === 'PENDING' || (v as any).customFieldsOfferstatus === 'PENDING');
             return approvalStatus === 'pending' || hasPendingVariants;
         }).length;
+        const unvalidatedVariantsCount = products.reduce((acc, p) => {
+            const pendingInProd = p.variants?.filter(v => {
+                const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
+                return st === 'PENDING' || st === 'pending';
+            }).length || 0;
+            return acc + pendingInProd;
+        }, 0);
         const approvedProducts = products.filter(p => (p.customFields?.approvalStatus || 'approved') === 'approved').length;
         const totalVariants = products.reduce((acc, p) => acc + (p.variants?.length || 0), 0);
 
@@ -628,13 +809,14 @@ export function ProductListComponent() {
             officialCount,
             vendorProposalCount,
             pendingProducts,
+            unvalidatedVariantsCount,
             approvedProducts,
             totalVariants,
         };
     }, [products]);
 
     // Tab switcher with clean reset
-    const handleTabChange = (newTab: 'official' | 'vendor_proposals' | 'pending' | 'settings') => {
+    const handleTabChange = (newTab: 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings') => {
         setActiveTab(newTab);
         setCurrentPage(1);
         setSelectedVendor('all');
@@ -654,6 +836,9 @@ export function ProductListComponent() {
 
             // Tab restriction
             if (activeTab === 'pending' && !isPending) {
+                return false;
+            }
+            if (activeTab === 'unvalidated_variants' && !hasPendingVariants) {
                 return false;
             }
             if (activeTab === 'official' && isVendorProposal) {
@@ -750,8 +935,16 @@ export function ProductListComponent() {
                 facetValueIds: variables.facetValueIds || null,
                 approveVendorOffer: variables.approveVendorOffer !== undefined ? variables.approveVendorOffer : true,
             }),
-        onSuccess: () => {
+        onSuccess: async (data: any, variables: any) => {
             queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            if (variables?.id) {
+                try {
+                    const freshOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: variables.id });
+                    if (freshOffers?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [variables.id]: freshOffers.sellerOffersForProduct }));
+                    }
+                } catch (_) {}
+            }
             setReviewProduct(null);
             setIsSubmittingReview(false);
         },
@@ -1000,33 +1193,64 @@ export function ProductListComponent() {
         setEditFeaturedAssetId(product.featuredAsset?.id || (initialAssets[0]?.id ?? null));
     };
 
-    const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
+    const processAdminCropQueue = (files: File[]) => {
         if (!files || files.length === 0) return;
+        const firstFile = files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+            setAdminCropState({
+                queue: files,
+                currentIndex: 0,
+                currentSrc: reader.result as string,
+                currentFile: firstFile,
+            });
+        };
+        reader.readAsDataURL(firstFile);
+    };
 
+    const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files: File[] = Array.prototype.slice.call(e.target.files || []);
+        if (files.length === 0) return;
+        processAdminCropQueue(files);
+        e.target.value = '';
+    };
+
+    const handleAdminCropComplete = async (finalFile: File) => {
+        if (!adminCropState) return;
         setIsUploadingAssets(true);
         try {
-            const uploadedAssets: Array<{ id: string; preview: string }> = [];
-            for (let i = 0; i < files.length; i++) {
-                const asset = await uploadAssetFile(files[i]);
-                if (asset?.id) {
-                    uploadedAssets.push(asset);
-                }
+            const asset = await uploadAssetFile(finalFile);
+            if (asset?.id) {
+                setEditAssets(prev => {
+                    const next = [...prev, asset];
+                    if (!editFeaturedAssetId && next.length > 0) {
+                        setEditFeaturedAssetId(next[0].id);
+                    }
+                    return next;
+                });
             }
-
-            setEditAssets(prev => {
-                const next = [...prev, ...uploadedAssets];
-                if (!editFeaturedAssetId && next.length > 0) {
-                    setEditFeaturedAssetId(next[0].id);
-                }
-                return next;
-            });
         } catch (err: any) {
             console.error('Asset upload error:', err);
             alert('Erreur lors du téléversement : ' + err.message);
         } finally {
             setIsUploadingAssets(false);
-            e.target.value = '';
+        }
+
+        const nextIndex = adminCropState.currentIndex + 1;
+        if (nextIndex < adminCropState.queue.length) {
+            const nextFile = adminCropState.queue[nextIndex];
+            const reader = new FileReader();
+            reader.onload = () => {
+                setAdminCropState({
+                    queue: adminCropState.queue,
+                    currentIndex: nextIndex,
+                    currentSrc: reader.result as string,
+                    currentFile: nextFile,
+                });
+            };
+            reader.readAsDataURL(nextFile);
+        } else {
+            setAdminCropState(null);
         }
     };
 
@@ -1252,7 +1476,7 @@ export function ProductListComponent() {
                     </p>
                 </div>
 
-                {/* Navigation 4 Onglets Stricts */}
+                {/* Navigation 5 Onglets Stricts */}
                 <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
                     <button
                         onClick={() => handleTabChange('official')}
@@ -1292,6 +1516,23 @@ export function ProductListComponent() {
                         {metrics.pendingProducts > 0 && (
                             <span style={{ background: '#dc2626', color: '#ffffff', fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '8px' }}>
                                 {metrics.pendingProducts}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => handleTabChange('unvalidated_variants')}
+                        style={{
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                            background: activeTab === 'unvalidated_variants' ? '#0f172a' : 'transparent',
+                            color: activeTab === 'unvalidated_variants' ? '#ffffff' : '#64748b',
+                            boxShadow: activeTab === 'unvalidated_variants' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.15s',
+                        }}
+                    >
+                        Variants non validés
+                        {metrics.unvalidatedVariantsCount > 0 && (
+                            <span style={{ background: '#d97706', color: '#ffffff', fontSize: '10px', fontWeight: 800, padding: '1px 6px', borderRadius: '8px' }}>
+                                {metrics.unvalidatedVariantsCount}
                             </span>
                         )}
                     </button>
@@ -1571,7 +1812,7 @@ export function ProductListComponent() {
                                                         <div>
                                                             <span style={{ fontWeight: 700, color: '#0f172a' }}>{product.variants?.length || 1} déclinaison(s)</span>
                                                             <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
-                                                                {mainVariant?.price ? `${(mainVariant.price / 100).toLocaleString('fr-FR')} FCFA` : 'Sur offre'}
+                                                                {mainVariant?.price ? `${Math.round(mainVariant.price).toLocaleString('fr-FR')} FCFA` : 'Sur offre'}
                                                             </div>
                                                         </div>
                                                     </td>
@@ -1596,21 +1837,42 @@ export function ProductListComponent() {
                                                     {/* Clean Action Column */}
                                                     <td style={{ padding: '12px 18px', textAlign: 'right' }}>
                                                         {activeTab === 'official' ? (
-                                                            <button
-                                                                onClick={() => handleOpenEditProduct(product)}
-                                                                style={{
-                                                                    padding: '7px 14px',
-                                                                    borderRadius: '8px',
-                                                                    background: '#0f172a',
-                                                                    color: '#ffffff',
-                                                                    border: 'none',
-                                                                    fontSize: '12px',
-                                                                    fontWeight: 700,
-                                                                    cursor: 'pointer',
-                                                                }}
-                                                            >
-                                                                Modifier
-                                                            </button>
+                                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                                <button
+                                                                    onClick={() => handleOpenEditProduct(product)}
+                                                                    style={{
+                                                                        padding: '7px 14px',
+                                                                        borderRadius: '8px',
+                                                                        background: '#0f172a',
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                    }}
+                                                                >
+                                                                    Modifier
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement le produit "${product.name}" ? Toutes les offres et déclinaisons vendeurs greffées à ce produit seront également supprimées.`)) {
+                                                                            deleteMutation.mutate(product.id);
+                                                                        }
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '7px 14px',
+                                                                        borderRadius: '8px',
+                                                                        background: '#dc2626',
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                    }}
+                                                                >
+                                                                    Supprimer
+                                                                </button>
+                                                            </div>
                                                         ) : (
                                                             <button
                                                                 onClick={() => handleOpenReview(product)}
@@ -1659,8 +1921,8 @@ export function ProductListComponent() {
                                                                     ) : (
                                                                         <div style={{ display: 'grid', gap: '10px' }}>
                                                                             {offersMap[product.id].map((offer: any) => {
-                                                                                const offerPrice = Math.round(offer.price / 100);
-                                                                                const promoPrice = offer.promotionalPrice ? Math.round(offer.promotionalPrice / 100) : null;
+                                                                                const offerPrice = Math.round(offer.price);
+                                                                                const promoPrice = offer.promotionalPrice ? Math.round(offer.promotionalPrice) : null;
                                                                                 const isCommenting = commentingOfferId === offer.id;
                                                                                 const isCorrectionRequested = offer.status === 'correction_requested';
                                                                                 const isRejectedOffer = offer.status === 'rejected';
@@ -2083,7 +2345,13 @@ export function ProductListComponent() {
                                                             >
                                                                 ✕
                                                             </button>
-                                                                                         (reviewProduct.variants || []).map((v: any, idx: number) => (
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        (reviewProduct.variants || []).map((v: any, idx: number) => (
                                             <div key={v.id || idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <div>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2550,12 +2818,6 @@ export function ProductListComponent() {
                                                     );
                                                 })
                                             )}
-                                        </div>
-                                    )}
-                                </div>800, color: '#16a34a' }}>{formatPrice(off.price)}</span>
-                                                    </label>
-                                                );
-                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -3306,6 +3568,17 @@ export function ProductListComponent() {
 
                     </div>
                 </div>
+            )}
+
+            {/* Superadmin Interactive Image Cropper Modal */}
+            {adminCropState && (
+                <AdminImageCropModal
+                    imageSrc={adminCropState.currentSrc}
+                    file={adminCropState.currentFile}
+                    onClose={() => setAdminCropState(null)}
+                    onCropComplete={handleAdminCropComplete}
+                    onSkip={handleAdminCropComplete}
+                />
             )}
 
         </div>

@@ -409,6 +409,37 @@ export class MultivendorPlugin implements OnApplicationBootstrap {
             console.error('[MultivendorPlugin] Failed to ensure ignore_duplicate_order_channels trigger:', e);
         }
 
+        // Auto-assign all approved products, variants, and assets to Default Channel (Channel 1)
+        try {
+            await this.connection.rawConnection.query(`
+                INSERT INTO product_channels_channel ("productId", "channelId")
+                SELECT p.id, 1
+                FROM product p
+                WHERE p."deletedAt" IS NULL 
+                  AND (p."customFieldsApprovalstatus" = 'approved' OR p."customFieldsVendorid" IS NULL)
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                SELECT pv.id, 1
+                FROM product_variant pv
+                INNER JOIN product p ON pv."productId" = p.id
+                WHERE p."deletedAt" IS NULL 
+                  AND (p."customFieldsApprovalstatus" = 'approved' OR p."customFieldsVendorid" IS NULL)
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO asset_channels_channel ("assetId", "channelId")
+                SELECT p."featuredAssetId", 1
+                FROM product p
+                WHERE p."deletedAt" IS NULL 
+                  AND p."featuredAssetId" IS NOT NULL
+                  AND (p."customFieldsApprovalstatus" = 'approved' OR p."customFieldsVendorid" IS NULL)
+                ON CONFLICT DO NOTHING;
+            `);
+            console.log('[MultivendorPlugin] Default channel 1 auto-assignment completed.');
+        } catch (e) {
+            console.error('[MultivendorPlugin] Failed to auto-assign default channel 1:', e);
+        }
+
         // Delay reindex slightly to let the app fully initialize
         setTimeout(async () => {
             try {

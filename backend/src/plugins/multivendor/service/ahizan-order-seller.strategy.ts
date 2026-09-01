@@ -67,37 +67,43 @@ export class AhizanOrderSellerStrategy implements OrderSellerStrategy {
      */
     async setOrderLineSellerChannel(ctx: RequestContext, orderLine: OrderLine): Promise<Channel | undefined> {
         let vendor = (orderLine.customFields as any)?.assignedVendor;
-        if (vendor) {
-            return undefined;
-        }
-
         const variantId = orderLine.productVariant?.id?.toString();
-        if (!variantId) {
-            return undefined;
+
+        if (!vendor && variantId) {
+            try {
+                // Find best offer using sellerOfferService
+                const offers = await this.sellerOfferService.getOffersForVariant(ctx, variantId);
+                if (offers && offers.length > 0) {
+                    // Apply selection algorithm: Lowest price first, then highest rating
+                    const sortedOffers = offers.sort((a, b) => {
+                        if (a.price !== b.price) {
+                            return a.price - b.price;
+                        }
+                        const ratingA = a.vendor?.rating || 0;
+                        const ratingB = b.vendor?.rating || 0;
+                        return ratingB - ratingA;
+                    });
+                    const bestOffer = sortedOffers[0];
+
+                    if (!orderLine.customFields) {
+                        (orderLine as any).customFields = {};
+                    }
+                    (orderLine.customFields as any).assignedVendor = bestOffer.vendor;
+                    vendor = bestOffer.vendor;
+                }
+            } catch (err) {
+                console.error('[AhizanOrderSellerStrategy] Error assigning vendor to order line:', err);
+            }
         }
 
-        try {
-            // Find best offer using sellerOfferService
-            const offers = await this.sellerOfferService.getOffersForVariant(ctx, variantId);
-            if (offers && offers.length > 0) {
-                // Apply selection algorithm: Lowest price first, then highest rating
-                const sortedOffers = offers.sort((a, b) => {
-                    if (a.price !== b.price) {
-                        return a.price - b.price;
-                    }
-                    const ratingA = a.vendor?.rating || 0;
-                    const ratingB = b.vendor?.rating || 0;
-                    return ratingB - ratingA;
-                });
-                const bestOffer = sortedOffers[0];
-
-                if (!orderLine.customFields) {
-                    (orderLine as any).customFields = {};
-                }
-                (orderLine.customFields as any).assignedVendor = bestOffer.vendor;
+        if (vendor && (vendor as any).id) {
+            const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
+                where: { id: (vendor as any).id },
+                relations: ['channel'],
+            });
+            if (vendorEntity?.channel) {
+                return vendorEntity.channel;
             }
-        } catch (err) {
-            console.error('[AhizanOrderSellerStrategy] Error assigning vendor to order line:', err);
         }
 
         return undefined;

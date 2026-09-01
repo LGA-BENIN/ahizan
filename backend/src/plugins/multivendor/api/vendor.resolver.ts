@@ -20,6 +20,9 @@ export class VendorResolver {
         private orderStatusService: OrderStatusService,
         private likeService: LikeService,
         private geoService: GeoService,
+        private channelService: ChannelService,
+        private productService: ProductService,
+        private eventBus: EventBus,
     ) { }
 
     @ResolveField()
@@ -1047,36 +1050,42 @@ export class VendorAdminResolver {
             );
         }
 
-        // If converting to Official Ahizan Catalog:
-        if (convertToOfficialCatalog) {
-            if (creatorVendor) {
-                const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
-                for (const v of product.variants || []) {
-                    let existingOffer = await sellerOfferRepo.findOne({
-                        where: {
-                            vendor: { id: creatorVendor.id },
-                            productVariant: { id: v.id },
-                        },
+        // Ensure SellerOffer records exist and are activated for creatorVendor upon approval
+        if (creatorVendor && (status === 'approved' || status === 'published' || convertToOfficialCatalog)) {
+            const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
+            for (const v of product.variants || []) {
+                let existingOffer = await sellerOfferRepo.findOne({
+                    where: {
+                        vendor: { id: creatorVendor.id },
+                        productVariant: { id: v.id },
+                    },
+                });
+                if (!existingOffer) {
+                    existingOffer = sellerOfferRepo.create({
+                        vendor: creatorVendor,
+                        productVariant: v,
+                        price: v.price || 0,
+                        stock: ((v as any).stockOnHand || (v as any).stockLevel || 5),
+                        sku: v.sku || null,
+                        status: offerStatus,
+                        rejectionReason: null,
+                        condition: ProductCondition.NEW,
+                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                        deliveryTimeValue: 2,
                     });
-                    if (!existingOffer) {
-                        existingOffer = sellerOfferRepo.create({
-                            vendor: creatorVendor,
-                            productVariant: v,
-                            price: v.price || 0,
-                            stock: ((v as any).stockOnHand || (v as any).stockLevel || 5),
-                            sku: v.sku || null,
-                            status: offerStatus,
-                            condition: ProductCondition.NEW,
-                            deliveryTimeUnit: DeliveryTimeUnit.DAYS,
-                            deliveryTimeValue: 2,
-                        });
-                        await sellerOfferRepo.save(existingOffer);
-                    } else {
-                        existingOffer.status = offerStatus;
-                        await sellerOfferRepo.save(existingOffer);
+                    await sellerOfferRepo.save(existingOffer);
+                } else {
+                    existingOffer.status = offerStatus;
+                    if (isOfferApproved) existingOffer.rejectionReason = null;
+                    if (!existingOffer.price && v.price) existingOffer.price = v.price;
+                    if (!existingOffer.stock && ((v as any).stockOnHand || (v as any).stockLevel)) {
+                        existingOffer.stock = (v as any).stockOnHand || (v as any).stockLevel || 5;
                     }
+                    await sellerOfferRepo.save(existingOffer);
                 }
+            }
 
+            if (convertToOfficialCatalog) {
                 // Clear vendor on Product so it becomes an official central Ahizan catalog item
                 await this.connection.rawConnection.query('UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1', [id]);
             }
@@ -1126,6 +1135,35 @@ export class VendorAdminResolver {
         if (collectionIds && collectionIds.length > 0 && product.variants && product.variants.length > 0) {
             const variantIds = product.variants.map(v => String(v.id));
             await this.addVariantsToCollections(ctx, variantIds, collectionIds).catch(() => null);
+        }
+
+        if (status === 'approved' || convertToOfficialCatalog) {
+            try {
+                const defaultChannel = await this.channelService.getDefaultChannel(ctx);
+                const defaultChannelId = defaultChannel ? defaultChannel.id.toString() : '1';
+
+                // Raw SQL channel assignments to guarantee Default Channel (Channel 1) visibility for Storefront API
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_channels_channel ("productId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                    [id, defaultChannelId]
+                );
+
+                for (const v of product.variants || []) {
+                    await this.connection.rawConnection.query(
+                        `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                        [v.id, defaultChannelId]
+                    );
+                }
+
+                if (product.featuredAsset?.id) {
+                    await this.connection.rawConnection.query(
+                        `INSERT INTO asset_channels_channel ("assetId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                        [product.featuredAsset.id, defaultChannelId]
+                    );
+                }
+            } catch (chanErr) {
+                console.error('[adminReviewProduct] Default channel assignment error:', chanErr);
+            }
         }
 
         const finalProduct = await this.productService.findOne(ctx, id) as Product;

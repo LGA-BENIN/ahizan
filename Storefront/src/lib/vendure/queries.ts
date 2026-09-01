@@ -258,6 +258,20 @@ export const GetActiveOrderQuery = graphql(`
                         }
                     }
                 }
+                customFields {
+                    assignedVendor {
+                        id
+                        name
+                        location {
+                            id
+                            name
+                        }
+                        physicalMarket {
+                            id
+                            name
+                        }
+                    }
+                }
                 unitPriceWithTax
                 quantity
                 linePriceWithTax

@@ -101,12 +101,25 @@ Variables: ${JSON.stringify(variables)}
 \n`);
     } catch(e) {}
 
+    let queryString = '';
+    if (typeof document === 'string') {
+        queryString = document;
+    } else if ((document as any)?.loc?.source?.body) {
+        queryString = (document as any).loc.source.body;
+    } else {
+        try {
+            queryString = typeof print === 'function' ? print(document) : String(document);
+        } catch (e) {
+            queryString = (document as any)?.loc?.source?.body || String(document || '');
+        }
+    }
+
     const response = await fetch(VENDURE_API_URL!, {
         ...fetchOptions,
         method: 'POST',
         headers,
         body: JSON.stringify({
-            query: print(document),
+            query: queryString,
             variables: variables || {},
         }),
         ...(tags && {next: {tags}}),

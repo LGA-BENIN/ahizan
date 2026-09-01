@@ -232,11 +232,15 @@ export class VendorService implements OnApplicationBootstrap {
                  LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
                  LEFT JOIN product p ON pv."productId" = p.id
                  LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
-                 WHERE (o."customFieldsVendorid" = $1 AND COALESCE(o."customFieldsSellerstatus", '') != 'reassigned_to_other')
-                    OR (
-                        (p."customFieldsVendorid" = $1 OR ol."customFieldsAssignedvendorid" = $1 OR ol."sellerChannelId" = $2 OR occ."channelId" = $2)
-                        AND COALESCE(ol."customFieldsSellerstatus", '') != 'reassigned_to_other'
-                    )
+                 WHERE o."deletedAt" IS NULL 
+                   AND o.state NOT IN ('Cancelled', 'Draft')
+                   AND (
+                     (o."customFieldsVendorid" = $1 AND COALESCE(o."customFieldsSellerstatus", '') != 'reassigned_to_other')
+                     OR (
+                         (p."customFieldsVendorid" = $1 OR ol."customFieldsAssignedvendorid" = $1 OR ol."sellerChannelId" = $2 OR occ."channelId" = $2)
+                         AND COALESCE(ol."customFieldsSellerstatus", '') != 'reassigned_to_other'
+                     )
+                   )
                  ORDER BY o.id DESC`,
                 [numericVendorId, vendorChannelId]
             );
@@ -499,6 +503,7 @@ export class VendorService implements OnApplicationBootstrap {
                 WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
                   AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                   AND ol.quantity > 0
+                  AND o."deletedAt" IS NULL
                   AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
             `, [numericVendorId]);
         } catch (e) {
@@ -515,6 +520,7 @@ export class VendorService implements OnApplicationBootstrap {
                     WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
                       AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                       AND ol.quantity > 0
+                      AND o."deletedAt" IS NULL
                       AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
                 `, [numericVendorId]);
             } catch (err2: any) {
@@ -533,6 +539,7 @@ export class VendorService implements OnApplicationBootstrap {
                 WHERE oc."channelId" = $2
             ))
               AND COALESCE(o."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+              AND o."deletedAt" IS NULL
               AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
         `, [numericVendorId, vendorChannelId]);
 
@@ -3903,6 +3910,7 @@ export class VendorService implements OnApplicationBootstrap {
              WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
                AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                AND ol.quantity > 0
+               AND o."deletedAt" IS NULL
                AND o.state IN ('PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered')
              GROUP BY o.id, o."createdAt", o.state
              ORDER BY o."createdAt" DESC`,

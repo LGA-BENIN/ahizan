@@ -77,8 +77,21 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
     const [quantity, setQuantity] = useState(1);
+    // Filter to only include approved and enabled variants
+    const approvedVariants = useMemo(() => {
+        const list = (product.variants || []).filter((v: any) => {
+            if (v.enabled === false) return false;
+            const offerStatus = (v.customFields as any)?.offerStatus || (v.customFields as any)?.offerstatus;
+            if (offerStatus === 'PENDING' || offerStatus === 'REFUSED') return false;
+            const approvalStatus = (v.customFields as any)?.approvalStatus || (v.customFields as any)?.approvalstatus;
+            if (approvalStatus === 'pending' || approvalStatus === 'refused') return false;
+            return true;
+        });
+        return list.length > 0 ? list : product.variants;
+    }, [product.variants]);
+
     const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
-        return product.variants[0]?.id || '';
+        return approvedVariants[0]?.id || '';
     });
 
     // Initialize selected options from URL or default to the first variant's options
@@ -88,7 +101,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         // 1. Check if specific variantId passed in searchParams
         let matchedVariant = null;
         if (searchParams?.variantId) {
-            matchedVariant = product.variants.find(v => String(v.id) === String(searchParams.variantId));
+            matchedVariant = approvedVariants.find(v => String(v.id) === String(searchParams.variantId));
         }
 
         if (matchedVariant && matchedVariant.options) {
@@ -111,8 +124,8 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             }
         });
 
-        // 3. For any missing option groups, pre-select from the first variant (product.variants[0])
-        const defaultVariant = product.variants[0];
+        // 3. For any missing option groups, pre-select from the first variant (approvedVariants[0])
+        const defaultVariant = approvedVariants[0];
         if (defaultVariant && defaultVariant.options) {
             defaultVariant.options.forEach(opt => {
                 const gId = (opt as any).groupId || opt.group?.id;
@@ -135,11 +148,11 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     // Get all option IDs that actually belong to available variants
     const availableOptionIds = useMemo(() => {
         const ids = new Set<string>();
-        product.variants.forEach((v) => {
+        approvedVariants.forEach((v) => {
             (v.options || []).forEach((opt) => ids.add(String(opt.id)));
         });
         return ids;
-    }, [product.variants]);
+    }, [approvedVariants]);
 
     // Filter option groups to only display groups and options that actually exist in variants
     const filteredOptionGroups = useMemo(() => {
@@ -153,16 +166,16 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
 
     // Find the matching variant based on selected options or selected variant id
     const selectedVariant = useMemo(() => {
-        if (product.variants.length === 0) return null;
-        if (product.variants.length === 1) {
-            return product.variants[0];
+        if (approvedVariants.length === 0) return null;
+        if (approvedVariants.length === 1) {
+            return approvedVariants[0];
         }
 
         // If product has option groups
         if (product.optionGroups.length > 0) {
             const selectedOptionIds = Object.values(selectedOptions);
             if (selectedOptionIds.length > 0) {
-                const found = product.variants.find((variant) => {
+                const found = approvedVariants.find((variant) => {
                     const variantOptionIds = variant.options.map((opt) => opt.id);
                     return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
                 });
@@ -171,8 +184,8 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         }
 
         // If product has direct variants without option groups or fallback to selectedVariantId / first variant
-        return product.variants.find(v => v.id === selectedVariantId) || product.variants[0];
-    }, [selectedOptions, product.variants, product.optionGroups, selectedVariantId]);
+        return approvedVariants.find(v => v.id === selectedVariantId) || approvedVariants[0];
+    }, [selectedOptions, approvedVariants, product.optionGroups, selectedVariantId]);
 
     const handleOptionChange = (groupId: string, optionId: string) => {
         setSelectedOptions((prev) => ({

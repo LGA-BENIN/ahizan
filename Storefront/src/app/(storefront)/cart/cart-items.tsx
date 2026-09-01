@@ -66,7 +66,10 @@ export async function CartItems({activeOrder}: { activeOrder: ActiveOrder | null
     }>();
 
     activeOrder.lines.forEach((line) => {
-        const vendor = line.productVariant.product.customFields?.vendor;
+        const assignedVendor = (line as any).customFields?.assignedVendor || (line as any).customFields?.assignedvendor;
+        const productVendor = line.productVariant.product.customFields?.vendor;
+        const vendor = assignedVendor || productVendor;
+
         const vendorId = vendor?.id ? String(vendor.id) : 'official';
         const vendorName = vendor?.name || 'Boutique Officielle Ahizan';
         const vendorLocation = vendor?.physicalMarket?.name || vendor?.location?.name || vendor?.zone;

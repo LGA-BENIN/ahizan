@@ -6,12 +6,12 @@ import { toast } from 'sonner';
 import { ShoppingCart, Loader2, Star, Clock, Package, CheckCircle2, BadgeCheck, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-function priceFromCents(cents: number): string {
+function priceFromCents(price: number): string {
     return new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency: 'XOF',
         maximumFractionDigits: 0,
-    }).format(Math.round(cents / 100));
+    }).format(Math.round(price));
 }
 
 function formatDelivery(value: number, unit: string): string {

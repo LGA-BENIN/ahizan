@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { query } from '@/lib/vendure/api';
 import { tagProductWithVariantOffersAction, uploadFileAction } from '@/app/dashboard/products/actions';
+import ImageCropModal from '@/components/ImageCropModal';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -186,21 +187,52 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         setVariantOffers(prev => prev.filter(v => v.id !== id));
     };
 
-    // Handle variant image upload
-    const handleVariantImageUpload = async (variantId: string, file: File) => {
+    // Handle variant image crop & upload
+    const [cropState, setCropState] = useState<{
+        variantId: string;
+        imageSrc: string;
+        file: File;
+    } | null>(null);
+
+    const handleVariantFileChange = (variantId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Veuillez sélectionner un fichier image');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropState({
+                variantId,
+                imageSrc: reader.result as string,
+                file,
+            });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        if (!cropState) return;
+        const variantId = cropState.variantId;
+        const sourceFile = cropState.file;
         setUploadingVariantId(variantId);
+        setCropState(null);
+
         try {
+            const croppedFile = new File([croppedBlob], sourceFile.name, { type: 'image/jpeg' });
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', croppedFile);
             const res = await uploadFileAction(formData);
 
             if (res.success && res.asset) {
-                setVariantOffers(prev => prev.map(v => 
+                setVariantOffers((prev: any[]) => prev.map((v: any) => 
                     v.id === variantId 
                         ? { ...v, featuredAssetId: res.asset.id, featuredAssetPreview: res.asset.preview } 
                         : v
                 ));
-                toast.success('Visuel de la déclinaison mis à jour');
+                toast.success('Visuel de la déclinaison cadré et mis à jour');
             } else {
                 toast.error(res.error || 'Erreur lors du téléversement');
             }
@@ -372,10 +404,10 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                         optionNames: optionNames.length > 0 ? optionNames : undefined,
                         name: v.name,
                         sku: v.sku && v.sku.trim() !== '' ? v.sku.trim() : undefined,
-                        price: Math.round(v.price * 100), // convert to subunit
+                        price: Math.round(v.price),
                         stock: Number(v.stock) || 0,
                         onPromotion: v.onPromotion,
-                        promotionalPrice: v.onPromotion && v.promotionalPrice ? Math.round(v.promotionalPrice * 100) : undefined,
+                        promotionalPrice: v.onPromotion && v.promotionalPrice ? Math.round(v.promotionalPrice) : undefined,
                         featuredAssetId: v.featuredAssetId || undefined,
                         deliveryTimeValue: Number(v.deliveryTimeValue) || 2,
                         deliveryTimeUnit: v.deliveryTimeUnit || 'DAYS',
@@ -386,6 +418,11 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
 
             const res = await tagProductWithVariantOffersAction(payload);
             if (res.success) {
+                if (product.customFields) {
+                    product.customFields.rejectionReason = null;
+                    product.customFields.approvalStatus = 'pending';
+                }
+                setVariantOffers(prev => prev.map(v => ({ ...v, rejectionReason: null })));
                 toast.success('Vos offres ont été mises à jour avec succès !');
                 router.push('/dashboard/products');
                 router.refresh();
@@ -731,18 +768,15 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                             ) : (
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                                     <UploadCloud className="w-4 h-4 text-white" />
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        className="hidden" 
+                                                        disabled={uploadingVariantId === variant.id}
+                                                        onChange={(e: any) => handleVariantFileChange(variant.id, e)}
+                                                    />
                                                 </div>
                                             )}
-                                            <input 
-                                                type="file" 
-                                                accept="image/*" 
-                                                className="hidden" 
-                                                disabled={uploadingVariantId === variant.id}
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleVariantImageUpload(variant.id, file);
-                                                }}
-                                            />
                                         </label>
                                     </div>
 
@@ -989,6 +1023,20 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                     )}
                 </Button>
             </div>
+
+            {/* Variant Image Crop Modal */}
+            {cropState && (
+                <ImageCropModal
+                    isOpen={!!cropState}
+                    imageSrc={cropState.imageSrc}
+                    onClose={() => setCropState(null)}
+                    onCropComplete={handleCropComplete}
+                    onSkipCropping={() => {
+                        const file = cropState.file;
+                        handleCropComplete(file);
+                    }}
+                />
+            )}
 
         </form>
     );

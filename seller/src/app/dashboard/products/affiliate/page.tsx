@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { uploadFileAction, tagProductWithVariantOffersAction } from '@/app/dashboard/products/actions';
+import ImageCropModal from '@/components/ImageCropModal';
 import { priceToSubunit } from '@/lib/format';
 import {
     ArrowLeft,
@@ -97,6 +98,14 @@ const GET_PRODUCT_DETAIL_QUERY = `
         name
         sku
         price
+        featuredAsset {
+          id
+          preview
+        }
+        assets {
+          id
+          preview
+        }
         options {
           id
           code
@@ -439,8 +448,8 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 sku: `OFFER-${idx + 1}`,
                 onPromotion: false,
                 promotionalPrice: 0,
-                featuredAssetId: productDetails?.featuredAsset?.id,
-                assetPreview: productDetails?.featuredAsset?.preview,
+                featuredAssetId: undefined,
+                assetPreview: undefined,
                 deliveryTimeValue: 2,
                 deliveryTimeUnit: 'd',
                 condition: bulkCondition || 'NEW',
@@ -470,13 +479,43 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         setGeneratedVariants(prev => prev.map(row => row.key === key ? { ...row, [field]: value } : row));
     };
 
-    // Upload custom image for a variant
-    const handleUploadVariantImage = async (key: string, file: File) => {
+    // Crop & Upload custom image for a variant
+    const [cropState, setCropState] = useState<{
+        variantKey: string;
+        imageSrc: string;
+        file: File;
+    } | null>(null);
+
+    const handleVariantFileChange = (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Veuillez sélectionner un fichier image');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setCropState({
+                variantKey: key,
+                imageSrc: reader.result as string,
+                file,
+            });
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        if (!cropState) return;
+        const key = cropState.variantKey;
+        const sourceFile = cropState.file;
         setUploadingVariantKey(key);
+        setCropState(null);
+
         try {
+            const croppedFile = new File([croppedBlob], sourceFile.name, { type: 'image/jpeg' });
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', croppedFile);
             const res = await uploadFileAction(formData);
             if (res.success && res.asset) {
                 setGeneratedVariants(prev => prev.map(row => row.key === key ? {
@@ -484,7 +523,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                     featuredAssetId: res.asset.id,
                     assetPreview: res.asset.preview
                 } : row));
-                toast.success('Photo de la déclinaison mise à jour !');
+                toast.success('Photo de la déclinaison cadrée et enregistrée !');
             } else {
                 toast.error('Erreur upload: ' + (res.error || 'Impossible d’envoyer le fichier'));
             }
@@ -570,6 +609,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 throw new Error(result.error || 'Erreur lors du greffage des offres');
             }
 
+            setGeneratedVariants(prev => prev.map(v => ({ ...v, rejectionReason: null })));
             toast.success(`Vos ${offersPayload.length} offre(s) ont été greffées au produit avec succès !`);
             router.push('/dashboard/products');
             router.refresh();
@@ -1069,10 +1109,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                                                                 accept="image/*"
                                                                 className="hidden"
                                                                 disabled={uploadingVariantKey === row.key}
-                                                                onChange={e => {
-                                                                    const f = e.target.files?.[0];
-                                                                    if (f) handleUploadVariantImage(row.key, f);
-                                                                }}
+                                                                onChange={e => handleVariantFileChange(row.key, e)}
                                                             />
                                                         </label>
                                                     </div>
@@ -1249,6 +1286,20 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         </div>
                     </form>
                 </div>
+            )}
+
+            {/* Variant Image Crop Modal */}
+            {cropState && (
+                <ImageCropModal
+                    isOpen={!!cropState}
+                    imageSrc={cropState.imageSrc}
+                    onClose={() => setCropState(null)}
+                    onCropComplete={handleCropComplete}
+                    onSkipCropping={() => {
+                        const file = cropState.file;
+                        handleCropComplete(file);
+                    }}
+                />
             )}
         </div>
     );

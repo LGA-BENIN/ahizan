@@ -55,7 +55,23 @@ export class SettlementService {
 
             if (!vendor) continue;
 
-            const grossAmount = lines.reduce((sum, l) => sum + (l.linePriceWithTax || l.unitPriceWithTax * l.quantity), 0);
+            // Check if seller sub-order for this vendor exists and was validated/accepted
+            const sellerSubOrder = (fullOrder.sellerOrders || []).find((so: any) => {
+                const soChannelId = so.channels?.[0]?.id || so.channelId;
+                return String(soChannelId) === String(vendor.channelId) || String((so.customFields as any)?.vendor?.id) === String(vendor.id);
+            });
+
+            // If a suborder exists and is cancelled or draft, skip settlement
+            if (sellerSubOrder && (sellerSubOrder.state === 'Cancelled' || sellerSubOrder.state === 'Draft')) {
+                console.log(`[SettlementService] Skipping Settlement for Vendor ${vendor.name}: Suborder state is ${sellerSubOrder.state}`);
+                continue;
+            }
+
+            // Filter out cancelled or zero-quantity lines
+            const activeLines = lines.filter((l: any) => (l.quantity > 0) && (l as any).cancelled !== true);
+            if (activeLines.length === 0) continue;
+
+            const grossAmount = activeLines.reduce((sum, l) => sum + (l.linePriceWithTax || l.unitPriceWithTax * l.quantity), 0);
             const commissionRate = vendor.commissionRate > 0 ? (vendor.commissionRate / 100) : 0.10;
             const commissionAmount = Math.round(grossAmount * commissionRate);
             const netAmount = grossAmount - commissionAmount;

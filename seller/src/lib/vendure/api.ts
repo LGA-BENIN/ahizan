@@ -127,10 +127,23 @@ export async function query<TResult = any, TVariables = any>(
 
     let body: any;
 
+    let queryString = '';
+    if (typeof document === 'string') {
+        queryString = document;
+    } else if ((document as any)?.loc?.source?.body) {
+        queryString = (document as any).loc.source.body;
+    } else {
+        try {
+            queryString = typeof print === 'function' ? print(document) : String(document);
+        } catch (e) {
+            queryString = (document as any)?.loc?.source?.body || String(document || '');
+        }
+    }
+
     if (files.length > 0) {
         const formData = new FormData();
         const operations = {
-            query: typeof document === 'string' ? document : print(document),
+            query: queryString,
             variables: processedVariables || {}
         };
 
@@ -150,7 +163,7 @@ export async function query<TResult = any, TVariables = any>(
         delete headers['Content-Type']; // Let browser/fetch set boundary with multipart/form-data
     } else {
         body = JSON.stringify({
-            query: typeof document === 'string' ? document : print(document),
+            query: queryString,
             variables: variables || {},
         });
     }
@@ -182,7 +195,12 @@ export async function query<TResult = any, TVariables = any>(
         const result: VendureResponse<TResult> = await response.json();
 
         if (result.errors) {
-            throw new Error(result.errors.map(e => e.message).join(', '));
+            const errorMsg = Array.isArray(result.errors)
+                ? result.errors.map(e => e?.message || String(e)).join(', ')
+                : typeof result.errors === 'string'
+                    ? result.errors
+                    : JSON.stringify(result.errors);
+            throw new Error(errorMsg);
         }
 
         if (!result.data) {

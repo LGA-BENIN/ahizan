@@ -346,11 +346,16 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                                             );
                                                         }
                                                         
+                                                        const hasApprovedVariants = (product.variants || []).some((v: any) => 
+                                                            v.customFields?.offerStatus === 'APPROVED' || 
+                                                            v.customFields?.offerStatus === 'approved'
+                                                        );
+                                                        
                                                         let badgeLabel = 'En attente';
                                                         let badgeClass = 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400';
                                                         let circleClass = 'text-amber-500';
                                                         
-                                                        if (status === 'approved') {
+                                                        if (status === 'approved' && hasApprovedVariants && product.enabled) {
                                                             badgeLabel = 'En ligne';
                                                             badgeClass = 'bg-green-50 text-green-700 border-green-100 dark:bg-green-950/20 dark:text-green-400';
                                                             circleClass = 'text-green-500';

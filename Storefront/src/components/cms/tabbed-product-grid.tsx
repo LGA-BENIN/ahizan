@@ -84,8 +84,11 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     items {
                         productId
                         productName
+                        productVariantId
+                        productVariantName
                         slug
                         productAsset { id preview }
+                        productVariantAsset { id preview }
                         priceWithTax {
                             __typename
                             ... on PriceRange { min max }
@@ -103,7 +106,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
         const fetchForCollection = async (collectionId?: string) => {
             const input: any = {
-                groupByProduct: true,
+                groupByProduct: false,
                 take,
             };
 
@@ -111,10 +114,6 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 input.collectionId = String(collectionId);
             } else if (collectionSlug && collectionSlug.trim() !== '') {
                 input.collectionSlug = collectionSlug;
-            }
-
-            if (tab.filterType === 'BEST_SELLERS') {
-                input.sort = { price: 'DESC' };
             }
 
             if (tab.facetValueIds && tab.facetValueIds.length > 0) {
@@ -270,7 +269,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
                 if (items.length === 0) {
                     const fallbackSearchInput = {
-                        groupByProduct: true,
+                        groupByProduct: false,
                         take,
                         sort: { price: 'DESC' }
                     };
@@ -285,8 +284,10 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
                 const seen = new Set();
                 items = items.filter((item: any) => {
-                    if (seen.has(item.productId)) return false;
-                    seen.add(item.productId);
+                    const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
+                    const key = `${item.productId}_${priceVal}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
                     return true;
                 });
                 setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
@@ -310,8 +311,10 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 let items = [...manualItems, ...collectionItems];
                 const seen = new Set();
                 items = items.filter((item: any) => {
-                    if (seen.has(item.productId)) return false;
-                    seen.add(item.productId);
+                    const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
+                    const key = `${item.productId}_${priceVal}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
                     return true;
                 });
                 setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
@@ -324,14 +327,24 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     
                     const seen = new Set();
                     items = items.filter((item: any) => {
-                        if (seen.has(item.productId)) return false;
-                        seen.add(item.productId);
+                        const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
+                        const key = `${item.productId}_${priceVal}`;
+                        if (seen.has(key)) return false;
+                        seen.add(key);
                         return true;
                     });
                     setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
                 } else {
                     const items = await fetchForCollection();
-                    setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                    const seen = new Set();
+                    const deduplicated = items.filter((item: any) => {
+                        const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
+                        const key = `${item.productId}_${priceVal}`;
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                    setProductsMap(prev => ({ ...prev, [tab.id]: deduplicated.slice(0, take) }));
                 }
             }
         } catch (err) {

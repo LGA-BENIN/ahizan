@@ -4,7 +4,7 @@ import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/g
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
 import { SellerOfferService } from '../service/seller-offer.service';
-import { SellerOffer } from '../entities/seller-offer.entity';
+import { SellerOffer, DeliveryTimeUnit } from '../entities/seller-offer.entity';
 import { AiNormalizerService } from '../service/ai-normalizer.service';
 
 
@@ -1053,7 +1053,8 @@ export class VendorShopResolver {
 
             // 7b. Create SellerOffer for each variant
             const deliveryTimeValue = (input as any).deliveryTimeValue || 2;
-            const deliveryTimeUnit = (input as any).deliveryTimeUnit || 'd';
+            const rawUnit = (input as any).deliveryTimeUnit;
+            const deliveryTimeUnit = (rawUnit === 'HOURS' || rawUnit === 'h') ? DeliveryTimeUnit.HOURS : DeliveryTimeUnit.DAYS;
             const condition = (input as any).condition || 'NEW';
 
             for (let idx = 0; idx < variants.length; idx++) {
@@ -1524,7 +1525,8 @@ export class VendorShopResolver {
             const refreshedProduct = await this.productService.findOne(transactionalCtx, id, ['variants']);
             if (refreshedProduct && refreshedProduct.variants) {
                 const deliveryTimeValue = (input as any).deliveryTimeValue !== undefined ? (input as any).deliveryTimeValue : 2;
-                const deliveryTimeUnit = (input as any).deliveryTimeUnit !== undefined ? (input as any).deliveryTimeUnit : 'd';
+                const rawUnit = (input as any).deliveryTimeUnit;
+                const deliveryTimeUnit = (rawUnit === 'HOURS' || rawUnit === 'h') ? DeliveryTimeUnit.HOURS : DeliveryTimeUnit.DAYS;
                 const condition = (input as any).condition !== undefined ? (input as any).condition : 'NEW';
 
                 for (const variant of refreshedProduct.variants) {

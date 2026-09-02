@@ -107,8 +107,8 @@ export default function ImageCropModal({
 
         canvas.toBlob((blob) => {
             if (blob) {
-                onCropComplete(blob);
-                onClose();
+                if (typeof onCropComplete === 'function') onCropComplete(blob);
+                if (typeof onClose === 'function') onClose();
             }
         }, 'image/jpeg', 0.9);
     }, [croppedAreaPixels, imageSrc, rotation, onCropComplete, onClose]);
@@ -126,7 +126,7 @@ export default function ImageCropModal({
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open && typeof onClose === 'function') onClose(); }}>
             <DialogContent className="max-w-4xl w-full p-0 overflow-hidden max-h-[95vh] bg-background border-none gap-0">
                 <div className="flex flex-col max-h-[95vh] w-full gap-0">
                     <DialogHeader className="px-5 py-3.5 border-b shrink-0">

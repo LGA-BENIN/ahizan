@@ -1267,7 +1267,16 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
-        // 5. Hydrate and publish product updated event for search reindexing
+        // 5. Deactivate source vendor draft product if applicable
+        const oldProductId = (variant.product as any)?.id;
+        if (oldProductId && String(oldProductId) !== String(targetProductId)) {
+            await this.connection.rawConnection.query(
+                `UPDATE product SET enabled = false, "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+                [oldProductId]
+            );
+        }
+
+        // 6. Hydrate and publish product updated event for search reindexing
         const updatedVariant = await this.connection.getRepository(ctx, ProductVariant).findOne({
             where: { id: variantId },
             relations: ['product', 'options', 'options.group', 'channels']
@@ -1389,8 +1398,12 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
-        // 7. If old product was a vendor proposition and has no more variants, clean it up
+        // 7. If old product was a vendor proposition, ensure it is disabled or cleaned up
         if (oldProductId && String(oldProductId) !== String(newProduct.id)) {
+            await this.connection.rawConnection.query(
+                `UPDATE product SET enabled = false, "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+                [oldProductId]
+            );
             const remainingCount = await this.connection.rawConnection.query(
                 `SELECT count(*) as cnt FROM product_variant WHERE "productId" = $1`,
                 [oldProductId]

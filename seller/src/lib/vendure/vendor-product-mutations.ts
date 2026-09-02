@@ -106,6 +106,7 @@ export const GetMyVendorProductQuery = graphql(`
                     promotionalPrice
                     offerStatus
                     rejectionReason
+                    ean
                 }
             }
             assets {

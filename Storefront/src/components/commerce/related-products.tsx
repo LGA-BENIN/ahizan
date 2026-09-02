@@ -20,7 +20,7 @@ async function getRelatedProducts(collectionSlug: string, currentProductId: stri
             collectionSlug: collectionSlug,
             take: 20, // Fetch extra to account for filtering out current product
             skip: 0,
-            groupByProduct: true
+            groupByProduct: false
         }
     });
 

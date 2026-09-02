@@ -481,75 +481,84 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             })()}
             
             {/* 1. Bloc Fiche Officielle Ahizan (Lecture Seule) */}
-            <div className="bg-muted/30 border border-border/80 rounded-2xl p-5 md:p-6 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                            <ShieldCheck className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                                    Catalogue Central Ahizan
-                                </span>
-                                <span className="text-xs text-muted-foreground font-medium">
-                                    Fiche N° {product.id}
-                                </span>
-                            </div>
-                            <h2 className="text-lg md:text-xl font-serif font-black text-foreground mt-0.5">
-                                {product.name}
-                            </h2>
-                        </div>
-                    </div>
+            {(() => {
+                const officialSku = product.variants?.[0]?.sku || (product.customFields as any)?.sku || '';
+                const officialEan = (product.variants?.[0]?.customFields as any)?.ean || (product.customFields as any)?.ean || '';
 
-                    <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setShowOfficialDetails(!showOfficialDetails)}
-                        className="text-xs font-bold gap-1.5 self-start sm:self-auto rounded-xl"
-                    >
-                        <Info className="w-3.5 h-3.5" />
-                        {showOfficialDetails ? 'Masquer les détails' : 'Voir les détails de référence'}
-                        {showOfficialDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    </Button>
-                </div>
-
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                    Cette fiche produit appartient au catalogue centralisé Ahizan. En tant que vendeur, vous définissez vos conditions commerciales (vos tarifs, stocks, photos d&apos;offres et délais de livraison) sur les déclinaisons ci-dessous.
-                </p>
-
-                {/* Extended Details Drawer */}
-                {showOfficialDetails && (
-                    <div className="pt-4 border-t border-border/60 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in duration-300">
-                        <div className="flex items-center gap-3 bg-card p-3 rounded-xl border border-border">
-                            {product.featuredAsset?.preview ? (
-                                <img 
-                                    src={product.featuredAsset.preview} 
-                                    alt={product.name} 
-                                    className="w-14 h-14 object-cover rounded-lg shrink-0 border"
-                                />
-                            ) : (
-                                <div className="w-14 h-14 bg-muted rounded-lg flex items-center justify-center shrink-0">
-                                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                return (
+                    <div className="bg-muted/30 border border-border/80 rounded-2xl p-5 md:p-6 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                    <ShieldCheck className="w-5 h-5" />
                                 </div>
-                            )}
-                            <div className="min-w-0 text-xs space-y-1">
-                                <div className="font-bold truncate">{product.name}</div>
-                                <div className="text-[11px] text-muted-foreground truncate">Slug: {product.slug}</div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                            Catalogue Central Ahizan
+                                        </span>
+                                    </div>
+                                    <h2 className="text-lg md:text-xl font-serif font-black text-foreground mt-0.5">
+                                        {product.name}
+                                    </h2>
+                                </div>
                             </div>
+
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => setShowOfficialDetails(!showOfficialDetails)}
+                                className="text-xs font-bold gap-1.5 self-start sm:self-auto rounded-xl"
+                            >
+                                <Info className="w-3.5 h-3.5" />
+                                {showOfficialDetails ? 'Masquer les détails' : 'Voir les détails de référence'}
+                                {showOfficialDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </Button>
                         </div>
 
-                        <div className="md:col-span-2 bg-card p-3 rounded-xl border border-border text-xs space-y-1.5">
-                            <div className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Description de référence :</div>
-                            <div 
-                                className="line-clamp-3 text-muted-foreground text-xs leading-relaxed prose prose-sm max-w-none"
-                                dangerouslySetInnerHTML={{ __html: product.description || '<i>Aucune description fournie</i>' }}
-                            />
-                        </div>
+                        {/* Extended Details Drawer */}
+                        {showOfficialDetails && (
+                            <div className="pt-4 border-t border-border/60 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in duration-300">
+                                <div className="flex items-center gap-3 bg-card p-3 rounded-xl border border-border">
+                                    {product.featuredAsset?.preview ? (
+                                        <img 
+                                            src={product.featuredAsset.preview} 
+                                            alt={product.name} 
+                                            className="w-14 h-14 object-cover rounded-lg shrink-0 border"
+                                        />
+                                    ) : (
+                                        <div className="w-14 h-14 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                                            <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                                        </div>
+                                    )}
+                                    <div className="min-w-0 text-xs space-y-1">
+                                        <div className="font-bold truncate">{product.name}</div>
+                                        {officialSku && (
+                                            <div className="text-[11px] text-muted-foreground truncate">
+                                                <span className="font-semibold text-foreground">SKU Ahizan :</span> <span className="font-mono">{officialSku}</span>
+                                            </div>
+                                        )}
+                                        {officialEan && (
+                                            <div className="text-[11px] text-muted-foreground truncate">
+                                                <span className="font-semibold text-foreground">Code EAN :</span> <span className="font-mono">{officialEan}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="md:col-span-2 bg-card p-3 rounded-xl border border-border text-xs space-y-1.5">
+                                    <div className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Description de référence :</div>
+                                    <div 
+                                        className="line-clamp-3 text-muted-foreground text-xs leading-relaxed prose prose-sm max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: product.description || '<i>Aucune description fournie</i>' }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
+                );
+            })()}
 
             {/* 2. Reconfigurateur de Groupes d'Options (Accordeon / Modal) */}
             <div className="bg-card border border-border rounded-2xl p-5 md:p-6 space-y-6 shadow-sm">

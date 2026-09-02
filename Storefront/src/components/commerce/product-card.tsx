@@ -41,13 +41,23 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
     const [isPending, startTransition] = useTransition();
 
     const productId = product.productId || product.id || rawProduct.id || rawProduct.productId;
-    const displayName = product.productName || product.name || rawProduct.name || rawProduct.productName || "Produit";
+    const displayName = (product.productVariantName && product.productVariantName !== 'Produit')
+        ? product.productVariantName
+        : (product.productName || product.name || rawProduct.name || rawProduct.productName || "Produit");
     
+    const targetVariantId = product.productVariantId || rawProduct.productVariantId || rawProduct.variants?.[0]?.id;
+    const targetVendorId = product.vendorId || rawProduct.vendorId || rawProduct.customFields?.vendor?.id;
+    const queryParams = new URLSearchParams();
+    if (targetVariantId) queryParams.set('variantId', String(targetVariantId));
+    if (targetVendorId) queryParams.set('vendorId', String(targetVendorId));
+    const queryString = queryParams.toString();
+    const productDetailHref = `/product/${product.slug || rawProduct.slug}${queryString ? `?${queryString}` : ''}`;
+
     const vendorName = rawProduct.vendorName || product.vendorName || rawProduct.customFields?.vendor?.name;
     const marketName = rawProduct.marketName || product.marketName || rawProduct.customFields?.vendor?.physicalMarket?.name;
     const locationName = rawProduct.locationName || product.locationName || rawProduct.customFields?.vendor?.location?.name;
 
-    const productAsset = product.productAsset || rawProduct.productAsset || product.featuredAsset || rawProduct.featuredAsset || rawProduct.assets?.[0];
+    const productAsset = product.productVariantAsset || rawProduct.productVariantAsset || product.productAsset || rawProduct.productAsset || product.featuredAsset || rawProduct.featuredAsset || rawProduct.assets?.[0];
     const imageUrl = getAssetUrl(productAsset?.preview || productAsset?.source);
     const isImageGif = isGif(imageUrl);
     const defaultImage = themeSettings?.defaultProductImage;
@@ -280,7 +290,7 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
     return (
         <>
             <Link
-                href={`/product/${product.slug || rawProduct.slug}`}
+                href={productDetailHref}
                 className={`group block overflow-hidden h-full flex flex-col justify-between ${cardThemeClass}`}
             >
                 <div className={`${ratioClass} relative bg-muted flex-shrink-0`}>

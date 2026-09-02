@@ -564,35 +564,21 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     try {
                         vendorItems = await this.connection.rawConnection.query(`
                             SELECT 
-                                p.name as product_name,
+                                COALESCE(pvt.name, pt.name, 'Article') as product_name,
                                 ol.quantity,
-                                ol."proratedLinePrice" as line_price
+                                (ol."listPrice" * ol.quantity) as line_price
                             FROM order_line ol
                             INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                            LEFT JOIN product_variant_translation pvt ON pvt."baseId" = pv.id
                             INNER JOIN product p ON pv."productId" = p.id
+                            LEFT JOIN product_translation pt ON pt."baseId" = p.id
                             INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid")
                             WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
                               AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                               AND v.id = $2
                         `, [order.id, v.vendor_id]);
-                    } catch (errItem1) {
-                        try {
-                            vendorItems = await this.connection.rawConnection.query(`
-                                SELECT 
-                                    p.name as product_name,
-                                    ol.quantity,
-                                    ol."proratedLinePrice" as line_price
-                                FROM order_line ol
-                                INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
-                                INNER JOIN product p ON pv."productId" = p.id
-                                INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorId", p."customFieldsVendorId")
-                                WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
-                                  AND COALESCE(ol."customFieldsSellerStatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
-                                  AND v.id = $2
-                            `, [order.id, v.vendor_id]);
-                        } catch (errItem2: any) {
-                            console.error('[notification-event.subscriber] Failed to fetch vendorItems:', errItem2?.message || errItem2);
-                        }
+                    } catch (errItem1: any) {
+                        console.error('[notification-event.subscriber] Failed to fetch vendorItems:', errItem1?.message || errItem1);
                     }
 
                         const vendorTotal = vendorItems.reduce((acc, curr) => acc + parseInt(curr.line_price as any || '0', 10), 0);
@@ -603,7 +589,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                             .join('\n');
 
                         const itemsListHtml = vendorItems
-                            .map(i => `<li><strong>${i.product_name}</strong> (x${i.quantity}) — ${(i.line_price / 100).toLocaleString('fr-FR')} FCFA</li>`)
+                            .map(i => `<li><strong>${i.product_name}</strong> (x${i.quantity}) — ${Number(i.line_price).toLocaleString('fr-FR')} FCFA</li>`)
                             .join('');
 
                         const vars = {

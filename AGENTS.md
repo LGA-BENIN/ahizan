@@ -14,8 +14,9 @@ Structure du projet :
 
 ## Directives et Standards Vendure Obligatoires
 
-1. **Vendure-First** :
-   - Ne jamais inventer d'APIs ad-hoc ou d'accès direct SQL non standard lorsque Vendure fournit une API de service ou une extension GraphQL native.
+1. **Construire AVEC Vendure, JAMAIS en Surcouche Artificielle (RÈGLE D'OR)** :
+   - Toujours prioriser, exploiter et construire **AVEC le cœur et les primitives natives de Vendure** (endpoints, services, mutations, événements, plugins, indexeurs, `ProductVariant.sku` comme référence officielle unique).
+   - Ne JAMAIS inventer d'APIs ad-hoc, de tables redondantes ou d'accès direct SQL non standard lorsque Vendure fournit une API de service ou une extension GraphQL native.
    - Toujours utiliser `RequestContext` (`ctx`) dans les services et les opérations TypeORM (`this.connection.getRepository(ctx, Entity)`).
    - Utiliser `this.entityHydrator.hydrate(ctx, entity, ...)` pour le chargement des relations.
    - Utiliser `TransactionalConnection` pour toutes les mutations de données sensibles ou multi-entités.

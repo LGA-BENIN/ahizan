@@ -629,11 +629,14 @@ export function ProductListComponent() {
 
     // Modal state for Approval Review
     const [reviewProduct, setReviewProduct] = useState<MarketplaceProduct | null>(null);
+    const [reviewStep, setReviewStep] = useState<1 | 2>(1);
+    const [createdOfficialProduct, setCreatedOfficialProduct] = useState<any | null>(null);
     const [reviewDecision, setReviewDecision] = useState<'approved_official' | 'approved_vendor' | 'rejected'>('approved_official');
     const [rejectionReasonInput, setRejectionReasonInput] = useState('');
     const [rejectScope, setRejectScope] = useState<'all' | 'specific_offer'>('all');
     const [rejectedOfferIds, setRejectedOfferIds] = useState<string[]>([]);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+    const [selectedDeclinationForDetails, setSelectedDeclinationForDetails] = useState<any | null>(null);
 
     // Form state for creating/promoting to Official Product inside Review Modal
     const [officialTitle, setOfficialTitle] = useState('');
@@ -791,15 +794,22 @@ export function ProductListComponent() {
         const vendorProposalCount = products.filter(p => !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan').length;
         const pendingProducts = products.filter(p => {
             const approvalStatus = p.customFields?.approvalStatus || 'approved';
-            const hasPendingVariants = p.variants?.some(v => (v.customFields as any)?.offerStatus === 'PENDING' || (v as any).customFieldsOfferstatus === 'PENDING');
-            return approvalStatus === 'pending' || hasPendingVariants;
+            const offers = offersMap[p.id] || [];
+            const hasPendingOffers = offers.some((off: any) => off.status === 'pending') ||
+                p.variants?.some(v => {
+                    const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
+                    return st === 'PENDING' || st === 'pending';
+                });
+            return approvalStatus === 'pending' || hasPendingOffers;
         }).length;
         const unvalidatedVariantsCount = products.reduce((acc, p) => {
-            const pendingInProd = p.variants?.filter(v => {
+            const offers = offersMap[p.id] || [];
+            const pendingOffersCount = offers.filter((off: any) => off.status === 'pending').length;
+            const pendingVariantsCount = p.variants?.filter(v => {
                 const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
                 return st === 'PENDING' || st === 'pending';
             }).length || 0;
-            return acc + pendingInProd;
+            return acc + Math.max(pendingOffersCount, pendingVariantsCount);
         }, 0);
         const approvedProducts = products.filter(p => (p.customFields?.approvalStatus || 'approved') === 'approved').length;
         const totalVariants = products.reduce((acc, p) => acc + (p.variants?.length || 0), 0);
@@ -813,7 +823,7 @@ export function ProductListComponent() {
             approvedProducts,
             totalVariants,
         };
-    }, [products]);
+    }, [products, offersMap]);
 
     // Tab switcher with clean reset
     const handleTabChange = (newTab: 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings') => {
@@ -831,20 +841,25 @@ export function ProductListComponent() {
             const approvalStatus = p.customFields?.approvalStatus || 'approved';
             const vendorId = p.customFields?.vendor?.id || '';
             const isVendorProposal = !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan';
-            const hasPendingVariants = p.variants?.some(v => (v.customFields as any)?.offerStatus === 'PENDING' || (v as any).customFieldsOfferstatus === 'PENDING');
-            const isPending = approvalStatus === 'pending' || hasPendingVariants;
+            const offers = offersMap[p.id] || [];
+            const hasPendingOffers = offers.some((off: any) => off.status === 'pending') ||
+                p.variants?.some(v => {
+                    const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
+                    return st === 'PENDING' || st === 'pending';
+                });
+            const isPending = approvalStatus === 'pending' || hasPendingOffers;
 
             // Tab restriction
             if (activeTab === 'pending' && !isPending) {
                 return false;
             }
-            if (activeTab === 'unvalidated_variants' && !hasPendingVariants) {
+            if (activeTab === 'unvalidated_variants' && !hasPendingOffers) {
                 return false;
             }
-            if (activeTab === 'official' && isVendorProposal) {
+            if (activeTab === 'official' && isVendorProposal && !hasPendingOffers) {
                 return false;
             }
-            if (activeTab === 'vendor_proposals' && !isVendorProposal) {
+            if (activeTab === 'vendor_proposals' && !isVendorProposal && !hasPendingOffers) {
                 return false;
             }
 
@@ -879,7 +894,7 @@ export function ProductListComponent() {
 
             return true;
         });
-    }, [products, activeTab, searchTerm, selectedCategory, selectedVendor, selectedStatus]);
+    }, [products, activeTab, searchTerm, selectedCategory, selectedVendor, selectedStatus, offersMap]);
 
     // Sorted Products
     const sortedProducts = useMemo(() => {
@@ -891,7 +906,12 @@ export function ProductListComponent() {
             if (sortBy === 'price_desc') return (b.variants?.[0]?.price || 0) - (a.variants?.[0]?.price || 0);
             if (sortBy === 'variants_desc') return (b.variants?.length || 0) - (a.variants?.length || 0);
             if (sortBy === 'created_asc') return Number(a.id) - Number(b.id);
-            return Number(b.id) - Number(a.id); // default created_desc
+            
+            // Default sort: prioritize recently updated/resubmitted products!
+            const timeA = new Date((a as any).updatedAt || (a as any).createdAt || 0).getTime();
+            const timeB = new Date((b as any).updatedAt || (b as any).createdAt || 0).getTime();
+            if (timeB !== timeA) return timeB - timeA;
+            return Number(b.id) - Number(a.id);
         });
         return list;
     }, [filteredProducts, sortBy]);
@@ -978,13 +998,17 @@ export function ProductListComponent() {
     };
 
     const handleOpenReview = async (product: MarketplaceProduct) => {
+        const isAlreadyOfficial = !product.customFields?.vendor || product.customFields?.vendor?.name === 'Ahizan' || (product.customFields as any)?.isOfficialCatalog === true;
+
         setReviewProduct(product);
-        setReviewDecision(product.customFields?.approvalStatus === 'rejected' ? 'rejected' : 'approved_official');
+        setReviewStep(1);
+        setCreatedOfficialProduct(isAlreadyOfficial ? product : null);
+        setReviewDecision(isAlreadyOfficial ? 'approved_vendor' : (product.customFields?.approvalStatus === 'rejected' ? 'rejected' : 'approved_official'));
         setRejectionReasonInput(product.customFields?.rejectionReason || '');
         setRejectScope('all');
         setRejectedOfferIds([]);
         setRegraftSearchTerm('');
-        setSelectedTargetProduct(null);
+        setSelectedTargetProduct(isAlreadyOfficial ? product : null);
         setIsLoadingRegraftSearch(true);
 
         // Pre-fill Official Product form fields from vendor submission
@@ -1009,7 +1033,11 @@ export function ProductListComponent() {
                 setOffersMap(prev => ({ ...prev, [product.id]: offersData.sellerOffersForProduct }));
             }
 
-            const items = (officialProdsData?.searchOfficialProducts?.items || []).filter((p: any) => String(p.id) !== String(product.id));
+            const rawItems = (officialProdsData?.searchOfficialProducts?.items || []);
+            // Include current product at top if already official
+            const items = isAlreadyOfficial 
+                ? [product, ...rawItems.filter((p: any) => String(p.id) !== String(product.id))]
+                : rawItems.filter((p: any) => String(p.id) !== String(product.id));
             setRegraftSearchResults(items);
         } catch (err) {
             console.error('Error prefetching offers or official products:', err);
@@ -1018,15 +1046,16 @@ export function ProductListComponent() {
         }
     };
 
+    const handleProceedToStep2WithoutMutating = (targetProd?: any) => {
+        setCreatedOfficialProduct(targetProd || selectedTargetProduct || reviewProduct);
+        setReviewStep(2);
+    };
+
     const handleReviewAndReassign = async (targetProduct: any) => {
         if (!reviewProduct || !targetProduct) return;
 
         setIsSubmittingReview(true);
         try {
-            // Find all variant IDs to move from:
-            // 1. reviewProduct.variants
-            // 2. offersMap[reviewProduct.id]
-            // 3. Fallback direct GraphQL fetch
             let variantIds: string[] = [];
 
             if (reviewProduct.variants && reviewProduct.variants.length > 0) {
@@ -1041,7 +1070,6 @@ export function ProductListComponent() {
             }
 
             if (variantIds.length === 0) {
-                // Fallback: Fetch product with variants directly from GraphQL
                 const freshProd = await fetchGraphQL(`
                     query GetProductVariantsDirect($id: ID!) {
                         product(id: $id) {
@@ -1067,18 +1095,20 @@ export function ProductListComponent() {
                 await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
                     variantId: varId,
                     targetProductId: targetProduct.id,
-                    approveOffer: approveVendorOfferCheckbox,
+                    approveOffer: false, // We will moderate in Step 2!
                 });
             }
 
-            // If the source proposition product is distinct from target product, clean up the empty proposition shell
-            if (String(reviewProduct.id) !== String(targetProduct.id) && reviewProduct.customFields?.vendor) {
-                await fetchGraphQL(DELETE_PRODUCT, { id: reviewProduct.id }).catch(() => null);
+            setCreatedOfficialProduct(targetProduct);
+
+            // Fetch offers for the target product
+            const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: targetProduct.id });
+            if (updatedOffers?.sellerOffersForProduct) {
+                setOffersMap(prev => ({ ...prev, [targetProduct.id]: updatedOffers.sellerOffersForProduct }));
             }
 
             await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
-            alert(`Déclinaisons raccordées avec succès sur la fiche officielle "${targetProduct.name}" !`);
-            setReviewProduct(null);
+            setReviewStep(2);
         } catch (err: any) {
             console.error('Error reassigning variant:', err);
             alert('Erreur lors du raccordement : ' + err.message);
@@ -1087,70 +1117,121 @@ export function ProductListComponent() {
         }
     };
 
-    const handleSubmitReview = async (e: React.FormEvent) => {
+    const handleSubmitStep1 = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!reviewProduct) return;
 
-        if (reviewDecision === 'rejected' && !rejectionReasonInput.trim()) {
-            alert('Veuillez indiquer un motif de refus pour informer le vendeur.');
+        if (reviewDecision === 'rejected') {
+            if (!rejectionReasonInput.trim()) {
+                alert('Veuillez indiquer un motif de refus pour informer le vendeur.');
+                return;
+            }
+            setIsSubmittingReview(true);
+            try {
+                approvalMutation.mutate({
+                    id: reviewProduct.id,
+                    approvalStatus: 'rejected',
+                    convertToOfficialCatalog: false,
+                    rejectionReason: rejectionReasonInput,
+                });
+            } finally {
+                setIsSubmittingReview(false);
+            }
             return;
         }
 
-        setIsSubmittingReview(true);
         if (reviewDecision === 'approved_official') {
-            approvalMutation.mutate({
-                id: reviewProduct.id,
-                approvalStatus: 'approved',
-                convertToOfficialCatalog: true,
-                name: officialTitle.trim() || reviewProduct.name,
-                slug: officialSlug.trim() || undefined,
-                shortDescription: officialShortDescription.trim(),
-                description: officialDescription.trim(),
-                officialSku: officialSku.trim() || undefined,
-                ean: officialEan.trim() || undefined,
-                collectionIds: officialCollectionIds.length > 0 ? officialCollectionIds : undefined,
-                facetValueIds: officialFacetValueIds.length > 0 ? officialFacetValueIds : undefined,
-                approveVendorOffer: approveVendorOfferCheckbox,
-                rejectionReason: '',
-            });
-        } else if (reviewDecision === 'rejected') {
-            if (rejectScope === 'specific_offer' && rejectedOfferIds.length > 0) {
-                try {
-                    for (const offerId of rejectedOfferIds) {
-                        await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
-                            id: offerId,
-                            status: 'rejected',
-                            rejectionReason: rejectionReasonInput,
-                        });
-                    }
-                    await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
-                    const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: reviewProduct.id });
-                    if (updatedOffers?.sellerOffersForProduct) {
-                        setOffersMap(prev => ({ ...prev, [reviewProduct.id]: updatedOffers.sellerOffersForProduct }));
-                    }
-                    alert(`${rejectedOfferIds.length} offre(s) spécifique(s) rejetée(s) avec succès.`);
-                    setReviewProduct(null);
-                } catch (err: any) {
-                    alert('Erreur lors du rejet des offres : ' + err.message);
-                } finally {
-                    setIsSubmittingReview(false);
-                }
+            if (!officialTitle.trim()) {
+                alert('Veuillez indiquer un titre officiel propre pour la fiche catalogue.');
                 return;
             }
+            setIsSubmittingReview(true);
+            try {
+                const res = await fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
+                    id: reviewProduct.id,
+                    status: 'approved',
+                    convertToOfficialCatalog: true,
+                    name: officialTitle.trim(),
+                    slug: officialSlug.trim() || undefined,
+                    shortDescription: officialShortDescription.trim() || undefined,
+                    description: officialDescription.trim() || undefined,
+                    officialSku: officialSku.trim() || undefined,
+                    ean: officialEan.trim() || undefined,
+                    collectionIds: officialCollectionIds.length > 0 ? officialCollectionIds : undefined,
+                    facetValueIds: officialFacetValueIds.length > 0 ? officialFacetValueIds : undefined,
+                    approveVendorOffer: false, // Moderated precisely in Step 2!
+                });
 
-            approvalMutation.mutate({
-                id: reviewProduct.id,
-                approvalStatus: 'rejected',
-                convertToOfficialCatalog: false,
-                rejectionReason: rejectionReasonInput,
-            });
-        } else {
-            approvalMutation.mutate({
-                id: reviewProduct.id,
-                approvalStatus: 'approved',
-                convertToOfficialCatalog: false,
-                rejectionReason: '',
-            });
+                const createdProd = res?.adminReviewProduct;
+                setCreatedOfficialProduct(createdProd || reviewProduct);
+
+                if (createdProd?.id) {
+                    const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: createdProd.id });
+                    if (updatedOffers?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [createdProd.id]: updatedOffers.sellerOffersForProduct }));
+                    }
+                }
+
+                await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                setReviewStep(2);
+            } catch (err: any) {
+                alert('Erreur lors de la création de la fiche officielle : ' + err.message);
+            } finally {
+                setIsSubmittingReview(false);
+            }
+        }
+    };
+
+    const handleApproveAllOffers = async (offersList: any[]) => {
+        setIsSubmittingReview(true);
+        try {
+            for (const off of offersList) {
+                await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
+                    id: off.id || off.productVariant?.id,
+                    status: 'approved',
+                });
+            }
+            const prodId = createdOfficialProduct?.id || reviewProduct?.id;
+            if (prodId) {
+                const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: prodId });
+                if (updatedOffers?.sellerOffersForProduct) {
+                    setOffersMap(prev => ({ ...prev, [prodId]: updatedOffers.sellerOffersForProduct }));
+                }
+            }
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+        } catch (err: any) {
+            alert('Erreur lors de la validation groupée : ' + err.message);
+        } finally {
+            setIsSubmittingReview(false);
+        }
+    };
+
+    const handleRejectAllOffers = async (offersList: any[], reason: string) => {
+        if (!reason.trim()) {
+            alert('Veuillez indiquer un motif de refus.');
+            return;
+        }
+        setIsSubmittingReview(true);
+        try {
+            for (const off of offersList) {
+                await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
+                    id: off.id || off.productVariant?.id,
+                    status: 'rejected',
+                    rejectionReason: reason,
+                });
+            }
+            const prodId = createdOfficialProduct?.id || reviewProduct?.id;
+            if (prodId) {
+                const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: prodId });
+                if (updatedOffers?.sellerOffersForProduct) {
+                    setOffersMap(prev => ({ ...prev, [prodId]: updatedOffers.sellerOffersForProduct }));
+                }
+            }
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+        } catch (err: any) {
+            alert('Erreur lors du rejet groupé : ' + err.message);
+        } finally {
+            setIsSubmittingReview(false);
         }
     };
 
@@ -2199,683 +2280,577 @@ export function ProductListComponent() {
                 </div>
             )}
 
-            {/* ── 6. UNIFIED MODERATION & CATALOG BINDING MODAL ── */}
+            {/* ── 6. UNIFIED 2-STEP MODERATION & CATALOG WIZARD MODAL ── */}
             {reviewProduct && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-                    <div style={{ background: '#ffffff', borderRadius: '24px', maxWidth: '750px', width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                        {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>Modération &amp; Raccordement Catalogue</h3>
-                                <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                                    Proposition soumise par : <strong style={{ color: '#0f172a' }}>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong>
-                                </p>
-                            </div>
-                            <button onClick={() => setReviewProduct(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '15px', fontWeight: 800, color: '#64748b' }}>✕</button>
-                        </div>
-
-                        {/* Product & Vendor Summary Card */}
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                                    {reviewProduct.featuredAsset?.preview && (
-                                        <img src={reviewProduct.featuredAsset.preview} alt="" style={{ width: '68px', height: '68px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
-                                    )}
-                                    <div>
-                                        <div style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>{reviewProduct.name}</div>
-                                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                                            Catégorie : <strong>{reviewProduct.collections?.[0]?.name || 'Non classé'}</strong> • {reviewProduct.variants?.length || 1} déclinaison(s)
-                                        </div>
-                                        {reviewProduct.customFields?.vendor && (
-                                            <div style={{ fontSize: '11px', color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px', display: 'inline-block', marginTop: '4px', fontWeight: 700 }}>
-                                                🏪 Boutique Marchande : {reviewProduct.customFields.vendor.name} ({reviewProduct.customFields.vendor.zone || 'Zone Nationale'})
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Global Product Status Badge */}
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '24px', maxWidth: '850px', width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', border: '1px solid #e2e8f0' }}>
+                        
+                        {/* Header & Stepper */}
+                        <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    {reviewProduct.customFields?.approvalStatus === 'approved' ? (
-                                        <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
-                                            ✓ Fiche Validée
-                                        </span>
-                                    ) : reviewProduct.customFields?.approvalStatus === 'rejected' ? (
-                                        <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
-                                            ✕ Fiche Rejetée
-                                        </span>
-                                    ) : (
-                                        <span style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
-                                            ⏳ En attente de Modération
-                                        </span>
-                                    )}
+                                    <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>⚖️</span> Modération &amp; Attribution Catalogue
+                                    </h3>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                        Proposition soumise par : <strong style={{ color: '#0284c7' }}>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong>
+                                    </p>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setReviewProduct(null)}
+                                    style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '15px', fontWeight: 800, color: '#64748b' }}
+                                >
+                                    ✕
+                                </button>
                             </div>
 
-                            {/* Detailed Breakdown of All Submitted Offers & Variants with Individual Actions */}
-                            <div style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span>📋</span> Déclinaisons &amp; Offres Commerciales Soumises ({offersMap[reviewProduct.id]?.length || reviewProduct.variants?.length || 0}) :
+                            {/* Stepper Navigation */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px' }}>
+                                <div
+                                    onClick={() => setReviewStep(1)}
+                                    style={{
+                                        padding: '10px 14px', borderRadius: '12px', cursor: 'pointer',
+                                        background: reviewStep === 1 ? '#eff6ff' : '#f8fafc',
+                                        border: reviewStep === 1 ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                        display: 'flex', alignItems: 'center', gap: '10px'
+                                    }}
+                                >
+                                    <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: reviewStep === 1 ? '#2563eb' : (reviewStep === 2 ? '#16a34a' : '#cbd5e1'), color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>
+                                        {reviewStep === 2 ? '✓' : '1'}
+                                    </span>
+                                    <div>
+                                        <div style={{ fontSize: '12px', fontWeight: 800, color: reviewStep === 1 ? '#1e40af' : '#475569' }}>Étape 1 : Fiche Mère / Catalogue</div>
+                                        <div style={{ fontSize: '10px', color: '#64748b' }}>Structuration du produit officiel Ahizan</div>
                                     </div>
-                                    <span style={{ fontSize: '10px', color: '#64748b' }}>Examinez le prix, stock, condition et délai de chaque offre</span>
                                 </div>
 
-                                <div style={{ display: 'grid', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                                    {(offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) ? (
-                                        offersMap[reviewProduct.id].map((offer: any, idx: number) => {
-                                            const isApproved = offer.status === 'approved';
-                                            const isRejected = offer.status === 'rejected';
-                                            const isCorrection = offer.status === 'correction_requested';
-                                            return (
-                                                <div key={offer.id || idx} style={{ background: '#ffffff', border: isApproved ? '1px solid #bbf7d0' : isRejected ? '1px solid #fecaca' : '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                                                    <div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                                                                {offer.productVariant?.name || `Déclinaison #${idx + 1}`}
-                                                            </strong>
-                                                            {offer.sku && (
-                                                                <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#0284c7', background: '#f0f9ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                                                                    SKU: {offer.sku}
-                                                                </span>
-                                                            )}
-                                                            <span style={{ fontSize: '10px', color: '#475569', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                                                                {offer.condition === 'NEW' ? '✨ Neuf' : offer.condition || 'Neuf'}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', display: 'flex', gap: '12px' }}>
-                                                            <span>Vendeur : <strong style={{ color: '#0f172a' }}>{offer.vendor?.name || reviewProduct.customFields?.vendor?.name || 'Vendeur'}</strong></span>
-                                                            <span>Stock : <strong style={{ color: offer.stock > 0 ? '#16a34a' : '#dc2626' }}>{offer.stock} unités</strong></span>
-                                                            <span>Expédition : <strong>{offer.deliveryTimeValue ? `${offer.deliveryTimeValue} ${offer.deliveryTimeUnit || 'jours'}` : '24-48h'}</strong></span>
-                                                        </div>
-                                                        {offer.rejectionReason && (
-                                                            <div style={{ fontSize: '10px', color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '4px', marginTop: '4px' }}>
-                                                                ⚠️ Motif : {offer.rejectionReason}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                        <div style={{ textAlign: 'right' }}>
-                                                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#16a34a' }}>
-                                                                {formatPrice(offer.price)}
-                                                            </div>
-                                                            <div style={{ marginTop: '2px' }}>
-                                                                {isApproved ? (
-                                                                    <span style={{ background: '#dcfce7', color: '#166534', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>✓ Validée</span>
-                                                                ) : isRejected ? (
-                                                                    <span style={{ background: '#fee2e2', color: '#991b1b', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>✕ Rejetée</span>
-                                                                ) : isCorrection ? (
-                                                                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>⚠️ Correction</span>
-                                                                ) : (
-                                                                    <span style={{ background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>⏳ En attente</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        <div style={{ display: 'flex', gap: '4px' }}>
-                                                            {offer.status !== 'approved' ? (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleReviewOffer(offer.id, reviewProduct.id, 'approved')}
-                                                                    style={{ padding: '5px 8px', borderRadius: '6px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                    title="Approuver cette offre commerciale"
-                                                                >
-                                                                    ✓
-                                                                </button>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleReviewOffer(offer.id, reviewProduct.id, 'disabled')}
-                                                                    style={{ padding: '5px 8px', borderRadius: '6px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                    title="Mettre en pause / Dévalider"
-                                                                >
-                                                                    ⏸️
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setReviewDecision('rejected');
-                                                                    setRejectScope('specific_offer');
-                                                                    setRejectedOfferIds([offer.id]);
-                                                                }}
-                                                                style={{ padding: '5px 8px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                                title="Rejeter spécifiquement cette offre"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        (reviewProduct.variants || []).map((v: any, idx: number) => (
-                                            <div key={v.id || idx} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <strong style={{ fontSize: '13px', color: '#0f172a' }}>{v.name || `Déclinaison #${idx + 1}`}</strong>
-                                                        {v.sku && <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#0284c7' }}>({v.sku})</span>}
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                                                        Vendeur : <strong>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong> • Stock : <strong>{v.stockLevel ?? (v.stockOnHand || 0)}</strong>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <div style={{ fontSize: '14px', fontWeight: 900, color: '#16a34a' }}>
-                                                        {formatPrice(v.price)}
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setReviewDecision('rejected');
-                                                            setRejectScope('specific_offer');
-                                                            setRejectedOfferIds([v.id]);
-                                                        }}
-                                                        style={{ padding: '5px 8px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
-                                                        title="Rejeter spécifiquement cette déclinaison"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
+                                <div
+                                    onClick={() => {
+                                        if (createdOfficialProduct || reviewStep === 2) setReviewStep(2);
+                                    }}
+                                    style={{
+                                        padding: '10px 14px', borderRadius: '12px',
+                                        cursor: createdOfficialProduct || reviewStep === 2 ? 'pointer' : 'not-allowed',
+                                        background: reviewStep === 2 ? '#f0fdf4' : '#f8fafc',
+                                        border: reviewStep === 2 ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                                        opacity: (createdOfficialProduct || reviewStep === 2) ? 1 : 0.6,
+                                        display: 'flex', alignItems: 'center', gap: '10px'
+                                    }}
+                                >
+                                    <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: reviewStep === 2 ? '#16a34a' : '#cbd5e1', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 800 }}>
+                                        2
+                                    </span>
+                                    <div>
+                                        <div style={{ fontSize: '12px', fontWeight: 800, color: reviewStep === 2 ? '#166534' : '#475569' }}>Étape 2 : Déclinaisons &amp; Offres ({offersMap[createdOfficialProduct?.id || reviewProduct.id]?.length || reviewProduct.variants?.length || 0})</div>
+                                        <div style={{ fontSize: '10px', color: '#64748b' }}>Modération des prix, stocks et conformité</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Navigation Tabs for 3 Actions */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px', background: '#f1f5f9', padding: '6px', borderRadius: '14px' }}>
-                            <button
-                                type="button"
-                                onClick={() => setReviewDecision('approved_vendor')}
-                                style={{
-                                    padding: '10px 12px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
-                                    background: reviewDecision === 'approved_vendor' ? '#ffffff' : 'transparent',
-                                    color: reviewDecision === 'approved_vendor' ? '#0284c7' : '#64748b',
-                                    boxShadow: reviewDecision === 'approved_vendor' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                            >
-                                🔗 1. Relier à l'Existant
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setReviewDecision('approved_official')}
-                                style={{
-                                    padding: '10px 12px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
-                                    background: reviewDecision === 'approved_official' ? '#ffffff' : 'transparent',
-                                    color: reviewDecision === 'approved_official' ? '#2563eb' : '#64748b',
-                                    boxShadow: reviewDecision === 'approved_official' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                            >
-                                🏛️ 2. Créer Fiche Officielle
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setReviewDecision('rejected')}
-                                style={{
-                                    padding: '10px 12px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
-                                    background: reviewDecision === 'rejected' ? '#ffffff' : 'transparent',
-                                    color: reviewDecision === 'rejected' ? '#dc2626' : '#64748b',
-                                    boxShadow: reviewDecision === 'rejected' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                            >
-                                ❌ 3. Refuser / Corriger
-                            </button>
-                        </div>
-
-                        {/* TAB 1: BIND TO EXISTING OFFICIAL PRODUCT */}
-                        {reviewDecision === 'approved_vendor' && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
-                                    Recherchez et sélectionnez la <strong>fiche produit officielle Ahizan</strong> dans le catalogue central pour y rattacher automatiquement cette déclinaison vendeur :
-                                </div>
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher une fiche officielle par nom (ex: Samsung S24, iPhone...)"
-                                    value={regraftSearchTerm}
-                                    onChange={e => handleSearchTargetProducts(e.target.value)}
-                                    style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
-                                />
-                                {isLoadingRegraftSearch ? (
-                                    <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>Recherche en cours...</div>
-                                ) : (
-                                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'grid', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px', background: '#f8fafc' }}>
-                                        {regraftSearchResults.length === 0 ? (
-                                            <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
-                                                Aucun produit officiel correspondant trouvé. Tapez un autre mot-clé ou choisissez l'onglet <strong>"2. Créer Fiche Officielle"</strong>.
-                                            </div>
-                                        ) : (
-                                            regraftSearchResults.map((prod: any) => {
-                                                const isSelected = selectedTargetProduct?.id === prod.id;
-                                                return (
-                                                    <div
-                                                        key={prod.id}
-                                                        onClick={() => setSelectedTargetProduct(prod)}
-                                                        style={{
-                                                            padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                                            background: isSelected ? '#eff6ff' : '#ffffff',
-                                                            border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                                                            transition: 'all 0.15s',
-                                                        }}
-                                                    >
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                            {prod.featuredAsset?.preview && (
-                                                                <img src={prod.featuredAsset.preview} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
-                                                            )}
-                                                            <div>
-                                                                <strong style={{ fontSize: '13px', color: '#0f172a' }}>{prod.name}</strong>
-                                                                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                                                    {prod.collections?.[0]?.name || 'Catalogue'} • {prod.variants?.length || 0} offre(s) déjà greffée(s)
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        {isSelected && <span style={{ fontSize: '16px', color: '#2563eb', fontWeight: 900 }}>✓</span>}
-                                                    </div>
-                                                );
-                                            })
-                                        )}
+                        {/* ────────────────── ÉTAPE 1 : FICHE MÈRE / CATALOGUE ────────────────── */}
+                        {reviewStep === 1 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                                {/* Product Summary */}
+                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '16px', display: 'flex', gap: '14px', alignItems: 'center' }}>
+                                    {reviewProduct.featuredAsset?.preview && (
+                                        <img src={reviewProduct.featuredAsset.preview} alt="" style={{ width: '60px', height: '60px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #e2e8f0' }} />
+                                    )}
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>{reviewProduct.name}</div>
+                                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                            Catégorie : <strong>{reviewProduct.collections?.[0]?.name || 'Non classé'}</strong> • <strong>{offersMap[reviewProduct.id]?.length || reviewProduct.variants?.length || 1}</strong> déclinaison(s) soumise(s)
+                                        </div>
                                     </div>
-                                )}
-
-                                {/* Offer Approval Toggle in Tab 1 */}
-                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <input
-                                        type="checkbox"
-                                        id="approveVendorOfferReassignToggle"
-                                        checked={approveVendorOfferCheckbox}
-                                        onChange={e => setApproveVendorOfferCheckbox(e.target.checked)}
-                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                    />
-                                    <label htmlFor="approveVendorOfferReassignToggle" style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
-                                        Approuver également l'offre commerciale du vendeur immédiatement (Prix : {formatPrice(reviewProduct.variants?.[0]?.price || 0)})
-                                    </label>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                {/* Navigation Tabs for 2 Actions (Rejection is handled in Step 2) */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', background: '#f1f5f9', padding: '6px', borderRadius: '14px' }}>
                                     <button
                                         type="button"
-                                        onClick={() => setReviewProduct(null)}
-                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={!selectedTargetProduct || isSubmittingReview}
-                                        onClick={() => handleReviewAndReassign(selectedTargetProduct)}
+                                        onClick={() => setReviewDecision('approved_official')}
                                         style={{
-                                            padding: '10px 22px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: selectedTargetProduct ? 'pointer' : 'not-allowed',
-                                            background: selectedTargetProduct ? '#0284c7' : '#94a3b8',
-                                            color: '#ffffff',
+                                            padding: '12px 14px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                                            background: reviewDecision === 'approved_official' ? '#ffffff' : 'transparent',
+                                            color: reviewDecision === 'approved_official' ? '#2563eb' : '#64748b',
+                                            boxShadow: reviewDecision === 'approved_official' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                                            transition: 'all 0.2s',
                                         }}
                                     >
-                                        {isSubmittingReview ? 'Raccordement...' : '🔗 Raccorder à ce Produit Officiel'}
+                                        🏛️ 1. Créer une Nouvelle Fiche Officielle
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewDecision('approved_vendor')}
+                                        style={{
+                                            padding: '12px 14px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                                            background: reviewDecision === 'approved_vendor' ? '#ffffff' : 'transparent',
+                                            color: reviewDecision === 'approved_vendor' ? '#0284c7' : '#64748b',
+                                            boxShadow: reviewDecision === 'approved_vendor' ? '0 2px 4px rgba(0,0,0,0.08)' : 'none',
+                                            transition: 'all 0.2s',
+                                        }}
+                                    >
+                                        🔗 2. Relier à une Fiche Officielle Existante
                                     </button>
                                 </div>
-                            </div>
-                        )}
 
-                        {/* TAB 2: CREATE / PROMOTE TO OFFICIAL PRODUCT (WITH FULL EDITING & OFFER APPROVAL TOGGLE) */}
-                        {reviewDecision === 'approved_official' && (
-                            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
-                                    Personnalisez la <strong>nouvelle fiche produit officielle Ahizan</strong>. Ce produit mère deviendra la référence unique du catalogue central et recevra la déclinaison du vendeur.
-                                </div>
+                                {/* MODE 1 : CREATE OFFICIAL MASTER PRODUCT (FULL FIELDS) */}
+                                {reviewDecision === 'approved_official' && (
+                                    <form onSubmit={handleSubmitStep1} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                                        
+                                        {/* Section 1: Informations Générales & SEO */}
+                                        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', display: 'grid', gap: '14px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span>🏷️</span> Informations Générales &amp; Référencement
+                                            </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                            Titre Officiel Ahizan *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={officialTitle}
-                                            onChange={e => setOfficialTitle(e.target.value)}
-                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                            Slug SEO Unique
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={officialSlug}
-                                            onChange={e => setOfficialSlug(e.target.value)}
-                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                                        />
-                                    </div>
-                                </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                        Titre Officiel Ahizan *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        value={officialTitle}
+                                                        onChange={e => setOfficialTitle(e.target.value)}
+                                                        placeholder="Ex: Écouteurs sans fil tour de cou TOCAR AZK-NY02"
+                                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                        Slug URL (Auto-généré)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={officialSlug}
+                                                        onChange={e => setOfficialSlug(e.target.value)}
+                                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc' }}
+                                                    />
+                                                </div>
+                                            </div>
 
-                                {/* SKU Officiel & Code EAN-13 */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                            SKU Officiel Central Ahizan *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={officialSku}
-                                            onChange={e => setOfficialSku(e.target.value)}
-                                            placeholder="Ex: AHZ-S24U-TITANIUM"
-                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                            Code-barres International EAN-13 (Optionnel)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={officialEan}
-                                            onChange={e => setOfficialEan(e.target.value)}
-                                            placeholder="Ex: 8806091234567"
-                                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
-                                        />
-                                    </div>
-                                </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                        Catégorie Catalogue Principale
+                                                    </label>
+                                                    <select
+                                                        value={officialCollectionIds[0] || ''}
+                                                        onChange={e => setOfficialCollectionIds(e.target.value ? [e.target.value] : [])}
+                                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#ffffff' }}
+                                                    >
+                                                        <option value="">Sélectionner une catégorie...</option>
+                                                        {collectionsData?.collections?.items?.map((c: any) => (
+                                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                        Courte Description d'accroche (SEO)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={officialShortDescription}
+                                                        onChange={e => setOfficialShortDescription(e.target.value)}
+                                                        placeholder="Résumé en 1 phrase pour la recherche..."
+                                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                                    />
+                                                </div>
+                                            </div>
 
-                                {/* Arborescence Catégories & Sous-Catégories (Multi-sélection) */}
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                                        Arborescence Catégories &amp; Sous-Catégories Ahizan ({officialCollectionIds.length} sélectionnée(s)) :
-                                    </label>
-                                    <div style={{ maxHeight: '130px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '6px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', background: '#f8fafc' }}>
-                                        {collections.map((c: any) => {
-                                            const isSelected = officialCollectionIds.includes(c.id);
-                                            return (
-                                                <button
-                                                    key={c.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (isSelected) {
-                                                            setOfficialCollectionIds(officialCollectionIds.filter(id => id !== c.id));
-                                                        } else {
-                                                            setOfficialCollectionIds([...officialCollectionIds, c.id]);
-                                                        }
-                                                    }}
-                                                    style={{
-                                                        padding: '4px 10px',
-                                                        borderRadius: '16px',
-                                                        fontSize: '11px',
-                                                        fontWeight: 700,
-                                                        cursor: 'pointer',
-                                                        border: isSelected ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                                                        background: isSelected ? '#2563eb' : '#ffffff',
-                                                        color: isSelected ? '#ffffff' : '#475569',
-                                                        transition: 'all 0.15s',
-                                                    }}
-                                                >
-                                                    {isSelected ? '✓ ' : '+ '}{c.name}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                    Description Détaillée Officielle
+                                                </label>
+                                                <textarea
+                                                    rows={3}
+                                                    placeholder="Description détaillée des caractéristiques du produit..."
+                                                    value={officialDescription}
+                                                    onChange={e => setOfficialDescription(e.target.value)}
+                                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                                />
+                                            </div>
+                                        </div>
 
-                                {/* Attributs & Facettes du Catalogue Ahizan */}
-                                {facets.length > 0 && (
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                                            Attributs &amp; Facettes du Catalogue ({officialFacetValueIds.length} sélectionné(s)) :
-                                        </label>
-                                        <div style={{ maxHeight: '130px', overflowY: 'auto', display: 'grid', gap: '8px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px', background: '#f8fafc' }}>
-                                            {facets.map((facet: any) => (
-                                                <div key={facet.id}>
-                                                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
-                                                        {facet.name} :
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                                        {facet.values?.map((val: any) => {
-                                                            const isSelected = officialFacetValueIds.includes(val.id);
+                                        {/* Section 2: Identifiants & Codes Produits */}
+                                        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', display: 'grid', gap: '14px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span>🔢</span> Codes &amp; Identifiants Catalogue
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                        SKU Officiel Unique Ahizan
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={officialSku}
+                                                        onChange={e => setOfficialSku(e.target.value)}
+                                                        placeholder="Ex: AHZ-XCO-MTHDU3QB"
+                                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                                                        Code-barres / EAN Fabricant (13 chiffres)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={officialEan}
+                                                        onChange={e => setOfficialEan(e.target.value)}
+                                                        placeholder="Ex: 3760123456789"
+                                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'monospace' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Section 3: Filtres & Facettes (Marque, Caractéristiques) */}
+                                        {facetsData?.facets?.items && facetsData.facets.items.length > 0 && (
+                                            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', display: 'grid', gap: '14px' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span>🎯</span> Filtres &amp; Facettes Catalogue
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', maxHeight: '160px', overflowY: 'auto' }}>
+                                                    {facetsData.facets.items.map((facet: any) =>
+                                                        (facet.values || []).map((val: any) => {
+                                                            const isChecked = officialFacetValueIds.includes(val.id);
                                                             return (
                                                                 <button
                                                                     key={val.id}
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        if (isSelected) {
-                                                                            setOfficialFacetValueIds(officialFacetValueIds.filter(id => id !== val.id));
-                                                                        } else {
-                                                                            setOfficialFacetValueIds([...officialFacetValueIds, val.id]);
-                                                                        }
+                                                                        setOfficialFacetValueIds(prev =>
+                                                                            isChecked ? prev.filter(id => id !== val.id) : [...prev, val.id]
+                                                                        );
                                                                     }}
                                                                     style={{
-                                                                        padding: '4px 10px',
-                                                                        borderRadius: '16px',
-                                                                        fontSize: '11px',
-                                                                        fontWeight: 600,
-                                                                        cursor: 'pointer',
-                                                                        border: isSelected ? '1px solid #0284c7' : '1px solid #cbd5e1',
-                                                                        background: isSelected ? '#0284c7' : '#ffffff',
-                                                                        color: isSelected ? '#ffffff' : '#475569',
+                                                                        padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, cursor: 'pointer',
+                                                                        border: isChecked ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                                        background: isChecked ? '#eff6ff' : '#f8fafc',
+                                                                        color: isChecked ? '#1d4ed8' : '#475569',
                                                                         transition: 'all 0.15s',
                                                                     }}
                                                                 >
-                                                                    {isSelected ? '✓ ' : ''}{val.name}
+                                                                    {isChecked ? '✓ ' : ''}{facet.name} : {val.name}
                                                                 </button>
                                                             );
-                                                        })}
-                                                    </div>
+                                                        })
+                                                    )}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                        Petite Description (Accroche)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        placeholder="Ex: Écran OLED 120Hz, 256Go, Appareil photo 50MP..."
-                                        value={officialShortDescription}
-                                        onChange={e => setOfficialShortDescription(e.target.value)}
-                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                        Description Détaillée Officielle
-                                    </label>
-                                    <textarea
-                                        rows={4}
-                                        placeholder="Description complète des caractéristiques officielles du produit..."
-                                        value={officialDescription}
-                                        onChange={e => setOfficialDescription(e.target.value)}
-                                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                                    />
-                                </div>
-
-                                {/* Offer Approval Toggle */}
-                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <input
-                                        type="checkbox"
-                                        id="approveVendorOfferToggle"
-                                        checked={approveVendorOfferCheckbox}
-                                        onChange={e => setApproveVendorOfferCheckbox(e.target.checked)}
-                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                    />
-                                    <label htmlFor="approveVendorOfferToggle" style={{ fontSize: '12px', color: '#0f172a', fontWeight: 700, cursor: 'pointer' }}>
-                                        Approuver également l'offre commerciale du vendeur immédiatement (Prix : {formatPrice(reviewProduct.variants?.[0]?.price || 0)})
-                                    </label>
-                                </div>
-                                {!approveVendorOfferCheckbox && (
-                                    <div style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fef08a', padding: '10px', borderRadius: '8px' }}>
-                                        ℹ️ La fiche officielle sera créée et publiée, et la déclinaison du vendeur y sera rattachée en statut <strong>En attente</strong>. Vous pourrez ensuite examiner et modérer son offre de prix séparément.
-                                    </div>
-                                )}
-
-                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setReviewProduct(null)}
-                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmittingReview || !officialTitle.trim()}
-                                        style={{
-                                            padding: '10px 24px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
-                                            background: '#2563eb',
-                                            color: '#ffffff',
-                                        }}
-                                    >
-                                        {isSubmittingReview ? 'Création...' : '🏛️ Créer la Fiche Officielle & Rattacher'}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-
-                        {/* TAB 3: REJECT WITH SCOPE & FEEDBACK */}
-                        {reviewDecision === 'rejected' && (
-                            <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '14px' }}>
-                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#991b1b', marginBottom: '8px' }}>
-                                        Que souhaitez-vous refuser / renvoyer en correction ?
-                                    </label>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#7f1d1d', fontWeight: 700, cursor: 'pointer' }}>
-                                            <input
-                                                type="radio"
-                                                name="rejectScope"
-                                                checked={rejectScope === 'all'}
-                                                onChange={() => setRejectScope('all')}
-                                            />
-                                            Refuser toute la proposition produit (la fiche et toutes ses déclinaisons)
-                                        </label>
-                                        {((offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) || (reviewProduct.variants && reviewProduct.variants.length > 0)) && (
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#7f1d1d', fontWeight: 700, cursor: 'pointer' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="rejectScope"
-                                                    checked={rejectScope === 'specific_offer'}
-                                                    onChange={() => setRejectScope('specific_offer')}
-                                                />
-                                                Refuser uniquement des déclinaisons / offres spécifiques (conserver le produit)
-                                            </label>
+                                            </div>
                                         )}
-                                    </div>
 
-                                    {rejectScope === 'specific_offer' && (
-                                        <div style={{ marginTop: '12px', display: 'grid', gap: '6px', maxHeight: '140px', overflowY: 'auto', background: '#ffffff', padding: '8px', borderRadius: '8px', border: '1px solid #fca5a5' }}>
-                                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b' }}>Cochez la ou les offres / déclinaisons à refuser :</div>
-                                            {(offersMap[reviewProduct.id] && offersMap[reviewProduct.id].length > 0) ? (
-                                                offersMap[reviewProduct.id].map((off: any) => {
-                                                    const isChecked = rejectedOfferIds.includes(off.id);
-                                                    return (
-                                                        <label key={off.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', padding: '6px 8px', background: isChecked ? '#fee2e2' : '#f8fafc', borderRadius: '6px', cursor: 'pointer' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={e => {
-                                                                        if (e.target.checked) {
-                                                                            setRejectedOfferIds([...rejectedOfferIds, off.id]);
-                                                                        } else {
-                                                                            setRejectedOfferIds(rejectedOfferIds.filter(id => id !== off.id));
-                                                                        }
-                                                                    }}
-                                                                />
-                                                                <strong>{off.productVariant?.name || 'Déclinaison'}</strong> ({off.sku || 'SKU N/A'})
+                                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setReviewProduct(null)}
+                                                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmittingReview || !officialTitle.trim()}
+                                                style={{
+                                                    padding: '12px 26px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                                                    background: '#2563eb', color: '#ffffff', boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
+                                                }}
+                                            >
+                                                {isSubmittingReview ? 'Enregistrement...' : (
+                                                    (!reviewProduct?.customFields?.vendor || reviewProduct?.customFields?.approvalStatus === 'approved')
+                                                        ? 'Mettre à jour la Fiche & Passer aux Déclinaisons ➔'
+                                                        : 'Valider la Fiche & Passer aux Déclinaisons ➔'
+                                                )}
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {/* MODE 2 : BIND TO EXISTING OFFICIAL PRODUCT */}
+                                {reviewDecision === 'approved_vendor' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                        <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                                            Sélectionnez la <strong>Fiche Officielle existante</strong> sur laquelle greffer cette déclinaison :
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Rechercher une fiche officielle (ex: Écouteurs, Samsung, Câble...)"
+                                            value={regraftSearchTerm}
+                                            onChange={e => handleSearchTargetProducts(e.target.value)}
+                                            style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                                        />
+                                        {isLoadingRegraftSearch ? (
+                                            <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>Recherche en cours...</div>
+                                        ) : (
+                                            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'grid', gap: '8px', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '10px', background: '#f8fafc' }}>
+                                                {regraftSearchResults.length === 0 ? (
+                                                    <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
+                                                        Aucune fiche officielle correspondante trouvée. Utilisez l'onglet <strong>"1. Créer une Nouvelle Fiche Officielle"</strong> si le produit n'existe pas encore.
+                                                    </div>
+                                                ) : (
+                                                    regraftSearchResults.map((prod: any) => {
+                                                        const isSelected = selectedTargetProduct?.id === prod.id;
+                                                        const isSameAsReviewProd = String(prod.id) === String(reviewProduct?.id);
+                                                        return (
+                                                            <div
+                                                                key={prod.id}
+                                                                onClick={() => setSelectedTargetProduct(prod)}
+                                                                style={{
+                                                                    padding: '10px 14px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                                    background: isSelected ? '#eff6ff' : '#ffffff',
+                                                                    border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                    {prod.featuredAsset?.preview && (
+                                                                        <img src={prod.featuredAsset.preview} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
+                                                                    )}
+                                                                    <div>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <strong style={{ fontSize: '13px', color: '#0f172a' }}>{prod.name}</strong>
+                                                                            {isSameAsReviewProd && (
+                                                                                <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1d4ed8', fontWeight: 800, padding: '1px 6px', borderRadius: '6px' }}>
+                                                                                    Fiche Actuelle
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                            {prod.collections?.[0]?.name || 'Catalogue'} • {prod.variants?.length || 0} offre(s) déjà liée(s)
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                {isSelected && <span style={{ fontSize: '16px', color: '#2563eb', fontWeight: 900 }}>✓</span>}
                                                             </div>
-                                                            <span style={{ fontWeight: 800, color: '#16a34a' }}>{formatPrice(off.price)}</span>
-                                                        </label>
-                                                    );
-                                                })
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setReviewProduct(null)}
+                                                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                            >
+                                                Annuler
+                                            </button>
+                                            {selectedTargetProduct?.id === reviewProduct?.id ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleProceedToStep2WithoutMutating(selectedTargetProduct)}
+                                                    style={{
+                                                        padding: '12px 26px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: 800,
+                                                        cursor: 'pointer',
+                                                        background: '#16a34a',
+                                                        color: '#ffffff',
+                                                        boxShadow: '0 4px 12px rgba(22,163,74,0.25)',
+                                                    }}
+                                                >
+                                                    Passer directement aux Déclinaisons ➔
+                                                </button>
                                             ) : (
-                                                (reviewProduct.variants || []).map((v: any, idx: number) => {
-                                                    const isChecked = rejectedOfferIds.includes(v.id);
-                                                    return (
-                                                        <label key={v.id || idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', padding: '6px 8px', background: isChecked ? '#fee2e2' : '#f8fafc', borderRadius: '6px', cursor: 'pointer' }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    onChange={e => {
-                                                                        if (e.target.checked) {
-                                                                            setRejectedOfferIds([...rejectedOfferIds, v.id]);
-                                                                        } else {
-                                                                            setRejectedOfferIds(rejectedOfferIds.filter(id => id !== v.id));
-                                                                        }
-                                                                    }}
-                                                                />
-                                                                <strong>{v.name || `Déclinaison #${idx + 1}`}</strong> {v.sku && <span>({v.sku})</span>}
-                                                            </div>
-                                                            <span style={{ fontWeight: 800, color: '#16a34a' }}>{formatPrice(v.price)}</span>
-                                                        </label>
-                                                    );
-                                                })
+                                                <button
+                                                    type="button"
+                                                    disabled={!selectedTargetProduct || isSubmittingReview}
+                                                    onClick={() => handleReviewAndReassign(selectedTargetProduct)}
+                                                    style={{
+                                                        padding: '12px 26px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: 800,
+                                                        cursor: selectedTargetProduct ? 'pointer' : 'not-allowed',
+                                                        background: selectedTargetProduct ? '#0284c7' : '#94a3b8',
+                                                        color: '#ffffff',
+                                                        boxShadow: selectedTargetProduct ? '0 4px 12px rgba(2,132,199,0.25)' : 'none',
+                                                    }}
+                                                >
+                                                    {isSubmittingReview ? 'Raccordement...' : 'Raccorder & Passer aux Déclinaisons ➔'}
+                                                </button>
                                             )}
                                         </div>
-                                    )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ────────────────── ÉTAPE 2 : MODÉRATION DES DÉCLINAISONS & OFFRES ────────────────── */}
+                        {reviewStep === 2 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {/* Header / Summary of Official Target Product */}
+                                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#166534', textTransform: 'uppercase' }}>Fiche Officielle Validée</div>
+                                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>
+                                            {createdOfficialProduct?.name || officialTitle || reviewProduct.name}
+                                        </div>
+                                    </div>
+                                    <span style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
+                                        ✓ Étape 1 complétée
+                                    </span>
                                 </div>
 
-                                <div>
-                                    <div style={{ fontSize: '12px', color: '#991b1b', lineHeight: '1.5', fontWeight: 700, marginBottom: '6px' }}>
-                                        Motifs rapides de refus :
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                        {['Photos floues / non conformes', 'Description insuffisante', 'Doublon existant au catalogue', 'Prix anormal / non conforme', 'Délai d\'expédition non réaliste', 'Produit non conforme à la charte'].map((chip) => (
-                                            <button
-                                                key={chip}
-                                                type="button"
-                                                onClick={() => setRejectionReasonInput(chip)}
-                                                style={{ padding: '5px 12px', borderRadius: '14px', border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                                {/* Rapid Actions Bar */}
+                                {(() => {
+                                    const currentOffers = offersMap[createdOfficialProduct?.id || reviewProduct.id] || [];
+                                    return (
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '10px 14px', borderRadius: '12px', border: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '10px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#334155' }}>
+                                                Déclinaisons soumises ({currentOffers.length || reviewProduct.variants?.length || 0}) :
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    type="button"
+                                                    disabled={isSubmittingReview}
+                                                    onClick={() => handleApproveAllOffers(currentOffers.length > 0 ? currentOffers : (reviewProduct.variants || []))}
+                                                    style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#ffffff', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                >
+                                                    ✅ Tout Approuver ({currentOffers.length || reviewProduct.variants?.length || 0})
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={isSubmittingReview}
+                                                    onClick={() => {
+                                                        const reason = prompt('Indiquez le motif de rejet global des déclinaisons :');
+                                                        if (reason) handleRejectAllOffers(currentOffers.length > 0 ? currentOffers : (reviewProduct.variants || []), reason);
+                                                    }}
+                                                    style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid #fca5a5', background: '#fee2e2', color: '#991b1b', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                >
+                                                    ❌ Tout Rejeter avec motif
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* List of Declinations with Details & Moderation buttons */}
+                                <div style={{ display: 'grid', gap: '10px', maxHeight: '340px', overflowY: 'auto' }}>
+                                    {((offersMap[createdOfficialProduct?.id || reviewProduct.id] && offersMap[createdOfficialProduct?.id || reviewProduct.id].length > 0) ? offersMap[createdOfficialProduct?.id || reviewProduct.id] : (reviewProduct.variants || [])).map((item: any, idx: number) => {
+                                        const offerId = item.id || item.productVariant?.id;
+                                        const isApproved = item.status === 'approved' || item.customFields?.offerStatus === 'APPROVED';
+                                        const isRejected = item.status === 'rejected' || item.customFields?.offerStatus === 'REJECTED';
+
+                                        return (
+                                            <div
+                                                key={item.id || idx}
+                                                style={{
+                                                    background: '#ffffff',
+                                                    border: isApproved ? '1px solid #bbf7d0' : (isRejected ? '1px solid #fecaca' : '1px solid #e2e8f0'),
+                                                    borderRadius: '12px', padding: '12px 16px',
+                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px'
+                                                }}
                                             >
-                                                + {chip}
-                                            </button>
-                                        ))}
-                                    </div>
+                                                <div style={{ flex: 1, minWidth: '240px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                                                            {item.name || item.productVariant?.name || `Déclinaison #${idx + 1}`}
+                                                        </strong>
+                                                        <code style={{ fontSize: '10px', color: '#0284c7', background: '#f0f9ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                            {item.sku || item.productVariant?.sku || 'SKU N/A'}
+                                                        </code>
+                                                    </div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                                        <span>Vendeur : <strong>{item.vendor?.name || reviewProduct.customFields?.vendor?.name || 'Vendeur'}</strong></span>
+                                                        <span>Stock : <strong style={{ color: (item.stock || item.stockOnHand || 0) > 0 ? '#16a34a' : '#dc2626' }}>{item.stock ?? item.stockOnHand ?? 1} unités</strong></span>
+                                                        <span>Expédition : <strong>{item.deliveryTimeValue ? `${item.deliveryTimeValue} ${item.deliveryTimeUnit || 'jours'}` : '24-48h'}</strong></span>
+                                                    </div>
+                                                    {item.rejectionReason && (
+                                                        <div style={{ fontSize: '10px', color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '4px', marginTop: '4px' }}>
+                                                            ⚠️ Motif : {item.rejectionReason}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontSize: '15px', fontWeight: 900, color: '#16a34a' }}>
+                                                            {formatPrice(item.price)}
+                                                        </div>
+                                                        <div style={{ marginTop: '2px' }}>
+                                                            {isApproved ? (
+                                                                <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>✓ Approuvée</span>
+                                                            ) : isRejected ? (
+                                                                <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>✕ Rejetée</span>
+                                                            ) : (
+                                                                <span style={{ background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>⏳ En attente</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedDeclinationForDetails({ ...item, vendor: item.vendor || reviewProduct.customFields?.vendor, product: createdOfficialProduct || reviewProduct })}
+                                                            style={{ padding: '6px 10px', borderRadius: '8px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                            title="Voir tous les détails de cette déclinaison"
+                                                        >
+                                                            👁️ Détails
+                                                        </button>
+                                                        {!isApproved ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleReviewOffer(offerId, createdOfficialProduct?.id || reviewProduct.id, 'approved')}
+                                                                style={{ padding: '6px 12px', borderRadius: '8px', background: '#16a34a', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                title="Valider cette déclinaison"
+                                                            >
+                                                                ✓ Valider
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleReviewOffer(offerId, createdOfficialProduct?.id || reviewProduct.id, 'disabled')}
+                                                                style={{ padding: '6px 10px', borderRadius: '8px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                title="Mettre en pause"
+                                                            >
+                                                                ⏸️
+                                                            </button>
+                                                        )}
+                                                        {!isRejected && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const reason = prompt('Motif du refus de cette déclinaison :');
+                                                                    if (reason) handleReviewOffer(offerId, createdOfficialProduct?.id || reviewProduct.id, 'rejected', reason);
+                                                                }}
+                                                                style={{ padding: '6px 10px', borderRadius: '8px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                                                title="Rejeter avec motif"
+                                                            >
+                                                                ✕ Rejeter
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                                        Message d'explication détaillé pour le vendeur *
-                                    </label>
-                                    <textarea
-                                        required
-                                        rows={3}
-                                        value={rejectionReasonInput}
-                                        onChange={e => setRejectionReasonInput(e.target.value)}
-                                        placeholder="Expliquez clairement ce que le vendeur doit corriger (photos, prix, stock, description)..."
-                                        style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #fca5a5', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                {/* Step 2 Bottom Navigation */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                                     <button
                                         type="button"
-                                        onClick={() => setReviewProduct(null)}
-                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                                        onClick={() => setReviewStep(1)}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
                                     >
-                                        Annuler
+                                        ⬅️ Revenir à la Fiche Mère
                                     </button>
                                     <button
-                                        type="submit"
-                                        disabled={isSubmittingReview || !rejectionReasonInput.trim() || (rejectScope === 'specific_offer' && rejectedOfferIds.length === 0)}
-                                        style={{
-                                            padding: '10px 24px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: 800, cursor: 'pointer',
-                                            background: '#dc2626',
-                                            color: '#ffffff',
+                                        type="button"
+                                        onClick={async () => {
+                                            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                                            setReviewProduct(null);
+                                            alert('Modération terminée et catalogue mis à jour avec succès !');
                                         }}
+                                        style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: '#059669', color: '#ffffff', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}
                                     >
-                                        {isSubmittingReview ? 'Envoi...' : rejectScope === 'specific_offer' ? `❌ Rejeter ${rejectedOfferIds.length} offre(s) sélectionnée(s)` : '❌ Confirmer le Refus de la Proposition'}
+                                        💾 Terminer la Modération &amp; Fermer
                                     </button>
                                 </div>
-                            </form>
+                            </div>
                         )}
+
                     </div>
                 </div>
             )}
@@ -3566,6 +3541,141 @@ export function ProductListComponent() {
                             </form>
                         )}
 
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Détails Riche pour Déclinaison Vendeur */}
+            {selectedDeclinationForDetails && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000, padding: '20px', backdropFilter: 'blur(4px)' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '16px', maxWidth: '650px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #e2e8f0', padding: '24px' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '18px' }}>📦</span>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                                        Détails de la Déclinaison / Offre
+                                    </h3>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                    <span style={{ fontSize: '12px', color: '#64748b' }}>Réf SKU :</span>
+                                    <code style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: '#0284c7' }}>
+                                        {selectedDeclinationForDetails.sku || selectedDeclinationForDetails.productVariant?.sku || 'Non défini'}
+                                    </code>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDeclinationForDetails(null)}
+                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', color: '#64748b' }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Contenu en Grille */}
+                        <div style={{ display: 'grid', gap: '16px' }}>
+                            {/* Nom & Options */}
+                            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Libellé Déclinaison</div>
+                                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                                    {selectedDeclinationForDetails.name || selectedDeclinationForDetails.productVariant?.name || 'Déclinaison Standard'}
+                                </div>
+                            </div>
+
+                            {/* Vendeur & Boutique */}
+                            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Boutique Vendeur</div>
+                                <div style={{ fontSize: '14px', fontWeight: 800, color: '#0284c7', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    🏪 {selectedDeclinationForDetails.vendor?.name || selectedDeclinationForDetails.vendorName || 'Vendeur Marchand'}
+                                </div>
+                            </div>
+
+                            {/* Tarification & Stock */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                                <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', border: '1px solid #bbf7d0' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>Prix de Vente</div>
+                                    <div style={{ fontSize: '16px', fontWeight: 900, color: '#15803d', marginTop: '4px' }}>
+                                        {formatPrice(selectedDeclinationForDetails.price)}
+                                    </div>
+                                </div>
+                                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Stock Disponible</div>
+                                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                                        {selectedDeclinationForDetails.stock ?? (selectedDeclinationForDetails.stockOnHand || 0)} unité(s)
+                                    </div>
+                                </div>
+                                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>Expédition</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
+                                        {selectedDeclinationForDetails.deliveryTimeValue || 2} {selectedDeclinationForDetails.deliveryTimeUnit === 'HOURS' ? 'heures' : 'jours'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Statut & Motif de Refus */}
+                            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Statut actuel de modération :</span>
+                                    <span style={{
+                                        padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 800,
+                                        background: selectedDeclinationForDetails.status === 'approved' ? '#dcfce7' : (selectedDeclinationForDetails.status === 'rejected' ? '#fee2e2' : '#fef3c7'),
+                                        color: selectedDeclinationForDetails.status === 'approved' ? '#166534' : (selectedDeclinationForDetails.status === 'rejected' ? '#991b1b' : '#92400e'),
+                                    }}>
+                                        {selectedDeclinationForDetails.status === 'approved' ? '✅ Approuvée' : (selectedDeclinationForDetails.status === 'rejected' ? '❌ Rejetée' : '⏳ En attente')}
+                                    </span>
+                                </div>
+                                {selectedDeclinationForDetails.rejectionReason && (
+                                    <div style={{ marginTop: '10px', padding: '10px', borderRadius: '8px', background: '#fee2e2', border: '1px solid #fca5a5', fontSize: '12px', color: '#991b1b' }}>
+                                        <strong>Motif notifié :</strong> {selectedDeclinationForDetails.rejectionReason}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Boutons d'Action */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedDeclinationForDetails(null)}
+                                style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                            >
+                                Fermer
+                            </button>
+                            {selectedDeclinationForDetails.id && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const idToReview = selectedDeclinationForDetails.id;
+                                            try {
+                                                await handleReviewSellerOffer(idToReview, 'approved');
+                                                setSelectedDeclinationForDetails(null);
+                                            } catch (err: any) {
+                                                alert(err.message);
+                                            }
+                                        }}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#16a34a', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                                    >
+                                        ✅ Valider cette Déclinaison
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const idToReview = selectedDeclinationForDetails.id;
+                                            setSelectedDeclinationForDetails(null);
+                                            setReviewDecision('rejected');
+                                            setRejectScope('specific_offer');
+                                            setRejectedOfferIds([idToReview]);
+                                        }}
+                                        style={{ padding: '10px 18px', borderRadius: '10px', border: 'none', background: '#dc2626', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                                    >
+                                        ❌ Rejeter avec Motif
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

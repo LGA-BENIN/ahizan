@@ -344,12 +344,15 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                         body: JSON.stringify({
                             query: `
                                 query GetFallbackProducts($take: Int!) {
-                                    search(input: { groupByProduct: true, take: $take }) {
+                                    search(input: { groupByProduct: false, take: $take }) {
                                         items {
                                             productId
                                             productName
+                                            productVariantId
+                                            productVariantName
                                             slug
                                             productAsset { preview }
+                                            productVariantAsset { preview }
                                             priceWithTax {
                                                 __typename
                                                 ... on PriceRange { min max }
@@ -367,12 +370,13 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                     const fbData = await fallbackRes.json();
                     const fbItems = fbData.data?.search?.items || [];
                     finalProducts = fbItems.map((p: any) => ({
-                        id: p.productId,
+                        id: p.productVariantId || p.productId,
                         productId: p.productId,
-                        productVariantId: p.productId,
+                        productVariantId: p.productVariantId || p.productId,
                         productName: p.productName,
+                        productVariantName: p.productVariantName,
                         slug: p.slug,
-                        productAsset: p.productAsset,
+                        productAsset: p.productVariantAsset || p.productAsset,
                         priceWithTax: p.priceWithTax,
                         currencyCode: p.currencyCode || 'XOF',
                         inStock: true

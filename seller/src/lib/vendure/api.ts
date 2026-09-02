@@ -2,7 +2,13 @@ import type { TadaDocumentNode } from 'gql.tada';
 import { print } from 'graphql';
 import { getAuthToken } from '@/lib/auth';
 
-const VENDURE_API_URL = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL;
+export function getVendureApiUrl(): string {
+    if (typeof window !== 'undefined') {
+        return process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
+    }
+    return process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'http://ahizan_backend:3000/shop-api';
+}
+
 const VENDURE_CHANNEL_TOKEN = process.env.VENDURE_CHANNEL_TOKEN || process.env.NEXT_PUBLIC_VENDURE_CHANNEL_TOKEN || '__default_channel__';
 const VENDURE_AUTH_TOKEN_HEADER = process.env.VENDURE_AUTH_TOKEN_HEADER || 'vendure-auth-token';
 const VENDURE_CHANNEL_TOKEN_HEADER = process.env.VENDURE_CHANNEL_TOKEN_HEADER || 'vendure-token';
@@ -58,7 +64,8 @@ export async function query<TResult = any, TVariables = any>(
     variables?: TVariables | any,
     options?: VendureRequestOptions
 ): Promise<{ data: TResult; token?: string }> {
-    if (!VENDURE_API_URL) {
+    const apiUrl = getVendureApiUrl();
+    if (!apiUrl) {
         throw new Error('VENDURE_SHOP_API_URL or NEXT_PUBLIC_VENDURE_SHOP_API_URL environment variable is not set');
     }
     const {
@@ -174,7 +181,7 @@ export async function query<TResult = any, TVariables = any>(
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        const response = await fetch(VENDURE_API_URL!, {
+        const response = await fetch(apiUrl, {
             ...fetchOptions,
             method: 'POST',
             headers,
@@ -187,7 +194,7 @@ export async function query<TResult = any, TVariables = any>(
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Fetch failed for URL: ${VENDURE_API_URL}. Request body:`, body);
+            console.error(`Fetch failed for URL: ${apiUrl}. Request body:`, body);
             console.error(`Response: ${errorText}`);
             throw new Error(`HTTP error! status: ${response.status}. Body: ${errorText}`);
         }
@@ -216,7 +223,7 @@ export async function query<TResult = any, TVariables = any>(
     } catch (e: any) {
         clearTimeout(timeoutId);
         if (e.name === 'AbortError') {
-            throw new Error('Request to Vendure API timed out after 5 seconds');
+            throw new Error(`Request to Vendure API timed out after ${timeoutMs / 1000} seconds`);
         }
         throw e;
     }

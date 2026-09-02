@@ -116,6 +116,9 @@ export class SellerOfferService {
                 rejectionReason: input.rejectionReason ?? null,
             });
         } else {
+            const isAlreadyApproved = offer.status === 'approved';
+            const hasNewAsset = input.featuredAssetId !== undefined && input.featuredAssetId !== offer.featuredAssetId && input.featuredAssetId !== null;
+
             offer.price = input.price;
             offer.stock = input.stock;
             if (input.sku !== undefined) offer.sku = input.sku;
@@ -125,19 +128,58 @@ export class SellerOfferService {
             if (input.onPromotion !== undefined) offer.onPromotion = input.onPromotion;
             if (input.promotionalPrice !== undefined) offer.promotionalPrice = input.promotionalPrice;
             if (input.featuredAssetId !== undefined) offer.featuredAssetId = input.featuredAssetId;
-            if (input.status !== undefined) {
+            
+            // If the offer was already approved, and only commercial/pricing/stock conditions were changed (no new image), maintain approved status!
+            if (input.status) {
                 offer.status = input.status;
+            } else if (isAlreadyApproved && !hasNewAsset) {
+                offer.status = 'approved';
             } else {
                 offer.status = 'pending';
             }
+
             if (input.rejectionReason !== undefined) {
                 offer.rejectionReason = input.rejectionReason;
-            } else if (input.status === undefined) {
-                offer.rejectionReason = null;
+            } else if (offer.status !== 'rejected') {
+                offer.rejectionReason = null; // Clear previous rejection reason upon resubmission
             }
         }
 
         const savedOffer = await repo.save(offer);
+
+        // Update underlying ProductVariant offerStatus and rejection reason
+        if (variantId) {
+            const offerStatus = savedOffer.status === 'approved' ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
+            await this.connection.rawConnection.query(
+                `UPDATE product_variant SET "customFieldsOfferstatus" = $1, "customFieldsRejectionreason" = $2, "price" = $3, "updatedAt" = NOW() WHERE id = $4`,
+                [offerStatus, savedOffer.rejectionReason, savedOffer.price, variantId]
+            );
+
+            if (savedOffer.featuredAssetId) {
+                try {
+                    await this.connection.rawConnection.query(
+                        `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2`,
+                        [savedOffer.featuredAssetId, variantId]
+                    );
+                } catch (e) {}
+            }
+
+            // If offer is pending, touch product updatedAt and reset approval status
+            if (savedOffer.status === 'pending') {
+                try {
+                    await this.connection.rawConnection.query(
+                        `UPDATE product SET "updatedAt" = NOW() WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1)`,
+                        [variantId]
+                    );
+                    await this.connection.rawConnection.query(
+                        `UPDATE product SET "customFieldsRejectionreason" = NULL, "customFieldsApprovalstatus" = 'pending' 
+                         WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1)
+                         AND ("customFieldsApprovalstatus" = 'rejected' OR "customFieldsApprovalstatus" = 'correction_requested' OR "customFieldsApprovalstatus" = 'needs_information')`,
+                        [variantId]
+                    );
+                } catch (e) {}
+            }
+        }
 
         // Synchronize stock level with Vendure's native StockLocation for this Vendor
         try {

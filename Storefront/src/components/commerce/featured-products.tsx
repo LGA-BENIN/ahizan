@@ -37,7 +37,7 @@ async function fetchProducts(filterType: string, collectionSlug: string, take: n
                 take,
                 skip: 0,
                 sort,
-                groupByProduct: true,
+                groupByProduct: false,
                 ...(filterType === 'COLLECTION' && collectionSlug ? { collectionSlug } : {})
             }
         });

@@ -17,7 +17,7 @@ import React from 'react';
 async function getCollectionMetadata(slug: string) {
     return query(GetCollectionProductsQuery, {
         slug,
-        input: { take: 100, collectionSlug: slug, groupByProduct: true },
+        input: { take: 100, collectionSlug: slug, groupByProduct: false },
     });
 }
 
@@ -25,7 +25,7 @@ async function getCollectionAllowedFacets(slug: string) {
     try {
         const collectionResult = await query(GetCollectionProductsQuery, {
             slug,
-            input: { take: 0, collectionSlug: slug, groupByProduct: true },
+            input: { take: 0, collectionSlug: slug, groupByProduct: false },
         });
         const collectionId = collectionResult?.data?.collection?.id;
         

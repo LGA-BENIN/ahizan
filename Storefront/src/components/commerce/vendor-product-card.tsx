@@ -36,7 +36,7 @@ export function VendorProductCard({ product, config }: VendorProductCardProps) {
     const queryString = queryParams.toString();
     const productDetailHref = `/product/${productSlug}${queryString ? `?${queryString}` : ''}`;
     
-    const imageUrl = getAssetUrl(product.featuredAsset?.preview || product.productAsset?.preview || product.assets?.[0]?.preview);
+    const imageUrl = getAssetUrl(product.productVariantAsset?.preview || product.featuredAsset?.preview || product.productAsset?.preview || product.assets?.[0]?.preview);
     const isImageGif = isGif(imageUrl);
     const defaultImage = themeSettings?.defaultProductImage;
     const displayImageUrl = imageUrl || defaultImage;

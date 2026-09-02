@@ -1,6 +1,6 @@
 'use client';
 
-import {useState, useMemo, useTransition} from 'react';
+import {useState, useMemo, useTransition, useEffect} from 'react';
 import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
@@ -91,10 +91,14 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     }, [product.variants]);
 
     const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
+        if (searchParams?.variantId) {
+            const matched = approvedVariants.find(v => String(v.id) === String(searchParams.variantId));
+            if (matched) return String(matched.id);
+        }
         return approvedVariants[0]?.id || '';
     });
 
-    // Initialize selected options from URL or default to the first variant's options
+    // Initialize selected options from URL or default to the target variant's options
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
         const initialOptions: Record<string, string> = {};
 
@@ -104,7 +108,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             matchedVariant = approvedVariants.find(v => String(v.id) === String(searchParams.variantId));
         }
 
-        if (matchedVariant && matchedVariant.options) {
+        if (matchedVariant && matchedVariant.options && matchedVariant.options.length > 0) {
             matchedVariant.options.forEach(opt => {
                 const gId = (opt as any).groupId || opt.group?.id;
                 if (gId) {
@@ -124,8 +128,8 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             }
         });
 
-        // 3. For any missing option groups, pre-select from the first variant (approvedVariants[0])
-        const defaultVariant = approvedVariants[0];
+        // 3. For any missing option groups, pre-select from the matched or first variant
+        const defaultVariant = matchedVariant || approvedVariants[0];
         if (defaultVariant && defaultVariant.options) {
             defaultVariant.options.forEach(opt => {
                 const gId = (opt as any).groupId || opt.group?.id;
@@ -171,36 +175,65 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             return approvedVariants[0];
         }
 
-        // If product has option groups
+        // If product has option groups and user changed options
         if (product.optionGroups.length > 0) {
             const selectedOptionIds = Object.values(selectedOptions);
             if (selectedOptionIds.length > 0) {
                 const found = approvedVariants.find((variant) => {
-                    const variantOptionIds = variant.options.map((opt) => opt.id);
+                    const variantOptionIds = (variant.options || []).map((opt) => opt.id);
                     return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
                 });
                 if (found) return found;
             }
         }
 
-        // If product has direct variants without option groups or fallback to selectedVariantId / first variant
-        return approvedVariants.find(v => v.id === selectedVariantId) || approvedVariants[0];
+        // If direct variant selection
+        if (selectedVariantId) {
+            const byId = approvedVariants.find(v => String(v.id) === String(selectedVariantId));
+            if (byId) return byId;
+        }
+
+        return approvedVariants[0];
     }, [selectedOptions, approvedVariants, product.optionGroups, selectedVariantId]);
 
+    // Dispatch variant change event to synchronize image carousel and components
+    useEffect(() => {
+        if (selectedVariant && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('ahizan:variant-changed', {
+                detail: { variant: selectedVariant }
+            }));
+        }
+    }, [selectedVariant]);
+
     const handleOptionChange = (groupId: string, optionId: string) => {
-        setSelectedOptions((prev) => ({
-            ...prev,
+        const nextOptions = {
+            ...selectedOptions,
             [groupId]: optionId,
-        }));
+        };
+        setSelectedOptions(nextOptions);
 
-        // Find the option group and option to get their codes
-        const group = product.optionGroups.find((g) => g.id === groupId);
-        const option = group?.options.find((opt) => opt.id === optionId);
+        // Find newly matched variant
+        const nextOptionIds = Object.values(nextOptions);
+        const nextVariant = approvedVariants.find((variant) => {
+            const variantOptionIds = (variant.options || []).map((opt) => opt.id);
+            return nextOptionIds.every((optId) => variantOptionIds.includes(optId));
+        });
 
-        if (group && option && typeof window !== 'undefined') {
-            // Update URL shallowly without triggering full page RSC reload
+        if (nextVariant) {
+            setSelectedVariantId(String(nextVariant.id));
+        }
+
+        // Update URL shallowly without triggering full page reload
+        if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
-            params.set(group.code, option.code);
+            if (nextVariant) {
+                params.set('variantId', String(nextVariant.id));
+            }
+            const group = product.optionGroups.find((g) => g.id === groupId);
+            const option = group?.options.find((opt) => opt.id === optionId);
+            if (group && option) {
+                params.set(group.code, option.code);
+            }
             window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
         }
     };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,18 +11,50 @@ interface ProductImageCarouselProps {
     images: Array<{
         id: string;
         preview: string;
-        source: string;
+        source?: string;
     }>;
 }
 
-const isGif = (url: string) => url.toLowerCase().endsWith('.gif');
+const isGif = (url: string | undefined | null) => url?.toLowerCase().endsWith('.gif') || false;
 
 export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
+    const [variantAsset, setVariantAsset] = useState<any>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
     const themeSettings = useThemeSettings();
     const defaultImage = themeSettings?.defaultProductImage;
 
-    const displayImages = images && images.length > 0 ? images : (defaultImage ? [{ id: 'default', preview: defaultImage, source: defaultImage }] : []);
+    // Listen to variant changes from ProductInfo
+    useEffect(() => {
+        const handleVariantChange = (e: any) => {
+            const variant = e.detail?.variant;
+            const asset = variant?.featuredAsset || variant?.assets?.[0] || variant?.productVariantAsset;
+            if (asset && asset.preview) {
+                setVariantAsset(asset);
+                setCurrentIndex(0);
+            }
+        };
+
+        window.addEventListener('ahizan:variant-changed', handleVariantChange);
+        return () => window.removeEventListener('ahizan:variant-changed', handleVariantChange);
+    }, []);
+
+    const displayImages = useMemo(() => {
+        let list = [...(images || [])];
+        if (variantAsset && variantAsset.preview) {
+            const existingIdx = list.findIndex(img => img.id === variantAsset.id || img.preview === variantAsset.preview);
+            if (existingIdx > -1) {
+                // Move it to the front
+                const [item] = list.splice(existingIdx, 1);
+                list = [item, ...list];
+            } else {
+                list = [variantAsset, ...list];
+            }
+        }
+        if (list.length === 0 && defaultImage) {
+            list = [{ id: 'default', preview: defaultImage, source: defaultImage }];
+        }
+        return list;
+    }, [images, variantAsset, defaultImage]);
 
     if (!displayImages || displayImages.length === 0) {
         return (

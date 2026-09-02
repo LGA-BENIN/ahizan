@@ -1093,7 +1093,7 @@ export class VendorAdminResolver {
 
         const updateData: any = {
             id,
-            enabled: status === 'approved',
+            enabled: status === 'approved' && isOfferApproved,
             customFields: {
                 approvalStatus: status,
                 rejectionReason: status === 'rejected' ? (rejectionReason || 'Non conforme aux critères Ahizan') : null,
@@ -1179,11 +1179,52 @@ export class VendorAdminResolver {
         @Args('status') status: string,
         @Args('rejectionReason') rejectionReason?: string,
     ): Promise<SellerOffer> {
-        const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+        let offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
             where: { id },
-            relations: ['vendor', 'productVariant'],
+            relations: ['vendor', 'productVariant', 'productVariant.product'],
         });
-        if (!offer) throw new Error('Offre vendeur introuvable');
+
+        if (!offer) {
+            // Fallback 1: Try finding by productVariantId
+            offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+                where: { productVariant: { id } },
+                relations: ['vendor', 'productVariant', 'productVariant.product'],
+            });
+        }
+
+        if (!offer) {
+            // Fallback 2: Check if id is a ProductVariant directly
+            const variant = await this.connection.getRepository(ctx, ProductVariant).findOne({
+                where: { id },
+                relations: ['product'],
+            });
+
+            if (variant) {
+                const vendorId = (variant.product?.customFields as any)?.vendorId;
+                let vendor: Vendor | null = null;
+                if (vendorId) {
+                    vendor = await this.connection.getRepository(ctx, Vendor).findOne({ where: { id: vendorId } });
+                }
+
+                const priceRecord = await this.connection.rawConnection.query(
+                    `SELECT price FROM product_variant_price WHERE "variantId" = $1 LIMIT 1`,
+                    [variant.id]
+                );
+                const price = priceRecord[0]?.price || 0;
+
+                const repo = this.connection.getRepository(ctx, SellerOffer);
+                offer = repo.create({
+                    vendor: vendor || undefined,
+                    productVariant: variant,
+                    price: price,
+                    stock: 1,
+                    status: status,
+                    rejectionReason: rejectionReason || null,
+                });
+            }
+        }
+
+        if (!offer) throw new Error('Offre vendeur ou déclinaison introuvable');
         
         offer.status = status;
         if (status === 'rejected' || status === 'correction_requested') {
@@ -1200,9 +1241,23 @@ export class VendorAdminResolver {
         if (offer.productVariant?.id) {
             const isApproved = status === 'approved';
             await this.connection.rawConnection.query(
-                `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "updatedAt" = NOW() WHERE id = $3`,
-                [isApproved, isApproved ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.productVariant.id]
+                `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "customFieldsRejectionreason" = $3, "updatedAt" = NOW() WHERE id = $4`,
+                [isApproved, isApproved ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.rejectionReason, offer.productVariant.id]
             );
+
+            // Recompute parent Product enabled state: product is enabled if and only if it has at least 1 approved variant
+            const parentProdId = offer.productVariant.product?.id || (await this.connection.rawConnection.query(`SELECT "productId" FROM product_variant WHERE id = $1`, [offer.productVariant.id]))?.[0]?.productId;
+            if (parentProdId) {
+                const approvedCountRes = await this.connection.rawConnection.query(
+                    `SELECT COUNT(*) as count FROM product_variant WHERE "productId" = $1 AND enabled = true`,
+                    [parentProdId]
+                );
+                const hasApprovedVariants = parseInt(approvedCountRes[0]?.count || '0', 10) > 0;
+                await this.connection.rawConnection.query(
+                    `UPDATE product SET enabled = $1 WHERE id = $2`,
+                    [hasApprovedVariants, parentProdId]
+                );
+            }
         }
 
         return savedOffer;

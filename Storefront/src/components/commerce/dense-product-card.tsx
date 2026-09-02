@@ -101,7 +101,18 @@ export function DenseProductCard({
     const price = getPrice(product);
     const maxPrice = getMaxPrice(product);
     const defaultImage = themeSettings?.defaultProductImage;
-    const imageUrl = product.productAsset?.preview || defaultImage;
+    const imageUrl = product.productVariantAsset?.preview || product.productAsset?.preview || defaultImage;
+    const displayName = (product.productVariantName && product.productVariantName !== 'Produit')
+        ? product.productVariantName
+        : (product.productName || product.name || "Produit");
+
+    const targetVariantId = product.productVariantId || product.variants?.[0]?.id;
+    const targetVendorId = product.vendorId || product.customFields?.vendor?.id;
+    const queryParams = new URLSearchParams();
+    if (targetVariantId) queryParams.set('variantId', String(targetVariantId));
+    if (targetVendorId) queryParams.set('vendorId', String(targetVendorId));
+    const queryString = queryParams.toString();
+    const productDetailHref = `/product/${product.slug}${queryString ? `?${queryString}` : ''}`;
 
     const activeFlash = themeSettings?.activeFlashSale;
     const applyToCollection = themeSettings?.applyFlashPromoToCollections;
@@ -162,7 +173,7 @@ export function DenseProductCard({
     return (
         <>
             <Link
-                href={`/product/${product.slug}`}
+                href={productDetailHref}
                 className="group bg-card rounded-lg border border-border/30 overflow-hidden hover:shadow-md transition-all duration-200"
             >
                 {/* Image */}
@@ -170,7 +181,7 @@ export function DenseProductCard({
                     {imageUrl ? (
                         <img
                             src={getAssetUrl(imageUrl)}
-                            alt={product.productName}
+                            alt={displayName}
                             className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                         />
                     ) : (

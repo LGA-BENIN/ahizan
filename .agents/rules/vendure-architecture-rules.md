@@ -1,11 +1,19 @@
 # AHIZAN Marketplace — Règles d'Architecture et Standards Vendure v3
 
-## 1. Principe Fondamental : "Vendure-First"
-Le projet AHIZAN repose intégralement sur **Vendure v3**. Aucune logique métier de e-commerce, de multi-vendeur, de gestion des stocks, des prix, des commandes ou de sécurité ne doit réinventer la roue avec des scripts ad-hoc ou des tables SQL isolées quand Vendure propose des primitives natives.
+## 1. Principe Fondamental et Règle d'Or : "Construire AVEC Vendure, JAMAIS en Surcouche Artificielle"
+Le projet AHIZAN repose intégralement sur **Vendure v3**. Tout développeur ou agent IA travaillant sur ce projet DOIT respecter cette directive absolue :
+
+> **RÈGLE D'OR** : Toujours prioriser, exploiter et construire **AVEC le cœur et les fonctionnalités natives de Vendure** (endpoints, services, mutations, événements, plugins, indexeurs), et **JAMAIS CONTRE lui** par des surcouches artificielles, des tables redondantes ou des contournements SQL isolés.
+
+### Pourquoi ce principe est obligatoire :
+1. **Interconnexion native** : Vendure est un système e-commerce hautement optimisé et interconnecté (recherche, gestion des stocks, lignes de commande, factures, transactions, fulfillment). Utiliser les champs natifs (ex: `ProductVariant.sku` comme référence officielle unique) permet à tous les sous-systèmes de fonctionner immédiatement sans latence ni synchronisation fragile.
+2. **Performances & Fiabilité** : Évite les requêtes N+1, les bugs de cache/indexation et les anomalies de schéma lors des montées de version.
+3. **Pérennité du code** : Toute logique implémentée via les services Vendure (`ProductVariantService`, `ProductService`, `OrderService`, `StockLevelService`, `JobQueueService`, `EventBus`) hérite des validations, des hooks transactionnels et de la sécurité native.
 
 Avant d'écrire ou modifier du code :
-1. **Consulter la documentation officielle Vendure** (via `docs.vendure.io/...md` ou MCP `vendure-docs`).
+1. **Vérifier ce que Vendure propose nativement** pour le besoin (schéma GraphQL, services existants, options de configuration, extensions de plugins).
 2. **Utiliser les abstractions natives Vendure** :
+   - `ProductVariant.sku` comme référence unique officielle de déclinaison / inventaire.
    - `TransactionalConnection` & `RequestContext` pour toutes les opérations DB.
    - `EventBus` pour la communication asynchrone / découplée.
    - `JobQueueService` pour les tâches en arrière-plan (au lieu de timeouts ou cron externes).

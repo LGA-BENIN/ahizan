@@ -40,7 +40,7 @@ export function buildSearchInput({ searchParams, collectionSlug }: BuildSearchIn
         ...(collectionSlug && { collectionSlug }),
         take,
         skip,
-        groupByProduct: true,
+        groupByProduct: false,
         sort: sortMapping[sort] || sortMapping['name-asc'],
         ...(facetValueIds.length > 0 && {
             facetValueFilters: facetValueIds.map(id => ({ and: id }))

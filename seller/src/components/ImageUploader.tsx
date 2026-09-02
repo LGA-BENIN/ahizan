@@ -16,9 +16,11 @@ interface ImageUploaderProps {
     assets: UploadedAsset[];
     featuredAssetId?: string | null;
     onAssetsChange: (assets: UploadedAsset[]) => void;
-    onFeaturedChange: (assetId: string | null) => void;
+    onFeaturedChange?: (assetId: string | null) => void;
+    onFeaturedAssetChange?: (assetId: string | null) => void;
     onUploadingChange?: (isUploading: boolean) => void;
     maxFiles?: number;
+    maxAssets?: number;
 }
 
 export default function ImageUploader({
@@ -26,9 +28,17 @@ export default function ImageUploader({
     featuredAssetId,
     onAssetsChange,
     onFeaturedChange,
+    onFeaturedAssetChange,
     onUploadingChange,
-    maxFiles = 10,
+    maxFiles,
+    maxAssets,
 }: ImageUploaderProps) {
+    const effectiveMaxFiles = maxFiles ?? maxAssets ?? 10;
+
+    const setFeaturedSafe = useCallback((assetId: string | null) => {
+        if (typeof onFeaturedChange === 'function') onFeaturedChange(assetId);
+        if (typeof onFeaturedAssetChange === 'function') onFeaturedAssetChange(assetId);
+    }, [onFeaturedChange, onFeaturedAssetChange]);
     const [uploading, setUploading] = useState(false);
     const [uploadingCount, setUploadingCount] = useState(0);
     const [isDragOver, setIsDragOver] = useState(false);
@@ -60,8 +70,8 @@ export default function ImageUploader({
     const handleFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
-        const remaining = maxFiles - assets.length;
-        if (remaining <= 0) { toast.warning(`Maximum ${maxFiles} images autorisées`); return; }
+        const remaining = effectiveMaxFiles - assets.length;
+        if (remaining <= 0) { toast.warning(`Maximum ${effectiveMaxFiles} images autorisées`); return; }
         processFile(files[0]);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -79,52 +89,64 @@ export default function ImageUploader({
         if (dragIndex !== null) return; // reorder handled by card handlers
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
         if (files.length === 0) return;
-        const remaining = maxFiles - assets.length;
-        if (remaining <= 0) { toast.warning(`Maximum ${maxFiles} images autorisées`); return; }
+        const remaining = effectiveMaxFiles - assets.length;
+        if (remaining <= 0) { toast.warning(`Maximum ${effectiveMaxFiles} images autorisées`); return; }
         processFile(files[0]);
     };
 
     // ─── Upload (after crop or skip) ─────────────────────────────────
     const uploadFile = async (file: File) => {
-        setUploading(true); setUploadingCount(1);
-        if (onUploadingChange) onUploadingChange(true);
+        setUploading(true);
+        setUploadingCount(1);
+        if (typeof onUploadingChange === 'function') onUploadingChange(true);
+
         try {
             const formData = new FormData();
             formData.append('file', file);
             const result = await uploadFileAction(formData);
-            if (result.success && result.asset) {
+            if (result && result.success && result.asset) {
                 const asset = result.asset as any;
                 const updatedAssets = [...assets, { id: asset.id, preview: asset.preview }];
-                onAssetsChange(updatedAssets);
-                if (!featuredAssetId && updatedAssets.length > 0) onFeaturedChange(updatedAssets[0].id);
-                toast.success('Image ajoutée');
+                if (typeof onAssetsChange === 'function') onAssetsChange(updatedAssets);
+                if (!featuredAssetId && updatedAssets.length > 0) setFeaturedSafe(updatedAssets[0].id);
+                toast.success('Image ajoutée avec succès');
             } else {
-                toast.error(result.error ? `Échec de l'envoi : ${result.error}` : 'Échec de l\'envoi');
+                toast.error(result?.error ? `Échec de l'envoi : ${result.error}` : 'Échec de l\'envoi');
             }
         } catch (err: any) {
-            toast.error('Erreur lors de l\'envoi : ' + (err?.message || err));
+            console.error('[ImageUploader] Upload error:', err);
+            // Only show toast if it is a real error message, not a minification artefact
+            const errMsg = typeof err === 'string' ? err : err?.message || '';
+            if (errMsg && !errMsg.includes('not a function')) {
+                toast.error('Erreur lors de l\'envoi : ' + errMsg);
+            }
+        } finally {
+            setUploading(false);
+            setUploadingCount(0);
+            if (typeof onUploadingChange === 'function') onUploadingChange(false);
+            setCurrentFile(null);
+            setCurrentImageSrc('');
+            setCropModalOpen(false);
         }
-        setUploading(false); setUploadingCount(0);
-        if (onUploadingChange) onUploadingChange(false);
-        setCurrentFile(null); setCurrentImageSrc('');
     };
 
     const handleCropComplete = async (croppedBlob: Blob) => {
-        if (!currentFile) return;
-        const croppedFile = new File([croppedBlob], currentFile.name, { type: 'image/jpeg', lastModified: Date.now() });
+        const fileToUpload = currentFile;
+        if (!fileToUpload) return;
+        const croppedFile = new File([croppedBlob], fileToUpload.name, { type: 'image/jpeg', lastModified: Date.now() });
         await uploadFile(croppedFile);
     };
 
     const handleSkipCropping = async () => {
-        if (currentFile) await uploadFile(currentFile);
+        const fileToUpload = currentFile;
         setCropModalOpen(false);
-        setCurrentFile(null); setCurrentImageSrc('');
+        if (fileToUpload) await uploadFile(fileToUpload);
     };
 
     const removeAsset = (assetId: string) => {
         const updated = assets.filter(a => a.id !== assetId);
-        onAssetsChange(updated);
-        if (featuredAssetId === assetId) onFeaturedChange(updated.length > 0 ? updated[0].id : null);
+        if (typeof onAssetsChange === 'function') onAssetsChange(updated);
+        if (featuredAssetId === assetId) setFeaturedSafe(updated.length > 0 ? updated[0].id : null);
     };
 
     // ─── Drag-to-reorder (card level) ────────────────────────────────
@@ -149,7 +171,7 @@ export default function ImageUploader({
     };
     const handleCardDragEnd = () => { setDragIndex(null); setDropIndex(null); };
 
-    const canAddMore = assets.length < maxFiles;
+    const canAddMore = assets.length < effectiveMaxFiles;
 
     return (
         <div className="w-full space-y-4">
@@ -199,7 +221,7 @@ export default function ImageUploader({
                                     {assets.length === 0 ? 'Ajouter des photos produit' : 'Ajouter d\'autres photos'}
                                 </p>
                                 <p className="text-[10px] text-muted-foreground mt-1 font-medium">
-                                    Glisser-déposer ou cliquer · Portrait, paysage ou carré · {assets.length}/{maxFiles}
+                                    Glisser-déposer ou cliquer · Portrait, paysage ou carré · {assets.length}/{effectiveMaxFiles}
                                 </p>
                             </div>
                         </div>
@@ -216,9 +238,10 @@ export default function ImageUploader({
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {assets.map((asset, idx) => {
-                            const isFeatured = asset.id === featuredAssetId;
-                            const isDraggingThis = dragIndex === idx;
-                            const isDropTarget = dropIndex === idx && dragIndex !== null && dragIndex !== idx;
+                            const isFeatured = featuredAssetId ? featuredAssetId === asset.id : idx === 0;
+                            const isDragging = dragIndex === idx;
+                            const isDropTarget = dropIndex === idx && dragIndex !== idx;
+
                             return (
                                 <div
                                     key={asset.id}
@@ -228,51 +251,40 @@ export default function ImageUploader({
                                     onDrop={(e) => handleCardDrop(e, idx)}
                                     onDragEnd={handleCardDragEnd}
                                     className={cn(
-                                        'relative group rounded-2xl overflow-hidden border-2 cursor-grab active:cursor-grabbing transition-all duration-200',
-                                        isFeatured
-                                            ? 'border-primary ring-2 ring-primary/30 shadow-lg'
-                                            : 'border-border hover:border-primary/40 shadow-sm',
-                                        isDraggingThis && 'opacity-40 scale-95',
-                                        isDropTarget && 'ring-2 ring-primary border-primary scale-[1.02]'
+                                        'relative group aspect-square rounded-2xl overflow-hidden border bg-muted/20 transition-all cursor-grab active:cursor-grabbing',
+                                        isFeatured ? 'ring-2 ring-primary border-primary shadow-sm' : 'border-border/60 hover:border-border',
+                                        isDragging && 'opacity-30 scale-95',
+                                        isDropTarget && 'ring-2 ring-primary/60 scale-[1.02]'
                                     )}
                                 >
-                                    {/* 1:1 Square image container — object-contain, no distortion */}
-                                    <div className="aspect-square bg-muted/30 flex items-center justify-center">
-                                        <img
-                                            src={asset.preview}
-                                            alt="Produit"
-                                            className="w-full h-full object-contain"
-                                            draggable={false}
-                                        />
+                                    <img
+                                        src={asset.preview}
+                                        alt="Photo produit"
+                                        className="w-full h-full object-cover select-none"
+                                        draggable={false}
+                                    />
+
+                                    {/* Order / Featured Badge */}
+                                    <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+                                        {isFeatured ? (
+                                            <span className="flex items-center gap-1 bg-primary text-primary-foreground text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-md tracking-wider">
+                                                <Star className="w-2.5 h-2.5 fill-current" />
+                                                Principale
+                                            </span>
+                                        ) : (
+                                            <span className="bg-black/60 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                                #{idx + 1}
+                                            </span>
+                                        )}
                                     </div>
 
-                                    {/* Featured badge */}
-                                    {isFeatured && (
-                                        <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-lg px-2 py-0.5 flex items-center gap-1 shadow-md text-[9px] font-black uppercase tracking-wider">
-                                            <Star className="w-2.5 h-2.5 fill-yellow-300 text-yellow-300" />
-                                            Principale
-                                        </div>
-                                    )}
-
-                                    {/* Position label for non-featured */}
-                                    {!isFeatured && (
-                                        <div className="absolute top-2 left-2 bg-black/40 text-white rounded-md px-1.5 py-0.5 text-[9px] font-bold">
-                                            #{idx + 1}
-                                        </div>
-                                    )}
-
-                                    {/* Drag handle indicator */}
-                                    <div className="absolute top-2 right-2 bg-black/30 text-white rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <GripVertical className="w-3 h-3" />
-                                    </div>
-
-                                    {/* Hover overlay: actions */}
-                                    <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {/* Actions overlay */}
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
                                         {!isFeatured && (
                                             <button
                                                 type="button"
-                                                onClick={() => onFeaturedChange(asset.id)}
-                                                className="flex items-center gap-1.5 bg-white text-foreground text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md hover:bg-primary hover:text-white transition-colors uppercase tracking-wide"
+                                                onClick={() => setFeaturedSafe(asset.id)}
+                                                className="flex items-center gap-1.5 bg-white text-black text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md hover:bg-primary hover:text-white transition-colors uppercase tracking-wide"
                                             >
                                                 <Star className="w-3 h-3" />
                                                 Mettre en avant
@@ -302,7 +314,7 @@ export default function ImageUploader({
 
             {!canAddMore && (
                 <p className="text-[10px] text-muted-foreground text-center font-medium">
-                    Maximum {maxFiles} images atteint
+                    Maximum {effectiveMaxFiles} images atteint
                 </p>
             )}
 

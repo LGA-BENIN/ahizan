@@ -5,8 +5,8 @@ import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
-import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy, Minus, Plus} from 'lucide-react';
-import {addToCart} from '@/app/(storefront)/product/[slug]/actions';
+import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy, Minus, Plus, Star, Clock, Store, BadgeCheck} from 'lucide-react';
+import {addToCart, getSellerOffersForVariant} from '@/app/(storefront)/product/[slug]/actions';
 import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
 import { getPromoPriceInfo } from "@/lib/vendure/api-utils";
@@ -77,6 +77,10 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
     const [quantity, setQuantity] = useState(1);
+    const [sellerOffers, setSellerOffers] = useState<any[]>([]);
+    const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+    const [isLoadingOffers, setIsLoadingOffers] = useState(false);
+
     // Filter to only include approved and enabled variants
     const approvedVariants = useMemo(() => {
         const list = (product.variants || []).filter((v: any) => {
@@ -196,6 +200,42 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         return approvedVariants[0];
     }, [selectedOptions, approvedVariants, product.optionGroups, selectedVariantId]);
 
+    // Load seller offers dynamically whenever the selected variant changes
+    useEffect(() => {
+        let isMounted = true;
+        if (selectedVariant?.id) {
+            setIsLoadingOffers(true);
+            getSellerOffersForVariant(selectedVariant.id)
+                .then((offers) => {
+                    if (isMounted) {
+                        setSellerOffers(offers || []);
+                        if (offers && offers.length > 0) {
+                            const urlVendorId = searchParams?.vendorId || currentSearchParams?.get('vendorId');
+                            const matched = urlVendorId ? offers.find((o: any) => String(o.vendor?.id) === String(urlVendorId)) : null;
+                            setSelectedOfferId(matched ? matched.id : offers[0].id);
+                        } else {
+                            setSelectedOfferId(null);
+                        }
+                    }
+                })
+                .catch(() => {
+                    if (isMounted) setSellerOffers([]);
+                })
+                .finally(() => {
+                    if (isMounted) setIsLoadingOffers(false);
+                });
+        }
+        return () => { isMounted = false; };
+    }, [selectedVariant?.id, searchParams?.vendorId]);
+
+    // Active offer for the selected variant
+    const activeOffer = useMemo(() => {
+        if (!sellerOffers || sellerOffers.length === 0) return null;
+        return sellerOffers.find(o => o.id === selectedOfferId) || sellerOffers[0];
+    }, [sellerOffers, selectedOfferId]);
+
+    const activePrice = activeOffer ? activeOffer.price : selectedVariant?.priceWithTax;
+
     // Dispatch variant change event to synchronize image carousel and components
     useEffect(() => {
         if (selectedVariant && typeof window !== 'undefined') {
@@ -242,12 +282,13 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         if (!selectedVariant) return;
 
         startTransition(async () => {
-            const result = await addToCart(selectedVariant.id, quantity);
+            const assignedVendorId = activeOffer?.vendor?.id || undefined;
+            const result = await addToCart(selectedVariant.id, quantity, assignedVendorId);
 
             if (result.success) {
                 setIsAdded(true);
                 toast.success('Ajouté au panier', {
-                    description: `${product.name} a été ajouté à votre panier`,
+                    description: `${product.name} (${selectedVariant.name || ''}) a été ajouté à votre panier`,
                 });
                 router.refresh();
 
@@ -261,7 +302,11 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         });
     };
 
-    const isInStock = Boolean(selectedVariant && selectedVariant.stockLevel !== 'OUT_OF_STOCK');
+    const isInStock = Boolean(
+        selectedVariant && 
+        selectedVariant.stockLevel !== 'OUT_OF_STOCK' &&
+        (!activeOffer || activeOffer.stock > 0)
+    );
     const canAddToCart = Boolean(selectedVariant && isInStock);
 
     const activeFlash = themeSettings?.activeFlashSale;
@@ -270,7 +315,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     const priceInfo = useMemo(() => {
         if (!selectedVariant) return null;
         return getPromoPriceInfo({
-            price: selectedVariant.priceWithTax,
+            price: activePrice || selectedVariant.priceWithTax,
             variantCustomFields: selectedVariant.customFields,
             productId: product.id,
             collectionIds: product.collections?.map((c: any) => c.id) || [],
@@ -280,7 +325,8 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                 applyToProduct,
             }
         });
-    }, [selectedVariant, product.id, product.collections, activeFlash, applyToProduct]);
+    }, [selectedVariant, activePrice, product.id, product.collections, activeFlash, applyToProduct]);
+
 
     return (
         <div className="space-y-4 text-foreground">
@@ -418,6 +464,84 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                             <span>{product.customFields?.height} cm</span>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Vendeurs & Offres pour cette déclinaison */}
+            {sellerOffers && sellerOffers.length > 0 && (
+                <div className="space-y-2.5 pt-3 border-t">
+                    <div className="flex items-center justify-between">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 flex items-center gap-1.5">
+                            <Store className="w-3.5 h-3.5 text-primary" />
+                            {sellerOffers.length > 1 
+                                ? `${sellerOffers.length} Offres de vendeurs disponibles` 
+                                : 'Vendeur de cette variante'}
+                        </Label>
+                    </div>
+
+                    <div className="space-y-2">
+                        {sellerOffers.map((offer: any) => {
+                            const isSelected = (activeOffer?.id === offer.id) || (sellerOffers.length === 1);
+                            const vendorName = offer.vendor?.name || 'Vendeur Ahizan';
+                            const vendorLogo = offer.vendor?.logo?.preview;
+                            const rating = offer.vendor?.rating || 5.0;
+                            const deliveryDelay = offer.deliveryTimeValue 
+                                ? `${offer.deliveryTimeValue} ${offer.deliveryTimeUnit === 'h' ? 'heures' : 'jours'}`
+                                : '24-48h';
+
+                            return (
+                                <div
+                                    key={offer.id}
+                                    onClick={() => setSelectedOfferId(offer.id)}
+                                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                                        isSelected
+                                            ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20 shadow-sm'
+                                            : 'border-border/70 hover:border-border bg-card/60'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-9 h-9 rounded-full bg-muted/80 border flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            {vendorLogo ? (
+                                                <img src={vendorLogo} alt={vendorName} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <Store className="w-4 h-4 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-xs text-foreground truncate">{vendorName}</span>
+                                                <BadgeCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                                                <span className="flex items-center gap-0.5 text-amber-500 font-semibold">
+                                                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                                    {rating.toFixed(1)}
+                                                </span>
+                                                <span>•</span>
+                                                <span className="flex items-center gap-0.5">
+                                                    <Clock className="w-3 h-3" />
+                                                    {deliveryDelay}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-right flex-shrink-0 pl-2">
+                                        <div className="text-sm font-black text-primary">
+                                            <Price value={offer.price} />
+                                        </div>
+                                        {sellerOffers.length > 1 && (
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                                                isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                                            }`}>
+                                                {isSelected ? 'Sélectionné' : 'Choisir'}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 

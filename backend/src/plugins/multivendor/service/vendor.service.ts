@@ -1318,8 +1318,7 @@ export class VendorService implements OnApplicationBootstrap {
                 ), ''),
                 -- RÈGLE UNIQUE DE VISIBILITÉ:
                 -- Une variante est visible dans la collection si et seulement si
-                -- elle possède AU MOINS UNE offre vendeur approuvée (status = 'approved').
-                -- Aucune autre condition (p.enabled, approvalStatus, pv.enabled) ne peut interférer.
+                -- son produit maître est actif (p.enabled = true) AND elle possède AU MOINS UNE offre vendeur approuvée (status = 'approved').
                 -- Pour les variantes sans aucune offre (produits natifs de la plateforme sans vendorId),
                 -- on conserve l'état enabled natif de la variante.
                 "enabled" = (
@@ -1328,12 +1327,12 @@ export class VendorService implements OnApplicationBootstrap {
                             SELECT 1 FROM seller_offer so_any
                             WHERE so_any."productVariantId" = pv.id
                         )
-                        -- Produit marketplace : visible seulement si une offre est approuvée
-                        THEN EXISTS (
+                        -- Produit marketplace : visible seulement si p.enabled = true et une offre est approuvée
+                        THEN (p.enabled AND EXISTS (
                             SELECT 1 FROM seller_offer so_app
                             WHERE so_app."productVariantId" = pv.id
                               AND so_app.status = 'approved'
-                        )
+                        ))
                         -- Produit natif (aucune offre) : conserver la visibilité native
                         ELSE (p.enabled AND pv.enabled)
                     END

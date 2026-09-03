@@ -183,6 +183,12 @@ export class SellerOfferService {
 
             // Sync search_index_item real-time for this variant
             try {
+                // 0. Ensure variant is assigned to Default Channel 1
+                await pvRepo.query(`
+                    INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                    VALUES ($1::integer, 1) ON CONFLICT DO NOTHING
+                `, [numVariantId]).catch(() => null);
+
                 // 1. Inherit collections from sibling variants
                 await pvRepo.query(`
                     INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
@@ -196,85 +202,63 @@ export class SellerOfferService {
                     ON CONFLICT DO NOTHING
                 `, [numVariantId]).catch((err: any) => console.error('[SellerOfferService] step 1 error:', err));
 
-                // 2. Update search_index_item
+                // 2. Full UPSERT into search_index_item for Default Channel 1
                 await pvRepo.query(`
-                    UPDATE search_index_item sii
-                    SET "collectionIds" = COALESCE((
-                        SELECT string_agg(DISTINCT cpv."collectionId"::text, ',')
-                        FROM collection_product_variants_product_variant cpv
-                        WHERE cpv."productVariantId" = sii."productVariantId"
-                    ), ''),
-                    "collectionSlugs" = COALESCE((
-                        SELECT string_agg(DISTINCT ct.slug, ',')
-                        FROM collection_product_variants_product_variant cpv
-                        INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId"
-                        WHERE cpv."productVariantId" = sii."productVariantId"
-                    ), ''),
-                    "enabled" = (
-                        CASE
-                            WHEN EXISTS (
-                                SELECT 1 FROM seller_offer so_any
-                                WHERE so_any."productVariantId" = pv.id
-                            )
-                            THEN EXISTS (
-                                SELECT 1 FROM seller_offer so_app
-                                WHERE so_app."productVariantId" = pv.id
-                                  AND so_app.status = 'approved'
-                            )
-                            ELSE (p.enabled AND pv.enabled)
-                        END
-                    ),
-                    "price" = COALESCE(
-                        (
-                            SELECT MIN(so_app.price) 
-                            FROM seller_offer so_app 
-                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                    INSERT INTO search_index_item ("languageCode", "enabled", "productName", "productVariantName", "description", "slug", "sku", "facetIds", "facetValueIds", "collectionIds", "collectionSlugs", "channelIds", "productPreview", "productPreviewFocalPoint", "productVariantPreview", "productVariantPreviewFocalPoint", "inStock", "productInStock", "productVariantId", "channelId", "productId", "productAssetId", "productVariantAssetId", "price", "priceWithTax")
+                    SELECT DISTINCT ON (pv.id)
+                        'fr',
+                        (CASE WHEN EXISTS (SELECT 1 FROM seller_offer so_any WHERE so_any."productVariantId" = pv.id) THEN (p.enabled AND EXISTS (SELECT 1 FROM seller_offer so_app WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved')) ELSE (p.enabled AND pv.enabled) END),
+                        COALESCE(pt.name, 'Produit'),
+                        COALESCE(
+                            (
+                                SELECT CASE
+                                    WHEN string_agg(ot_init.name::text, ' - ' ORDER BY po_init.id) IS NOT NULL
+                                      AND string_agg(ot_init.name::text, ' - ' ORDER BY po_init.id) != ''
+                                    THEN (SELECT pt_n.name FROM product_translation pt_n WHERE pt_n."baseId" = p.id AND pt_n."languageCode" = 'fr' LIMIT 1)::text
+                                         || ' - ' || string_agg(ot_init.name::text, ' - ' ORDER BY po_init.id)
+                                    ELSE (SELECT pt_n.name FROM product_translation pt_n WHERE pt_n."baseId" = p.id AND pt_n."languageCode" = 'fr' LIMIT 1)::text
+                                END
+                                FROM product_variant_options_product_option pvo_init
+                                INNER JOIN product_option po_init ON po_init.id = pvo_init."productOptionId"
+                                LEFT JOIN product_option_translation ot_init ON ot_init."baseId" = po_init.id AND ot_init."languageCode" = 'fr'
+                                WHERE pvo_init."productVariantId" = pv.id
+                            ),
+                            pt.name,
+                            'Variante'
                         ),
-                        pvp.price,
-                        0
-                    ),
-                    "priceWithTax" = COALESCE(
-                        (
-                            SELECT MIN(so_app.price) 
-                            FROM seller_offer so_app 
-                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
-                        ),
-                        pvp.price,
-                        0
-                    ),
-                    "productVariantName" = COALESCE((
-                        SELECT CASE 
-                            WHEN string_agg(ot.name::text, ' / ') IS NOT NULL AND string_agg(ot.name::text, ' / ') != ''
-                            THEN pt.name::text || ' (' || string_agg(ot.name::text, ' / ') || ')'
-                            ELSE pt.name::text
-                        END
-                        FROM product_variant pv_inner
-                        INNER JOIN product p_inner ON p_inner.id = pv_inner."productId"
-                        LEFT JOIN product_translation pt ON pt."baseId" = p_inner.id AND pt."languageCode" = sii."languageCode"
-                        LEFT JOIN product_variant_options_product_option pvo ON pvo."productVariantId" = pv_inner.id
-                        LEFT JOIN product_option po ON po.id = pvo."productOptionId"
-                        LEFT JOIN product_option_translation ot ON ot."baseId" = po.id AND ot."languageCode" = sii."languageCode"
-                        WHERE pv_inner.id = sii."productVariantId"
-                        GROUP BY pt.name
-                    ), sii."productName"::text),
-                    "productAssetId" = COALESCE(
-                        (
-                            SELECT CASE WHEN so_app."featuredAssetId" ~ '^[0-9]+$' THEN so_app."featuredAssetId"::integer ELSE NULL END
-                            FROM seller_offer so_app 
-                            WHERE so_app."productVariantId" = pv.id 
-                              AND so_app.status = 'approved' 
-                              AND so_app."featuredAssetId" IS NOT NULL 
-                              AND so_app."featuredAssetId" != '' 
-                            ORDER BY so_app.price ASC 
-                            LIMIT 1
-                        ),
+                        COALESCE(pt.description, ''),
+                        COALESCE(pt.slug, 'produit'),
+                        COALESCE(pv.sku, ''),
+                        '',
+                        '',
+                        COALESCE((SELECT string_agg(DISTINCT cpv."collectionId"::text, ',') FROM collection_product_variants_product_variant cpv WHERE cpv."productVariantId" = pv.id), ''),
+                        COALESCE((SELECT string_agg(DISTINCT ct.slug, ',') FROM collection_product_variants_product_variant cpv INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId" WHERE cpv."productVariantId" = pv.id), ''),
+                        '1',
+                        '',
+                        NULL,
+                        '',
+                        NULL,
+                        true,
+                        true,
+                        pv.id,
+                        1,
+                        p.id,
+                        p."featuredAssetId",
                         pv."featuredAssetId",
-                        p."featuredAssetId"
-                    )
+                        COALESCE((SELECT MIN(so_app.price) FROM seller_offer so_app WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'), pvp.price, 0),
+                        COALESCE((SELECT MIN(so_app.price) FROM seller_offer so_app WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'), pvp.price, 0)
                     FROM product_variant pv
-                    INNER JOIN product p ON pv."productId" = p.id
+                    INNER JOIN product p ON p.id = pv."productId"
+                    LEFT JOIN product_translation pt ON pt."baseId" = p.id AND pt."languageCode" = 'fr'
                     LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
-                    WHERE sii."productVariantId" = pv.id AND pv.id = $1::integer
+                    WHERE pv.id = $1::integer
+                    ON CONFLICT ("channelId", "languageCode", "productVariantId") DO UPDATE
+                    SET "enabled" = EXCLUDED."enabled",
+                        "collectionIds" = EXCLUDED."collectionIds",
+                        "collectionSlugs" = EXCLUDED."collectionSlugs",
+                        "productVariantName" = EXCLUDED."productVariantName",
+                        "price" = EXCLUDED."price",
+                        "priceWithTax" = EXCLUDED."priceWithTax";
                 `, [numVariantId]).catch((err: any) => console.error('[SellerOfferService] step 2 error:', err));
             } catch (err) {
                 console.error('[SellerOfferService] step 1-2 block error:', err);

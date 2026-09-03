@@ -99,22 +99,152 @@ export class VendorShopResolver {
             return entity.translations[0]?.name || fallbackCode;
         };
 
+        // Canonical predefined options for standard groups to guarantee clean, intuitive choices
+        const canonicalDefaults: Record<string, Array<{ code: string; name: string }>> = {
+            taille: [
+                { code: 'xs', name: 'XS' },
+                { code: 's', name: 'S' },
+                { code: 'm', name: 'M' },
+                { code: 'l', name: 'L' },
+                { code: 'xl', name: 'XL' },
+                { code: 'xxl', name: 'XXL' },
+                { code: '3xl', name: '3XL' },
+            ],
+            pointure: [
+                { code: '35', name: '35' },
+                { code: '36', name: '36' },
+                { code: '37', name: '37' },
+                { code: '38', name: '38' },
+                { code: '39', name: '39' },
+                { code: '40', name: '40' },
+                { code: '41', name: '41' },
+                { code: '42', name: '42' },
+                { code: '43', name: '43' },
+                { code: '44', name: '44' },
+                { code: '45', name: '45' },
+                { code: '46', name: '46' },
+            ],
+            couleur: [
+                { code: 'noir', name: 'Noir' },
+                { code: 'blanc', name: 'Blanc' },
+                { code: 'rouge', name: 'Rouge' },
+                { code: 'bleu', name: 'Bleu' },
+                { code: 'vert', name: 'Vert' },
+                { code: 'jaune', name: 'Jaune' },
+                { code: 'gris', name: 'Gris' },
+                { code: 'marron', name: 'Marron' },
+                { code: 'rose', name: 'Rose' },
+                { code: 'violet', name: 'Violet' },
+                { code: 'orange', name: 'Orange' },
+                { code: 'beige', name: 'Beige' },
+                { code: 'dore', name: 'Doré' },
+                { code: 'argente', name: 'Argenté' },
+            ],
+            capacite: [
+                { code: '16go', name: '16 Go' },
+                { code: '32go', name: '32 Go' },
+                { code: '64go', name: '64 Go' },
+                { code: '128go', name: '128 Go' },
+                { code: '256go', name: '256 Go' },
+                { code: '512go', name: '512 Go' },
+                { code: '1to', name: '1 To' },
+            ],
+            volume: [
+                { code: '30ml', name: '30 ml' },
+                { code: '50ml', name: '50 ml' },
+                { code: '100ml', name: '100 ml' },
+                { code: '200ml', name: '200 ml' },
+                { code: '250ml', name: '250 ml' },
+                { code: '500ml', name: '500 ml' },
+                { code: '1l', name: '1 L' },
+            ],
+            poids: [
+                { code: '100g', name: '100 g' },
+                { code: '250g', name: '250 g' },
+                { code: '500g', name: '500 g' },
+                { code: '1kg', name: '1 kg' },
+                { code: '2kg', name: '2 kg' },
+                { code: '5kg', name: '5 kg' },
+            ],
+            matiere: [
+                { code: 'coton', name: 'Coton' },
+                { code: 'cuir', name: 'Cuir' },
+                { code: 'soie', name: 'Soie' },
+                { code: 'synthetique', name: 'Synthétique' },
+                { code: 'acier', name: 'Acier' },
+                { code: 'bois', name: 'Bois' },
+                { code: 'plastique', name: 'Plastique' },
+            ],
+        };
+
         // Filter out soft-deleted groups and test/temporary groups
         const groups = allGroups.filter((g: any) => g.deletedAt === null && !g.code.startsWith('auto-') && !g.code.startsWith('temp-'));
 
-        return groups.map((g: any) => {
-            const activeOptions = (g.options || []).filter((o: any) => o.deletedAt === null);
+        const isNoisyCompositeOption = (name: string, groupCode: string): boolean => {
+            const lower = name.toLowerCase().trim();
+            if (lower.includes('déclinaison') || lower.includes('option 1') || lower.includes('option 2') || lower.includes('custom')) return true;
+            // If in Couleur group, filter out composite like "Bleu XL", "XL Jaune", "L Noir"
+            if (groupCode === 'couleur') {
+                if (/\b(xs|s|m|l|xl|xxl|3xl|\d{2})\b/i.test(lower)) return true;
+            }
+            return false;
+        };
+
+        const result = groups.map((g: any) => {
+            const gCode = g.code.toLowerCase();
+            const dbOptions = (g.options || []).filter((o: any) => o.deletedAt === null);
+
+            const optionsMap = new Map<string, { id: string; code: string; name: string }>();
+
+            // 1. Add canonical defaults if available
+            if (canonicalDefaults[gCode]) {
+                for (const def of canonicalDefaults[gCode]) {
+                    // Try finding existing option in DB
+                    const matched = dbOptions.find((o: any) => 
+                        o.code.toLowerCase() === def.code || 
+                        resolveName(o, o.code).toLowerCase().trim() === def.name.toLowerCase().trim()
+                    );
+                    optionsMap.set(def.name.toLowerCase().trim(), {
+                        id: matched ? String(matched.id) : `canon_${gCode}_${def.code}`,
+                        code: def.code,
+                        name: def.name,
+                    });
+                }
+            }
+
+            // 2. Add valid DB options that are not noisy composites
+            for (const o of dbOptions) {
+                const optName = resolveName(o, o.code).trim();
+                const key = optName.toLowerCase();
+                if (!optionsMap.has(key) && !isNoisyCompositeOption(optName, gCode)) {
+                    optionsMap.set(key, {
+                        id: String(o.id),
+                        code: o.code,
+                        name: optName,
+                    });
+                }
+            }
+
             return {
                 id: String(g.id),
                 code: g.code,
                 name: resolveName(g, g.code),
-                options: activeOptions.map((o: any) => ({
-                    id: String(o.id),
-                    code: o.code,
-                    name: resolveName(o, o.code),
-                })),
+                options: Array.from(optionsMap.values()),
             };
         });
+
+        // Sort by predefined standard priority order
+        const priorityOrder = ['taille', 'pointure', 'couleur', 'capacite', 'volume', 'poids', 'matiere'];
+        result.sort((a, b) => {
+            const idxA = priorityOrder.indexOf(a.code.toLowerCase());
+            const idxB = priorityOrder.indexOf(b.code.toLowerCase());
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        return result;
     }
 
     @Mutation()
@@ -215,12 +345,12 @@ export class VendorShopResolver {
         const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
         console.log('[tagProductWithVariantOffers] adminCtx user:', adminCtx.session?.user?.identifier, 'roles:', (adminCtx.session?.user as any)?.roles?.map((r: any) => ({ code: r.code, permissions: r.permissions })));
 
-        return this.connection.withTransaction(adminCtx, async (transactionalCtx: RequestContext) => {
-            try {
-                const product = await this.productService.findOne(transactionalCtx, input.productId);
-                if (!product) {
-                    throw new Error(`Product not found: ${input.productId}`);
-                }
+        const transactionalCtx = adminCtx;
+        try {
+            const product = await this.productService.findOne(transactionalCtx, input.productId);
+            if (!product) {
+                throw new Error(`Product not found: ${input.productId}`);
+            }
 
             // 1. Process Option Groups if provided
             const activeOptionGroupIds = new Set<string>();
@@ -468,19 +598,42 @@ export class VendorShopResolver {
                     targetVariant = allVariants[0];
                 }
 
-                if (targetVariant && vendor.channelId) {
-                    await this.channelService.assignToChannels(transactionalCtx, Product, product.id, [vendor.channelId]).catch(() => null);
-                    await this.channelService.assignToChannels(transactionalCtx, ProductVariant, targetVariant.id, [vendor.channelId]).catch(() => null);
-                    
-                    if (offerInput.variantId) {
-                        await this.updatePricesInSellerChannel(transactionalCtx, vendor.channelId.toString(), [{
-                            id: String(targetVariant.id),
-                            price: offerInput.price,
-                            customFields: {
-                                onPromotion: offerInput.onPromotion,
-                                promotionalPrice: offerInput.promotionalPrice,
-                            }
-                        }]);
+                if (targetVariant) {
+                    // Always ensure product and variant are on Default Channel 1
+                    await this.connection.rawConnection.query(
+                        `INSERT INTO product_channels_channel ("productId", "channelId") VALUES ($1, 1) ON CONFLICT DO NOTHING`,
+                        [product.id]
+                    ).catch(() => null);
+                    await this.connection.rawConnection.query(
+                        `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($1, 1) ON CONFLICT DO NOTHING`,
+                        [targetVariant.id]
+                    ).catch(() => null);
+
+                    // Inherit collections from sibling variants
+                    await this.connection.rawConnection.query(
+                        `INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                         SELECT DISTINCT cpv."collectionId", $1
+                         FROM collection_product_variants_product_variant cpv
+                         INNER JOIN product_variant pv_sibling ON pv_sibling.id = cpv."productVariantId"
+                         WHERE pv_sibling."productId" = $2 AND cpv."productVariantId" != $1
+                         ON CONFLICT DO NOTHING`,
+                        [targetVariant.id, product.id]
+                    ).catch(() => null);
+
+                    if (vendor.channelId) {
+                        await this.channelService.assignToChannels(transactionalCtx, Product, product.id, [vendor.channelId]).catch(() => null);
+                        await this.channelService.assignToChannels(transactionalCtx, ProductVariant, targetVariant.id, [vendor.channelId]).catch(() => null);
+                        
+                        if (offerInput.variantId) {
+                            await this.updatePricesInSellerChannel(transactionalCtx, vendor.channelId.toString(), [{
+                                id: String(targetVariant.id),
+                                price: offerInput.price,
+                                customFields: {
+                                    onPromotion: offerInput.onPromotion,
+                                    promotionalPrice: offerInput.promotionalPrice,
+                                }
+                            }]);
+                        }
                     }
                 }
 
@@ -522,8 +675,7 @@ export class VendorShopResolver {
                 console.error('[tagProductWithVariantOffers] ERROR STACK TRACE:', err.message, err.stack);
                 throw err;
             }
-        });
-    }
+        }
 
     @Mutation()
     @Allow(Permission.Authenticated)

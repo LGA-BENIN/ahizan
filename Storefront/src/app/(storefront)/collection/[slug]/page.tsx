@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import type { Metadata } from 'next';
 import { query } from '@/lib/vendure/api';
 import { GetCollectionProductsQuery, GetCollectionAllowedFacetsQuery } from '@/lib/vendure/queries';

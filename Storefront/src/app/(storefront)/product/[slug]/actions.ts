@@ -35,3 +35,37 @@ export async function addToCart(variantId: string, quantity: number = 1, vendorI
     return { success: false, error: err?.message || 'Failed to add item to cart' };
   }
 }
+
+export async function getSellerOffersForVariant(variantId: string) {
+  try {
+    const { rawQuery } = await import('@/lib/vendure/raw-api');
+    const data = await rawQuery(`
+      query GetSellerOffersForVariant($variantId: ID!) {
+        sellerOffersForVariant(variantId: $variantId) {
+          id
+          price
+          stock
+          deliveryTimeValue
+          deliveryTimeUnit
+          condition
+          vendor {
+            id
+            name
+            rating
+            ratingCount
+            logo {
+              preview
+            }
+          }
+          productVariant {
+            id
+          }
+        }
+      }
+    `, { variables: { variantId } });
+    return data?.sellerOffersForVariant || [];
+  } catch (e) {
+    console.error('getSellerOffersForVariant error:', e);
+    return [];
+  }
+}

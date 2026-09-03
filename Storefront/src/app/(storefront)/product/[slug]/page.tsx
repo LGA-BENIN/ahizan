@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 console.log('[ProductPage File] LOADING FILE: src/app/product/[slug]/page.tsx');
 import type { Metadata } from 'next';
 import { query } from '@/lib/vendure/api';

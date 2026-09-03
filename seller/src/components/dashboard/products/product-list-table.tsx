@@ -282,12 +282,12 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                                 {/* Product Column (Image, Title, SKU) */}
                                                 <td className="px-2.5 sm:px-4 md:px-6 py-3.5">
                                                     <div className="flex items-center gap-3">
-                                                        {product.variants && product.variants.length > 1 && (
+                                                        {product.variants && product.variants.length > 0 && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setExpandedRowId(expandedRowId === product.id ? null : product.id)}
                                                                 className="w-6 h-6 rounded-md bg-muted/60 hover:bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-black transition-all cursor-pointer shrink-0"
-                                                                title="Voir les déclinaisons"
+                                                                title="Voir les déclinaisons et offres"
                                                             >
                                                                 {expandedRowId === product.id ? '▼' : '▶'}
                                                             </button>
@@ -346,16 +346,16 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                                             );
                                                         }
                                                         
-                                                        const hasApprovedVariants = (product.variants || []).some((v: any) => 
-                                                            v.customFields?.offerStatus === 'APPROVED' || 
-                                                            v.customFields?.offerStatus === 'approved'
-                                                        );
+                                                        const hasApprovedVariants = (product.variants || []).some((v: any) => {
+                                                            const ost = (v.customFields?.offerStatus || v.customFields?.offerstatus || '').toLowerCase();
+                                                            return ost === 'approved' || ost === '' || !ost;
+                                                        });
                                                         
                                                         let badgeLabel = 'En attente';
                                                         let badgeClass = 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400';
                                                         let circleClass = 'text-amber-500';
                                                         
-                                                        if (status === 'approved' && hasApprovedVariants && product.enabled) {
+                                                        if (status === 'approved' && (hasApprovedVariants || (product.variants || []).length === 0) && product.enabled !== false) {
                                                             badgeLabel = 'En ligne';
                                                             badgeClass = 'bg-green-50 text-green-700 border-green-100 dark:bg-green-950/20 dark:text-green-400';
                                                             circleClass = 'text-green-500';

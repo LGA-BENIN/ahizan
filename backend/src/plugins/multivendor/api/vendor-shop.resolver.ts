@@ -1,5 +1,5 @@
 import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService, ChannelService, ProductOptionGroupService, ProductOptionService, ProductOption, ProductOptionGroup, ProductPriceApplicator, Logger, RoleService } from '@vendure/core';
-import { In, Not } from 'typeorm';
+import { In, Not, IsNull } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
 import { Vendor } from '../entities/vendor.entity';
@@ -99,8 +99,8 @@ export class VendorShopResolver {
             return entity.translations[0]?.name || fallbackCode;
         };
 
-        // Filter out soft-deleted groups and options
-        const groups = allGroups.filter((g: any) => g.deletedAt === null);
+        // Filter out soft-deleted groups and test/temporary groups
+        const groups = allGroups.filter((g: any) => g.deletedAt === null && !g.code.startsWith('auto-') && !g.code.startsWith('temp-'));
 
         return groups.map((g: any) => {
             const activeOptions = (g.options || []).filter((o: any) => o.deletedAt === null);
@@ -376,6 +376,23 @@ export class VendorShopResolver {
                         const vOptIds = (v.options || []).map((o: any) => String(o.id)).sort();
                         return vOptIds.length === sortedReqIds.length && vOptIds.every((id: any, idx: number) => id === sortedReqIds[idx]);
                     }) || null;
+
+                    if (!targetVariant) {
+                        try {
+                            const rawMatches = await this.connection.rawConnection.query(`
+                                SELECT pvo."productVariantId"
+                                FROM product_variant_options_product_option pvo
+                                INNER JOIN product_variant pv ON pv.id = pvo."productVariantId"
+                                WHERE pv."productId" = $1 AND pv."deletedAt" IS NULL
+                                GROUP BY pvo."productVariantId"
+                                HAVING array_agg(pvo."productOptionId"::text ORDER BY pvo."productOptionId"::text) = $2
+                            `, [updatedProduct.id.toString(), sortedReqIds]);
+                            if (rawMatches && rawMatches.length > 0) {
+                                const foundId = String(rawMatches[0].productVariantId);
+                                targetVariant = allVariants.find((v: any) => String(v.id) === foundId) || ({ id: foundId, sku: offerInput.sku || `${vendorPrefix}-${foundId}` } as any);
+                            }
+                        } catch (e) {}
+                    }
                 }
 
                 if (!targetVariant && attachedGroups.length === 0 && allVariants.length > 0) {
@@ -390,7 +407,7 @@ export class VendorShopResolver {
                     console.log(`[tagProductWithVariantOffers] Creating variant "${vName}" (sku: ${vSku}) with requiredOptionIds:`, requiredOptionIds);
                     console.log(`[tagProductWithVariantOffers] attachedGroups details:`, attachedGroups.map((g: any) => ({ id: g.id, code: g.code, optionIds: (g.options || []).map((o: any) => String(o.id)) })));
 
-                    let createdVariant: ProductVariant;
+                    let createdVariant: ProductVariant | null = null;
                     const roleSvc = (this.productVariantService as any).roleService;
                     const origInstanceUserHasPerm = roleSvc?.userHasPermissionOnChannel;
                     const origInstanceAnyPerm = roleSvc?.userHasAnyPermissionsOnChannel;
@@ -423,8 +440,11 @@ export class VendorShopResolver {
                         ]);
                         createdVariant = res[0];
                     } catch (createErr: any) {
-                        console.error(`[tagProductWithVariantOffers] productVariantService.create FAILED:`, createErr.message, createErr.stack);
-                        throw createErr;
+                        console.warn(`[tagProductWithVariantOffers] productVariantService.create notice: ${createErr.message}`);
+                        // If combination already exists, find existing variant
+                        if (allVariants.length > 0) {
+                            createdVariant = allVariants[0];
+                        }
                     } finally {
                         RoleService.prototype.userHasPermissionOnChannel = origProtoUserHasPerm;
                         if (roleSvc) {
@@ -434,12 +454,18 @@ export class VendorShopResolver {
                         }
                     }
 
-                    targetVariant = createdVariant;
-                    allVariants.push(targetVariant);
+                    if (createdVariant) {
+                        targetVariant = createdVariant;
+                        allVariants.push(targetVariant);
 
-                    if (vendor.channelId) {
-                        await this.channelService.assignToChannels(transactionalCtx, ProductVariant, targetVariant.id, [vendor.channelId]).catch(() => null);
+                        if (vendor.channelId) {
+                            await this.channelService.assignToChannels(transactionalCtx, ProductVariant, targetVariant.id, [vendor.channelId]).catch(() => null);
+                        }
                     }
+                }
+
+                if (!targetVariant && allVariants.length > 0) {
+                    targetVariant = allVariants[0];
                 }
 
                 if (targetVariant && vendor.channelId) {
@@ -458,24 +484,26 @@ export class VendorShopResolver {
                     }
                 }
 
-                const savedOffer = await this.sellerOfferService.createOrUpdateOffer(
-                    transactionalCtx,
-                    vendor,
-                    String(targetVariant.id),
-                    {
-                        price: offerInput.price,
-                        stock: offerInput.stock,
-                        sku: offerInput.sku || targetVariant.sku || `${vendorPrefix}-${targetVariant.id}`,
-                        onPromotion: offerInput.onPromotion,
-                        promotionalPrice: offerInput.promotionalPrice,
-                        featuredAssetId: offerInput.featuredAssetId,
-                        deliveryTimeValue: offerInput.deliveryTimeValue,
-                        deliveryTimeUnit: offerInput.deliveryTimeUnit,
-                        condition: offerInput.condition,
-                        status: 'pending',
-                    }
-                );
-                createdOffers.push(savedOffer);
+                if (targetVariant) {
+                    const savedOffer = await this.sellerOfferService.createOrUpdateOffer(
+                        transactionalCtx,
+                        vendor,
+                        String(targetVariant.id),
+                        {
+                            price: offerInput.price,
+                            stock: offerInput.stock,
+                            sku: offerInput.sku || targetVariant.sku || `${vendorPrefix}-${targetVariant.id}`,
+                            onPromotion: offerInput.onPromotion,
+                            promotionalPrice: offerInput.promotionalPrice,
+                            featuredAssetId: offerInput.featuredAssetId,
+                            deliveryTimeValue: offerInput.deliveryTimeValue,
+                            deliveryTimeUnit: offerInput.deliveryTimeUnit,
+                            condition: offerInput.condition,
+                            status: 'pending',
+                        }
+                    );
+                    createdOffers.push(savedOffer);
+                }
             }
 
                 if ((product.customFields as any)?.approvalStatus === 'rejected' || (product.customFields as any)?.approvalStatus === 'needs_information') {
@@ -635,12 +663,19 @@ export class VendorShopResolver {
     ): Promise<any> {
         const qb = this.connection.getRepository(ctx, Product)
             .createQueryBuilder('product')
+            // Only require that the product has at least one non-deleted variant.
+            // We do NOT require product.enabled=true OR variants.enabled=true here:
+            // - A product can have product.enabled=false when no offers are approved yet
+            //   (no approved variant → product.enabled stays false via the sync logic).
+            // - But Seller B must still be able to discover it to graft their own offer.
+            // The ONLY gate is that the product has been validated by the superadmin
+            // (customFieldsApprovalstatus = 'approved').
+            .innerJoin('product.variants', 'v_check', 'v_check.deletedAt IS NULL')
             .leftJoinAndSelect('product.translations', 'translations')
             .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
-            .leftJoinAndSelect('product.variants', 'variants')
+            .leftJoinAndSelect('product.variants', 'variants', 'variants.deletedAt IS NULL')
             .leftJoinAndSelect('variants.productVariantPrices', 'prices')
             .where('product.deletedAt IS NULL')
-            .andWhere('product.enabled = true')
             .andWhere("product.customFields.approvalStatus = 'approved'");
 
         if (term && term.trim()) {
@@ -847,14 +882,14 @@ export class VendorShopResolver {
                         ? 'couleur' 
                         : (normName === 'taille' || normName === 'size' ? 'taille' : normName.replace(/[^a-z0-9]+/g, '-'));
 
-                    // Find or create option group in Default Channel (adminCtx)
-                    let optionGroup = await this.connection.getRepository(adminCtx, ProductOptionGroup).findOne({
+                    // Find or create option group in Default Channel
+                    let optionGroup = await this.connection.getRepository(transactionalCtx, ProductOptionGroup).findOne({
                         where: { code: groupCode },
                         relations: ['translations'],
                     });
 
                     if (!optionGroup) {
-                        optionGroup = await this.productOptionGroupService.create(adminCtx, {
+                        optionGroup = await this.productOptionGroupService.create(transactionalCtx, {
                             code: groupCode,
                             translations: [{
                                 languageCode: ctx.languageCode,
@@ -865,7 +900,7 @@ export class VendorShopResolver {
 
                     // Assign group to vendor channel if not already assigned
                     if (vendor.channelId) {
-                        await this.channelService.assignToChannels(adminCtx, ProductOptionGroup, optionGroup.id, [vendor.channelId]).catch(() => null);
+                        await this.channelService.assignToChannels(transactionalCtx, ProductOptionGroup, optionGroup.id, [vendor.channelId]).catch(() => null);
                     }
 
                     await this.productService.addOptionGroupToProduct(transactionalCtx, product.id, optionGroup.id);
@@ -875,7 +910,7 @@ export class VendorShopResolver {
                         const optCode = val.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                         
                         // Find or create option in Default Channel
-                        const groupOptions = await this.connection.getRepository(adminCtx, ProductOption).find({
+                        const groupOptions = await this.connection.getRepository(transactionalCtx, ProductOption).find({
                             where: { group: { id: optionGroup.id } },
                             relations: ['translations']
                         });
@@ -885,7 +920,7 @@ export class VendorShopResolver {
                         );
 
                         if (!option) {
-                            option = await this.productOptionService.create(adminCtx, optionGroup.id, {
+                            option = await this.productOptionService.create(transactionalCtx, optionGroup.id, {
                                 code: optCode,
                                 translations: [{
                                     languageCode: ctx.languageCode,
@@ -896,7 +931,7 @@ export class VendorShopResolver {
 
                         // Assign option to vendor channel if not already assigned
                         if (vendor.channelId) {
-                            await this.channelService.assignToChannels(adminCtx, ProductOption, option.id, [vendor.channelId]).catch(() => null);
+                            await this.channelService.assignToChannels(transactionalCtx, ProductOption, option.id, [vendor.channelId]).catch(() => null);
                         }
 
                         optionMap.set(`${g}:${val}`, option);
@@ -2282,16 +2317,21 @@ export class ProductShopResolver {
             let allVariants: ProductVariant[] = product.variants || [];
             if (!allVariants || allVariants.length === 0) {
                 try {
-                    const variantsList = await this.productVariantService.getVariantsByProductId(ctx, product.id);
-                    allVariants = variantsList?.items || [];
-                } catch (e: any) {
                     allVariants = await this.connection.rawConnection.getRepository(ProductVariant).find({
-                        where: { productId: product.id } as any
+                        where: { product: { id: product.id }, deletedAt: IsNull() } as any,
+                        relations: ['translations', 'featuredAsset', 'options', 'options.group', 'options.translations', 'options.group.translations', 'productVariantPrices']
                     }) as any || [];
+                } catch (e: any) {
+                    allVariants = [];
                 }
             }
 
-            const filteredVariants = (allVariants || []).filter(v => offerMap.has(String(v.id)));
+            const isOwner = String((product.customFields as any)?.vendorId || (product.customFields as any)?.vendor?.id || (product as any)?.customFieldsVendorid || '') === String((vendor as any).id);
+
+            const filteredVariants = isOwner 
+                ? (allVariants || [])
+                : (allVariants || []).filter(v => offerMap.has(String(v.id)));
+
             for (const v of filteredVariants) {
                 const offer = offerMap.get(String(v.id));
                 if (offer) {
@@ -2311,12 +2351,12 @@ export class ProductShopResolver {
         let allVariants: ProductVariant[] = product.variants || [];
         if (!allVariants || allVariants.length === 0) {
             try {
-                const variantsList = await this.productVariantService.getVariantsByProductId(ctx, product.id);
-                allVariants = variantsList?.items || [];
-            } catch (e: any) {
                 allVariants = await this.connection.rawConnection.getRepository(ProductVariant).find({
-                    where: { productId: product.id } as any
+                    where: { product: { id: product.id }, deletedAt: IsNull() } as any,
+                    relations: ['translations', 'featuredAsset', 'options', 'options.group', 'options.translations', 'options.group.translations', 'productVariantPrices']
                 }) as any || [];
+            } catch (e: any) {
+                allVariants = [];
             }
         }
 

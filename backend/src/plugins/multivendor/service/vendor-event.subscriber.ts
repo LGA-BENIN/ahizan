@@ -52,12 +52,16 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
             const pvPath = path.join(process.cwd(), 'node_modules/@vendure/core/dist/service/services/product-variant.service.js');
             if (fs.existsSync(pvPath)) {
                 let pvContent = fs.readFileSync(pvPath, 'utf8');
-                if (!pvContent.includes('rawConnection.getRepository(product_variant_entity_1.ProductVariant)')) {
+                pvContent = pvContent.replace(
+                    /this\.connection\.rawConnection\.getRepository\(product_variant_entity_1\.ProductVariant\)/g,
+                    'this.connection.getRepository(ctx, product_variant_entity_1.ProductVariant)'
+                );
+                if (!pvContent.includes('getRepository(ctx, product_variant_entity_1.ProductVariant)')) {
                     pvContent = pvContent.replace(
                         '.then(variants => this.applyPricesAndTranslateVariants(ctx, variants));',
                         `.then(async variants => {
             if (!variants || variants.length === 0) {
-                const rawVariants = await this.connection.rawConnection.getRepository(product_variant_entity_1.ProductVariant).find({
+                const rawVariants = await this.connection.getRepository(ctx, product_variant_entity_1.ProductVariant).find({
                     where: { id: (0, typeorm_1.In)(ids) },
                     relations: ['options', 'facetValues', 'facetValues.facet', 'taxCategory', 'assets', 'featuredAsset'],
                 });
@@ -75,7 +79,7 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
                 }
                 pvContent = pvContent.replace(
                     'const variantWithPrices = await this.connection.getEntityOrThrow(ctx, product_variant_entity_1.ProductVariant, variant.id, { relations: [\'productVariantPrices\'], includeSoftDeleted: true });',
-                    'const variantWithPrices = await this.connection.rawConnection.getRepository(product_variant_entity_1.ProductVariant).findOne({ where: { id: variant.id }, relations: [\'productVariantPrices\'] });'
+                    'const variantWithPrices = await this.connection.getRepository(ctx, product_variant_entity_1.ProductVariant).findOne({ where: { id: variant.id }, relations: [\'productVariantPrices\'] });'
                 );
                 pvContent = pvContent.replace(
                     'const existingVariant = await this.connection.getEntityOrThrow(ctx, product_variant_entity_1.ProductVariant, input.id, {\n            channelId: ctx.channelId,\n            relations: [\'facetValues\', \'facetValues.channels\'],\n        });',
@@ -86,7 +90,7 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
                 relations: ['facetValues', 'facetValues.channels'],
             });
         } catch (e) {
-            existingVariant = await this.connection.rawConnection.getRepository(product_variant_entity_1.ProductVariant).findOne({
+            existingVariant = await this.connection.getRepository(ctx, product_variant_entity_1.ProductVariant).findOne({
                 where: { id: input.id },
                 relations: ['facetValues', 'facetValues.channels'],
             });
@@ -96,6 +100,10 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
                 pvContent = pvContent.replace(
                     /const inventoryNotTracked = variant\.trackInventory === generated_types_1\.GlobalFlag\.FALSE \|\|/g,
                     'if (!variant) return Number.MAX_SAFE_INTEGER;\n        const inventoryNotTracked = variant?.trackInventory === generated_types_1.GlobalFlag.FALSE ||'
+                );
+                pvContent = pvContent.replace(
+                    /\.innerJoinAndSelect\('productvariant\.channels',\s*'channel',\s*'channel\.id\s*=\s*:channelId',\s*\{\s*channelId:\s*ctx\.channelId,?\s*\}\)/g,
+                    ".leftJoin('productvariant.channels', 'channel')"
                 );
                 fs.writeFileSync(pvPath, pvContent);
                 console.log('[MultivendorPlugin] Successfully patched product-variant.service.js!');
@@ -180,13 +188,23 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
                 await this.refundCommissionToWallet(event.ctx, event.order.id.toString());
             });
 
-        // Synchronize product variants enablement with parent product status
+        // Synchronize product variants enablement with parent product status & detach vendor on approval
         this.eventBus
             .ofType(ProductEvent)
-            .subscribe(async (event: any) => {
-                if (event.type === 'created' || event.type === 'updated') {
-                    await this.syncProductVariantsEnablement(event.ctx, event.product);
-                }
+            .subscribe((event: any) => {
+                setTimeout(async () => {
+                    if (event.type === 'created' || event.type === 'updated') {
+                        await this.syncProductVariantsEnablement(event.ctx, event.product);
+                        if ((event.product?.customFields as any)?.approvalStatus === 'approved') {
+                            try {
+                                await this.connection.rawConnection.query(
+                                    `UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+                                    [event.product.id]
+                                );
+                            } catch (e) {}
+                        }
+                    }
+                }, 100);
             });
     }
 
@@ -211,26 +229,150 @@ export class VendorOrderSubscriber implements OnApplicationBootstrap {
     }
 
     /**
-     * Synchronizes product variants enabled status with the product enabled status
+     * Synchronizes product variants enabled status, collection assignments, channel 1, and search index for product
      */
     private async syncProductVariantsEnablement(ctx: RequestContext, product: Product) {
-        let variants = product.variants;
-        if (!variants) {
-            const productWithVariants = await this.connection.getRepository(ctx, Product).findOne({
-                where: { id: product.id },
-                relations: ['variants']
-            });
-            variants = productWithVariants?.variants || [];
-        }
+        try {
+            const pId = String(product.id);
 
-        const variantsToUpdate = variants.filter((v: any) => v.enabled !== product.enabled);
-        if (variantsToUpdate.length > 0) {
-            console.log(`[ProductSync] Synchronizing enabled status (${product.enabled}) on ${variantsToUpdate.length} variants for product ${product.id}`);
-            const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
-            await this.productVariantService.update(adminCtx, variantsToUpdate.map((v: any) => ({
-                id: v.id,
-                enabled: product.enabled
-            })));
+            // 1. Inherit product collections into collection_product_variants_product_variant for all variants of this product
+            await this.connection.rawConnection.query(`
+                INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                SELECT DISTINCT cpv."collectionId", pv.id
+                FROM product_variant pv
+                INNER JOIN product_variant pv_existing ON pv_existing."productId" = pv."productId"
+                INNER JOIN collection_product_variants_product_variant cpv ON cpv."productVariantId" = pv_existing.id
+                WHERE pv."productId" = $1
+                ON CONFLICT DO NOTHING
+            `, [pId]).catch(() => null);
+
+            // 2. Sync product_variant enabled state: TRUE only if it has an approved SellerOffer (or native variant)
+            await this.connection.rawConnection.query(`
+                UPDATE product_variant pv_sync
+                SET enabled = (
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM seller_offer so_any 
+                            WHERE so_any."productVariantId" = pv_sync.id
+                        )
+                        THEN EXISTS (
+                            SELECT 1 FROM seller_offer so 
+                            WHERE so."productVariantId" = pv_sync.id AND so.status = 'approved'
+                        )
+                        ELSE pv_sync.enabled
+                    END
+                ),
+                "customFieldsOfferstatus" = COALESCE(
+                    (
+                        SELECT CASE WHEN so_b.status = 'approved' THEN 'APPROVED' WHEN so_b.status = 'rejected' THEN 'REJECTED' ELSE 'PENDING' END
+                        FROM seller_offer so_b
+                        WHERE so_b."productVariantId" = pv_sync.id
+                        ORDER BY CASE WHEN so_b.status = 'approved' THEN 1 WHEN so_b.status = 'pending' THEN 2 ELSE 3 END
+                        LIMIT 1
+                    ),
+                    'APPROVED'
+                ),
+                "updatedAt" = NOW()
+                FROM product p_sync
+                WHERE pv_sync."productId" = p_sync.id AND p_sync.id = $1
+            `, [pId]).catch(() => null);
+
+            // 3. Ensure product and variants are assigned to Default Channel 1
+            await this.connection.rawConnection.query(`
+                INSERT INTO product_channels_channel ("productId", "channelId")
+                VALUES ($1, 1) ON CONFLICT DO NOTHING
+            `, [pId]).catch(() => null);
+
+            await this.connection.rawConnection.query(`
+                INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                SELECT pv.id, 1
+                FROM product_variant pv
+                WHERE pv."productId" = $1
+                ON CONFLICT DO NOTHING
+            `, [pId]).catch(() => null);
+
+            // 4. Update search_index_item with collectionIds, collectionSlugs, enabled status, prices, and productVariantName
+            await this.connection.rawConnection.query(`
+                UPDATE search_index_item sii
+                SET "collectionIds" = COALESCE((
+                    SELECT string_agg(DISTINCT cpv."collectionId"::text, ',')
+                    FROM collection_product_variants_product_variant cpv
+                    WHERE cpv."productVariantId" = sii."productVariantId"
+                ), ''),
+                "collectionSlugs" = COALESCE((
+                    SELECT string_agg(DISTINCT ct.slug, ',')
+                    FROM collection_product_variants_product_variant cpv
+                    INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId"
+                    WHERE cpv."productVariantId" = sii."productVariantId"
+                ), ''),
+                "enabled" = (
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM seller_offer so_any
+                            WHERE so_any."productVariantId" = pv.id
+                        )
+                        THEN EXISTS (
+                            SELECT 1 FROM seller_offer so_app
+                            WHERE so_app."productVariantId" = pv.id
+                              AND so_app.status = 'approved'
+                        )
+                        ELSE (p.enabled AND pv.enabled)
+                    END
+                ),
+                "price" = COALESCE(
+                    (
+                        SELECT MIN(so_app.price) 
+                        FROM seller_offer so_app 
+                        WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                    ),
+                    pvp.price,
+                    0
+                ),
+                "priceWithTax" = COALESCE(
+                    (
+                        SELECT MIN(so_app.price) 
+                        FROM seller_offer so_app 
+                        WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                    ),
+                    pvp.price,
+                    0
+                ),
+                "productVariantName" = COALESCE((
+                    SELECT CASE 
+                        WHEN string_agg(ot.name::text, ' / ') IS NOT NULL AND string_agg(ot.name::text, ' / ') != ''
+                        THEN pt.name::text || ' (' || string_agg(ot.name::text, ' / ') || ')'
+                        ELSE pt.name::text
+                    END
+                    FROM product_variant pv_inner
+                    INNER JOIN product p_inner ON p_inner.id = pv_inner."productId"
+                    LEFT JOIN product_translation pt ON pt."baseId" = p_inner.id AND pt."languageCode" = sii."languageCode"
+                    LEFT JOIN product_variant_options_product_option pvo ON pvo."productVariantId" = pv_inner.id
+                    LEFT JOIN product_option po ON po.id = pvo."productOptionId"
+                    LEFT JOIN product_option_translation ot ON ot."baseId" = po.id AND ot."languageCode" = sii."languageCode"
+                    WHERE pv_inner.id = sii."productVariantId"
+                    GROUP BY pt.name
+                ), sii."productVariantName"),
+                "productAssetId" = COALESCE(
+                    (
+                        SELECT CASE WHEN so_app."featuredAssetId" ~ '^[0-9]+$' THEN so_app."featuredAssetId"::integer ELSE NULL END
+                        FROM seller_offer so_app 
+                        WHERE so_app."productVariantId" = pv.id 
+                          AND so_app.status = 'approved' 
+                          AND so_app."featuredAssetId" IS NOT NULL 
+                          AND so_app."featuredAssetId" != '' 
+                        ORDER BY so_app.price ASC 
+                        LIMIT 1
+                    ),
+                    pv."featuredAssetId",
+                    p."featuredAssetId"
+                )
+                FROM product_variant pv
+                INNER JOIN product p ON pv."productId" = p.id
+                LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                WHERE sii."productVariantId" = pv.id AND pv."productId" = $1
+            `, [pId]).catch(() => null);
+        } catch (e) {
+            console.error('[syncProductVariantsEnablement] Error:', e);
         }
     }
 }

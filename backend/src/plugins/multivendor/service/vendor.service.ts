@@ -233,11 +233,11 @@ export class VendorService implements OnApplicationBootstrap {
                  LEFT JOIN product p ON pv."productId" = p.id
                  LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
                  WHERE o."deletedAt" IS NULL 
-                   AND o.state NOT IN ('Cancelled', 'Draft')
+                   AND o.state NOT IN ('Cancelled', 'Draft', 'AddingItems')
                    AND (
                      (o."customFieldsVendorid" = $1 AND COALESCE(o."customFieldsSellerstatus", '') != 'reassigned_to_other')
                      OR (
-                         (p."customFieldsVendorid" = $1 OR ol."customFieldsAssignedvendorid" = $1 OR ol."sellerChannelId" = $2 OR occ."channelId" = $2)
+                         (p."customFieldsVendorid" = $1 OR ol."customFieldsAssignedvendorid" = $1 OR ol."sellerChannelId" = $2 OR occ."channelId" = $2 OR ol."productVariantId" IN (SELECT "productVariantId" FROM seller_offer WHERE "vendorId" = $1))
                          AND COALESCE(ol."customFieldsSellerstatus", '') != 'reassigned_to_other'
                      )
                    )
@@ -1254,7 +1254,7 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
-        // 4. Ensure variant inherits any channel assignments of target product
+        // 4. Ensure variant inherits any channel assignments of target product and Channel 1
         if (targetProduct.channels && targetProduct.channels.length > 0) {
             for (const chan of targetProduct.channels) {
                 try {
@@ -1266,6 +1266,131 @@ export class VendorService implements OnApplicationBootstrap {
                 } catch (_) {}
             }
         }
+        try {
+            await this.connection.rawConnection.query(
+                `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                 VALUES ($1, 1) ON CONFLICT DO NOTHING`,
+                [variantId]
+            );
+        } catch (_) {}
+
+        // Inherit all parent product collection associations
+        try {
+            await this.connection.rawConnection.query(
+                `INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                 SELECT DISTINCT cpv."collectionId", $1
+                 FROM collection_product_variants_product_variant cpv
+                 INNER JOIN product_variant pv_other ON pv_other.id = cpv."productVariantId"
+                 WHERE pv_other."productId" = $2
+                 ON CONFLICT DO NOTHING`,
+                [variantId, targetProductId]
+            );
+        } catch (_) {}
+
+        // Sync search_index_item real-time for this variant
+        try {
+            await this.connection.rawConnection.query(`
+                -- Hériter les collections des AUTRES variants du même produit
+                -- (La table product_collections_collection n'existe pas dans Vendure ;
+                --  toutes les collections sont stockées par variant dans
+                --  collection_product_variants_product_variant).
+                INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                SELECT DISTINCT cpv."collectionId", $1
+                FROM collection_product_variants_product_variant cpv
+                INNER JOIN product_variant pv_sibling ON pv_sibling.id = cpv."productVariantId"
+                WHERE pv_sibling."productId" = (
+                    SELECT pv2."productId" FROM product_variant pv2 WHERE pv2.id = $1
+                )
+                AND cpv."productVariantId" != $1
+                ON CONFLICT DO NOTHING;
+
+                UPDATE search_index_item sii
+                SET "collectionIds" = COALESCE((
+                    SELECT string_agg(DISTINCT cpv."collectionId"::text, ',')
+                    FROM collection_product_variants_product_variant cpv
+                    WHERE cpv."productVariantId" = sii."productVariantId"
+                ), ''),
+                "collectionSlugs" = COALESCE((
+                    SELECT string_agg(DISTINCT ct.slug, ',')
+                    FROM collection_product_variants_product_variant cpv
+                    INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId"
+                    WHERE cpv."productVariantId" = sii."productVariantId"
+                ), ''),
+                -- RÈGLE UNIQUE DE VISIBILITÉ:
+                -- Une variante est visible dans la collection si et seulement si
+                -- elle possède AU MOINS UNE offre vendeur approuvée (status = 'approved').
+                -- Aucune autre condition (p.enabled, approvalStatus, pv.enabled) ne peut interférer.
+                -- Pour les variantes sans aucune offre (produits natifs de la plateforme sans vendorId),
+                -- on conserve l'état enabled natif de la variante.
+                "enabled" = (
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM seller_offer so_any
+                            WHERE so_any."productVariantId" = pv.id
+                        )
+                        -- Produit marketplace : visible seulement si une offre est approuvée
+                        THEN EXISTS (
+                            SELECT 1 FROM seller_offer so_app
+                            WHERE so_app."productVariantId" = pv.id
+                              AND so_app.status = 'approved'
+                        )
+                        -- Produit natif (aucune offre) : conserver la visibilité native
+                        ELSE (p.enabled AND pv.enabled)
+                    END
+                ),
+                "price" = COALESCE(
+                    (
+                        SELECT MIN(so_app.price) 
+                        FROM seller_offer so_app 
+                        WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                    ),
+                    pvp.price,
+                    0
+                ),
+                "priceWithTax" = COALESCE(
+                    (
+                        SELECT MIN(so_app.price) 
+                        FROM seller_offer so_app 
+                        WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                    ),
+                    pvp.price,
+                    0
+                ),
+                "productVariantName" = COALESCE((
+                    SELECT CASE 
+                        WHEN string_agg(ot.name::text, ' / ') IS NOT NULL AND string_agg(ot.name::text, ' / ') != ''
+                        THEN pt.name::text || ' (' || string_agg(ot.name::text, ' / ') || ')'
+                        ELSE pt.name::text
+                    END
+                    FROM product_variant pv_inner
+                    INNER JOIN product p_inner ON p_inner.id = pv_inner."productId"
+                    LEFT JOIN product_translation pt ON pt."baseId" = p_inner.id AND pt."languageCode" = sii."languageCode"
+                    LEFT JOIN product_variant_options_product_option pvo ON pvo."productVariantId" = pv_inner.id
+                    LEFT JOIN product_option po ON po.id = pvo."productOptionId"
+                    LEFT JOIN product_option_translation ot ON ot."baseId" = po.id AND ot."languageCode" = sii."languageCode"
+                    WHERE pv_inner.id = sii."productVariantId"
+                    GROUP BY pt.name
+                ), sii."productName"::text),
+                "productAssetId" = COALESCE(
+                    (
+                        SELECT CASE WHEN so_app."featuredAssetId" ~ '^[0-9]+$' THEN so_app."featuredAssetId"::integer ELSE NULL END
+                        FROM seller_offer so_app 
+                        WHERE so_app."productVariantId" = pv.id 
+                          AND so_app.status = 'approved' 
+                          AND so_app."featuredAssetId" IS NOT NULL 
+                          AND so_app."featuredAssetId" != '' 
+                        ORDER BY so_app.price ASC 
+                        LIMIT 1
+                    ),
+                    pv."featuredAssetId",
+                    p."featuredAssetId"
+                )
+                FROM product_variant pv
+                INNER JOIN product p ON pv."productId" = p.id
+                LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                WHERE sii."productVariantId" = $1;
+            `, [variantId]);
+        } catch (_) {}
 
         // 5. Deactivate source vendor draft product if applicable
         const oldProductId = (variant.product as any)?.id;
@@ -1706,6 +1831,7 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     async findAllProductsForVendor(ctx: RequestContext, vendorId: string): Promise<Product[]> {
+        console.log(`[findAllProductsForVendor] Called for vendorId: ${vendorId}`);
         // 1. Get all product IDs created by vendor OR tagged via SellerOffers
         let productIds: string[] = [];
         let rawOffers: any[] = [];
@@ -1726,6 +1852,7 @@ export class VendorService implements OnApplicationBootstrap {
             `, [vendorId]);
 
             productIds = (rawRes || []).map((r: any) => String(r.id));
+            console.log(`[findAllProductsForVendor] Found ${productIds.length} productIds for vendor ${vendorId}:`, productIds);
             if (productIds.length === 0) {
                 return [];
             }
@@ -1735,15 +1862,17 @@ export class VendorService implements OnApplicationBootstrap {
                 FROM seller_offer
                 WHERE "vendorId" = $1
             `, [vendorId]);
-        } catch (err) {
-            console.error('[findAllProductsForVendor] Direct query failed:', err);
+            console.log(`[findAllProductsForVendor] Found ${rawOffers.length} rawOffers for vendor ${vendorId}`);
+        } catch (err: any) {
+            console.error('[findAllProductsForVendor] Direct query failed:', err.message, err.stack);
             return [];
         }
 
         // 2. Load full products with all relations
         let products: Product[] = [];
         try {
-            products = await this.connection.getRepository(ctx, Product)
+            const adminCtx = await this.getSuperAdminContext(ctx);
+            products = await this.connection.getRepository(adminCtx, Product)
                 .createQueryBuilder('product')
                 .leftJoinAndSelect('product.translations', 'translations')
                 .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
@@ -1757,10 +1886,12 @@ export class VendorService implements OnApplicationBootstrap {
                 .leftJoinAndSelect('options.translations', 'optionTranslations')
                 .leftJoinAndSelect('group.translations', 'groupTranslations')
                 .where('product.id IN (:...productIds)', { productIds })
+                .andWhere('product.deletedAt IS NULL')
                 .orderBy('product.createdAt', 'DESC')
                 .getMany();
-        } catch (err) {
-            console.error('[findAllProductsForVendor] Products QueryBuilder failed:', err);
+            console.log(`[findAllProductsForVendor] Loaded ${products.length} products from QueryBuilder`);
+        } catch (err: any) {
+            console.error('[findAllProductsForVendor] Products QueryBuilder failed:', err.message, err.stack);
             return [];
         }
 
@@ -1773,11 +1904,16 @@ export class VendorService implements OnApplicationBootstrap {
         // 4. Overlay seller-specific offer values on each product variant
         const resultProducts: Product[] = [];
         for (const p of products) {
-            if (p.variants) {
-                // Strictly filter to ONLY the variants where this vendor has an offer
-                p.variants = p.variants.filter(v => offerMap.has(String(v.id)));
-                if (p.variants.length === 0) {
-                    continue; // Skip product entirely if vendor has no active offer for any of its variants
+            const isOwner = String((p.customFields as any)?.vendorId || (p.customFields as any)?.vendor?.id || (p as any)?.customFieldsVendorid || '') === String(vendorId);
+
+            if (p.variants && p.variants.length > 0) {
+                // If not owner (grafted offers), strictly filter to the variants where this vendor has an offer
+                if (!isOwner) {
+                    p.variants = p.variants.filter(v => offerMap.has(String(v.id)));
+                }
+
+                if (p.variants.length === 0 && !isOwner) {
+                    continue; // Skip product entirely if vendor has no offer for any of its variants
                 }
 
                 for (const v of p.variants) {
@@ -1817,13 +1953,12 @@ export class VendorService implements OnApplicationBootstrap {
                         } as any;
                     }
                 }
-            } else {
-                continue;
             }
 
             resultProducts.push(p);
         }
 
+        console.log(`[findAllProductsForVendor] Returning ${resultProducts.length} resultProducts for vendor ${vendorId}`);
         return resultProducts;
     }
 

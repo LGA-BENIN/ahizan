@@ -2065,9 +2065,17 @@ export function ProductListComponent() {
                                                                                                             <span style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
                                                                                                                 ✕ Rejetée
                                                                                                             </span>
-                                                                                                        ) : (
+                                                                                                        ) : offer.status === 'approved' ? (
                                                                                                             <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
                                                                                                                 ✓ En ligne
+                                                                                                            </span>
+                                                                                                        ) : offer.status === 'disabled' ? (
+                                                                                                            <span style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
+                                                                                                                ⏸️ Désactivé
+                                                                                                            </span>
+                                                                                                        ) : (
+                                                                                                            <span style={{ background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 800 }}>
+                                                                                                                ⏳ En attente
                                                                                                             </span>
                                                                                                         )}
                                                                                                     </div>

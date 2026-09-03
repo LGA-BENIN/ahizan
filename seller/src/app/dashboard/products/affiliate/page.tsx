@@ -1141,7 +1141,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                                                         min="0"
                                                         required
                                                         value={row.stock}
-                                                        onChange={e => handleUpdateVariantRow(row.key, 'stock', Number(e.target.value))}
+                                                        onChange={e => handleUpdateVariantRow(row.key, 'stock', Math.max(0, Number(e.target.value) || 0))}
                                                         className="h-10 rounded-xl font-bold text-sm bg-muted/10 mt-1"
                                                     />
                                                 </div>

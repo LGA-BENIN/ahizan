@@ -855,7 +855,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                         min={0}
                                         required
                                         value={variant.stock !== undefined ? variant.stock : ''}
-                                        onChange={(e) => handleVariantChange(variant.id, 'stock', parseInt(e.target.value) || 0)}
+                                        onChange={(e) => handleVariantChange(variant.id, 'stock', Math.max(0, parseInt(e.target.value) || 0))}
                                         placeholder="Ex: 10"
                                         className="h-9 text-xs font-bold rounded-xl"
                                     />

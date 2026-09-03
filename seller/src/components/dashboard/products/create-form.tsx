@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import ImageUploader, { type UploadedAsset } from '@/components/ImageUploader';
-import { createProductAction } from '@/app/dashboard/products/actions';
+import ImageCropModal from '@/components/ImageCropModal';
+import { createProductAction, uploadFileAction } from '@/app/dashboard/products/actions';
 import { query } from '@/lib/vendure/api';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,9 @@ import {
     Package,
     SlidersHorizontal,
     Camera,
-    Layers
+    Layers,
+    ImageIcon,
+    Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import CategoryCheckboxTree from './category-checkbox-tree';
@@ -46,6 +49,7 @@ interface VariantRow {
     promotionalPrice: number;
     enabled?: boolean;
     featuredAssetId?: string | null;
+    featuredAssetPreview?: string | null;
 }
 
 const SEARCH_OFFICIAL_PRODUCTS_QUERY = `
@@ -134,6 +138,62 @@ export default function CreateProductForm({
     const [variants, setVariants] = useState<VariantRow[]>([
         { id: '1', name: 'Standard', sku: '', price: 0, stock: 5, onPromotion: false, promotionalPrice: 0, enabled: true, featuredAssetId: null }
     ]);
+
+    // State for crop modal for variant images
+    const [variantCropModalOpen, setVariantCropModalOpen] = useState(false);
+    const [variantCropSrc, setVariantCropSrc] = useState<string>('');
+    const [variantCropIndex, setVariantCropIndex] = useState<number | null>(null);
+    const [variantCropFileName, setVariantCropFileName] = useState<string>('variant.jpg');
+    const [isUploadingVariantImage, setIsUploadingVariantImage] = useState<number | null>(null);
+    const variantFileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleSelectVariantImage = (index: number) => {
+        setVariantCropIndex(index);
+        if (variantFileInputRef.current) {
+            variantFileInputRef.current.click();
+        }
+    };
+
+    const handleVariantFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setVariantCropFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = () => {
+            setVariantCropSrc(reader.result as string);
+            setVariantCropModalOpen(true);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleVariantCropComplete = async (croppedBlob: Blob) => {
+        if (variantCropIndex === null) return;
+        const targetIndex = variantCropIndex;
+        setVariantCropModalOpen(false);
+        setIsUploadingVariantImage(targetIndex);
+        try {
+            const file = new File([croppedBlob], variantCropFileName, { type: 'image/jpeg' });
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await uploadFileAction(formData);
+            if (res.success && res.asset) {
+                setVariants(prev => prev.map((v, i) => i === targetIndex ? {
+                    ...v,
+                    featuredAssetId: res.asset.id,
+                    featuredAssetPreview: res.asset.preview
+                } : v));
+                toast.success("Image de la déclinaison enregistrée");
+            } else {
+                toast.error(res.error || "Erreur lors du téléversement");
+            }
+        } catch (err) {
+            toast.error("Échec du téléversement de l'image");
+        } finally {
+            setIsUploadingVariantImage(null);
+            setVariantCropIndex(null);
+        }
+    };
 
     // Fetch global option groups from backend on mount
     useEffect(() => {
@@ -784,7 +844,7 @@ export default function CreateProductForm({
                                             placeholder="Ex: 15000"
                                             value={v.price || ''}
                                             onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
+                                                const val = Math.max(0, parseInt(e.target.value) || 0);
                                                 setVariants(prev => prev.map((item, i) => i === idx ? { ...item, price: val } : item));
                                             }}
                                             className="h-10 text-sm font-bold rounded-xl mt-1"
@@ -797,10 +857,11 @@ export default function CreateProductForm({
                                         </Label>
                                         <Input
                                             type="number"
+                                            min="0"
                                             placeholder="Ex: 10"
-                                            value={v.stock || ''}
+                                            value={v.stock !== undefined ? v.stock : ''}
                                             onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
+                                                const val = Math.max(0, parseInt(e.target.value) || 0);
                                                 setVariants(prev => prev.map((item, i) => i === idx ? { ...item, stock: val } : item));
                                             }}
                                             className="h-10 text-sm font-bold rounded-xl mt-1"
@@ -817,7 +878,7 @@ export default function CreateProductForm({
                                                 placeholder="Ex: 12000"
                                                 value={v.promotionalPrice || ''}
                                                 onChange={(e) => {
-                                                    const val = parseInt(e.target.value) || 0;
+                                                    const val = Math.max(0, parseInt(e.target.value) || 0);
                                                     setVariants(prev => prev.map((item, i) => i === idx ? { ...item, promotionalPrice: val } : item));
                                                 }}
                                                 className="h-10 text-sm font-bold rounded-xl mt-1 border-amber-500/40"
@@ -838,6 +899,58 @@ export default function CreateProductForm({
                                                 className="h-10 text-xs rounded-xl mt-1"
                                             />
                                         </div>
+                                    )}
+                                </div>
+
+                                {/* Variant Image Upload Row */}
+                                <div className="pt-2 border-t border-border/40 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                                        <span className="text-xs font-bold text-muted-foreground">Photo de cette déclinaison :</span>
+                                    </div>
+                                    {v.featuredAssetPreview ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-border relative group">
+                                                <img src={v.featuredAssetPreview} alt={v.name} className="w-full h-full object-cover" />
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleSelectVariantImage(idx)}
+                                                disabled={isUploadingVariantImage === idx}
+                                                className="h-8 px-2 text-[10px] font-bold uppercase"
+                                            >
+                                                Changer
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => {
+                                                    setVariants(prev => prev.map((item, i) => i === idx ? { ...item, featuredAssetId: null, featuredAssetPreview: null } : item));
+                                                }}
+                                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleSelectVariantImage(idx)}
+                                            disabled={isUploadingVariantImage === idx}
+                                            className="h-8 px-3 text-[10px] font-bold uppercase flex items-center gap-1.5 border-dashed cursor-pointer"
+                                        >
+                                            {isUploadingVariantImage === idx ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                                <Camera className="w-3.5 h-3.5 text-primary" />
+                                            )}
+                                            Ajouter / Rogner photo
+                                        </Button>
                                     )}
                                 </div>
                             </div>
@@ -876,6 +989,24 @@ export default function CreateProductForm({
                     </div>
                 </div>
             )}
+
+            {/* Hidden File Input for Variant Cropper */}
+            <input
+                type="file"
+                ref={variantFileInputRef}
+                onChange={handleVariantFileChange}
+                accept="image/*"
+                className="hidden"
+            />
+
+            {/* Variant Image Crop Modal */}
+            <ImageCropModal
+                isOpen={variantCropModalOpen}
+                imageSrc={variantCropSrc}
+                onClose={() => setVariantCropModalOpen(false)}
+                onCropComplete={handleVariantCropComplete}
+                aspectRatio={1}
+            />
 
         </div>
     );

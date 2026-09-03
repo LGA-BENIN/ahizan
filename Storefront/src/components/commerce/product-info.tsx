@@ -82,12 +82,12 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         const list = (product.variants || []).filter((v: any) => {
             if (v.enabled === false) return false;
             const offerStatus = (v.customFields as any)?.offerStatus || (v.customFields as any)?.offerstatus;
-            if (offerStatus === 'PENDING' || offerStatus === 'REFUSED') return false;
+            if (offerStatus === 'PENDING' || offerStatus === 'pending' || offerStatus === 'REFUSED' || offerStatus === 'rejected') return false;
             const approvalStatus = (v.customFields as any)?.approvalStatus || (v.customFields as any)?.approvalstatus;
-            if (approvalStatus === 'pending' || approvalStatus === 'refused') return false;
+            if (approvalStatus === 'pending' || approvalStatus === 'refused' || approvalStatus === 'rejected') return false;
             return true;
         });
-        return list.length > 0 ? list : product.variants;
+        return list;
     }, [product.variants]);
 
     const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {

@@ -102,9 +102,17 @@ export function DenseProductCard({
     const maxPrice = getMaxPrice(product);
     const defaultImage = themeSettings?.defaultProductImage;
     const imageUrl = product.productVariantAsset?.preview || product.productAsset?.preview || defaultImage;
-    const displayName = (product.productVariantName && product.productVariantName !== 'Produit')
-        ? product.productVariantName
-        : (product.productName || product.name || "Produit");
+    const pName = product.productName || product.name || "Produit";
+    const vName = product.productVariantName || "";
+
+    let displayName = pName;
+    if (vName && vName !== 'Produit' && vName !== pName) {
+        if (pName && !vName.toLowerCase().includes(pName.toLowerCase())) {
+            displayName = `${pName} (${vName})`;
+        } else {
+            displayName = vName;
+        }
+    }
 
     const targetVariantId = product.productVariantId || product.variants?.[0]?.id;
     const targetVendorId = product.vendorId || product.customFields?.vendor?.id;

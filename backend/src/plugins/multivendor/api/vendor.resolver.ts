@@ -4,6 +4,7 @@ import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/g
 import { VendorService } from '../service/vendor.service';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { SellerOffer, ProductCondition, DeliveryTimeUnit } from '../entities/seller-offer.entity';
+import { SellerOfferService } from '../service/seller-offer.service';
 import { OrderStatusService } from '../service/order-status.service';
 import { LikeService } from '../service/like.service';
 import { GeoZone } from '../../geo-engine/entities/geo-zone.entity';
@@ -382,6 +383,7 @@ export class VendorAdminResolver {
         private channelService: ChannelService,
         private productOptionGroupService: ProductOptionGroupService,
         private productOptionService: ProductOptionService,
+        private sellerOfferService: SellerOfferService,
     ) {
         console.log('VendorAdminResolver initialized with ProductService and GeoService');
     }
@@ -892,6 +894,19 @@ export class VendorAdminResolver {
                 }
             });
 
+            // Create SellerOffer for vendor on the newly created variant
+            await this.sellerOfferService.createOrUpdateOffer(transactionalCtx, vendor, String(variant.id), {
+                price: input.price,
+                stock: input.stock,
+                sku: variantInput.sku,
+                onPromotion: input.onPromotion,
+                promotionalPrice: input.promotionalPrice,
+                status: 'approved',
+            });
+
+            // Ensure Product has vendor = null so it belongs to official Ahizan platform catalog
+            await this.connection.rawConnection.query('UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1', [product.id]);
+
             if (input.collectionIds && input.collectionIds.length > 0) {
                 await this.addVariantsToCollections(transactionalCtx, [String(variant.id)], input.collectionIds);
             }
@@ -1085,15 +1100,159 @@ export class VendorAdminResolver {
                 }
             }
 
-            if (convertToOfficialCatalog) {
+            if (status === 'approved' || convertToOfficialCatalog) {
                 // Clear vendor on Product so it becomes an official central Ahizan catalog item
                 await this.connection.rawConnection.query('UPDATE product SET "customFieldsVendorid" = NULL WHERE id = $1', [id]);
+            }
+
+            // Sync collections, Channel 1, and search_index_item real-time for all variants of this product
+            try {
+                const numPId = Number(id);
+
+                // 1. Inherit product collections into collection_product_variants_product_variant
+                await this.connection.rawConnection.query(`
+                    INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                    SELECT DISTINCT cpv."collectionId", pv.id
+                    FROM product_variant pv
+                    INNER JOIN product_variant pv_existing ON pv_existing."productId" = pv."productId"
+                    INNER JOIN collection_product_variants_product_variant cpv ON cpv."productVariantId" = pv_existing.id
+                    WHERE pv."productId" = $1::integer
+                    ON CONFLICT DO NOTHING
+                `, [numPId]).catch((err: any) => console.error('[adminReviewProduct] step 1 error:', err));
+
+                // 2. Sync product_variant enabled state
+                await this.connection.rawConnection.query(`
+                    UPDATE product_variant pv_sync
+                    SET enabled = (
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1 FROM seller_offer so_any 
+                                WHERE so_any."productVariantId" = pv_sync.id
+                            )
+                            THEN EXISTS (
+                                SELECT 1 FROM seller_offer so 
+                                WHERE so."productVariantId" = pv_sync.id AND so.status = 'approved'
+                            )
+                            ELSE pv_sync.enabled
+                        END
+                    ),
+                    "customFieldsOfferstatus" = COALESCE(
+                        (
+                            SELECT CASE WHEN so_b.status = 'approved' THEN 'APPROVED' WHEN so_b.status = 'rejected' THEN 'REJECTED' ELSE 'PENDING' END
+                            FROM seller_offer so_b
+                            WHERE so_b."productVariantId" = pv_sync.id
+                            ORDER BY CASE WHEN so_b.status = 'approved' THEN 1 WHEN so_b.status = 'pending' THEN 2 ELSE 3 END
+                            LIMIT 1
+                        ),
+                        'APPROVED'
+                    ),
+                    "updatedAt" = NOW()
+                    FROM product p_sync
+                    WHERE pv_sync."productId" = p_sync.id AND p_sync.id = $1::integer
+                `, [numPId]).catch((err: any) => console.error('[adminReviewProduct] step 2 error:', err));
+
+                // 3. Ensure product and variants are assigned to Default Channel 1
+                await this.connection.rawConnection.query(`
+                    INSERT INTO product_channels_channel ("productId", "channelId")
+                    VALUES ($1::integer, 1) ON CONFLICT DO NOTHING
+                `, [numPId]).catch((err: any) => console.error('[adminReviewProduct] step 3a error:', err));
+
+                await this.connection.rawConnection.query(`
+                    INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                    SELECT pv.id, 1
+                    FROM product_variant pv
+                    WHERE pv."productId" = $1::integer
+                    ON CONFLICT DO NOTHING
+                `, [numPId]).catch((err: any) => console.error('[adminReviewProduct] step 3b error:', err));
+
+                // 4. Update search_index_item with collectionIds, collectionSlugs, enabled status, prices, and productVariantName
+                await this.connection.rawConnection.query(`
+                    UPDATE search_index_item sii
+                    SET "collectionIds" = COALESCE((
+                        SELECT string_agg(DISTINCT cpv."collectionId"::text, ',')
+                        FROM collection_product_variants_product_variant cpv
+                        WHERE cpv."productVariantId" = sii."productVariantId"
+                    ), ''),
+                    "collectionSlugs" = COALESCE((
+                        SELECT string_agg(DISTINCT ct.slug, ',')
+                        FROM collection_product_variants_product_variant cpv
+                        INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId"
+                        WHERE cpv."productVariantId" = sii."productVariantId"
+                    ), ''),
+                    "enabled" = (
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1 FROM seller_offer so_any
+                                WHERE so_any."productVariantId" = pv.id
+                            )
+                            THEN EXISTS (
+                                SELECT 1 FROM seller_offer so_app
+                                WHERE so_app."productVariantId" = pv.id
+                                  AND so_app.status = 'approved'
+                            )
+                            ELSE (p.enabled AND pv.enabled)
+                        END
+                    ),
+                    "price" = COALESCE(
+                        (
+                            SELECT MIN(so_app.price) 
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                        ),
+                        pvp.price,
+                        0
+                    ),
+                    "priceWithTax" = COALESCE(
+                        (
+                            SELECT MIN(so_app.price) 
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                        ),
+                        pvp.price,
+                        0
+                    ),
+                    "productVariantName" = COALESCE((
+                        SELECT CASE 
+                            WHEN string_agg(ot.name::text, ' / ') IS NOT NULL AND string_agg(ot.name::text, ' / ') != ''
+                            THEN pt.name::text || ' (' || string_agg(ot.name::text, ' / ') || ')'
+                            ELSE pt.name::text
+                        END
+                        FROM product_variant pv_inner
+                        INNER JOIN product p_inner ON p_inner.id = pv_inner."productId"
+                        LEFT JOIN product_translation pt ON pt."baseId" = p_inner.id AND pt."languageCode" = sii."languageCode"
+                        LEFT JOIN product_variant_options_product_option pvo ON pvo."productVariantId" = pv_inner.id
+                        LEFT JOIN product_option po ON po.id = pvo."productOptionId"
+                        LEFT JOIN product_option_translation ot ON ot."baseId" = po.id AND ot."languageCode" = sii."languageCode"
+                        WHERE pv_inner.id = sii."productVariantId"
+                        GROUP BY pt.name
+                    ), sii."productName"::text),
+                    "productAssetId" = COALESCE(
+                        (
+                            SELECT CASE WHEN so_app."featuredAssetId" ~ '^[0-9]+$' THEN so_app."featuredAssetId"::integer ELSE NULL END
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id 
+                              AND so_app.status = 'approved' 
+                              AND so_app."featuredAssetId" IS NOT NULL 
+                              AND so_app."featuredAssetId" != '' 
+                            ORDER BY so_app.price ASC 
+                            LIMIT 1
+                        ),
+                        pv."featuredAssetId",
+                        p."featuredAssetId"
+                    )
+                    FROM product_variant pv
+                    INNER JOIN product p ON pv."productId" = p.id
+                    LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                    WHERE sii."productVariantId" = pv.id AND pv."productId" = $1::integer
+                `, [numPId]).catch((err: any) => console.error('[adminReviewProduct] step 4 error:', err));
+            } catch (syncErr: any) {
+                console.error('[adminReviewProduct] sync error:', syncErr);
             }
         }
 
         const updateData: any = {
             id,
-            enabled: status === 'approved' && isOfferApproved,
+            enabled: status === 'approved',
             customFields: {
                 approvalStatus: status,
                 rejectionReason: status === 'rejected' ? (rejectionReason || 'Non conforme aux critères Ahizan') : null,
@@ -1239,15 +1398,43 @@ export class VendorAdminResolver {
 
         // Synchronize underlying ProductVariant enabled state and offerStatus
         if (offer.productVariant?.id) {
-            const isApproved = status === 'approved';
+            const approvedOffersCount = await this.connection.rawConnection.query(
+                `SELECT COUNT(*) as count FROM seller_offer WHERE "productVariantId" = $1 AND status = 'approved'`,
+                [offer.productVariant.id]
+            );
+            const hasApprovedOffers = parseInt(approvedOffersCount[0]?.count || '0', 10) > 0;
+
             await this.connection.rawConnection.query(
                 `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "customFieldsRejectionreason" = $3, "updatedAt" = NOW() WHERE id = $4`,
-                [isApproved, isApproved ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.rejectionReason, offer.productVariant.id]
+                [hasApprovedOffers, status === 'approved' ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.rejectionReason, offer.productVariant.id]
             );
 
             // Recompute parent Product enabled state: product is enabled if and only if it has at least 1 approved variant
             const parentProdId = offer.productVariant.product?.id || (await this.connection.rawConnection.query(`SELECT "productId" FROM product_variant WHERE id = $1`, [offer.productVariant.id]))?.[0]?.productId;
             if (parentProdId) {
+                // Inherit parent product's collection associations for this variant
+                try {
+                    await this.connection.rawConnection.query(
+                        `-- Inherit from other variants of the same product (existing approach)
+                         INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                         SELECT DISTINCT cpv."collectionId", $1
+                         FROM collection_product_variants_product_variant cpv
+                         INNER JOIN product_variant pv_other ON pv_other.id = cpv."productVariantId"
+                         WHERE pv_other."productId" = $2
+                         ON CONFLICT DO NOTHING`,
+                        [offer.productVariant.id, parentProdId]
+                    );
+                } catch (_) {}
+
+                // Ensure variant is in Default Channel 1
+                try {
+                    await this.connection.rawConnection.query(
+                        `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                         VALUES ($1, 1) ON CONFLICT DO NOTHING`,
+                        [offer.productVariant.id]
+                    );
+                } catch (_) {}
+
                 const approvedCountRes = await this.connection.rawConnection.query(
                     `SELECT COUNT(*) as count FROM product_variant WHERE "productId" = $1 AND enabled = true`,
                     [parentProdId]
@@ -1258,6 +1445,96 @@ export class VendorAdminResolver {
                     [hasApprovedVariants, parentProdId]
                 );
             }
+
+            // Sync search_index_item real-time for this variant
+            try {
+                await this.connection.rawConnection.query(`
+                    UPDATE search_index_item sii
+                    SET "collectionIds" = COALESCE((
+                        SELECT string_agg(cpv."collectionId"::text, ',')
+                        FROM collection_product_variants_product_variant cpv
+                        WHERE cpv."productVariantId" = sii."productVariantId"
+                    ), ''),
+                    "collectionSlugs" = COALESCE((
+                        SELECT string_agg(ct.slug, ',')
+                        FROM collection_product_variants_product_variant cpv
+                        INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId"
+                        WHERE cpv."productVariantId" = sii."productVariantId"
+                    ), ''),
+                    "enabled" = (
+                        -- RÈGLE UNIQUE DE VISIBILITÉ (identique à seller-offer.service.ts) :
+                        -- Une variante est visible si et seulement si elle a au moins une offre approuvée.
+                        -- Pour les variantes sans aucune offre (produits natifs), conserver l'état natif.
+                        -- On ignore p.enabled et p.customFieldsApprovalstatus ici : ces champs
+                        -- ne doivent pas bloquer l'affichage des variantes déjà validées.
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1 FROM seller_offer so_any
+                                WHERE so_any."productVariantId" = pv.id
+                            )
+                            -- Produit marketplace : visible seulement si une offre est approuvée
+                            THEN EXISTS (
+                                SELECT 1 FROM seller_offer so_app
+                                WHERE so_app."productVariantId" = pv.id
+                                  AND so_app.status = 'approved'
+                            )
+                            -- Produit natif (aucune offre) : conserver la visibilité native
+                            ELSE (p.enabled AND pv.enabled)
+                        END
+                    ),
+                    "price" = COALESCE(
+                        (
+                            SELECT MIN(so_app.price) 
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                        ),
+                        pvp.price,
+                        0
+                    ),
+                    "priceWithTax" = COALESCE(
+                        (
+                            SELECT MIN(so_app.price) 
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                        ),
+                        pvp.price,
+                        0
+                    ),
+                    "productVariantName" = COALESCE((
+                        SELECT CASE 
+                            WHEN string_agg(ot.name::text, ' - ') IS NOT NULL AND string_agg(ot.name::text, ' - ') != ''
+                            THEN pt.name::text || ' - ' || string_agg(ot.name::text, ' - ')
+                            ELSE pt.name::text
+                        END
+                        FROM product_variant pv_inner
+                        INNER JOIN product p_inner ON p_inner.id = pv_inner."productId"
+                        LEFT JOIN product_translation pt ON pt."baseId" = p_inner.id AND pt."languageCode" = sii."languageCode"
+                        LEFT JOIN product_variant_options_product_option pvo ON pvo."productVariantId" = pv_inner.id
+                        LEFT JOIN product_option po ON po.id = pvo."productOptionId"
+                        LEFT JOIN product_option_translation ot ON ot."baseId" = po.id AND ot."languageCode" = sii."languageCode"
+                        WHERE pv_inner.id = sii."productVariantId"
+                        GROUP BY pt.name
+                    ), sii."productName"::text),
+                    "productAssetId" = COALESCE(
+                        (
+                            SELECT CASE WHEN so_app."featuredAssetId" ~ '^[0-9]+$' THEN so_app."featuredAssetId"::integer ELSE NULL END
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id 
+                              AND so_app.status = 'approved' 
+                              AND so_app."featuredAssetId" IS NOT NULL 
+                              AND so_app."featuredAssetId" != '' 
+                            ORDER BY so_app.price ASC 
+                            LIMIT 1
+                        ),
+                        pv."featuredAssetId",
+                        p."featuredAssetId"
+                    )
+                    FROM product_variant pv
+                    INNER JOIN product p ON pv."productId" = p.id
+                    LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                    WHERE sii."productVariantId" = $1;
+                `, [offer.productVariant.id]);
+            } catch (_) {}
         }
 
         return savedOffer;

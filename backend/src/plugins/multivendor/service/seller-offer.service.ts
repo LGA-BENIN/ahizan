@@ -149,35 +149,153 @@ export class SellerOfferService {
 
         // Update underlying ProductVariant offerStatus and rejection reason
         if (variantId) {
-            const offerStatus = savedOffer.status === 'approved' ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
-            await this.connection.rawConnection.query(
-                `UPDATE product_variant SET "customFieldsOfferstatus" = $1, "customFieldsRejectionreason" = $2, "price" = $3, "updatedAt" = NOW() WHERE id = $4`,
-                [offerStatus, savedOffer.rejectionReason, savedOffer.price, variantId]
+            const numVariantId = Number(variantId);
+            const pvRepo = this.connection.getRepository(ctx, ProductVariant);
+            const approvedOffersCount = await pvRepo.query(
+                `SELECT COUNT(*) as count FROM seller_offer WHERE "productVariantId" = $1 AND status = 'approved'`,
+                [numVariantId]
             );
+            const hasApprovedOffers = parseInt(approvedOffersCount[0]?.count || '0', 10) > 0;
+            const offerStatus = savedOffer.status === 'approved' ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
+
+            await pvRepo.query(
+                `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "customFieldsRejectionreason" = $3, "updatedAt" = NOW() WHERE id = $4`,
+                [hasApprovedOffers, offerStatus, savedOffer.rejectionReason, numVariantId]
+            );
+            try {
+                await pvRepo.query(
+                    `UPDATE product_variant_price SET "price" = $1 WHERE "variantId" = $2`,
+                    [savedOffer.price, numVariantId]
+                );
+            } catch (pErr) {}
 
             if (savedOffer.featuredAssetId) {
                 try {
-                    await this.connection.rawConnection.query(
-                        `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2`,
-                        [savedOffer.featuredAssetId, variantId]
-                    );
+                    const numAssetId = Number(savedOffer.featuredAssetId);
+                    if (!isNaN(numAssetId)) {
+                        await pvRepo.query(
+                            `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2`,
+                            [numAssetId, numVariantId]
+                        );
+                    }
                 } catch (e) {}
+            }
+
+            // Sync search_index_item real-time for this variant
+            try {
+                // 1. Inherit collections from sibling variants
+                await pvRepo.query(`
+                    INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                    SELECT DISTINCT cpv."collectionId", $1::integer
+                    FROM collection_product_variants_product_variant cpv
+                    INNER JOIN product_variant pv_sibling ON pv_sibling.id = cpv."productVariantId"
+                    WHERE pv_sibling."productId" = (
+                        SELECT pv2."productId" FROM product_variant pv2 WHERE pv2.id = $1::integer
+                    )
+                    AND cpv."productVariantId" != $1::integer
+                    ON CONFLICT DO NOTHING
+                `, [numVariantId]).catch((err: any) => console.error('[SellerOfferService] step 1 error:', err));
+
+                // 2. Update search_index_item
+                await pvRepo.query(`
+                    UPDATE search_index_item sii
+                    SET "collectionIds" = COALESCE((
+                        SELECT string_agg(DISTINCT cpv."collectionId"::text, ',')
+                        FROM collection_product_variants_product_variant cpv
+                        WHERE cpv."productVariantId" = sii."productVariantId"
+                    ), ''),
+                    "collectionSlugs" = COALESCE((
+                        SELECT string_agg(DISTINCT ct.slug, ',')
+                        FROM collection_product_variants_product_variant cpv
+                        INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId"
+                        WHERE cpv."productVariantId" = sii."productVariantId"
+                    ), ''),
+                    "enabled" = (
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1 FROM seller_offer so_any
+                                WHERE so_any."productVariantId" = pv.id
+                            )
+                            THEN EXISTS (
+                                SELECT 1 FROM seller_offer so_app
+                                WHERE so_app."productVariantId" = pv.id
+                                  AND so_app.status = 'approved'
+                            )
+                            ELSE (p.enabled AND pv.enabled)
+                        END
+                    ),
+                    "price" = COALESCE(
+                        (
+                            SELECT MIN(so_app.price) 
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                        ),
+                        pvp.price,
+                        0
+                    ),
+                    "priceWithTax" = COALESCE(
+                        (
+                            SELECT MIN(so_app.price) 
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved'
+                        ),
+                        pvp.price,
+                        0
+                    ),
+                    "productVariantName" = COALESCE((
+                        SELECT CASE 
+                            WHEN string_agg(ot.name::text, ' / ') IS NOT NULL AND string_agg(ot.name::text, ' / ') != ''
+                            THEN pt.name::text || ' (' || string_agg(ot.name::text, ' / ') || ')'
+                            ELSE pt.name::text
+                        END
+                        FROM product_variant pv_inner
+                        INNER JOIN product p_inner ON p_inner.id = pv_inner."productId"
+                        LEFT JOIN product_translation pt ON pt."baseId" = p_inner.id AND pt."languageCode" = sii."languageCode"
+                        LEFT JOIN product_variant_options_product_option pvo ON pvo."productVariantId" = pv_inner.id
+                        LEFT JOIN product_option po ON po.id = pvo."productOptionId"
+                        LEFT JOIN product_option_translation ot ON ot."baseId" = po.id AND ot."languageCode" = sii."languageCode"
+                        WHERE pv_inner.id = sii."productVariantId"
+                        GROUP BY pt.name
+                    ), sii."productName"::text),
+                    "productAssetId" = COALESCE(
+                        (
+                            SELECT CASE WHEN so_app."featuredAssetId" ~ '^[0-9]+$' THEN so_app."featuredAssetId"::integer ELSE NULL END
+                            FROM seller_offer so_app 
+                            WHERE so_app."productVariantId" = pv.id 
+                              AND so_app.status = 'approved' 
+                              AND so_app."featuredAssetId" IS NOT NULL 
+                              AND so_app."featuredAssetId" != '' 
+                            ORDER BY so_app.price ASC 
+                            LIMIT 1
+                        ),
+                        pv."featuredAssetId",
+                        p."featuredAssetId"
+                    )
+                    FROM product_variant pv
+                    INNER JOIN product p ON pv."productId" = p.id
+                    LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                    WHERE sii."productVariantId" = pv.id AND pv.id = $1::integer
+                `, [numVariantId]).catch((err: any) => console.error('[SellerOfferService] step 2 error:', err));
+            } catch (err) {
+                console.error('[SellerOfferService] step 1-2 block error:', err);
             }
 
             // If offer is pending, touch product updatedAt and reset approval status
             if (savedOffer.status === 'pending') {
                 try {
-                    await this.connection.rawConnection.query(
-                        `UPDATE product SET "updatedAt" = NOW() WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1)`,
-                        [variantId]
-                    );
-                    await this.connection.rawConnection.query(
+                    await pvRepo.query(
+                        `UPDATE product SET "updatedAt" = NOW() WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1::integer)`,
+                        [numVariantId]
+                    ).catch((err: any) => console.error('[SellerOfferService] touch updatedAt error:', err));
+                    await pvRepo.query(
                         `UPDATE product SET "customFieldsRejectionreason" = NULL, "customFieldsApprovalstatus" = 'pending' 
-                         WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1)
+                         WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1::integer)
                          AND ("customFieldsApprovalstatus" = 'rejected' OR "customFieldsApprovalstatus" = 'correction_requested' OR "customFieldsApprovalstatus" = 'needs_information')`,
-                        [variantId]
-                    );
-                } catch (e) {}
+                        [numVariantId]
+                    ).catch((err: any) => console.error('[SellerOfferService] reset approvalstatus error:', err));
+                } catch (e: any) {
+                    console.error('[SellerOfferService] touch product error:', e);
+                }
             }
         }
 
@@ -194,34 +312,22 @@ export class SellerOfferService {
             const stockLocations = await this.stockLocationService.findAll(adminCtx);
             const vendorStockLocation = stockLocations.items.find((sl: any) => sl.name === `${vendor.name} Stock`);
             
-            if (vendorStockLocation) {
-                const stockUpdatePayload: any = {
-                    id: variantId,
-                    stockLevels: [
-                        {
-                            stockLocationId: vendorStockLocation.id,
-                            stockOnHand: input.stock,
-                        }
-                    ]
-                };
-                const validSku = (input.sku && String(input.sku).trim() !== '') 
-                    ? String(input.sku).trim() 
-                    : (variant.sku && String(variant.sku).trim() !== '' ? String(variant.sku).trim() : `VND-OFFER-${variantId}`);
-                stockUpdatePayload.sku = validSku;
-                await this.productVariantService.update(adminCtx, [stockUpdatePayload]);
+            if (vendorStockLocation && variantId) {
+                const numVariantId = Number(variantId);
+                const pvRepo = this.connection.getRepository(ctx, ProductVariant);
+                await pvRepo.query(`
+                    INSERT INTO stock_level ("productVariantId", "stockLocationId", "stockOnHand", "stockAllocated")
+                    VALUES ($1::integer, $2::integer, $3, 0)
+                    ON CONFLICT ("productVariantId", "stockLocationId")
+                    DO UPDATE SET "stockOnHand" = EXCLUDED."stockOnHand"
+                `, [numVariantId, Number(vendorStockLocation.id), input.stock || 0]).catch((err: any) => console.error('[SellerOfferService] stock insert error:', err));
                 console.log(`[SellerOfferService] Synced stock of ${input.stock} for variant ${variantId} in location ${vendorStockLocation.name}`);
-            } else {
-                console.warn(`[SellerOfferService] No stock location found named "${vendor.name} Stock" to sync.`);
             }
         } catch (stockErr: any) {
             console.error('[SellerOfferService] Failed to sync stock level with Vendure StockLocation:', stockErr.message);
         }
 
-        const finalOffer = await repo.findOne({
-            where: { id: savedOffer.id },
-            relations: ['productVariant', 'vendor']
-        });
-        return finalOffer || savedOffer;
+        return savedOffer;
     }
 
     async deleteOffer(ctx: RequestContext, vendor: Vendor, variantId: string): Promise<boolean> {

@@ -41,9 +41,17 @@ export function ProductCard({product: productProp, config}: ProductCardProps) {
     const [isPending, startTransition] = useTransition();
 
     const productId = product.productId || product.id || rawProduct.id || rawProduct.productId;
-    const displayName = (product.productVariantName && product.productVariantName !== 'Produit')
-        ? product.productVariantName
-        : (product.productName || product.name || rawProduct.name || rawProduct.productName || "Produit");
+    const pName = product.productName || product.name || rawProduct.name || rawProduct.productName || '';
+    const vName = product.productVariantName || rawProduct.productVariantName || '';
+
+    let displayName = pName || vName || 'Produit';
+    if (vName && vName !== 'Produit' && vName !== pName) {
+        if (pName && !vName.toLowerCase().includes(pName.toLowerCase())) {
+            displayName = `${pName} (${vName})`;
+        } else {
+            displayName = vName;
+        }
+    }
     
     const targetVariantId = product.productVariantId || rawProduct.productVariantId || rawProduct.variants?.[0]?.id;
     const targetVendorId = product.vendorId || rawProduct.vendorId || rawProduct.customFields?.vendor?.id;

@@ -686,6 +686,7 @@ export const shopApiExtensions = `
         continueOrderWithoutReassigning(orderId: ID!, lineId: ID): Boolean!
         acceptOrderWithoutCancelledVendor(orderId: ID!, vendorId: ID!): Boolean!
         cancelCustomerOrder(orderId: ID!): Boolean!
+        deleteMyVendorOrder(orderId: ID!): Boolean!
         uploadVendorFile(file: Upload!): Asset!
         
         createMyProduct(input: CreateVendorProductInput!): Product!
@@ -855,6 +856,7 @@ export const adminApiExtensions = `
         secondApproveWithdrawalRequest(id: ID!): Boolean!
         rejectWithdrawalRequest(id: ID!, reason: String): Boolean!
         deleteOrderAdmin(id: ID!): Boolean!
+        deleteMyVendorOrder(orderId: ID!): Boolean!
 
         # Superadmin Chat Monitoring Mutations
         adminReplyToConversation(customerId: ID!, vendorId: ID!, content: String!): ChatMessage!

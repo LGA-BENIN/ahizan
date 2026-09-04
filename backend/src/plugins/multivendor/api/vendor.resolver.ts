@@ -223,6 +223,22 @@ export class VendorResolver {
         }
 
         if (!isVendorOrder) {
+            // Raw DB check
+            const rawCheck = await (this.vendorService as any).connection.rawConnection.query(`
+                SELECT ol.id 
+                FROM "order" o
+                LEFT JOIN order_line ol ON ol."orderId" = o.id
+                LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+                LEFT JOIN product p ON pv."productId" = p.id
+                WHERE o.id = $1::int AND (COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $2::int OR o."customFieldsVendorid" = $2::int)
+                LIMIT 1
+            `, [Number(orderId), Number(vendor.id)]);
+            if (rawCheck && rawCheck.length > 0) {
+                isVendorOrder = true;
+            }
+        }
+
+        if (!isVendorOrder) {
             throw new Error('You do not have permission to update this order');
         }
 
@@ -658,6 +674,15 @@ export class VendorAdminResolver {
         @Args('id') id: string
     ): Promise<boolean> {
         return this.vendorService.deleteOrderAdmin(ctx, id);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async deleteMyVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string
+    ): Promise<boolean> {
+        return this.vendorService.deleteOrderAdmin(ctx, orderId);
     }
 
     // Helpers copied from shop resolver for collection & search reindexing

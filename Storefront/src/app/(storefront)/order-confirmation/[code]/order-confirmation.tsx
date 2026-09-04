@@ -3,7 +3,7 @@ import {query} from '@/lib/vendure/api';
 import {graphql} from '@/graphql';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
-import {CheckCircle2} from 'lucide-react';
+import {CheckCircle2, Store} from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {Separator} from '@/components/ui/separator';
@@ -32,10 +32,23 @@ const GetOrderByCodeQuery = graphql(`
                             id
                             preview
                         }
+                        customFields {
+                            vendor {
+                                id
+                                name
+                            }
+                        }
                     }
                 }
                 quantity
                 linePriceWithTax
+                customFields {
+                    sellerStatus
+                    assignedVendor {
+                        id
+                        name
+                    }
+                }
             }
             shippingAddress {
                 fullName
@@ -68,6 +81,19 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
        notFound();
     }
 
+    // Group lines by vendor
+    const linesByVendorMap: { [id: string]: { vendor: any; lines: any[]; total: number } } = {};
+    (order.lines || []).forEach((line: any) => {
+        const lineVendor = line.customFields?.assignedVendor || line.productVariant?.product?.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
+        const vId = String(lineVendor?.id || 'default');
+        if (!linesByVendorMap[vId]) {
+            linesByVendorMap[vId] = { vendor: lineVendor, lines: [], total: 0 };
+        }
+        linesByVendorMap[vId].lines.push(line);
+        linesByVendorMap[vId].total += (line.linePriceWithTax || 0);
+    });
+    const vendorGroups = Object.values(linesByVendorMap);
+
     return (
         <div className="container mx-auto px-4 py-12">
             {/* Confetti celebration shower overlay */}
@@ -87,50 +113,80 @@ export async function OrderConfirmation({params}: PageProps<'/order-confirmation
                     </p>
                 </div>
 
-                <Card className="mb-6 rounded-xl border shadow-sm">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Récapitulatif de la commande</CardTitle>
+                <Card className="mb-6 rounded-xl border shadow-sm overflow-hidden">
+                    <CardHeader className="pb-3 border-b bg-muted/20">
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                                Récapitulatif de la commande
+                            </CardTitle>
+                            {vendorGroups.length > 1 && (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                    {vendorGroups.length} vendeurs
+                                </span>
+                            )}
+                        </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        {order.lines.map((line: any) => (
-                            <div key={line.id} className="flex gap-3 items-center">
-                                {line.productVariant.product.featuredAsset && (
-                                    <div className="flex-shrink-0 relative">
-                                        <Image
-                                            src={line.productVariant.product.featuredAsset.preview}
-                                            alt={line.productVariant.name}
-                                            width={56}
-                                            height={56}
-                                            className="rounded-lg object-cover h-14 w-14"
-                                        />
-                                        <div className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                                            {line.quantity}
+                    <CardContent className="p-0 divide-y">
+                        {vendorGroups.map((group, gIdx) => {
+                            const vendorName = group.vendor?.name || 'Boutique Principale';
+                            return (
+                                <div key={group.vendor?.id || gIdx} className="p-5 space-y-4">
+                                    {/* Vendor Header */}
+                                    <div className="flex items-center justify-between bg-muted/40 px-3.5 py-2 rounded-lg border border-border/50">
+                                        <div className="flex items-center gap-2">
+                                            <Store className="h-4 w-4 text-primary" />
+                                            <span className="text-xs font-bold text-foreground">{vendorName}</span>
+                                        </div>
+                                        <div className="text-xs font-semibold text-muted-foreground">
+                                            Sous-total : <span className="text-foreground font-bold"><Price value={group.total} currencyCode={order.currencyCode} /></span>
                                         </div>
                                     </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium line-clamp-1">{line.productVariant.product.name}</p>
-                                    {line.productVariant.name !== line.productVariant.product.name && (
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            {line.productVariant.name}
-                                        </p>
-                                    )}
+
+                                    {/* Lines */}
+                                    <div className="space-y-3 pl-1">
+                                        {group.lines.map((line: any) => (
+                                            <div key={line.id} className="flex gap-3 items-center">
+                                                {line.productVariant.product.featuredAsset && (
+                                                    <div className="flex-shrink-0 relative">
+                                                        <Image
+                                                            src={line.productVariant.product.featuredAsset.preview}
+                                                            alt={line.productVariant.name}
+                                                            width={56}
+                                                            height={56}
+                                                            className="rounded-lg object-cover h-14 w-14 border"
+                                                        />
+                                                        <div className="absolute -top-1.5 -right-1.5 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                                            {line.quantity}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium line-clamp-1">{line.productVariant.product.name}</p>
+                                                    {line.productVariant.name !== line.productVariant.product.name && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            {line.productVariant.name}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right flex-shrink-0">
+                                                    <p className="text-sm font-semibold">
+                                                        <Price value={line.linePriceWithTax} currencyCode={order.currencyCode}/>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="text-right flex-shrink-0">
-                                    <p className="text-sm font-semibold">
-                                        <Price value={line.linePriceWithTax} currencyCode={order.currencyCode}/>
-                                    </p>
-                                </div>
+                            );
+                        })}
+
+                        <div className="p-5 bg-muted/10">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-muted-foreground">Total de la commande</span>
+                                <span className="text-lg font-bold text-primary">
+                                    <Price value={order.totalWithTax} currencyCode={order.currencyCode}/>
+                                </span>
                             </div>
-                        ))}
-
-                        <Separator/>
-
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Total</span>
-                            <span className="text-lg font-bold text-primary">
-                                <Price value={order.totalWithTax} currencyCode={order.currencyCode}/>
-                            </span>
                         </div>
                     </CardContent>
                 </Card>

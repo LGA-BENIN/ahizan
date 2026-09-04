@@ -1,5 +1,5 @@
 import { query } from '@/lib/vendure/api';
-import { GetCollectionsTreeQuery } from '@/lib/vendure/queries';
+import { GetCollectionsTreeQuery, GetMyVendorFullProfileQuery } from '@/lib/vendure/queries';
 import { getAuthToken } from '@/lib/auth';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -8,11 +8,25 @@ import NewProductClient from './new-product-client';
 export default async function NewProductPage() {
     const token = await getAuthToken();
 
-    const { data: collectionsData } = await query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
-        console.error('[NewProductPage] Failed to fetch collections:', err);
-        return { data: null };
-    });
+    const [{ data: collectionsData }, { data: vendorData }] = await Promise.all([
+        query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
+            console.error('[NewProductPage] Failed to fetch collections:', err);
+            return { data: null };
+        }),
+        query(GetMyVendorFullProfileQuery, {}, { token }).catch((err) => {
+            console.error('[NewProductPage] Failed to fetch vendor profile:', err);
+            return { data: null };
+        })
+    ]);
     const collectionTree = (collectionsData as any)?.cmsCollectionsTree || [];
+    const vendorProfile = (vendorData as any)?.myVendorProfile || null;
+
+    const hasLocation = Boolean(
+        (vendorProfile?.latitude && vendorProfile?.longitude) ||
+        vendorProfile?.location?.id ||
+        vendorProfile?.physicalMarket?.id ||
+        (vendorProfile?.address && vendorProfile.address.trim().length > 3)
+    );
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -35,7 +49,7 @@ export default async function NewProductPage() {
             </div>
 
             <div className="pt-2">
-                <NewProductClient collectionTree={collectionTree} />
+                <NewProductClient collectionTree={collectionTree} hasLocation={hasLocation} />
             </div>
         </div>
     );

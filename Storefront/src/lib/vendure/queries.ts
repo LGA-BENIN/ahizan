@@ -377,6 +377,12 @@ export const GetActiveOrderForCheckoutQuery = graphql(`
                 unitPriceWithTax
                 quantity
                 linePriceWithTax
+                customFields {
+                    assignedVendor {
+                        id
+                        name
+                    }
+                }
             }
         }
     }
@@ -447,20 +453,29 @@ export const GetAvailableCountriesQuery = graphql(`
     }
 `);
 
+
 export const GetCustomerOrdersQuery = graphql(`
     query GetCustomerOrders($options: OrderListOptions) {
         activeCustomer {
             id
             orders(options: $options) {
-                totalItems
                 items {
                     id
                     code
                     state
-                    totalWithTax
-                    currencyCode
+                    active
                     createdAt
                     updatedAt
+                    totalQuantity
+                    total
+                    totalWithTax
+                    currencyCode
+                    shippingAddress {
+                        fullName
+                        city
+                        province
+                        country
+                    }
                     lines {
                         id
                         productVariant {
@@ -469,14 +484,39 @@ export const GetCustomerOrdersQuery = graphql(`
                             product {
                                 id
                                 name
+                                slug
                                 featuredAsset {
                                     id
                                     preview
                                 }
+                                customFields {
+                                    vendor {
+                                        id
+                                        name
+                                    }
+                                }
+                            }
+                        }
+                        quantity
+                        linePriceWithTax
+                        customFields {
+                            sellerStatus
+                            assignedVendor {
+                                id
+                                name
                             }
                         }
                     }
+                    customFields {
+                        sellerStatus
+                        adminStatus
+                        vendorStatuses
+                        isConsolidated
+                        hubArrivalDate
+                        deliveryMissionStatus
+                    }
                 }
+                totalItems
             }
         }
     }
@@ -582,6 +622,10 @@ export const GetOrderDetailQuery = graphql(`
                 linePriceWithTax
                 customFields {
                     sellerStatus
+                    assignedVendor {
+                        id
+                        name
+                    }
                 }
             }
             discounts {

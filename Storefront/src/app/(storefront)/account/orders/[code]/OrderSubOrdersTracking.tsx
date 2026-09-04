@@ -29,7 +29,7 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
     // Group lines by vendor
     const linesByVendorMap: { [id: string]: { vendor: any; lines: any[]; total: number } } = {};
     (order.lines || []).forEach((line: any) => {
-        const lineVendor = line.productVariant?.product?.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
+        const lineVendor = line.customFields?.assignedVendor || line.productVariant?.product?.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
         const vId = String(lineVendor?.id || 'default');
         if (!linesByVendorMap[vId]) {
             linesByVendorMap[vId] = { vendor: lineVendor, lines: [], total: 0 };

@@ -19,11 +19,12 @@ import {
     CheckCircle2,
     AlertCircle,
     Timer,
-    Check
+    Check,
+    Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/format';
-import { updateOrderSellerStatusAction, markOrderReadyForPickupAction, refuseOrderAction } from '@/app/dashboard/orders/actions';
+import { updateOrderSellerStatusAction, markOrderReadyForPickupAction, refuseOrderAction, deleteMyVendorOrderAction } from '@/app/dashboard/orders/actions';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -198,6 +199,23 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                 }));
             } else {
                 toast.error(res.error || "Erreur lors du refus de la commande");
+            }
+        });
+    };
+
+    // Handle order permanent deletion
+    const handleDeleteOrder = async (orderId: string) => {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement cette commande ? Elle sera supprimée de la base de données.')) {
+            return;
+        }
+
+        startTransition(async () => {
+            const res = await deleteMyVendorOrderAction(orderId);
+            if (res.success) {
+                toast.success('Commande supprimée définitivement');
+                setOrders(prev => prev.filter(o => o.id !== orderId));
+            } else {
+                toast.error(res.error || "Erreur lors de la suppression de la commande");
             }
         });
     };
@@ -424,7 +442,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                                 </button>
                                                                 <button 
                                                                     onClick={() => handleRefuseOrder(order.id)}
-                                                                    className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg border border-transparent hover:border-border transition-all"
+                                                                    className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg border border-transparent hover:border-border transition-all"
                                                                     title="Refuser la commande (Déclenche le remplacement)"
                                                                     disabled={isPending}
                                                                 >
@@ -432,6 +450,14 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                                 </button>
                                                             </>
                                                         )}
+                                                        <button 
+                                                            onClick={() => handleDeleteOrder(order.id)}
+                                                            className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-500/10 rounded-lg border border-transparent hover:border-red-500/20 transition-all"
+                                                            title="Supprimer définitivement la commande"
+                                                            disabled={isPending}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>

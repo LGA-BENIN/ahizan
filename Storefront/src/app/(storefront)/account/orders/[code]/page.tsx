@@ -1,5 +1,5 @@
 import type {Metadata} from 'next';
-import {ChevronLeft} from 'lucide-react';
+import {ChevronLeft, Store} from 'lucide-react';
 import {query} from '@/lib/vendure/api';
 import {GetOrderDetailQuery} from '@/lib/vendure/queries';
 import {Badge} from '@/components/ui/badge';
@@ -86,75 +86,129 @@ export default async function OrderDetailPage(props: any) {
                     {/* Multi-Vendor Sub-Orders Tracking & Cancellation Acceptance */}
                     <OrderSubOrdersTracking order={order} />
 
-                    {/* Order Items */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Articles commandés</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {(order.lines || []).map((line: any) => {
-                                    const statusBadge = getLineStatus(line);
-                                    const prodName = line.productVariant?.product?.name || line.productVariant?.name || 'Produit';
-                                    const prodSlug = line.productVariant?.product?.slug || '';
-                                    const imgUrl = line.productVariant?.product?.featuredAsset?.preview || line.productVariant?.featuredAsset?.preview;
-                                    const sku = line.productVariant?.sku || 'N/A';
+                    {/* Order Items Divided by Seller */}
+                    {(() => {
+                        const linesByVendorMap: { [id: string]: { vendor: any; lines: any[]; total: number } } = {};
+                        (order.lines || []).forEach((line: any) => {
+                            const lineVendor = line.customFields?.assignedVendor || line.productVariant?.product?.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
+                            const vId = String(lineVendor?.id || 'default');
+                            if (!linesByVendorMap[vId]) {
+                                linesByVendorMap[vId] = { vendor: lineVendor, lines: [], total: 0 };
+                            }
+                            linesByVendorMap[vId].lines.push(line);
+                            linesByVendorMap[vId].total += (line.linePriceWithTax || (line.listPrice * line.quantity) || 0);
+                        });
+                        const vendorGroups = Object.values(linesByVendorMap);
 
-                                    const isCancelled = line.customFields?.sellerStatus === 'cancelled';
-
-                                    return (
-                                    <div key={line.id} className={`flex gap-4 ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
-                                        <div
-                                            className="relative h-20 w-20 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
-                                            {imgUrl ? (
-                                                <Image
-                                                    src={imgUrl}
-                                                    alt={prodName}
-                                                    fill
-                                                    className="object-cover"
-                                                />
-                                            ) : null}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                                {prodSlug ? (
-                                                    <Link
-                                                        href={`/product/${prodSlug}`}
-                                                        className={`font-medium hover:underline ${isCancelled ? 'line-through' : ''}`}
-                                                    >
-                                                        {prodName}
-                                                    </Link>
-                                                ) : (
-                                                    <span className={`font-medium ${isCancelled ? 'line-through' : ''}`}>{prodName}</span>
-                                                )}
-                                                {statusBadge && (
-                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge.color}`}>
-                                                        {statusBadge.text}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="text-sm text-muted-foreground mt-1">
-                                                {line.productVariant?.name || prodName}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                SKU: {sku}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className={`font-medium ${isCancelled ? 'line-through' : ''}`}>
-                                                <Price value={line.linePriceWithTax || (line.listPrice * line.quantity) || 0} currencyCode={order.currencyCode}/>
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                                Qté : {line.quantity} × <Price value={line.unitPriceWithTax || line.listPrice || 0}
-                                                                              currencyCode={order.currencyCode}/>
-                                            </p>
-                                        </div>
+                        return (
+                            <Card className="rounded-xl border shadow-sm">
+                                <CardHeader className="pb-3 border-b bg-muted/20">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-base font-bold flex items-center gap-2">
+                                            <span>Articles commandés</span>
+                                            {vendorGroups.length > 1 && (
+                                                <Badge variant="secondary" className="text-xs font-semibold">
+                                                    {vendorGroups.length} vendeurs
+                                                </Badge>
+                                            )}
+                                        </CardTitle>
+                                        <span className="text-xs text-muted-foreground">
+                                            {(order.lines || []).length} { (order.lines || []).length > 1 ? 'articles' : 'article' }
+                                        </span>
                                     </div>
-                                    );
-                                })}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                </CardHeader>
+                                <CardContent className="p-0 divide-y">
+                                    {vendorGroups.map((group, gIdx) => {
+                                        const vendorName = group.vendor?.name || 'Boutique Principale';
+                                        return (
+                                            <div key={group.vendor?.id || gIdx} className="p-5 space-y-4">
+                                                {/* Vendor Shop Header */}
+                                                <div className="flex items-center justify-between bg-muted/40 px-3.5 py-2.5 rounded-lg border border-border/50">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                                                            <Store className="h-4 w-4" />
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Vendu par</span>
+                                                            <h4 className="text-sm font-bold text-foreground leading-tight">{vendorName}</h4>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-xs text-muted-foreground">Sous-total vendeur</span>
+                                                        <p className="text-sm font-bold text-primary">
+                                                            <Price value={group.total} currencyCode={order.currencyCode} />
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Vendor Lines */}
+                                                <div className="space-y-4 pl-1">
+                                                    {group.lines.map((line: any) => {
+                                                        const statusBadge = getLineStatus(line);
+                                                        const prodName = line.productVariant?.product?.name || line.productVariant?.name || 'Produit';
+                                                        const prodSlug = line.productVariant?.product?.slug || '';
+                                                        const imgUrl = line.productVariant?.product?.featuredAsset?.preview || line.productVariant?.featuredAsset?.preview;
+                                                        const sku = line.productVariant?.sku || 'N/A';
+                                                        const isCancelled = line.customFields?.sellerStatus === 'cancelled';
+
+                                                        return (
+                                                            <div key={line.id} className={`flex gap-4 items-center ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
+                                                                <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 border">
+                                                                    {imgUrl ? (
+                                                                        <Image
+                                                                            src={imgUrl}
+                                                                            alt={prodName}
+                                                                            fill
+                                                                            className="object-cover"
+                                                                        />
+                                                                    ) : null}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        {prodSlug ? (
+                                                                            <Link
+                                                                                href={`/product/${prodSlug}`}
+                                                                                className={`text-sm font-medium hover:underline line-clamp-1 ${isCancelled ? 'line-through' : ''}`}
+                                                                            >
+                                                                                {prodName}
+                                                                            </Link>
+                                                                        ) : (
+                                                                            <span className={`text-sm font-medium line-clamp-1 ${isCancelled ? 'line-through' : ''}`}>{prodName}</span>
+                                                                        )}
+                                                                        {statusBadge && (
+                                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge.color}`}>
+                                                                                {statusBadge.text}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {line.productVariant?.name && line.productVariant?.name !== prodName && (
+                                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                                            {line.productVariant.name}
+                                                                        </p>
+                                                                    )}
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        SKU: {sku}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="text-right flex-shrink-0">
+                                                                    <p className={`text-sm font-bold ${isCancelled ? 'line-through' : ''}`}>
+                                                                        <Price value={line.linePriceWithTax || (line.listPrice * line.quantity) || 0} currencyCode={order.currencyCode}/>
+                                                                    </p>
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        Qté : {line.quantity} × <Price value={line.unitPriceWithTax || line.listPrice || 0} currencyCode={order.currencyCode}/>
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </CardContent>
+                            </Card>
+                        );
+                    })()}
 
                     {/* Order Totals */}
                     <Card>

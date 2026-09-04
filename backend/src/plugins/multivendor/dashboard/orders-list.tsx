@@ -90,6 +90,13 @@ const GET_MARKETPLACE_ORDERS = `
                     }
                     customFields {
                         sellerStatus
+                        assignedVendor {
+                            id
+                            name
+                            email
+                            phoneNumber
+                            address
+                        }
                     }
                 }
                 customFields {
@@ -677,7 +684,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
     // Group order lines by vendor for sub-orders breakdown
     const linesByVendorMap: { [id: string]: { vendor: any; lines: any[]; total: number } } = {};
     (order.lines || []).forEach((line: any) => {
-        const lineVendor = line.productVariant?.product?.customFields?.vendor || order.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
+        const lineVendor = line.customFields?.assignedVendor || line.productVariant?.product?.customFields?.vendor || order.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
         const vId = lineVendor.id || 'default';
         if (!linesByVendorMap[vId]) {
             linesByVendorMap[vId] = { vendor: lineVendor, lines: [], total: 0 };
@@ -723,6 +730,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
     const [reassignVendorModal, setReassignVendorModal] = useState(false);
     const [reassignProductModal, setReassignProductModal] = useState(false);
     const [targetVendorId, setTargetVendorId] = useState('');
+    const [vendorSearchTerm, setVendorSearchTerm] = useState('');
     const [targetProductId, setTargetProductId] = useState('');
     const [targetProductName, setTargetProductName] = useState('');
     const [targetPrice, setTargetPrice] = useState('');
@@ -741,6 +749,17 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
         enabled: reassignProductModal,
         staleTime: 30000,
     });
+
+    // Filter vendors by search term
+    const filteredVendors = React.useMemo(() => {
+        const items = vendorsData?.vendors?.items || [];
+        if (!vendorSearchTerm.trim()) return items;
+        const term = vendorSearchTerm.toLowerCase();
+        return items.filter((v: any) => 
+            (v.name && v.name.toLowerCase().includes(term)) ||
+            (v.email && v.email.toLowerCase().includes(term))
+        );
+    }, [vendorsData?.vendors?.items, vendorSearchTerm]);
 
     // Filter products for the currently selected target vendor
     const vendorFilteredProducts = React.useMemo(() => {
@@ -1240,26 +1259,95 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                 {/* ── REASSIGN VENDOR MODAL ── */}
                 {reassignVendorModal && (
                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                        <div style={{ background: 'white', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '460px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '18px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
                             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '8px', textAlign: 'left', color: '#0f172a' }}>
                                 🔄 Transférer la sous-commande
                             </h3>
                             <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px', textAlign: 'left' }}>
-                                Sélectionnez le nouveau vendeur qui prendra en charge tous les articles de cette sous-commande.
+                                Recherchez et sélectionnez le nouveau vendeur qui prendra en charge tous les articles de cette sous-commande.
                             </p>
-                            <select 
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', marginBottom: '20px', fontWeight: 700, fontSize: '13px' }}
-                                value={targetVendorId} 
-                                onChange={e => setTargetVendorId(e.target.value)}
-                            >
-                                <option value="">-- Choisir un nouveau vendeur --</option>
-                                {(vendorsData?.vendors?.items || []).map((v: any) => (
-                                    <option key={v.id} value={v.id}>{v.name} ({v.email})</option>
-                                ))}
-                            </select>
+
+                            {/* Search input */}
+                            <div style={{ position: 'relative', marginBottom: '12px' }}>
+                                <input 
+                                    type="text" 
+                                    placeholder="🔍 Rechercher un vendeur (nom, email)..." 
+                                    value={vendorSearchTerm}
+                                    onChange={e => setVendorSearchTerm(e.target.value)}
+                                    style={{ 
+                                        width: '100%', 
+                                        padding: '10px 14px 10px 34px', 
+                                        borderRadius: '10px', 
+                                        border: '1px solid #cbd5e1', 
+                                        fontSize: '13px', 
+                                        fontWeight: 600,
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                {vendorSearchTerm && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setVendorSearchTerm('')}
+                                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Vendor list */}
+                            <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px', background: '#f8fafc', marginBottom: '20px' }}>
+                                {filteredVendors.length === 0 ? (
+                                    <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+                                        Aucun vendeur trouvé pour "{vendorSearchTerm}"
+                                    </div>
+                                ) : (
+                                    filteredVendors.map((v: any) => {
+                                        const isSelected = String(targetVendorId) === String(v.id);
+                                        return (
+                                            <div 
+                                                key={v.id}
+                                                onClick={() => setTargetVendorId(v.id)}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '8px 12px',
+                                                    borderRadius: '8px',
+                                                    cursor: 'pointer',
+                                                    background: isSelected ? '#eff6ff' : '#ffffff',
+                                                    border: isSelected ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>
+                                                        {v.name ? v.name.slice(0, 2).toUpperCase() : 'VD'}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '13px', fontWeight: 800, color: isSelected ? '#1d4ed8' : '#0f172a' }}>{v.name}</div>
+                                                        <div style={{ fontSize: '11px', color: '#64748b' }}>{v.email}</div>
+                                                    </div>
+                                                </div>
+                                                {isSelected && (
+                                                    <span style={{ background: '#2563eb', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>
+                                                        ✓
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                                 <button 
-                                    onClick={() => setReassignVendorModal(false)} 
+                                    onClick={() => {
+                                        setReassignVendorModal(false);
+                                        setVendorSearchTerm('');
+                                        setTargetVendorId('');
+                                    }} 
                                     style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
                                 >
                                     Annuler
@@ -1282,32 +1370,103 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                 {/* ── REASSIGN PRODUCT MODAL ── */}
                 {reassignProductModal && (
                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                        <div style={{ background: 'white', padding: '24px', borderRadius: '18px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '18px', width: '100%', maxWidth: '540px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
                             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '4px', textAlign: 'left', color: '#0f172a' }}>
                                 📦 Réassigner cet article
                             </h3>
                             <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px', textAlign: 'left' }}>
-                                Choisissez le vendeur destinataire. Vous pouvez lier un de ses produits existants ou générer automatiquement une copie.
+                                Recherchez et choisissez le vendeur destinataire. Vous pouvez lier un de ses produits existants ou générer automatiquement une copie.
                             </p>
 
-                            {/* Destination Vendor */}
-                            <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '14px', marginBottom: '12px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, marginBottom: '6px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    ① Nouveau Vendeur Destinataire
-                                </label>
-                                <select 
-                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '13px', background: 'white' }}
-                                    value={targetVendorId} 
-                                    onChange={e => {
-                                        setTargetVendorId(e.target.value);
-                                        setTargetProductId('');
-                                    }}
-                                >
-                                    <option value="">-- Sélectionner le vendeur --</option>
-                                    {(vendorsData?.vendors?.items || []).map((v: any) => (
-                                        <option key={v.id} value={v.id}>{v.name} ({v.email})</option>
-                                    ))}
-                                </select>
+                            {/* Destination Vendor with Search */}
+                            <div style={{ background: '#f8fafc', borderRadius: '14px', padding: '14px', marginBottom: '12px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        ① Nouveau Vendeur Destinataire ({filteredVendors.length})
+                                    </label>
+                                    {targetVendorId && (
+                                        <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                            <Check size={12} /> Sélectionné
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Search input */}
+                                <div style={{ position: 'relative', marginBottom: '8px' }}>
+                                    <input 
+                                        type="text" 
+                                        placeholder="🔍 Rechercher un vendeur (nom, email)..." 
+                                        value={vendorSearchTerm}
+                                        onChange={e => setVendorSearchTerm(e.target.value)}
+                                        style={{ 
+                                            width: '100%', 
+                                            padding: '8px 12px 8px 30px', 
+                                            borderRadius: '8px', 
+                                            border: '1px solid #cbd5e1', 
+                                            fontSize: '12px', 
+                                            fontWeight: 600,
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                    {vendorSearchTerm && (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setVendorSearchTerm('')}
+                                            style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Scrollable list of selectable vendors */}
+                                <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px', background: 'white' }}>
+                                    {filteredVendors.length === 0 ? (
+                                        <div style={{ padding: '10px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>
+                                            Aucun vendeur trouvé pour "{vendorSearchTerm}"
+                                        </div>
+                                    ) : (
+                                        filteredVendors.map((v: any) => {
+                                            const isSelected = String(targetVendorId) === String(v.id);
+                                            return (
+                                                <div 
+                                                    key={v.id}
+                                                    onClick={() => {
+                                                        setTargetVendorId(v.id);
+                                                        setTargetProductId('');
+                                                    }}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        padding: '6px 10px',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        background: isSelected ? '#eff6ff' : '#ffffff',
+                                                        border: isSelected ? '1px solid #3b82f6' : '1px solid #f1f5f9',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: isSelected ? '#2563eb' : '#e2e8f0', color: isSelected ? 'white' : '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800 }}>
+                                                            {v.name ? v.name.slice(0, 2).toUpperCase() : 'VD'}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '12px', fontWeight: 800, color: isSelected ? '#1d4ed8' : '#0f172a' }}>{v.name}</div>
+                                                            <div style={{ fontSize: '10px', color: '#64748b' }}>{v.email}</div>
+                                                        </div>
+                                                    </div>
+                                                    {isSelected && (
+                                                        <span style={{ background: '#2563eb', color: 'white', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }}>
+                                                            ✓
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
                             </div>
 
                             {/* Destination Product */}
@@ -1375,6 +1534,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                 <button
                                     onClick={() => {
                                         setReassignProductModal(false);
+                                        setVendorSearchTerm('');
                                         setTargetVendorId('');
                                         setTargetProductId('');
                                         setTargetPrice('');

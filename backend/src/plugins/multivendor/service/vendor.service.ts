@@ -215,7 +215,7 @@ export class VendorService implements OnApplicationBootstrap {
 
     async findOrdersForVendor(ctx: RequestContext, vendorId: string, options?: any): Promise<PaginatedList<Order>> {
         const skip = options?.skip || 0;
-        const take = options?.take || 10;
+        const take = options?.take || 50;
         const numericVendorId = Number(vendorId);
 
         let orderIds: string[] = [];
@@ -232,7 +232,7 @@ export class VendorService implements OnApplicationBootstrap {
                  LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
                  LEFT JOIN product p ON pv."productId" = p.id
                  LEFT JOIN order_channels_channel occ ON occ."orderId" = o.id
-                 WHERE o."deletedAt" IS NULL 
+                 WHERE o."aggregateOrderId" IS NULL
                    AND o.state NOT IN ('Cancelled', 'Draft', 'AddingItems')
                    AND (
                      (o."customFieldsVendorid" = $1 AND COALESCE(o."customFieldsSellerstatus", '') != 'reassigned_to_other')
@@ -260,10 +260,13 @@ export class VendorService implements OnApplicationBootstrap {
             relations: [
                 'lines', 
                 'lines.productVariant', 
+                'lines.productVariant.translations',
+                'lines.productVariant.featuredAsset',
                 'lines.productVariant.product', 
-                'lines.productVariant.product.customFields.vendor',
-                'lines.customFields.assignedVendor',
+                'lines.productVariant.product.featuredAsset',
                 'customer',
+                'customer.user',
+                'shippingLines',
                 'surcharges',
                 'promotions',
                 'channels'
@@ -274,6 +277,28 @@ export class VendorService implements OnApplicationBootstrap {
         // Ensure surcharges array is initialized for Order tax and total getters
         for (const order of orders as any[]) {
             order.surcharges = order.surcharges || [];
+        }
+
+        // Fetch exact line -> vendor assignments and seller statuses via raw SQL
+        let rawLineRows: any[] = [];
+        try {
+            rawLineRows = await this.connection.rawConnection.query(`
+                SELECT ol.id as line_id, ol."orderId" as order_id,
+                       COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as vendor_id,
+                       ol."customFieldsSellerstatus" as seller_status,
+                       ol."sellerChannelId" as seller_channel_id
+                FROM order_line ol
+                LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+                LEFT JOIN product p ON pv."productId" = p.id
+                WHERE ol."orderId" = ANY($1::int[])
+            `, [orderIds.map(id => Number(id))]);
+        } catch (e) {
+            console.error('[findOrdersForVendor] Raw line mapping error:', e);
+        }
+
+        const lineMap = new Map<string, any>();
+        for (const row of rawLineRows) {
+            lineMap.set(String(row.line_id), row);
         }
 
         // Map sellerStatus, adminStatus and isVendorPaid specifically for this vendor if recorded in vendorStatuses JSON
@@ -287,19 +312,29 @@ export class VendorService implements OnApplicationBootstrap {
 
             const vendorSpecific = vMap[String(vendorId)];
 
-            // Filter lines for this vendor (support main products and greffés variants)
-            const vendorLines = order.lines ? order.lines.filter((l: any) => {
-                const pv = l.productVariant as any;
-                const v = pv?.product?.customFields?.vendor;
-                const assignedVendorId = l.customFields?.assignedVendor?.id || (l as any).customFieldsAssignedvendorid;
-                
-                return (v && String(v.id) === String(vendorId)) ||
-                       (assignedVendorId && String(assignedVendorId) === String(vendorId));
-            }) : [];
+            // Filter lines strictly for this vendor (support main products and greffés variants)
+            const vendorLines = (order.lines || []).filter((l: any) => {
+                const rawLine = lineMap.get(String(l.id));
+                const lineVendorId = rawLine ? rawLine.vendor_id : (l.customFields?.assignedVendor?.id || (l as any).customFieldsAssignedvendorid || l.productVariant?.product?.customFields?.vendor?.id);
+                const sellerStatus = (rawLine ? rawLine.seller_status : (l.customFields?.sellerStatus || (l as any).customFieldsSellerstatus)) || 'pending';
+
+                l.customFields = {
+                    ...(l.customFields || {}),
+                    sellerStatus,
+                    assignedVendor: lineVendorId ? { id: String(lineVendorId) } : undefined
+                };
+
+                if (sellerStatus === 'reassigned_to_other') return false;
+
+                const matchesVendor = (lineVendorId && String(lineVendorId) === String(vendorId)) ||
+                    (vendorChannelId && Number(rawLine?.seller_channel_id || l.sellerChannelId) === Number(vendorChannelId));
+
+                return matchesVendor;
+            });
 
             // Recalculate totals for this vendor's lines only
-            const vendorSubTotal = vendorLines.reduce((sum: number, l: any) => sum + l.linePrice, 0);
-            const vendorTotalWithTax = vendorLines.reduce((sum: number, l: any) => sum + l.linePriceWithTax, 0);
+            const vendorSubTotal = vendorLines.reduce((sum: number, l: any) => sum + (l.linePrice || 0), 0);
+            const vendorTotalWithTax = vendorLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || 0), 0);
 
             if (vendorSpecific) {
                 return {
@@ -310,8 +345,8 @@ export class VendorService implements OnApplicationBootstrap {
                     lines: vendorLines,
                     customFields: {
                         ...order.customFields,
-                        sellerStatus: vendorSpecific.sellerStatus || 'pending',
-                        adminStatus: vendorSpecific.adminStatus || 'pending',
+                        sellerStatus: vendorSpecific.sellerStatus || (order.customFields as any)?.sellerStatus || 'pending',
+                        adminStatus: vendorSpecific.adminStatus || (order.customFields as any)?.adminStatus || 'pending',
                         isVendorPaid: vendorSpecific.isPaid !== undefined ? Boolean(vendorSpecific.isPaid) : Boolean(order.customFields?.isVendorPaid),
                         paymentStatus: vendorSpecific.paymentStatus || order.customFields?.paymentStatus || 'PENDING',
                         commissionAmount: order.customFields?.commissionAmount || 0,
@@ -327,18 +362,18 @@ export class VendorService implements OnApplicationBootstrap {
                 lines: vendorLines,
                 customFields: {
                     ...order.customFields,
-                    sellerStatus: 'pending',
-                    adminStatus: 'pending',
+                    sellerStatus: (order.customFields as any)?.sellerStatus || 'pending',
+                    adminStatus: (order.customFields as any)?.adminStatus || 'pending',
                     paymentStatus: order.customFields?.paymentStatus || 'PENDING',
                     commissionAmount: order.customFields?.commissionAmount || 0,
                     commissionRate: order.customFields?.commissionRate || 0,
                 }
             };
-        });
+        }).filter((o: any) => o.lines && o.lines.length > 0);
 
         return {
             items: mappedOrders,
-            totalItems
+            totalItems: mappedOrders.length
         };
     }
 
@@ -352,11 +387,10 @@ export class VendorService implements OnApplicationBootstrap {
             relations: [
                 'lines',
                 'lines.productVariant',
+                'lines.productVariant.translations',
                 'lines.productVariant.product',
                 'lines.productVariant.product.featuredAsset',
                 'lines.productVariant.featuredAsset',
-                'lines.productVariant.product.customFields.vendor',
-                'lines.customFields.assignedVendor',
                 'customer',
                 'customer.user',
                 'shippingLines',
@@ -374,20 +408,46 @@ export class VendorService implements OnApplicationBootstrap {
 
         (order as any).surcharges = order.surcharges || [];
 
-        // Filter lines that belong to this vendor and are NOT reassigned (support main products and greffés variants)
-        const vendorLines = (order.lines || []).filter((l: any) => {
-            const isReassigned = l.customFields?.sellerStatus === 'reassigned_to_other' || (l as any).customFieldsSellerstatus === 'reassigned_to_other';
-            if (isReassigned) return false;
+        // Fetch exact line -> vendor assignments and seller statuses via raw SQL
+        let rawLineRows: any[] = [];
+        try {
+            rawLineRows = await this.connection.rawConnection.query(`
+                SELECT ol.id as line_id, ol."orderId" as order_id,
+                       COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as vendor_id,
+                       ol."customFieldsSellerstatus" as seller_status,
+                       ol."sellerChannelId" as seller_channel_id
+                FROM order_line ol
+                LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+                LEFT JOIN product p ON pv."productId" = p.id
+                WHERE ol."orderId" = $1::int
+            `, [Number(orderId)]);
+        } catch (e) {
+            console.error('[findOrderForVendor] Raw line mapping error:', e);
+        }
 
-            const p = l.productVariant?.product;
-            const cfVendorId = p?.customFields?.vendor?.id || (p as any)?.customFieldsVendorid;
-            const assignedVendorId = l.customFields?.assignedVendor?.id || (l as any).customFieldsAssignedvendorid;
-            
-            return (
-                (cfVendorId && String(cfVendorId) === String(vendorId)) ||
-                (assignedVendorId && String(assignedVendorId) === String(vendorId)) ||
-                (l.sellerChannelId && Number(l.sellerChannelId) === Number(vendorChannelId))
-            );
+        const lineMap = new Map<string, any>();
+        for (const row of rawLineRows) {
+            lineMap.set(String(row.line_id), row);
+        }
+
+        // Filter lines that belong strictly to this vendor and are NOT reassigned
+        const vendorLines = (order.lines || []).filter((l: any) => {
+            const rawLine = lineMap.get(String(l.id));
+            const lineVendorId = rawLine ? rawLine.vendor_id : (l.customFields?.assignedVendor?.id || (l as any).customFieldsAssignedvendorid || l.productVariant?.product?.customFields?.vendor?.id);
+            const sellerStatus = (rawLine ? rawLine.seller_status : (l.customFields?.sellerStatus || (l as any).customFieldsSellerstatus)) || 'pending';
+
+            l.customFields = {
+                ...(l.customFields || {}),
+                sellerStatus,
+                assignedVendor: lineVendorId ? { id: String(lineVendorId) } : undefined
+            };
+
+            if (sellerStatus === 'reassigned_to_other') return false;
+
+            const matchesVendor = (lineVendorId && String(lineVendorId) === String(vendorId)) ||
+                (vendorChannelId && Number(rawLine?.seller_channel_id || l.sellerChannelId) === Number(vendorChannelId));
+
+            return matchesVendor;
         });
 
         const isOverallVendor = String((order.customFields as any)?.vendor?.id || (order as any).customFieldsVendorid) === String(vendorId)
@@ -404,16 +464,15 @@ export class VendorService implements OnApplicationBootstrap {
         } catch (e) {}
 
         const vendorSpecific = vMap[String(vendorId)];
-        const linesToUse = vendorLines.length > 0 ? vendorLines : order.lines;
-        const vendorSubTotal = linesToUse.reduce((sum: number, l: any) => sum + (l.linePrice || 0), 0);
-        const vendorTotalWithTax = linesToUse.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || 0), 0);
+        const vendorSubTotal = vendorLines.reduce((sum: number, l: any) => sum + (l.linePrice || 0), 0);
+        const vendorTotalWithTax = vendorLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || 0), 0);
 
         return {
             ...order,
             subTotal: vendorSubTotal,
             totalWithTax: vendorTotalWithTax,
             total: vendorTotalWithTax,
-            lines: linesToUse,
+            lines: vendorLines,
             customFields: {
                 ...order.customFields,
                 sellerStatus: vendorSpecific?.sellerStatus || (order.customFields as any)?.sellerStatus || 'pending',
@@ -503,7 +562,6 @@ export class VendorService implements OnApplicationBootstrap {
                 WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
                   AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                   AND ol.quantity > 0
-                  AND o."deletedAt" IS NULL
                   AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
             `, [numericVendorId]);
         } catch (e) {
@@ -520,7 +578,6 @@ export class VendorService implements OnApplicationBootstrap {
                     WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
                       AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                       AND ol.quantity > 0
-                      AND o."deletedAt" IS NULL
                       AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
                 `, [numericVendorId]);
             } catch (err2: any) {
@@ -539,7 +596,6 @@ export class VendorService implements OnApplicationBootstrap {
                 WHERE oc."channelId" = $2
             ))
               AND COALESCE(o."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
-              AND o."deletedAt" IS NULL
               AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
         `, [numericVendorId, vendorChannelId]);
 
@@ -675,39 +731,42 @@ export class VendorService implements OnApplicationBootstrap {
                  SET "customFieldsSellerstatus" = $1,
                      "customFieldsAdminstatus" = $2,
                      "customFieldsVendorstatuses" = $3
-                 WHERE id = $4`,
-                [aggregateSellerStatus, aggregateAdminStatus, JSON.stringify(vMap), orderId]
+                 WHERE id = $4::int`,
+                [aggregateSellerStatus, aggregateAdminStatus, JSON.stringify(vMap), Number(orderId)]
             );
         } catch (e) {
-            try {
-                await this.connection.rawConnection.query(
-                    `UPDATE "order" 
-                     SET "customFieldsSellerstatus" = $1,
-                         "customFieldsAdminstatus" = $2,
-                         "customFieldsVendorstatuses" = $3
-                     WHERE id = $4`,
-                    [aggregateSellerStatus, aggregateAdminStatus, JSON.stringify(vMap), orderId]
-                );
-            } catch (err2) {
-                console.error('[updateVendorOrderStatus] Failed to update order customFields:', err2);
-            }
+            console.error('[updateVendorOrderStatus] Failed to update order customFields:', e);
         }
 
         // Cascade the status down to the vendor's lines if requested (only when vendorId is specified)
         if (statusType === 'sellerStatus' && cascade) {
             try {
                 if (vendorId) {
-                    await this.connection.rawConnection.query(
-                        `UPDATE order_line ol
-                         SET "customFieldsSellerstatus" = $1
-                         FROM product_variant pv, product p
-                         WHERE ol."orderId" = $2 
-                         AND ol."productVariantId" = pv.id 
-                         AND pv."productId" = p.id 
-                         AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $3
-                         AND COALESCE(ol."customFieldsSellerstatus", '') NOT IN ('refused', 'reassigned_to_other', 'reassigning')`,
-                        [newStatus, orderId, vendorId]
-                    );
+                    if (newStatus === 'confirmed') {
+                        await this.connection.rawConnection.query(
+                            `UPDATE order_line ol
+                             SET "customFieldsSellerstatus" = $1
+                             FROM product_variant pv
+                             LEFT JOIN product p ON pv."productId" = p.id
+                             WHERE ol."orderId" = $2::int 
+                             AND ol."productVariantId" = pv.id 
+                             AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $3::int
+                             AND COALESCE(ol."customFieldsSellerstatus", '') NOT IN ('refused', 'reassigned_to_other', 'reassigning')`,
+                            ['confirmed', Number(orderId), Number(vendorId)]
+                        );
+                    } else if (newStatus === 'refused') {
+                        await this.connection.rawConnection.query(
+                            `UPDATE order_line ol
+                             SET "customFieldsSellerstatus" = $1
+                             FROM product_variant pv
+                             LEFT JOIN product p ON pv."productId" = p.id
+                             WHERE ol."orderId" = $2::int 
+                             AND ol."productVariantId" = pv.id 
+                             AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $3::int
+                             AND COALESCE(ol."customFieldsSellerstatus", '') != 'reassigned_to_other'`,
+                            ['reassigning', Number(orderId), Number(vendorId)]
+                        );
+                    }
                 }
             } catch (err3) {
                 console.error('[updateVendorOrderStatus] Failed to cascade sellerStatus to lines:', err3);
@@ -740,10 +799,10 @@ export class VendorService implements OnApplicationBootstrap {
         const rawLines = await this.connection.rawConnection.query(
             `SELECT ol.id, ol."orderId", COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as vendor_id
              FROM order_line ol
-             JOIN product_variant pv ON ol."productVariantId" = pv.id
-             JOIN product p ON pv."productId" = p.id
-             WHERE ol.id = $1 LIMIT 1`,
-            [lineId]
+             LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+             LEFT JOIN product p ON pv."productId" = p.id
+             WHERE ol.id = $1::int LIMIT 1`,
+            [Number(lineId)]
         );
 
         if (!rawLines || rawLines.length === 0) {
@@ -757,7 +816,7 @@ export class VendorService implements OnApplicationBootstrap {
             throw new Error('You do not have permission to update this order line');
         }
 
-        // 3. Update the OrderLine custom field — column is 'customFieldsSellerstatus' (lowercase s)
+        // 3. Update the OrderLine custom field — column is 'customFieldsSellerstatus'
         let resolvedStatus = newStatus;
         if (newStatus === 'refused') {
             try {
@@ -774,18 +833,18 @@ export class VendorService implements OnApplicationBootstrap {
         }
 
         await this.connection.rawConnection.query(
-            `UPDATE order_line SET "customFieldsSellerstatus" = $1 WHERE id = $2`,
-            [resolvedStatus, lineId]
+            `UPDATE order_line SET "customFieldsSellerstatus" = $1 WHERE id = $2::int`,
+            [resolvedStatus, Number(lineId)]
         );
 
         // 4. Check all lines for this vendor in the order to aggregate the vendor suborder status
         const allVendorLines = await this.connection.rawConnection.query(
             `SELECT ol.id, ol."customFieldsSellerstatus"
              FROM order_line ol
-             JOIN product_variant pv ON ol."productVariantId" = pv.id
-             JOIN product p ON pv."productId" = p.id
-             WHERE ol."orderId" = $1 AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $2`,
-            [line.orderId, vendorId]
+             LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+             LEFT JOIN product p ON pv."productId" = p.id
+             WHERE ol."orderId" = $1::int AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $2::int`,
+            [Number(line.orderId), Number(vendorId)]
         );
 
         let allConfirmed = true;
@@ -4077,7 +4136,6 @@ export class VendorService implements OnApplicationBootstrap {
              WHERE COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $1
                AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
                AND ol.quantity > 0
-               AND o."deletedAt" IS NULL
                AND o.state IN ('PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered')
              GROUP BY o.id, o."createdAt", o.state
              ORDER BY o."createdAt" DESC`,

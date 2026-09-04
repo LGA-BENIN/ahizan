@@ -26,7 +26,7 @@ export class SellerOfferService {
         }
         return this.connection.getRepository(ctx, SellerOffer).find({
             where,
-            relations: ['vendor', 'vendor.logo', 'vendor.location', 'vendor.physicalMarket', 'productVariant', 'productVariant.translations', 'productVariant.featuredAsset'],
+            relations: ['vendor', 'vendor.logo', 'productVariant', 'productVariant.translations', 'productVariant.featuredAsset'],
         });
     }
 

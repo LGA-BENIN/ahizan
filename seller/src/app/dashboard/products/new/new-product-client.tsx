@@ -3,19 +3,55 @@
 import React, { useState } from 'react';
 import AffiliateProductPage from '@/app/dashboard/products/affiliate/page';
 import CreateProductForm from '@/components/dashboard/products/create-form';
-import { Sparkles, PlusCircle } from 'lucide-react';
+import { Sparkles, PlusCircle, MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 interface NewProductClientProps {
     collectionTree: any[];
+    hasLocation?: boolean;
 }
 
-export default function NewProductClient({ collectionTree }: NewProductClientProps) {
+export default function NewProductClient({ collectionTree, hasLocation = true }: NewProductClientProps) {
     const [activeMode, setActiveMode] = useState<'create' | 'affiliate'>('create');
     const [preselectedGraftTerm, setPreselectedGraftTerm] = useState<string>('');
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="space-y-6 max-w-5xl mx-auto relative">
+            {/* Modal popup if location is missing */}
+            {!hasLocation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-card w-full max-w-md p-6 sm:p-8 rounded-3xl border border-border shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-300">
+                        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto shadow-inner border border-amber-500/20">
+                            <MapPin className="w-8 h-8 animate-bounce" />
+                        </div>
+
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-black text-foreground font-serif">Position géographique requise</h2>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                Avant de pouvoir ajouter ou vendre un produit sur Ahizan, vous devez obligatoirement renseigner la localisation de votre boutique (marché, quartier ou coordonnées GPS).
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 pt-2">
+                            <Link href="/dashboard/settings?tab=localisation">
+                                <Button className="w-full h-12 rounded-2xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-primary/20 text-xs uppercase tracking-wider">
+                                    <MapPin className="w-4 h-4" />
+                                    Ajouter ma position
+                                </Button>
+                            </Link>
+
+                            <Link href="/dashboard/products">
+                                <Button variant="ghost" className="w-full h-10 rounded-2xl font-semibold text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                                    Retour à mes produits
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Top mode switcher */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button

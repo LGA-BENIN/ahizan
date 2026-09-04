@@ -162,4 +162,17 @@ export class VendorShopApiResolver {
         // Transition order state
         return this.orderService.transitionToState(ctx, orderId, status as any);
     }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async deleteMyVendorOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('orderId') orderId: string
+    ): Promise<boolean> {
+        const vendor = await this.myVendorProfile(ctx);
+        if (!vendor) {
+            throw new Error('No vendor profile found for this user');
+        }
+        return this.vendorService.deleteOrderAdmin(ctx, orderId);
+    }
 }

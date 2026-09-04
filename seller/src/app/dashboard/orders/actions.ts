@@ -1,10 +1,9 @@
 'use server';
 
-import { mutate } from '@/lib/vendure/api';
+import { mutate, getVendureApiUrl } from '@/lib/vendure/api';
 import { UpdateMyOrderStatusMutation } from '@/lib/vendure/vendor-order-mutations';
 import { getAuthToken } from '@/lib/auth';
 
-const VENDURE_API_URL = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL;
 const VENDURE_CHANNEL_TOKEN = process.env.VENDURE_CHANNEL_TOKEN || process.env.NEXT_PUBLIC_VENDURE_CHANNEL_TOKEN || '__default_channel__';
 const VENDURE_AUTH_TOKEN_HEADER = process.env.VENDURE_AUTH_TOKEN_HEADER || 'vendure-auth-token';
 const VENDURE_CHANNEL_TOKEN_HEADER = process.env.VENDURE_CHANNEL_TOKEN_HEADER || 'vendure-token';
@@ -43,7 +42,7 @@ export async function updateOrderSellerStatusAction(orderId: string, statusCode:
             headers[VENDURE_AUTH_TOKEN_HEADER] = token;
         }
 
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -76,7 +75,7 @@ export async function fetchVendorOrderStatuses(): Promise<any[]> {
             headers[VENDURE_AUTH_TOKEN_HEADER] = token;
         }
 
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -98,7 +97,7 @@ export async function fetchAllOrderStatuses(): Promise<any[]> {
             [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
         };
         
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -125,7 +124,7 @@ export async function updateOrderLineSellerStatusAction(lineId: string, statusCo
             headers[VENDURE_AUTH_TOKEN_HEADER] = token;
         }
 
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -158,7 +157,7 @@ export async function fulfillVendorOrderAction(orderId: string, carrier: string,
             headers[VENDURE_AUTH_TOKEN_HEADER] = token;
         }
 
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -196,7 +195,7 @@ export async function markOrderReadyForPickupAction(orderId: string, vendorId: s
             headers[VENDURE_AUTH_TOKEN_HEADER] = token;
         }
 
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -233,12 +232,45 @@ export async function refuseOrderAction(orderId: string) {
             headers[VENDURE_AUTH_TOKEN_HEADER] = token;
         }
 
-        const res = await fetch(VENDURE_API_URL!, {
+        const res = await fetch(getVendureApiUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify({
                 query: `mutation RefuseOrder($orderId: ID!) {
                     updateMyOrderSellerStatus(orderId: $orderId, statusCode: "refused")
+                }`,
+                variables: { orderId },
+            }),
+            cache: 'no-store',
+        });
+        const json = await res.json();
+        if (json.errors) {
+            return { success: false, error: json.errors[0].message };
+        }
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function deleteMyVendorOrderAction(orderId: string) {
+    try {
+        const token = await getAuthToken();
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
+        };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+            headers[VENDURE_AUTH_TOKEN_HEADER] = token;
+        }
+
+        const res = await fetch(getVendureApiUrl(), {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: `mutation DeleteMyVendorOrder($orderId: ID!) {
+                    deleteMyVendorOrder(orderId: $orderId)
                 }`,
                 variables: { orderId },
             }),

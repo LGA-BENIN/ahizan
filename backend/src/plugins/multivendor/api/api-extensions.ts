@@ -557,6 +557,7 @@ export const commonApiExtensions = `
         onPromotion: Boolean
         promotionalPrice: Int
         featuredAssetId: ID
+        featuredAsset: Asset
         status: String
         rejectionReason: String
     }
@@ -666,6 +667,7 @@ export const shopApiExtensions = `
         isTyping(targetId: ID!, targetType: String!): Boolean!
         userOnlineStatus(targetId: ID!, targetType: String!): String!
         sellerOffersForVariant(variantId: ID!): [SellerOffer!]!
+        sellerOffersForVariants(variantIds: [ID!]!): [SellerOffer!]!
         sellerOffersForProduct(productId: ID!): [SellerOffer!]!
         mySellerOffers: [SellerOffer!]!
         searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
@@ -751,6 +753,7 @@ export const adminApiExtensions = `
         adminChatHistory(customerId: ID!, vendorId: ID!): [ChatMessage!]!
         adminDirectChatHistory(targetId: ID!, targetType: String!): [ChatMessage!]!
         sellerOffersForVariant(variantId: ID!): [SellerOffer!]!
+        sellerOffersForVariants(variantIds: [ID!]!): [SellerOffer!]!
         sellerOffersForProduct(productId: ID!): [SellerOffer!]!
         mySellerOffers: [SellerOffer!]!
         getGlobalOptionGroups: [GlobalOptionGroup!]!

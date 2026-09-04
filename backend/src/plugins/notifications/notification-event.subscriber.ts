@@ -14,10 +14,11 @@ import {
     User,
     Customer,
     Administrator,
+    ProductEvent,
 } from '@vendure/core';
 import { BrevoSmsService } from './brevo-sms.service';
 import { BrevoSettings } from './entities/brevo-settings.entity';
-import { VendorEvent, FundsReleasedEvent } from '../multivendor/events/vendor-event';
+import { VendorEvent, FundsReleasedEvent, WithdrawalEvent } from '../multivendor/events/vendor-event';
 import { Vendor } from '../multivendor/entities/vendor.entity';
 import { ChatMessage } from '../multivendor/entities/chat-message.entity';
 import { ChatMessageEvent } from '../multivendor/events/chat-message-event';
@@ -72,6 +73,8 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         this.subscribeToFulfillmentEvents();
         this.subscribeToStockEvents();
         this.subscribeToVendorEvents();
+        // Product & offer approval notifications are handled directly & deterministically in vendor.resolver.ts (adminReviewProduct & adminReviewSellerOffer)
+        // this.subscribeToProductEvents();
         this.subscribeToAuthEvents();
         this.subscribeToBuyerRegistration();
         this.subscribeToChatEvents();
@@ -146,6 +149,61 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                 emailSubject: 'Mise à jour concernant votre inscription Vendeur - Ahizan',
                 emailTemplate: 'Bonjour {{ name }},\n\nNous avons examiné votre demande d\'inscription pour la boutique "{{ businessName }}". Malheureusement, celle-ci n\'a pas pu être acceptée pour le motif suivant :\n\n{{ rejectionReason }}\n\nSi vous souhaitez corriger ces informations, vous pouvez vous reconnecter sur votre portail vendeur pour soumettre à nouveau votre dossier.\n\nÀ bientôt,\nL\'équipe Ahizan',
                 smsTemplate: 'Ahizan: Votre demande de boutique {{ businessName }} a été rejetée. Motif: {{ rejectionReason }}'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.ProductApproved) {
+            this.logger.log('Initializing default ProductApproved configuration...');
+            channelsConfig.ProductApproved = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Votre produit a été approuvé - Ahizan',
+                emailTemplate: '<p>Bonjour {{ businessName }},</p>\n<p>Bonne nouvelle ! Votre produit <strong>{{ productName }}</strong> a été validé et est désormais en ligne sur la marketplace Ahizan.</p>\n<p>Vous pouvez gérer vos stocks et suivre vos commandes depuis votre tableau de bord vendeur.</p>',
+                smsTemplate: 'Ahizan: Votre produit {{ productName }} a été approuvé et publié !'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.ProductRejected) {
+            this.logger.log('Initializing default ProductRejected configuration...');
+            channelsConfig.ProductRejected = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Mise à jour concernant votre produit - Ahizan',
+                emailTemplate: '<p>Bonjour {{ businessName }},</p>\n<p>Votre produit <strong>{{ productName }}</strong> n\'a pas pu être validé pour le motif suivant :</p>\n<p><em>{{ rejectionReason }}</em></p>\n<p>Vous pouvez modifier les informations depuis votre tableau de bord vendeur pour une nouvelle soumission.</p>',
+                smsTemplate: 'Ahizan: Votre produit {{ productName }} a été refusé. Motif: {{ rejectionReason }}'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.FundsReleased) {
+            this.logger.log('Initializing default FundsReleased configuration...');
+            channelsConfig.FundsReleased = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Fonds débloqués pour la commande #{{ orderCode }} - Ahizan',
+                emailTemplate: '<p>Bonjour {{ businessName }},</p>\n<p>Les fonds d\'un montant de <strong>{{ amount }} FCFA</strong> pour la commande <strong>#{{ orderCode }}</strong> ont été libérés et ajoutés à votre solde disponible.</p>\n<p>Votre solde disponible actuel est de <strong>{{ availableBalance }} FCFA</strong>.</p>',
+                smsTemplate: 'Ahizan: {{ amount }} FCFA débloqués pour la commande {{ orderCode }}. Solde disponible: {{ availableBalance }} FCFA.'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.PayoutCompleted) {
+            this.logger.log('Initializing default PayoutCompleted configuration...');
+            channelsConfig.PayoutCompleted = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Votre demande de retrait a été traitée - Ahizan',
+                emailTemplate: '<p>Bonjour {{ businessName }},</p>\n<p>Votre demande de retrait d\'un montant de <strong>{{ amount }} FCFA</strong> a été validée et transférée avec succès.</p>\n<p>Les fonds devraient être disponibles très prochainement sur votre compte/portefeuille.</p>',
+                smsTemplate: 'Ahizan: Votre retrait de {{ amount }} FCFA a été validé et envoyé.'
+            };
+            modified = true;
+        }
+        if (!channelsConfig.PayoutRejected) {
+            this.logger.log('Initializing default PayoutRejected configuration...');
+            channelsConfig.PayoutRejected = {
+                enabled: true,
+                channel: 'EMAIL',
+                emailSubject: 'Demande de retrait refusée - Ahizan',
+                emailTemplate: '<p>Bonjour {{ businessName }},</p>\n<p>Votre demande de retrait d\'un montant de <strong>{{ amount }} FCFA</strong> n\'a pas pu être exécutée pour le motif suivant :</p>\n<p><em>{{ rejectionReason }}</em></p>\n<p>Les fonds ont été recrédités sur votre solde disponible.</p>',
+                smsTemplate: 'Ahizan: Retrait de {{ amount }} FCFA refusé. Motif: {{ rejectionReason }}'
             };
             modified = true;
         }
@@ -981,18 +1039,48 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
         });
 
         this.eventBus.ofType(FundsReleasedEvent).subscribe(async (event) => {
+            const settings = await this.smsService.getSettings();
+            if (!settings) return;
             const { ctx, vendor, amount, orderCode, availableBalance } = event;
             let vendorUserId: string | number | undefined = vendor.user?.id;
-            if (!vendorUserId && vendor.id) {
+            let vendorEmail: string | undefined = vendor.email || undefined;
+            let vendorPhone: string | undefined = vendor.phoneNumber || undefined;
+            let vendorName: string = vendor.name || 'Vendeur';
+
+            if ((!vendorUserId || !vendorEmail) && vendor.id) {
                 const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
                     where: { id: vendor.id },
                     relations: ['user']
                 });
                 vendorUserId = vWithUser?.user?.id ?? undefined;
+                vendorEmail = vendorEmail || vWithUser?.email || undefined;
+                vendorPhone = vendorPhone || vWithUser?.phoneNumber || undefined;
+                vendorName = vWithUser?.name || vendorName;
             }
+
+            const formattedAmount = (amount / 100).toLocaleString('fr-FR');
+            const formattedBalance = (availableBalance / 100).toLocaleString('fr-FR');
+
+            const config = settings.channelsConfig?.FundsReleased;
+            if (config?.enabled) {
+                const vars = {
+                    businessName: vendorName,
+                    amount: formattedAmount,
+                    orderCode,
+                    availableBalance: formattedBalance,
+                };
+                if ((config.channel === 'SMS' || config.channel === 'BOTH') && vendorPhone && config.smsTemplate) {
+                    const content = this.smsService.interpolate(config.smsTemplate, vars);
+                    await this.smsService.sendSms(vendorPhone, content, settings);
+                }
+                if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && vendorEmail && config.emailTemplate) {
+                    const subject = this.smsService.interpolate(config.emailSubject || 'Fonds débloqués pour la commande #{{ orderCode }} - Ahizan', vars);
+                    const content = this.smsService.interpolate(config.emailTemplate, vars);
+                    await this.smsService.sendTransactionalEmail(vendorEmail, subject, content, settings);
+                }
+            }
+
             if (vendorUserId) {
-                const formattedAmount = (amount / 100).toLocaleString('fr-FR');
-                const formattedBalance = (availableBalance / 100).toLocaleString('fr-FR');
                 await this.sendInAppAndPushNotification(
                     ctx,
                     vendorUserId.toString(),
@@ -1005,6 +1093,203 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                     'VENDOR',
                     vendor.channelId ? parseInt(vendor.channelId.toString(), 10) : undefined,
                 );
+            }
+        });
+
+        this.eventBus.ofType(WithdrawalEvent).subscribe(async (event) => {
+            const settings = await this.smsService.getSettings();
+            if (!settings) return;
+            const { ctx, withdrawal, type } = event;
+            const vendor = withdrawal.vendor;
+            if (!vendor) return;
+
+            let vendorUserId: string | number | undefined = vendor.user?.id;
+            let vendorEmail: string | undefined = vendor.email || undefined;
+            let vendorPhone: string | undefined = vendor.phoneNumber || undefined;
+            let vendorName: string = vendor.name || 'Vendeur';
+
+            if ((!vendorUserId || !vendorEmail) && vendor.id) {
+                const vWithUser = await this.connection.rawConnection.getRepository(Vendor).findOne({
+                    where: { id: vendor.id },
+                    relations: ['user']
+                });
+                vendorUserId = vWithUser?.user?.id ?? undefined;
+                vendorEmail = vendorEmail || vWithUser?.email || undefined;
+                vendorPhone = vendorPhone || vWithUser?.phoneNumber || undefined;
+                vendorName = vWithUser?.name || vendorName;
+            }
+
+            const formattedAmount = Number(withdrawal.amount).toLocaleString('fr-FR');
+            const rejectionReason = withdrawal.rejectionReason || 'Coordonnées de paiement invalides ou motif non spécifié';
+
+            const vars = {
+                businessName: vendorName,
+                amount: formattedAmount,
+                rejectionReason,
+            };
+
+            if (type === 'approved') {
+                const config = settings.channelsConfig?.PayoutCompleted;
+                if (config?.enabled) {
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && vendorPhone && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(vendorPhone, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && vendorEmail && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Votre demande de retrait a été traitée - Ahizan', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(vendorEmail, subject, content, settings);
+                    }
+                }
+
+                if (vendorUserId) {
+                    await this.sendInAppAndPushNotification(
+                        ctx,
+                        vendorUserId.toString(),
+                        'Retrait Validé ✅',
+                        `Votre demande de retrait de ${formattedAmount} FCFA a été validée et transférée.`,
+                        '/dashboard/wallet',
+                        undefined,
+                        'VENDOR_EVENT',
+                        undefined,
+                        'VENDOR',
+                        vendor.channelId ? parseInt(vendor.channelId.toString(), 10) : undefined,
+                    );
+                }
+            } else if (type === 'rejected') {
+                const config = settings.channelsConfig?.PayoutRejected;
+                if (config?.enabled) {
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && vendorPhone && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(vendorPhone, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && vendorEmail && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Demande de retrait refusée - Ahizan', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(vendorEmail, subject, content, settings);
+                    }
+                }
+
+                if (vendorUserId) {
+                    await this.sendInAppAndPushNotification(
+                        ctx,
+                        vendorUserId.toString(),
+                        'Retrait Refusé ❌',
+                        `Votre demande de retrait de ${formattedAmount} FCFA a été rejetée. Motif : ${rejectionReason}`,
+                        '/dashboard/wallet',
+                        undefined,
+                        'VENDOR_EVENT',
+                        undefined,
+                        'VENDOR',
+                        vendor.channelId ? parseInt(vendor.channelId.toString(), 10) : undefined,
+                    );
+                }
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 5.1 PRODUCT EVENTS — Product Validation & Rejection
+    // ─────────────────────────────────────────────────────────────
+    private subscribeToProductEvents() {
+        this.eventBus.ofType(ProductEvent).subscribe(async (event) => {
+            const settings = await this.smsService.getSettings();
+            if (!settings?.channelsConfig) return;
+
+            const product = event.product;
+            if (!product) return;
+
+            // IMPORTANT: Only fire notifications on explicit admin UPDATES.
+            // When a seller submits a new product, it is created with approvalStatus='approved'
+            // (for catalog integration reasons), which would wrongly trigger "your product is approved"
+            // before the superadmin has reviewed anything. We must IGNORE 'created' events.
+            if (event.type === 'created') return;
+
+            const approvalStatus = (product.customFields as any)?.approvalStatus;
+            if (approvalStatus !== 'approved' && approvalStatus !== 'rejected') return;
+
+            // Find vendor attached to this product or offer
+            let vendorRows: { vendor_name: string; email: string; phone_number: string; user_id: string; channel_id: string }[] = [];
+            try {
+                vendorRows = await this.connection.rawConnection.query(`
+                    SELECT DISTINCT v.name as vendor_name, v.email, v."phoneNumber" as phone_number, v."userId" as user_id, v."channelId" as channel_id
+                    FROM vendor v
+                    LEFT JOIN product p ON (p."customFieldsVendorid" = v.id)
+                    LEFT JOIN seller_offer so ON (so."vendorId" = v.id)
+                    LEFT JOIN product_variant pv ON (pv.id = so."productVariantId")
+                    WHERE p.id = $1 OR pv."productId" = $1
+                    LIMIT 1
+                `, [product.id]);
+            } catch (queryErr) {}
+
+            const v = vendorRows[0];
+            if (!v) return;
+
+            const productName = (product as any).name || product.translations?.[0]?.name || 'Produit';
+            const rejectionReason = (product.customFields as any)?.rejectionReason || 'Non conforme aux critères Ahizan';
+
+            const vars = {
+                productName,
+                businessName: v.vendor_name || 'Vendeur',
+                rejectionReason,
+            };
+
+            if (approvalStatus === 'approved') {
+                const config = settings.channelsConfig?.ProductApproved;
+                if (config?.enabled) {
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && v.phone_number && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(v.phone_number, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && v.email && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Votre produit a été approuvé - Ahizan', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(v.email, subject, content, settings);
+                    }
+                }
+
+                if (v.user_id) {
+                    await this.sendInAppAndPushNotification(
+                        event.ctx,
+                        v.user_id.toString(),
+                        'Produit Approuvé ✅',
+                        `Votre produit "${productName}" a été validé et publié sur la marketplace.`,
+                        '/dashboard/products',
+                        undefined,
+                        'VENDOR_EVENT',
+                        undefined,
+                        'VENDOR',
+                        v.channel_id ? parseInt(v.channel_id, 10) : undefined,
+                    );
+                }
+            } else if (approvalStatus === 'rejected') {
+                const config = settings.channelsConfig?.ProductRejected;
+                if (config?.enabled) {
+                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && v.phone_number && config.smsTemplate) {
+                        const content = this.smsService.interpolate(config.smsTemplate, vars);
+                        await this.smsService.sendSms(v.phone_number, content, settings);
+                    }
+                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && v.email && config.emailTemplate) {
+                        const subject = this.smsService.interpolate(config.emailSubject || 'Mise à jour concernant votre produit - Ahizan', vars);
+                        const content = this.smsService.interpolate(config.emailTemplate, vars);
+                        await this.smsService.sendTransactionalEmail(v.email, subject, content, settings);
+                    }
+                }
+
+                if (v.user_id) {
+                    await this.sendInAppAndPushNotification(
+                        event.ctx,
+                        v.user_id.toString(),
+                        'Produit Refusé ❌',
+                        `Votre produit "${productName}" n'a pas été validé. Motif : ${rejectionReason}`,
+                        '/dashboard/products',
+                        undefined,
+                        'VENDOR_EVENT',
+                        undefined,
+                        'VENDOR',
+                        v.channel_id ? parseInt(v.channel_id, 10) : undefined,
+                    );
+                }
             }
         });
     }

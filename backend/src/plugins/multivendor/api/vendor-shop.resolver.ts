@@ -6,6 +6,7 @@ import { Vendor } from '../entities/vendor.entity';
 import { SellerOfferService } from '../service/seller-offer.service';
 import { SellerOffer, DeliveryTimeUnit } from '../entities/seller-offer.entity';
 import { AiNormalizerService } from '../service/ai-normalizer.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 
 /**
@@ -30,6 +31,7 @@ export class VendorShopResolver {
         private sellerOfferService: SellerOfferService,
         private aiNormalizerService: AiNormalizerService,
         private roleService: RoleService,
+        private notificationsService: NotificationsService,
     ) { }
 
     /**
@@ -61,6 +63,14 @@ export class VendorShopResolver {
         @Args('variantId') variantId: string
     ): Promise<SellerOffer[]> {
         return this.sellerOfferService.getOffersForVariant(ctx, variantId);
+    }
+
+    @Query()
+    async sellerOffersForVariants(
+        @Ctx() ctx: RequestContext,
+        @Args('variantIds') variantIds: string[]
+    ): Promise<SellerOffer[]> {
+        return this.sellerOfferService.getOffersForVariants(ctx, variantIds);
     }
 
     @Query()
@@ -670,6 +680,29 @@ export class VendorShopResolver {
                 }
 
                 this.eventBus.publish(new ProductEvent(transactionalCtx, updatedProduct, 'updated', { id: updatedProduct.id }));
+
+                const prodName = (updatedProduct as any)?.name || updatedProduct.translations?.[0]?.name || 'Produit';
+                this.notificationsService.notifySuperAdmins(ctx, {
+                    eventType: 'PRODUCT_SUBMITTED',
+                    title: 'Nouvelle proposition vendeur 🏷️',
+                    body: `Le vendeur "${vendor.name}" a soumis ${createdOffers.length} offre(s) pour le produit "${prodName}".`,
+                    actionUrl: '/admin/products',
+                    channels: ['IN_APP', 'PUSH'],
+                    data: { productId: updatedProduct.id, vendorId: vendor.id }
+                }).catch(() => null);
+
+                if (ctx.activeUserId) {
+                    this.notificationsService.notify(ctx, {
+                        userId: ctx.activeUserId.toString(),
+                        eventType: 'PRODUCT_SUBMITTED',
+                        title: 'Offre soumise avec succès ✅',
+                        body: `Vos ${createdOffers.length} offre(s) pour le produit "${prodName}" ont été soumises pour validation.`,
+                        targetRole: 'VENDOR',
+                        actionUrl: '/dashboard/products/affiliate',
+                        channels: ['IN_APP', 'PUSH']
+                    }).catch(() => null);
+                }
+
                 return createdOffers;
             } catch (err: any) {
                 console.error('[tagProductWithVariantOffers] ERROR STACK TRACE:', err.message, err.stack);
@@ -999,9 +1032,79 @@ export class VendorShopResolver {
 
             // 3. Create Option Groups and Options if multiple variants
             const optionGroups: any[] = [];
-            const optionMap = new Map<string, any>(); // key: "groupIndex:optionName", value: optionEntity
+            const optionMap = new Map<string, any>(); // Lookups by code, name, and index:name
 
-            if ((input as any).variants && (input as any).variants.length > 1) {
+            const explicitOptionGroups = (input as any).optionGroups;
+            if (Array.isArray(explicitOptionGroups) && explicitOptionGroups.length > 0) {
+                for (let g = 0; g < explicitOptionGroups.length; g++) {
+                    const ogInput = explicitOptionGroups[g];
+                    const cleanGroupName = (ogInput.name || '').trim();
+                    if (!cleanGroupName) continue;
+
+                    const standardCode = (ogInput.code || cleanGroupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')).trim();
+
+                    // Find or create option group in Default Channel
+                    let optionGroup = await this.connection.getRepository(transactionalCtx, ProductOptionGroup).findOne({
+                        where: { code: standardCode },
+                        relations: ['translations'],
+                    });
+
+                    if (!optionGroup) {
+                        optionGroup = await this.productOptionGroupService.create(transactionalCtx, {
+                            code: standardCode,
+                            translations: [{
+                                languageCode: ctx.languageCode,
+                                name: cleanGroupName,
+                            }]
+                        });
+                    }
+
+                    // Assign group to vendor channel if not already assigned
+                    if (vendor.channelId) {
+                        await this.channelService.assignToChannels(transactionalCtx, ProductOptionGroup, optionGroup.id, [vendor.channelId]).catch(() => null);
+                    }
+
+                    await this.productService.addOptionGroupToProduct(transactionalCtx, product.id, optionGroup.id);
+                    optionGroups.push(optionGroup);
+
+                    for (const optInput of (ogInput.options || [])) {
+                        const optName = typeof optInput === 'string' ? optInput : optInput.name;
+                        const cleanOptName = (optName || '').trim();
+                        if (!cleanOptName) continue;
+                        const optCode = ((typeof optInput === 'object' && optInput.code) ? optInput.code : cleanOptName.toLowerCase().replace(/[^a-z0-9]+/g, '-')).trim();
+
+                        const groupOptions = await this.connection.getRepository(transactionalCtx, ProductOption).find({
+                            where: { group: { id: optionGroup.id } },
+                            relations: ['translations']
+                        });
+
+                        let option = groupOptions.find((o: any) =>
+                            o.code === optCode ||
+                            o.name?.toLowerCase() === cleanOptName.toLowerCase() ||
+                            o.translations?.some((t: any) => t.name?.toLowerCase().trim() === cleanOptName.toLowerCase())
+                        );
+
+                        if (!option) {
+                            option = await this.productOptionService.create(transactionalCtx, optionGroup.id, {
+                                code: optCode,
+                                translations: [{
+                                    languageCode: ctx.languageCode,
+                                    name: cleanOptName,
+                                }]
+                            });
+                        }
+
+                        if (vendor.channelId) {
+                            await this.channelService.assignToChannels(transactionalCtx, ProductOption, option.id, [vendor.channelId]).catch(() => null);
+                        }
+
+                        optionMap.set(`${g}:${cleanOptName.toLowerCase()}`, option);
+                        optionMap.set(`${optionGroup.id}:${cleanOptName.toLowerCase()}`, option);
+                        optionMap.set(optCode.toLowerCase(), option);
+                        optionMap.set(cleanOptName.toLowerCase(), option);
+                    }
+                }
+            } else if ((input as any).variants && (input as any).variants.length > 1) {
                 const variantNames = (input as any).variants.map((v: any, idx: number) => {
                     let vName = v.name || `${input.name} - Option ${idx + 1}`;
                     if (input.name && vName.startsWith(input.name)) {
@@ -1086,7 +1189,9 @@ export class VendorShopResolver {
                             await this.channelService.assignToChannels(transactionalCtx, ProductOption, option.id, [vendor.channelId]).catch(() => null);
                         }
 
-                        optionMap.set(`${g}:${val}`, option);
+                        optionMap.set(`${g}:${val.toLowerCase()}`, option);
+                        optionMap.set(optCode.toLowerCase(), option);
+                        optionMap.set(val.toLowerCase(), option);
                     }
                 }
             }
@@ -1110,7 +1215,7 @@ export class VendorShopResolver {
                     return vName;
                 });
                 const splitNames = variantNames.map((name: string) => name.split(' - ').map((p: string) => p.trim()));
-                const firstLen = splitNames[0].length;
+                const firstLen = splitNames[0]?.length || 1;
                 const allSameLen = splitNames.every((parts: string[]) => parts.length === firstLen);
                 const numGroups = allSameLen ? firstLen : 1;
 
@@ -1123,12 +1228,52 @@ export class VendorShopResolver {
                     
                     const optionIds: any[] = [];
                     if (optionGroups.length > 0) {
-                        const parts = allSameLen ? splitNames[i] : [vName];
-                        for (let g = 0; g < numGroups; g++) {
-                            const val = parts[g];
-                            const option = optionMap.get(`${g}:${val}`);
-                            if (option) {
-                                optionIds.push(option.id);
+                        const searchTerms = [
+                            ...(Array.isArray(v.optionCodes) ? v.optionCodes : []),
+                            ...(Array.isArray(v.optionNames) ? v.optionNames : []),
+                            ...(allSameLen ? splitNames[i] : [vName]),
+                            ...vName.split(' - ').map((p: string) => p.trim()),
+                        ].map((s: string) => String(s).toLowerCase().trim());
+
+                        for (let g = 0; g < optionGroups.length; g++) {
+                            const og = optionGroups[g];
+                            const groupOptions = await this.connection.getRepository(transactionalCtx, ProductOption).find({
+                                where: { group: { id: og.id } },
+                                relations: ['translations'],
+                            });
+
+                            let matchedOption: any = null;
+
+                            // 1. Try finding match among search terms
+                            for (const term of searchTerms) {
+                                const opt = groupOptions.find((o: any) =>
+                                    (o.code || '').toLowerCase() === term ||
+                                    (o.name || '').toLowerCase() === term ||
+                                    o.translations?.some((t: any) => (t.name || '').toLowerCase().trim() === term)
+                                );
+                                if (opt) {
+                                    matchedOption = opt;
+                                    break;
+                                }
+                            }
+
+                            // 2. Try index-based lookup
+                            if (!matchedOption && allSameLen && splitNames[i][g]) {
+                                const term = splitNames[i][g].toLowerCase().trim();
+                                matchedOption = groupOptions.find((o: any) =>
+                                    (o.code || '').toLowerCase() === term ||
+                                    (o.name || '').toLowerCase() === term ||
+                                    o.translations?.some((t: any) => (t.name || '').toLowerCase().trim() === term)
+                                );
+                            }
+
+                            // 3. Fallback to first option of this group to satisfy Vendure invariant
+                            if (!matchedOption && groupOptions.length > 0) {
+                                matchedOption = groupOptions[0];
+                            }
+
+                            if (matchedOption && !optionIds.includes(matchedOption.id)) {
+                                optionIds.push(matchedOption.id);
                             }
                         }
                     }
@@ -1260,6 +1405,29 @@ export class VendorShopResolver {
             // 8. Publish ProductEvent for automatic search indexing and cache invalidation
             const finalProduct = await this.productService.findOne(transactionalCtx, product.id) as Product;
             this.eventBus.publish(new ProductEvent(transactionalCtx, finalProduct, 'created', { id: product.id }));
+
+            const pName = (input as any).name || (input as any).translations?.[0]?.name || 'Nouveau Produit';
+            this.notificationsService.notifySuperAdmins(ctx, {
+                eventType: 'PRODUCT_SUBMITTED',
+                title: 'Nouveau produit soumis 📦',
+                body: `Le vendeur "${vendor.name}" a soumis le produit "${pName}" pour validation.`,
+                actionUrl: '/admin/products',
+                channels: ['IN_APP', 'PUSH'],
+                data: { productId: product.id, vendorId: vendor.id }
+            }).catch(() => null);
+
+            if (ctx.activeUserId) {
+                this.notificationsService.notify(ctx, {
+                    userId: ctx.activeUserId.toString(),
+                    eventType: 'PRODUCT_SUBMITTED',
+                    title: 'Produit soumis avec succès ✅',
+                    body: `Votre produit "${pName}" a été soumis pour validation auprès de l'équipe Ahizan.`,
+                    targetRole: 'VENDOR',
+                    actionUrl: '/dashboard/products',
+                    channels: ['IN_APP', 'PUSH']
+                }).catch(() => null);
+            }
+
             return finalProduct;
         });
     }
@@ -2711,6 +2879,16 @@ export class SellerOfferEntityResolver {
         if ((offer as any).vendorId) {
             const vendor = await this.connection.getRepository(ctx, Vendor).findOne({ where: { id: (offer as any).vendorId } });
             return vendor || null;
+        }
+        return null;
+    }
+
+    @ResolveField('featuredAsset')
+    @Allow(Permission.Public)
+    async featuredAsset(@Ctx() ctx: RequestContext, @Parent() offer: SellerOffer): Promise<Asset | null> {
+        if (offer.featuredAssetId) {
+            const asset = await this.connection.getRepository(ctx, Asset).findOne({ where: { id: offer.featuredAssetId } });
+            return asset || null;
         }
         return null;
     }

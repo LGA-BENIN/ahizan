@@ -1,5 +1,6 @@
 import { RequestContext, VendureEvent } from '@vendure/core';
 import { Vendor } from '../entities/vendor.entity';
+import { WithdrawalRequest } from '../entities/withdrawal-request.entity';
 
 export class VendorEvent extends VendureEvent {
     constructor(
@@ -23,4 +24,15 @@ export class FundsReleasedEvent extends VendureEvent {
         super();
     }
 }
+
+export class WithdrawalEvent extends VendureEvent {
+    constructor(
+        public ctx: RequestContext,
+        public withdrawal: WithdrawalRequest,
+        public type: 'approved' | 'rejected' | 'requested',
+    ) {
+        super();
+    }
+}
+
 

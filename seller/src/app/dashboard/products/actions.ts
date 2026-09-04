@@ -40,7 +40,18 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const deliveryTimeUnit = (formData.get('deliveryTimeUnit') as string) || 'd';
     const condition = (formData.get('condition') as string) || 'NEW';
 
-    // Multi-variants parsing
+    // Multi-variants & Option Groups parsing
+    const rawOptionGroups = formData.get('optionGroups') as string;
+    let optionGroups: any[] | undefined = undefined;
+    if (rawOptionGroups) {
+        try {
+            const parsed = JSON.parse(rawOptionGroups);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                optionGroups = parsed;
+            }
+        } catch (e) {}
+    }
+
     const rawVariants = formData.get('variants') as string;
     let variants: any[] | undefined = undefined;
     if (rawVariants) {
@@ -55,6 +66,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
                     onPromotion: v.onPromotion === true,
                     promotionalPrice: v.onPromotion ? priceToSubunit(parseInt(v.promotionalPrice) || 0) : undefined,
                     featuredAssetId: v.featuredAssetId || undefined,
+                    optionCodes: Array.isArray(v.optionCodes) ? v.optionCodes : undefined,
                 }));
             }
         } catch (e) {}
@@ -80,6 +92,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
                 featuredAssetId: featuredAssetId || assetIds[0],
                 onPromotion,
                 promotionalPrice: onPromotion ? promotionalPrice : undefined,
+                optionGroups,
                 variants,
                 deliveryTimeValue,
                 deliveryTimeUnit,

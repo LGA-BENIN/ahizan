@@ -6,6 +6,7 @@ import {SearchProductsQuery} from "@/lib/vendure/queries";
 import {getActiveChannel} from '@/lib/vendure/actions';
 import {LottieSearchEmpty} from '@/components/shared/animations/LottieSearchEmpty';
 import {priceFromSubunit} from '@/lib/format';
+import {expandProductsWithSellerOffers} from '@/lib/vendure/seller-offers';
 
 interface ProductGridProps {
     productData?: {
@@ -31,8 +32,9 @@ export async function ProductGrid({productData, productDataPromise, currentPage,
     if (!resolvedData) return null;
 
     const searchResult = resolvedData.data.search;
-    let items = searchResult.items || [];
-    let totalItems = searchResult.totalItems || 0;
+    let rawItems = searchResult.items || [];
+    let items = await expandProductsWithSellerOffers(rawItems);
+    let totalItems = items.length || searchResult.totalItems || 0;
 
     if (minPrice !== undefined || maxPrice !== undefined) {
         items = items.filter((p: any) => {

@@ -71,7 +71,7 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
     // Client-side advanced filtering
     const filteredProducts = useMemo(() => {
         return (initialProducts || []).filter(product => {
-            if (!product) return false;
+            if (!product || !product.variants || product.variants.length === 0) return false;
             const variant = product.variants?.[0];
             const approvalStatus = product.customFields?.approvalStatus || 'pending';
             const price = variant?.priceWithTax ? priceFromSubunit(variant.priceWithTax, variant.currencyCode) : 0; // Convert to main unit for comparison

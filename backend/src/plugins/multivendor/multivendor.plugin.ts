@@ -540,11 +540,17 @@ export class MultivendorPlugin implements OnApplicationBootstrap {
                         `// AHIZAN_PATCHED_SKIP_DELETE: Skip mass-delete so our custom Channel 1 multivendor index is preserved.
                         // await this.connection.getRepository(ctx, search_index_item_entity_1.SearchIndexItem).delete({ channelId: ctx.channelId });`
                     );
-                    fs.writeFileSync(indexerPath, content);
-                    console.log('[MultivendorPlugin] Successfully patched indexer.controller.js to skip mass-delete of Channel 1 search index!');
-                } else {
-                    console.log('[MultivendorPlugin] indexer.controller.js already patched.');
                 }
+                if (!content.includes('AHIZAN_PATCHED_SKIP_MISSING_PROD')) {
+                    content = content.replace(
+                        `if (!product) {`,
+                        `// AHIZAN_PATCHED_SKIP_MISSING_PROD
+                        if (!product) { continue; }
+                        if (false && !product) {`
+                    );
+                }
+                fs.writeFileSync(indexerPath, content);
+                console.log('[MultivendorPlugin] Successfully patched indexer.controller.js!');
             }
         } catch (e: any) {
             console.error('[MultivendorPlugin] Failed to patch indexer.controller.js:', e?.message);
@@ -560,11 +566,25 @@ export class MultivendorPlugin implements OnApplicationBootstrap {
 
                 -- 1. Sync product_variant enabled state with seller_offer status
                 UPDATE product_variant pv
-                SET enabled = (so.status = 'approved'),
-                    "customFieldsOfferstatus" = CASE WHEN so.status = 'approved' THEN 'APPROVED' WHEN so.status = 'rejected' THEN 'REJECTED' ELSE 'PENDING' END,
-                    "updatedAt" = NOW()
-                FROM seller_offer so
-                WHERE so."productVariantId" = pv.id;
+                SET enabled = (
+                    CASE 
+                        WHEN EXISTS (SELECT 1 FROM seller_offer so_any WHERE so_any."productVariantId" = pv.id)
+                        THEN EXISTS (SELECT 1 FROM seller_offer so_app WHERE so_app."productVariantId" = pv.id AND so_app.status = 'approved')
+                        ELSE pv.enabled
+                    END
+                ),
+                "customFieldsOfferstatus" = COALESCE(
+                    (
+                        SELECT CASE WHEN so_b.status = 'approved' THEN 'APPROVED' WHEN so_b.status = 'rejected' THEN 'REJECTED' ELSE 'PENDING' END
+                        FROM seller_offer so_b
+                        WHERE so_b."productVariantId" = pv.id
+                        ORDER BY CASE WHEN so_b.status = 'approved' THEN 1 WHEN so_b.status = 'pending' THEN 2 ELSE 3 END
+                        LIMIT 1
+                    ),
+                    'APPROVED'
+                ),
+                "updatedAt" = NOW()
+                WHERE EXISTS (SELECT 1 FROM seller_offer so_check WHERE so_check."productVariantId" = pv.id);
 
                 -- 2. Inherit collection associations for all grafted variants of the same product
                 INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")

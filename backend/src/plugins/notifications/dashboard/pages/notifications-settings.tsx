@@ -201,6 +201,11 @@ export function NotificationsSettingsComponent() {
             SellerAccountVerification: { ...defaultChannelConfig },
             VendorApproved: { ...defaultChannelConfig },
             VendorRejected: { ...defaultChannelConfig },
+            ProductApproved: { ...defaultChannelConfig },
+            ProductRejected: { ...defaultChannelConfig },
+            FundsReleased: { ...defaultChannelConfig },
+            PayoutCompleted: { ...defaultChannelConfig },
+            PayoutRejected: { ...defaultChannelConfig },
             PasswordReset: { ...defaultChannelConfig },
             StockAlert: { ...defaultChannelConfig },
             BuyerRegistration: { ...defaultChannelConfig },
@@ -562,13 +567,26 @@ export function NotificationsSettingsComponent() {
             </div>
 
             <div style={cardStyle}>
-                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Vendeurs : Événements Boutique</h2>
-                <EventConfigBlock title="Nouvelle Commande (Notification de Vente)" eventName="NewOrderVendor" variables="{{ orderCode }}" />
+                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Vendeurs : Événements Boutique & Compte</h2>
+                <EventConfigBlock title="Nouvelle Commande (Notification de Vente)" eventName="NewOrderVendor" variables="{{ orderCode }}, {{ businessName }}, {{ vendorTotal }}, {{ itemsList }}" />
                 <EventConfigBlock title="Inscription Vendeur Reçue (En Attente)" eventName="VendorRegistration" variables="{{ businessName }}, {{ email }}, {{ name }}, {{ verificationToken }}, {{ verificationLink }}" />
                 <EventConfigBlock title="Boutique Approuvée / Activée" eventName="VendorApproved" variables="{{ businessName }}, {{ email }}, {{ name }}" />
                 <EventConfigBlock title="Boutique Rejetée" eventName="VendorRejected" variables="{{ businessName }}, {{ rejectionReason }}, {{ email }}, {{ name }}" />
-                <EventConfigBlock title="Alerte de Stock Faible (<5 pièces)" eventName="StockAlert" variables="{{ productName }}, {{ stockOnHand }}" />
                 <EventConfigBlock title="Réinitialisation de Mot de Passe" eventName="PasswordReset" variables="{{ passwordResetToken }}, {{ identifier }}, {{ resetLink }}" />
+            </div>
+
+            <div style={cardStyle}>
+                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Vendeurs : Catalogue & Produits</h2>
+                <EventConfigBlock title="Produit Validé & Publié au Catalogue" eventName="ProductApproved" variables="{{ businessName }}, {{ productName }}, {{ productUrl }}" />
+                <EventConfigBlock title="Produit Rejeté / Corrections Demandées" eventName="ProductRejected" variables="{{ businessName }}, {{ productName }}, {{ rejectionReason }}" />
+                <EventConfigBlock title="Alerte de Stock Faible (<5 pièces)" eventName="StockAlert" variables="{{ productName }}, {{ stockOnHand }}" />
+            </div>
+
+            <div style={cardStyle}>
+                <h2 style={{ fontSize: '18px', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>Vendeurs : Finances, Portefeuille & Retraits</h2>
+                <EventConfigBlock title="Fonds Libérés sur le Portefeuille Vendeur" eventName="FundsReleased" variables="{{ businessName }}, {{ orderCode }}, {{ amount }}, {{ walletBalance }}" />
+                <EventConfigBlock title="Virement / Retrait Effectué avec Succès" eventName="PayoutCompleted" variables="{{ businessName }}, {{ amount }}, {{ paymentMethod }}, {{ transactionRef }}" />
+                <EventConfigBlock title="Demande de Retrait Rejetée" eventName="PayoutRejected" variables="{{ businessName }}, {{ amount }}, {{ rejectionReason }}" />
             </div>
 
         </div>

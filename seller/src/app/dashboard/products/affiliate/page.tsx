@@ -271,20 +271,11 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             const prod = res.data?.product;
             setProductDetails(prod || productSummary);
 
-            // Pre-select any option groups already defined on this product
-            const existingGroups: string[] = [];
-            const initialValuesMap: { [key: string]: string[] } = {};
-
-            if (prod?.optionGroups) {
-                for (const og of prod.optionGroups) {
-                    const key = String(og.id);
-                    existingGroups.push(key);
-                    initialValuesMap[key] = (og.options || []).map((o: any) => o.name || o.code);
-                }
-            }
-
-            setSelectedGroupIds(existingGroups);
-            setGroupValuesMap(initialValuesMap);
+            // Clean reset state for this product so no unselected values linger
+            setSelectedGroupIds([]);
+            setGroupValuesMap({});
+            setCustomGroups([]);
+            setGeneratedVariants([]);
         } catch (err) {
             console.error('[AffiliatePage] Failed to fetch product details:', err);
             setProductDetails(productSummary);
@@ -302,32 +293,79 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         }
     }, [productIdFromQuery, initialSelectedProduct, handleSelectProduct]);
 
-    // Computed display option groups (combines global platform groups + product-specific groups)
-    const displayOptionGroups = useMemo(() => {
-        const map = new Map<string, OptionGroupDef>();
-        for (const g of globalOptionGroups) {
-            map.set(String(g.id), g);
+    const isNoisyCompositeOption = (name: string): boolean => {
+        const trimmed = (name || '').trim();
+        if (!trimmed) return true;
+        if (/^(d[ée]clinaison\s+personnalis[ée]e|custom\s+variant|option)/i.test(trimmed)) return true;
+        const parts = trimmed.split(/[\s\-_/,+]+/).filter(Boolean);
+        if (parts.length >= 2) {
+            const hasSize = parts.some(p => /^(xs|s|m|l|xl|xxl|2xl|3xl|3[2-9]|4[0-9]|5[0-2])$/i.test(p));
+            const hasColor = parts.some(p => /^(noir|blanc|rouge|bleu|vert|jaune|rose|gris|marron|violet|orange|beige|dor[ée]|argent[ée]|gold|silver|black|white|red|blue|green|yellow|pink|grey|gray|brown|purple)$/i.test(p));
+            if (hasSize && hasColor) return true;
+            if (hasSize && parts.length > 1) return true;
         }
-        if (productDetails?.optionGroups) {
+        return false;
+    };
+
+    // Computed display option groups (combines product-specific groups and all global platform groups, deduplicated by code)
+    const displayOptionGroups = useMemo(() => {
+        const groupMap = new Map<string, OptionGroupDef>();
+
+        const filterCleanOptions = (opts: any[]) => {
+            return (opts || []).filter((o: any) => o && o.name && !isNoisyCompositeOption(o.name));
+        };
+
+        // 1. First populate with all global platform option groups (Couleur, Taille, Pointure, Capacité, etc.)
+        for (const g of globalOptionGroups) {
+            const normCode = (g.code || g.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).trim();
+            groupMap.set(normCode, {
+                id: String(g.id || normCode),
+                code: normCode,
+                name: g.name,
+                options: filterCleanOptions(g.options || [])
+            });
+        }
+
+        // 2. Overlay / merge product's specific option groups & options
+        if (productDetails?.optionGroups && productDetails.optionGroups.length > 0) {
             for (const og of productDetails.optionGroups) {
-                if (!map.has(String(og.id))) {
-                    map.set(String(og.id), {
-                        id: String(og.id),
-                        code: og.code,
-                        name: og.name,
-                        options: og.options || []
-                    });
+                const normCode = (og.code || og.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')).trim();
+                const existing = groupMap.get(normCode);
+                
+                const cleanProductOpts = filterCleanOptions(og.options || []);
+                const existingOptNames = new Set((existing?.options || []).map((o: any) => o.name.toLowerCase().trim()));
+                const mergedOptions = [...(existing?.options || [])];
+                
+                for (const pOpt of cleanProductOpts) {
+                    if (!existingOptNames.has(pOpt.name.toLowerCase().trim())) {
+                        mergedOptions.push(pOpt);
+                        existingOptNames.add(pOpt.name.toLowerCase().trim());
+                    }
                 }
+
+                groupMap.set(normCode, {
+                    id: String(og.id || existing?.id || normCode),
+                    code: normCode,
+                    name: og.name || existing?.name || normCode,
+                    options: mergedOptions,
+                });
             }
         }
-        return Array.from(map.values());
+
+        return Array.from(groupMap.values());
     }, [globalOptionGroups, productDetails]);
 
     // Step 2 Option Groups Selection & Value Handlers
     const toggleOptionGroup = (groupId: string) => {
         setSelectedGroupIds(prev => {
             if (prev.includes(groupId)) {
-                return prev.filter(id => id !== groupId);
+                const next = prev.filter(id => id !== groupId);
+                setGroupValuesMap(valMap => {
+                    const copy = { ...valMap };
+                    delete copy[groupId];
+                    return copy;
+                });
+                return next;
             } else {
                 return [...prev, groupId];
             }
@@ -371,17 +409,16 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
     // Step 2 -> Step 3: Generate Combinations
     const handleGenerateCombinations = () => {
         // Gather all selected groups that have at least one value
-        const activeGroups: { id: string; name: string; values: string[] }[] = [];
+        const activeGroups: { id: string; name: string; code: string; values: string[] }[] = [];
 
-        // 1. Standard / Global / Product Option Groups
+        // 1. Standard / Product Option Groups
         for (const gId of selectedGroupIds) {
             const vals = groupValuesMap[gId] || [];
             if (vals.length > 0) {
-                // Find group name
-                const fromGlobal = globalOptionGroups.find(g => g.id === gId || g.code === gId);
-                const fromProd = productDetails?.optionGroups?.find((g: any) => g.id === gId || g.code === gId);
-                const groupName = fromGlobal?.name || fromProd?.name || gId;
-                activeGroups.push({ id: gId, name: groupName, values: vals });
+                const found = displayOptionGroups.find(g => String(g.id) === String(gId) || g.code === gId);
+                const groupName = found?.name || gId;
+                const groupCode = found?.code || gId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                activeGroups.push({ id: gId, name: groupName, code: groupCode, values: vals });
             }
         }
 
@@ -389,7 +426,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         for (const cg of customGroups) {
             const vals = groupValuesMap[cg.id] || [];
             if (cg.name.trim() && vals.length > 0) {
-                activeGroups.push({ id: cg.id, name: cg.name.trim(), values: vals });
+                activeGroups.push({ id: cg.id, name: cg.name.trim(), code: cg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), values: vals });
             }
         }
 
@@ -437,19 +474,25 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             const comboName = `${productDetails?.name || 'Produit'} ${combo.join(' ')}`;
             const comboKey = combo.join('-');
 
+            // Try to match with existing product variant in Vendure
+            const existingVariant = (productDetails?.variants || []).find((pv: any) => {
+                const pvOptionNames = (pv.options || []).map((o: any) => (o.name || o.code || '').toLowerCase().trim());
+                return combo.length === pvOptionNames.length && combo.every(c => pvOptionNames.includes(c.toLowerCase().trim()));
+            });
+
             return {
-                id: `combo_${idx}_${Date.now()}`,
+                id: existingVariant ? String(existingVariant.id) : `combo_${idx}_${Date.now()}`,
                 key: comboKey,
                 enabled: true,
                 name: comboName,
                 optionValues: optionPairs,
-                price: bulkPrice ? Number(bulkPrice) : 10000,
+                price: bulkPrice ? Number(bulkPrice) : (existingVariant?.price ? (existingVariant.price / 100) : 10000),
                 stock: bulkStock ? Number(bulkStock) : 5,
                 sku: `OFFER-${idx + 1}`,
                 onPromotion: false,
                 promotionalPrice: 0,
-                featuredAssetId: undefined,
-                assetPreview: undefined,
+                featuredAssetId: existingVariant?.featuredAsset?.id || undefined,
+                assetPreview: existingVariant?.featuredAsset?.preview || undefined,
                 deliveryTimeValue: 2,
                 deliveryTimeUnit: 'd',
                 condition: bulkCondition || 'NEW',
@@ -790,8 +833,8 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         {/* Available Platform Option Groups */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {displayOptionGroups.map(group => {
-                                const isSelected = selectedGroupIds.includes(group.id) || selectedGroupIds.includes(group.code);
-                                const selectedValues = groupValuesMap[group.id] || groupValuesMap[group.code] || [];
+                                const isSelected = selectedGroupIds.includes(group.id);
+                                const selectedValues = groupValuesMap[group.id] || [];
 
                                 return (
                                     <div

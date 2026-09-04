@@ -90,6 +90,114 @@ const GET_GLOBAL_OPTION_GROUPS_QUERY = `
   }
 `;
 
+const DEFAULT_OPTION_GROUPS = [
+    {
+        id: '41',
+        code: 'taille',
+        name: 'Taille',
+        options: [
+            { id: 't_xs', code: 'xs', name: 'XS' },
+            { id: 't_s', code: 's', name: 'S' },
+            { id: 't_m', code: 'm', name: 'M' },
+            { id: 't_l', code: 'l', name: 'L' },
+            { id: 't_xl', code: 'xl', name: 'XL' },
+            { id: 't_xxl', code: 'xxl', name: 'XXL' },
+            { id: 't_3xl', code: '3xl', name: '3XL' },
+        ]
+    },
+    {
+        id: '52',
+        code: 'pointure',
+        name: 'Pointure',
+        options: [
+            { id: 'p_36', code: '36', name: '36' },
+            { id: 'p_37', code: '37', name: '37' },
+            { id: 'p_38', code: '38', name: '38' },
+            { id: 'p_39', code: '39', name: '39' },
+            { id: 'p_40', code: '40', name: '40' },
+            { id: 'p_41', code: '41', name: '41' },
+            { id: 'p_42', code: '42', name: '42' },
+            { id: 'p_43', code: '43', name: '43' },
+            { id: 'p_44', code: '44', name: '44' },
+            { id: 'p_45', code: '45', name: '45' },
+        ]
+    },
+    {
+        id: '40',
+        code: 'couleur',
+        name: 'Couleur',
+        options: [
+            { id: 'c_noir', code: 'noir', name: 'Noir' },
+            { id: 'c_blanc', code: 'blanc', name: 'Blanc' },
+            { id: 'c_rouge', code: 'rouge', name: 'Rouge' },
+            { id: 'c_bleu', code: 'bleu', name: 'Bleu' },
+            { id: 'c_vert', code: 'vert', name: 'Vert' },
+            { id: 'c_jaune', code: 'jaune', name: 'Jaune' },
+            { id: 'c_rose', code: 'rose', name: 'Rose' },
+            { id: 'c_gris', code: 'gris', name: 'Gris' },
+            { id: 'c_marron', code: 'marron', name: 'Marron' },
+            { id: 'c_orange', code: 'orange', name: 'Orange' },
+            { id: 'c_violet', code: 'violet', name: 'Violet' },
+            { id: 'c_beige', code: 'beige', name: 'Beige' },
+        ]
+    },
+    {
+        id: '53',
+        code: 'capacite',
+        name: 'Capacité / Stockage',
+        options: [
+            { id: 'cap_16', code: '16go', name: '16 Go' },
+            { id: 'cap_32', code: '32go', name: '32 Go' },
+            { id: 'cap_64', code: '64go', name: '64 Go' },
+            { id: 'cap_128', code: '128go', name: '128 Go' },
+            { id: 'cap_256', code: '256go', name: '256 Go' },
+            { id: 'cap_512', code: '512go', name: '512 Go' },
+            { id: 'cap_1to', code: '1to', name: '1 To' },
+        ]
+    },
+    {
+        id: '54',
+        code: 'volume',
+        name: 'Volume',
+        options: [
+            { id: 'v_30', code: '30ml', name: '30 ml' },
+            { id: 'v_50', code: '50ml', name: '50 ml' },
+            { id: 'v_100', code: '100ml', name: '100 ml' },
+            { id: 'v_200', code: '200ml', name: '200 ml' },
+            { id: 'v_250', code: '250ml', name: '250 ml' },
+            { id: 'v_500', code: '500ml', name: '500 ml' },
+            { id: 'v_1l', code: '1l', name: '1 L' },
+        ]
+    },
+    {
+        id: '55',
+        code: 'poids',
+        name: 'Poids',
+        options: [
+            { id: 'w_100', code: '100g', name: '100 g' },
+            { id: 'w_250', code: '250g', name: '250 g' },
+            { id: 'w_500', code: '500g', name: '500 g' },
+            { id: 'w_1k', code: '1kg', name: '1 kg' },
+            { id: 'w_2k', code: '2kg', name: '2 kg' },
+            { id: 'w_5k', code: '5kg', name: '5 kg' },
+        ]
+    },
+    {
+        id: '56',
+        code: 'matiere',
+        name: 'Matière',
+        options: [
+            { id: 'm_coton', code: 'coton', name: 'Coton' },
+            { id: 'm_cuir', code: 'cuir', name: 'Cuir' },
+            { id: 'm_soie', code: 'soie', name: 'Soie' },
+            { id: 'm_synthetique', code: 'synthetique', name: 'Synthétique' },
+            { id: 'm_acier', code: 'acier', name: 'Acier' },
+            { id: 'm_bois', code: 'bois', name: 'Bois' },
+            { id: 'm_plastique', code: 'plastique', name: 'Plastique' },
+        ]
+    }
+];
+
 export default function CreateProductForm({ 
     collectionTree, 
     onSuccess, 
@@ -129,7 +237,7 @@ export default function CreateProductForm({
 
     // Options and Variants (Step 2 & 3)
     const [hasMultipleVariants, setHasMultipleVariants] = useState(false);
-    const [globalOptionGroups, setGlobalOptionGroups] = useState<any[]>([]);
+    const [globalOptionGroups, setGlobalOptionGroups] = useState<any[]>(DEFAULT_OPTION_GROUPS);
     const [selectedStandardGroups, setSelectedStandardGroups] = useState<string[]>([]);
     const [groupValuesMap, setGroupValuesMap] = useState<{ [key: string]: string[] }>({});
     const [newOptionValue, setNewOptionValue] = useState<{ [key: string]: string }>({});
@@ -200,7 +308,10 @@ export default function CreateProductForm({
         const fetchGroups = async () => {
             try {
                 const res = await query(GET_GLOBAL_OPTION_GROUPS_QUERY, {});
-                setGlobalOptionGroups(res.data?.getGlobalOptionGroups || []);
+                const fetched = res.data?.getGlobalOptionGroups;
+                if (Array.isArray(fetched) && fetched.length > 0) {
+                    setGlobalOptionGroups(fetched);
+                }
             } catch (err) {
                 console.error('[CreateProductForm] Failed to fetch option groups:', err);
             }
@@ -378,8 +489,44 @@ export default function CreateProductForm({
             if (formData.width) submitFormData.append('width', formData.width);
             if (formData.height) submitFormData.append('height', formData.height);
 
-            // Pass variants
-            submitFormData.append('variants', JSON.stringify(variants));
+            // Pass explicit option groups and variants
+            const activeGroupEntries = hasMultipleVariants
+                ? selectedStandardGroups
+                    .map(groupId => {
+                        const group = globalOptionGroups.find(g => g.id === groupId);
+                        return {
+                            id: group?.id || groupId,
+                            name: group?.name || 'Option',
+                            code: group?.code || group?.name?.toLowerCase()?.replace(/[^a-z0-9]+/g, '-') || 'option',
+                            values: groupValuesMap[groupId] || []
+                        };
+                    })
+                    .filter(g => g.values.length > 0)
+                : [];
+
+            const optionGroupsPayload = activeGroupEntries.map(g => ({
+                name: g.name,
+                code: g.code,
+                options: g.values.map(v => ({
+                    name: v,
+                    code: v.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                }))
+            }));
+
+            if (optionGroupsPayload.length > 0) {
+                submitFormData.append('optionGroups', JSON.stringify(optionGroupsPayload));
+            }
+
+            const formattedVariants = variants.map(v => {
+                const parts = v.name.split(' - ').map(p => p.trim());
+                const optionCodes = parts.map(p => p.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+                return {
+                    ...v,
+                    optionCodes,
+                    optionNames: parts
+                };
+            });
+            submitFormData.append('variants', JSON.stringify(formattedVariants));
 
             const res = await createProductAction(null, submitFormData);
 

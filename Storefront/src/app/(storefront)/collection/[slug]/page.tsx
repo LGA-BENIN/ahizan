@@ -15,6 +15,7 @@ import { getPageContent, getPreviewHabillageContent } from '@/lib/vendure/cms-qu
 import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
 import { FiltersToggleWrapper } from '@/components/commerce/FiltersToggleWrapper';
 import { priceFromSubunit } from '@/lib/format';
+import { expandProductsWithSellerOffers } from '@/lib/vendure/seller-offers';
 import React from 'react';
 
 async function getCollectionMetadata(slug: string) {
@@ -322,8 +323,9 @@ export default async function CollectionPage({ params, searchParams }: any) {
         }
 
         const searchData = searchResult?.data?.search;
-        let totalItems = searchData?.totalItems || 0;
-        let products: any[] = searchData?.items || [];
+        let rawProducts: any[] = searchData?.items || [];
+        let products: any[] = await expandProductsWithSellerOffers(rawProducts);
+        let totalItems = products.length || searchData?.totalItems || 0;
         const facetValues = searchData?.facetValues || [];
 
         // Filter products by price range on storefront side if minPrice/maxPrice is specified

@@ -26,8 +26,27 @@ export class SellerOfferService {
         }
         return this.connection.getRepository(ctx, SellerOffer).find({
             where,
-            relations: ['vendor', 'vendor.logo', 'productVariant'],
+            relations: ['vendor', 'vendor.logo', 'vendor.location', 'vendor.physicalMarket', 'productVariant', 'productVariant.translations', 'productVariant.featuredAsset'],
         });
+    }
+
+    async getOffersForVariants(ctx: RequestContext, variantIds: string[]): Promise<SellerOffer[]> {
+        if (!variantIds || variantIds.length === 0) return [];
+        const qb = this.connection.getRepository(ctx, SellerOffer)
+            .createQueryBuilder('offer')
+            .leftJoinAndSelect('offer.vendor', 'vendor')
+            .leftJoinAndSelect('vendor.logo', 'logo')
+            .leftJoinAndSelect('offer.productVariant', 'variant')
+            .leftJoinAndSelect('variant.translations', 'translations')
+            .leftJoinAndSelect('variant.featuredAsset', 'variantAsset')
+            .leftJoinAndSelect('variant.product', 'product')
+            .leftJoinAndSelect('product.featuredAsset', 'productAsset')
+            .where('offer.productVariantId IN (:...variantIds)', { variantIds });
+
+        if (ctx.apiType === 'shop') {
+            qb.andWhere('offer.status = :status', { status: 'approved' });
+        }
+        return qb.getMany();
     }
 
     async getOffersForProduct(ctx: RequestContext, productId: string): Promise<SellerOffer[]> {
@@ -156,16 +175,25 @@ export class SellerOfferService {
                 [numVariantId]
             );
             const hasApprovedOffers = parseInt(approvedOffersCount[0]?.count || '0', 10) > 0;
-            const offerStatus = savedOffer.status === 'approved' ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
+            const offerStatus = hasApprovedOffers ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
 
             await pvRepo.query(
-                `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "customFieldsRejectionreason" = $3, "updatedAt" = NOW() WHERE id = $4`,
+                `UPDATE product_variant SET 
+                    enabled = $1, 
+                    "customFieldsOfferstatus" = $2, 
+                    "customFieldsRejectionreason" = CASE WHEN $1 = true THEN NULL ELSE $3 END, 
+                    "updatedAt" = NOW() 
+                 WHERE id = $4`,
                 [hasApprovedOffers, offerStatus, savedOffer.rejectionReason, numVariantId]
             );
             try {
                 await pvRepo.query(
-                    `UPDATE product_variant_price SET "price" = $1 WHERE "variantId" = $2`,
-                    [savedOffer.price, numVariantId]
+                    `UPDATE product_variant_price SET "price" = COALESCE(
+                        (SELECT MIN(price) FROM seller_offer WHERE "productVariantId" = $1 AND status = 'approved'),
+                        (SELECT MIN(price) FROM seller_offer WHERE "productVariantId" = $1),
+                        $2
+                    ) WHERE "variantId" = $1`,
+                    [numVariantId, savedOffer.price]
                 );
             } catch (pErr) {}
 
@@ -234,9 +262,9 @@ export class SellerOfferService {
                         COALESCE((SELECT string_agg(DISTINCT cpv."collectionId"::text, ',') FROM collection_product_variants_product_variant cpv WHERE cpv."productVariantId" = pv.id), ''),
                         COALESCE((SELECT string_agg(DISTINCT ct.slug, ',') FROM collection_product_variants_product_variant cpv INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId" WHERE cpv."productVariantId" = pv.id), ''),
                         '1',
-                        '',
+                        COALESCE(pa.preview, ''),
                         NULL,
-                        '',
+                        COALESCE(pva.preview, pa.preview, ''),
                         NULL,
                         true,
                         true,
@@ -251,12 +279,18 @@ export class SellerOfferService {
                     INNER JOIN product p ON p.id = pv."productId"
                     LEFT JOIN product_translation pt ON pt."baseId" = p.id AND pt."languageCode" = 'fr'
                     LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                    LEFT JOIN asset pa ON pa.id = p."featuredAssetId"
+                    LEFT JOIN asset pva ON pva.id = pv."featuredAssetId"
                     WHERE pv.id = $1::integer
                     ON CONFLICT ("channelId", "languageCode", "productVariantId") DO UPDATE
                     SET "enabled" = EXCLUDED."enabled",
                         "collectionIds" = EXCLUDED."collectionIds",
                         "collectionSlugs" = EXCLUDED."collectionSlugs",
+                        "productName" = EXCLUDED."productName",
                         "productVariantName" = EXCLUDED."productVariantName",
+                        "slug" = EXCLUDED."slug",
+                        "productPreview" = EXCLUDED."productPreview",
+                        "productVariantPreview" = EXCLUDED."productVariantPreview",
                         "price" = EXCLUDED."price",
                         "priceWithTax" = EXCLUDED."priceWithTax";
                 `, [numVariantId]).catch((err: any) => console.error('[SellerOfferService] step 2 error:', err));

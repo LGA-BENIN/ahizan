@@ -39,7 +39,7 @@ import { Vendor, VendorStatus } from '../entities/vendor.entity';
 import { SellerOffer } from '../entities/seller-offer.entity';
 import { WithdrawalRequest, WithdrawalStatus } from '../entities/withdrawal-request.entity';
 import { PlatformSettings } from '../entities/platform-settings.entity';
-import { VendorEvent, FundsReleasedEvent } from '../events/vendor-event';
+import { VendorEvent, FundsReleasedEvent, WithdrawalEvent } from '../events/vendor-event';
 import { RegistrationField } from '../../page-inscription/entities/registration-field.entity';
 import { IsNull, In } from 'typeorm';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -1391,13 +1391,25 @@ export class VendorService implements OnApplicationBootstrap {
             `, [variantId]);
         } catch (_) {}
 
-        // 5. Deactivate source vendor draft product if applicable
+        // 5. Deactivate or soft-delete source vendor draft product if applicable
         const oldProductId = (variant.product as any)?.id;
         if (oldProductId && String(oldProductId) !== String(targetProductId)) {
-            await this.connection.rawConnection.query(
-                `UPDATE product SET enabled = false, "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+            const remainingCountRes = await this.connection.rawConnection.query(
+                `SELECT count(*) as cnt FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL`,
                 [oldProductId]
             );
+            const remainingCount = parseInt(remainingCountRes[0]?.cnt || '0', 10);
+            if (remainingCount === 0) {
+                await this.connection.rawConnection.query(
+                    `UPDATE product SET enabled = false, "deletedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+                    [oldProductId]
+                );
+            } else {
+                await this.connection.rawConnection.query(
+                    `UPDATE product SET enabled = false, "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+                    [oldProductId]
+                );
+            }
         }
 
         // 6. Hydrate and publish product updated event for search reindexing
@@ -1844,9 +1856,11 @@ export class VendorService implements OnApplicationBootstrap {
                       SELECT pv."productId" 
                       FROM seller_offer so 
                       INNER JOIN product_variant pv ON so."productVariantId" = pv.id 
-                      WHERE so."vendorId" = $1
+                      WHERE so."vendorId" = $1 AND pv."deletedAt" IS NULL
                     )
-                    OR p."customFieldsVendorid" = $1
+                    OR (p."customFieldsVendorid" = $1 AND EXISTS (
+                      SELECT 1 FROM product_variant pv WHERE pv."productId" = p.id AND pv."deletedAt" IS NULL
+                    ))
                   )
             `, [vendorId]);
 
@@ -1905,52 +1919,56 @@ export class VendorService implements OnApplicationBootstrap {
         for (const p of products) {
             const isOwner = String((p.customFields as any)?.vendorId || (p.customFields as any)?.vendor?.id || (p as any)?.customFieldsVendorid || '') === String(vendorId);
 
-            if (p.variants && p.variants.length > 0) {
-                // If not owner (grafted offers), strictly filter to the variants where this vendor has an offer
-                if (!isOwner) {
-                    p.variants = p.variants.filter(v => offerMap.has(String(v.id)));
+            if (!p.variants || p.variants.length === 0) {
+                continue; // Skip product entirely if it has 0 variants
+            }
+
+            // If not owner (grafted offers), strictly filter to the variants where this vendor has an offer
+            if (!isOwner) {
+                p.variants = p.variants.filter(v => !v.deletedAt && offerMap.has(String(v.id)));
+            } else {
+                p.variants = p.variants.filter(v => !v.deletedAt);
+            }
+
+            if (p.variants.length === 0) {
+                continue; // Skip product entirely if vendor has no active variants / offers
+            }
+
+            for (const v of p.variants) {
+                const variantIdStr = String(v.id);
+                const offer = offerMap.get(variantIdStr);
+
+                // Ensure human-friendly name (Product name + option values)
+                const optNames = (v.options || []).map((o: any) => o.translations?.[0]?.name || o.name || o.code).filter(Boolean).join(' ');
+                const baseProdName = p.translations?.[0]?.name || p.name || 'Produit';
+                const currentName = v.translations?.[0]?.name || (v as any).name || '';
+                if (!currentName || currentName.includes('Option ') || currentName.includes('Option 2') || currentName.startsWith('Option')) {
+                    const friendlyName = optNames ? `${baseProdName} ${optNames}` : baseProdName;
+                    if (v.translations?.[0]) v.translations[0].name = friendlyName;
+                    (v as any).name = friendlyName;
                 }
 
-                if (p.variants.length === 0 && !isOwner) {
-                    continue; // Skip product entirely if vendor has no offer for any of its variants
-                }
-
-                for (const v of p.variants) {
-                    const variantIdStr = String(v.id);
-                    const offer = offerMap.get(variantIdStr);
-
-                    // Ensure human-friendly name (Product name + option values)
-                    const optNames = (v.options || []).map((o: any) => o.translations?.[0]?.name || o.name || o.code).filter(Boolean).join(' ');
-                    const baseProdName = p.translations?.[0]?.name || p.name || 'Produit';
-                    const currentName = v.translations?.[0]?.name || (v as any).name || '';
-                    if (!currentName || currentName.includes('Option ') || currentName.includes('Option 2') || currentName.startsWith('Option')) {
-                        const friendlyName = optNames ? `${baseProdName} ${optNames}` : baseProdName;
-                        if (v.translations?.[0]) v.translations[0].name = friendlyName;
-                        (v as any).name = friendlyName;
-                    }
-
-                    if (offer) {
-                        const offerPrice = Number(offer.price);
-                        const offerStock = Number(offer.stock);
-                        v.productVariantPrices = [
-                            {
-                                id: 'offer-' + v.id,
-                                price: offerPrice,
-                                currencyCode: ((ctx.channel as any)?.currencyCode || (ctx.channel as any)?.defaultCurrencyCode || 'XOF') as any,
-                            } as any,
-                        ];
-                        (v as any).listPrice = offerPrice;
-                        (v as any).stockOnHand = offerStock;
-                        if (offer.sku) v.sku = offer.sku;
-                        
-                        v.customFields = {
-                            ...(v.customFields || {}),
-                            onPromotion: offer.onPromotion,
-                            promotionalPrice: offer.promotionalPrice,
-                            offerStatus: offer.status,
-                            rejectionReason: offer.rejectionReason,
-                        } as any;
-                    }
+                if (offer) {
+                    const offerPrice = Number(offer.price);
+                    const offerStock = Number(offer.stock);
+                    v.productVariantPrices = [
+                        {
+                            id: 'offer-' + v.id,
+                            price: offerPrice,
+                            currencyCode: ((ctx.channel as any)?.currencyCode || (ctx.channel as any)?.defaultCurrencyCode || 'XOF') as any,
+                        } as any,
+                    ];
+                    (v as any).listPrice = offerPrice;
+                    (v as any).stockOnHand = offerStock;
+                    if (offer.sku) v.sku = offer.sku;
+                    
+                    v.customFields = {
+                        ...(v.customFields || {}),
+                        onPromotion: offer.onPromotion,
+                        promotionalPrice: offer.promotionalPrice,
+                        offerStatus: offer.status,
+                        rejectionReason: offer.rejectionReason,
+                    } as any;
                 }
             }
 
@@ -3781,6 +3799,8 @@ export class VendorService implements OnApplicationBootstrap {
 
         withdrawal.status = WithdrawalStatus.APPROVED;
         await repo.save(withdrawal);
+
+        this.eventBus.publish(new WithdrawalEvent(ctx, withdrawal, 'approved'));
 
         // Notify Vendor that withdrawal was approved
         const vendorUserId = withdrawal.vendor?.user?.id || (withdrawal.vendor as any)?.userId;

@@ -16,6 +16,21 @@ interface NewProductClientProps {
 export default function NewProductClient({ collectionTree, hasLocation = true }: NewProductClientProps) {
     const [activeMode, setActiveMode] = useState<'create' | 'affiliate'>('create');
     const [preselectedGraftTerm, setPreselectedGraftTerm] = useState<string>('');
+    const [preselectedProduct, setPreselectedProduct] = useState<any>(null);
+    const [preselectedVariantId, setPreselectedVariantId] = useState<string | null>(null);
+
+    const handleSwitchToGraft = (productOrTerm: any, variantId?: string) => {
+        if (typeof productOrTerm === 'string') {
+            setPreselectedGraftTerm(productOrTerm);
+            setPreselectedProduct(null);
+            setPreselectedVariantId(null);
+        } else {
+            setPreselectedProduct(productOrTerm);
+            setPreselectedGraftTerm(productOrTerm.name || '');
+            setPreselectedVariantId(variantId || null);
+        }
+        setActiveMode('affiliate');
+    };
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto relative">
@@ -116,14 +131,15 @@ export default function NewProductClient({ collectionTree, hasLocation = true }:
             {/* Active Content */}
             <div className="pt-2">
                 {activeMode === 'affiliate' ? (
-                    <AffiliateProductPage initialSearchTerm={preselectedGraftTerm} />
+                    <AffiliateProductPage 
+                        initialSearchTerm={preselectedGraftTerm}
+                        initialSelectedProduct={preselectedProduct}
+                        initialSelectedVariantId={preselectedVariantId}
+                    />
                 ) : (
                     <CreateProductForm 
                         collectionTree={collectionTree} 
-                        onSwitchToGraft={(term) => {
-                            setPreselectedGraftTerm(term);
-                            setActiveMode('affiliate');
-                        }}
+                        onSwitchToGraft={handleSwitchToGraft}
                     />
                 )}
             </div>

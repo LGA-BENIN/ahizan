@@ -69,3 +69,43 @@ export async function getSellerOffersForVariant(variantId: string) {
     return [];
   }
 }
+
+export async function getSellerOffersForProductVariants(variantIds: string[]) {
+  if (!variantIds || variantIds.length === 0) return [];
+  try {
+    const { rawQuery } = await import('@/lib/vendure/raw-api');
+    const data = await rawQuery(`
+      query GetSellerOffersForVariants($variantIds: [ID!]!) {
+        sellerOffersForVariants(variantIds: $variantIds) {
+          id
+          price
+          stock
+          onPromotion
+          promotionalPrice
+          condition
+          deliveryTimeValue
+          deliveryTimeUnit
+          vendor {
+            id
+            name
+            rating
+            ratingCount
+            logo {
+              preview
+            }
+          }
+          productVariant {
+            id
+            name
+            sku
+          }
+        }
+      }
+    `, { variables: { variantIds } });
+    return data?.sellerOffersForVariants || [];
+  } catch (e) {
+    console.error('getSellerOffersForProductVariants error:', e);
+    return [];
+  }
+}
+

@@ -1,6 +1,4 @@
-import React from 'react';
 import { defineDashboardExtension } from '@vendure/dashboard';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { VendorListComponent } from './vendors-list';
 import { VendorDetailComponent } from './vendor-detail';
 import { ProductListComponent } from './products-list';
@@ -9,35 +7,15 @@ import { OrderStatusesComponent } from './order-statuses';
 import { DeliveryZonesComponent } from './delivery-zones';
 import { OrdersListComponent } from './orders-list';
 import { PaymentManagementComponent } from './payment-management';
-import { SellerStatusColumn, AdminStatusColumn } from './order-columns';
 import { VendorSelector } from './vendor-selector';
 import { SuivreDiscussionsComponent } from './suivre-discussions';
 import { EmployeeRolesManagementComponent } from './employee-roles-management';
-
-const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            refetchOnWindowFocus: false,
-            retry: 1,
-        },
-    },
-});
-
-function withQueryClient<P extends object>(Component: React.ComponentType<P>): React.FC<P> {
-    return function WrappedComponent(props: P) {
-        return (
-            <QueryClientProvider client={queryClient}>
-                <Component {...props} />
-            </QueryClientProvider>
-        );
-    };
-}
 
 export default defineDashboardExtension({
     routes: [
         {
             path: 'gestion-paiement',
-            component: withQueryClient(PaymentManagementComponent),
+            component: PaymentManagementComponent,
             navMenuItem: {
                 id: 'gestion-paiement',
                 title: 'Commissions & Règlements',
@@ -47,11 +25,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/gestion-paiement',
-            component: withQueryClient(PaymentManagementComponent),
+            component: PaymentManagementComponent,
         },
         {
             path: 'vendors',
-            component: withQueryClient(VendorListComponent),
+            component: VendorListComponent,
             navMenuItem: {
                 id: 'vendors',
                 title: 'Vendeurs',
@@ -61,19 +39,19 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/vendors',
-            component: withQueryClient(VendorListComponent),
+            component: VendorListComponent,
         },
         {
             path: 'vendors/:id',
-            component: withQueryClient(VendorDetailComponent),
+            component: VendorDetailComponent,
         },
         {
             path: 'extensions/vendors/:id',
-            component: withQueryClient(VendorDetailComponent),
+            component: VendorDetailComponent,
         },
         {
             path: 'vendor-orders',
-            component: withQueryClient(OrdersListComponent),
+            component: OrdersListComponent,
             navMenuItem: {
                 id: 'vendor-orders-list',
                 title: 'Ventes des Vendeurs',
@@ -83,15 +61,15 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/vendor-orders',
-            component: withQueryClient(OrdersListComponent),
+            component: OrdersListComponent,
         },
         {
             path: 'orders',
-            component: withQueryClient(OrdersListComponent),
+            component: OrdersListComponent,
         },
         {
             path: 'settings',
-            component: withQueryClient(PlatformSettingsComponent),
+            component: PlatformSettingsComponent,
             navMenuItem: {
                 id: 'platform-settings',
                 title: 'Paramètres',
@@ -101,11 +79,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/settings',
-            component: withQueryClient(PlatformSettingsComponent),
+            component: PlatformSettingsComponent,
         },
         {
             path: 'order-statuses',
-            component: withQueryClient(OrderStatusesComponent),
+            component: OrderStatusesComponent,
             navMenuItem: {
                 id: 'order-statuses',
                 title: 'Configuration des Statuts',
@@ -115,11 +93,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/order-statuses',
-            component: withQueryClient(OrderStatusesComponent),
+            component: OrderStatusesComponent,
         },
         {
             path: 'delivery-zones',
-            component: withQueryClient(DeliveryZonesComponent),
+            component: DeliveryZonesComponent,
             navMenuItem: {
                 id: 'delivery-zones',
                 title: 'Zones de livraison',
@@ -129,11 +107,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/delivery-zones',
-            component: withQueryClient(DeliveryZonesComponent),
+            component: DeliveryZonesComponent,
         },
         {
             path: 'marketplace-products',
-            component: withQueryClient(ProductListComponent),
+            component: ProductListComponent,
             navMenuItem: {
                 id: 'marketplace-products-list',
                 title: 'Produits Marketplace',
@@ -143,11 +121,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/marketplace-products',
-            component: withQueryClient(ProductListComponent),
+            component: ProductListComponent,
         },
         {
             path: 'suivre-discussions',
-            component: withQueryClient(SuivreDiscussionsComponent),
+            component: SuivreDiscussionsComponent,
             navMenuItem: {
                 id: 'suivre-discussions',
                 title: 'Suivre les discussions',
@@ -157,11 +135,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/suivre-discussions',
-            component: withQueryClient(SuivreDiscussionsComponent),
+            component: SuivreDiscussionsComponent,
         },
         {
             path: 'roles-employees',
-            component: withQueryClient(EmployeeRolesManagementComponent),
+            component: EmployeeRolesManagementComponent,
             navMenuItem: {
                 id: 'roles-employees',
                 title: 'Rôles & Employés',
@@ -171,7 +149,7 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/roles-employees',
-            component: withQueryClient(EmployeeRolesManagementComponent),
+            component: EmployeeRolesManagementComponent,
         },
     ],
     navSections: [

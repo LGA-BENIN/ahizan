@@ -34,17 +34,21 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
     const fulfillments = order.fulfillments || [];
     const isShippedOrDelivered = order.state === 'Shipped' || order.state === 'Delivered' || fulfillments.length > 0;
 
-    // Calculate line counts and statuses
-    const pendingLines = lines.filter((l: any) => (l.customFields?.sellerStatus || 'pending') === 'pending');
-    const hasRejectedLines = lines.some((l: any) => {
+    // Calculate line counts and statuses for active seller lines
+    const activeSellerLines = lines.filter((l: any) => (l.customFields?.sellerStatus || 'pending') !== 'reassigned_to_other');
+    const pendingLines = activeSellerLines.filter((l: any) => (l.customFields?.sellerStatus || 'pending') === 'pending');
+    const hasRejectedLines = activeSellerLines.some((l: any) => {
         const s = l.customFields?.sellerStatus || 'pending';
-        return s === 'refused' || s === 'reassigning' || s === 'reassigned_to_other';
+        return s === 'refused' || s === 'reassigning';
     });
     const hasPendingLines = pendingLines.length > 0;
-    const allLinesConfirmed = lines.length > 0 && lines.every((l: any) => (l.customFields?.sellerStatus || 'pending') === 'confirmed');
-    const isReadyForPickup = order.customFields?.sellerStatus === 'ready_for_pickup' || order.customFields?.sellerStatus === 'confirmed';
+    const allLinesConfirmed = activeSellerLines.length > 0 && activeSellerLines.every((l: any) => {
+        const s = l.customFields?.sellerStatus || 'pending';
+        return s === 'confirmed' || s === 'approved';
+    });
+    const isReadyForPickup = order.customFields?.sellerStatus === 'ready_for_pickup';
     
-    // Validate All button is shown only if there are pending lines and NO rejected/reassigned lines
+    // Validate All button is shown only if there are pending lines and NO rejected lines
     const showValidateAll = !hasRejectedLines && hasPendingLines;
 
     // Handle individual line status updates

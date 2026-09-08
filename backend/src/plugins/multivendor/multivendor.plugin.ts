@@ -301,9 +301,6 @@ ${shopApiExtensions}
                 { value: 'delivered' },
                 { value: 'cancelled' },
             ],
-            ui: {
-                component: 'select-form-input',
-            },
         });
 
         pushUnique(config.customFields.Order, {

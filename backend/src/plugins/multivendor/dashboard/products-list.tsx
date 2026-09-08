@@ -247,6 +247,32 @@ const REASSIGN_VARIANT_TO_PRODUCT = `
     }
 `;
 
+const REASSIGN_OFFER_TO_TARGET_VARIANT = `
+    mutation ReassignOfferToTargetVariant($sourceOfferId: ID!, $targetVariantId: ID!, $deleteSourceVariantIfEmpty: Boolean) {
+        reassignOfferToTargetVariant(sourceOfferId: $sourceOfferId, targetVariantId: $targetVariantId, deleteSourceVariantIfEmpty: $deleteSourceVariantIfEmpty) {
+            id
+            price
+            stock
+            status
+            productVariant {
+                id
+                name
+            }
+        }
+    }
+`;
+
+const MERGE_VARIANT_INTO_TARGET_VARIANT = `
+    mutation MergeVariantIntoTargetVariant($sourceVariantId: ID!, $targetVariantId: ID!) {
+        mergeVariantIntoTargetVariant(sourceVariantId: $sourceVariantId, targetVariantId: $targetVariantId) {
+            id
+            name
+            sku
+            enabled
+        }
+    }
+`;
+
 const CREATE_OFFICIAL_PRODUCT_FROM_VARIANT = `
     mutation CreateOfficialProductFromVariant(
         $variantId: ID!
@@ -688,6 +714,7 @@ export function ProductListComponent() {
     const [regraftSearchResults, setRegraftSearchResults] = useState<any[]>([]);
     const [isLoadingRegraftSearch, setIsLoadingRegraftSearch] = useState(false);
     const [selectedTargetProduct, setSelectedTargetProduct] = useState<any | null>(null);
+    const [selectedTargetVariantId, setSelectedTargetVariantId] = useState<string | null>(null);
     const [isSubmittingRegraft, setIsSubmittingRegraft] = useState(false);
 
     // Form states for creating a new official product from regraft modal
@@ -1434,10 +1461,20 @@ export function ProductListComponent() {
 
         setIsSubmittingRegraft(true);
         try {
-            await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
-                variantId,
-                targetProductId: selectedTargetProduct.id,
-            });
+            if (selectedTargetVariantId) {
+                // Direct anti-duplicate fusion: source variant merged into target variant, all offers re-linked, source deleted
+                await fetchGraphQL(MERGE_VARIANT_INTO_TARGET_VARIANT, {
+                    sourceVariantId: variantId,
+                    targetVariantId: selectedTargetVariantId,
+                });
+                alert(`Déclinaison fusionnée avec succès sur la variante officielle #${selectedTargetVariantId} sous "${selectedTargetProduct.name}" ! Le doublon et son produit source ont été nettoyés.`);
+            } else {
+                await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                    variantId,
+                    targetProductId: selectedTargetProduct.id,
+                });
+                alert(`Déclinaison transférée avec succès sous "${selectedTargetProduct.name}" !`);
+            }
 
             // Invalidate products query
             await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
@@ -1456,9 +1493,9 @@ export function ProductListComponent() {
                 }
             }
 
-            alert(`Déclinaison transférée avec succès sous "${selectedTargetProduct.name}" !`);
             setRegraftModalData(null);
             setSelectedTargetProduct(null);
+            setSelectedTargetVariantId(null);
         } catch (err: any) {
             console.error('Error regrafting variant to product:', err);
             alert('Erreur lors du transfert : ' + err.message);
@@ -3270,7 +3307,10 @@ export function ProductListComponent() {
                                                 return (
                                                     <div
                                                         key={prod.id}
-                                                        onClick={() => setSelectedTargetProduct(prod)}
+                                                        onClick={() => {
+                                                            setSelectedTargetProduct(prod);
+                                                            setSelectedTargetVariantId(null);
+                                                        }}
                                                         style={{
                                                             display: 'flex',
                                                             alignItems: 'center',
@@ -3312,10 +3352,97 @@ export function ProductListComponent() {
                                     )}
                                 </div>
 
+                                {/* Target Variant Selection (Merge vs New) */}
+                                {selectedTargetProduct && (
+                                    <div style={{ marginTop: '16px', padding: '16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', marginBottom: '16px' }}>
+                                        <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span>🎯</span> Mode d'assignation de l'offre vendeur :
+                                        </div>
+                                        
+                                        {/* Option A: Create / keep as distinct variant */}
+                                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: !selectedTargetVariantId ? '#eff6ff' : '#ffffff', border: !selectedTargetVariantId ? '2px solid #2563eb' : '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                                            <input
+                                                type="radio"
+                                                name="regraftTargetMode"
+                                                checked={!selectedTargetVariantId}
+                                                onChange={() => setSelectedTargetVariantId(null)}
+                                                style={{ marginTop: '3px' }}
+                                            />
+                                            <div>
+                                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                                                    Transférer comme nouvelle déclinaison sous "{selectedTargetProduct.name}"
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                    La variante actuelle sera rattachée sous ce produit sans fusionner avec les variantes existantes.
+                                                </div>
+                                            </div>
+                                        </label>
+
+                                        {/* Option B: Merge into an existing variant */}
+                                        {selectedTargetProduct.variants && selectedTargetProduct.variants.length > 0 && (
+                                            <div>
+                                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginTop: '10px', marginBottom: '8px' }}>
+                                                    Ou fusionner directement avec une déclinaison existante (Anti-doublon) :
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                                                    {selectedTargetProduct.variants.map((v: any) => {
+                                                        const isThisVariantSelected = selectedTargetVariantId === v.id;
+                                                        return (
+                                                            <label
+                                                                key={v.id}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'space-between',
+                                                                    padding: '8px 12px',
+                                                                    background: isThisVariantSelected ? '#f0fdf4' : '#ffffff',
+                                                                    border: isThisVariantSelected ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                                                                    borderRadius: '8px',
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                    <input
+                                                                        type="radio"
+                                                                        name="regraftTargetMode"
+                                                                        checked={isThisVariantSelected}
+                                                                        onChange={() => setSelectedTargetVariantId(v.id)}
+                                                                    />
+                                                                    <div>
+                                                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                                                                            {v.name}
+                                                                        </div>
+                                                                        <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                                                            SKU: {v.sku} • ID: #{v.id}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                {isThisVariantSelected && (
+                                                                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '4px' }}>
+                                                                        ✓ Fusion ciblée
+                                                                    </span>
+                                                                )}
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Confirmation Summary & Actions */}
                                 {selectedTargetProduct && (
-                                    <div style={{ padding: '10px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '10px', fontSize: '12px', color: '#065f46', marginBottom: '16px' }}>
-                                        <strong>Action :</strong> La déclinaison sera immédiatement déplacée sous la fiche officielle <strong>"{selectedTargetProduct.name}"</strong>.
+                                    <div style={{ padding: '10px 14px', background: selectedTargetVariantId ? '#f0fdf4' : '#ecfdf5', border: selectedTargetVariantId ? '1px solid #86efac' : '1px solid #a7f3d0', borderRadius: '10px', fontSize: '12px', color: selectedTargetVariantId ? '#166534' : '#065f46', marginBottom: '16px' }}>
+                                        {selectedTargetVariantId ? (
+                                            <div>
+                                                <strong>Action :</strong> L'offre marchande du vendeur sera rattachée à la variante officielle <strong>#{selectedTargetVariantId}</strong> sous <strong>"{selectedTargetProduct.name}"</strong>. La variante doublon vide sera nettoyée.
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <strong>Action :</strong> La déclinaison sera immédiatement déplacée sous la fiche officielle <strong>"{selectedTargetProduct.name}"</strong>.
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

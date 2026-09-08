@@ -440,6 +440,25 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
     return (
         <form onSubmit={handleSubmit} className="space-y-8">
 
+            {/* Draft Status Banner */}
+            {product.customFields?.approvalStatus === 'draft' && (
+                <div className="bg-slate-500/10 border-2 border-slate-400/30 rounded-2xl p-5 md:p-6 space-y-2 animate-in fade-in duration-300">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
+                            <Info className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-sm md:text-base text-slate-800 dark:text-slate-200">
+                                📝 Fiche produit en état de Brouillon
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                                Ce produit n&apos;est pas encore soumis pour validation. Vous pouvez ajuster les tarifs, stocks et déclinaisons puis enregistrer vos offres ci-dessous.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Superadmin Corrections / Remarks Banner */}
             {(() => {
                 const productCorrection = product.customFields?.rejectionReason;

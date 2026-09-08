@@ -6,6 +6,7 @@ import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import EditProductForm from '@/components/dashboard/products/edit-form';
+import CreateProductForm from '@/components/dashboard/products/create-form';
 
 interface EditProductPageProps {
     params: Promise<{ id: string }>;
@@ -41,16 +42,49 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         );
     }
 
+    const isDraft = product.customFields?.approvalStatus === 'draft';
+
+    if (isDraft) {
+        return (
+            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center gap-4">
+                    <Link href="/dashboard/products">
+                        <Button variant="ghost" size="icon" className="rounded-full bg-muted/50 hover:bg-muted cursor-pointer">
+                            <ChevronLeft className="w-5 h-5" />
+                        </Button>
+                    </Link>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                                Brouillon
+                            </span>
+                        </div>
+                        <h1 className="text-3xl font-serif font-black tracking-tight mt-1 text-foreground">
+                            Poursuivre la création de mon article
+                        </h1>
+                        <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">
+                            Reprenez la configuration de votre fiche produit et déclinaisons avant soumission
+                        </p>
+                    </div>
+                </div>
+
+                <div className="bg-card rounded-2xl md:rounded-[2.5rem] border border-border shadow-sm p-4 sm:p-10">
+                    <CreateProductForm initialProduct={product} collectionTree={collectionTree} />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center gap-4">
                 <Link href="/dashboard/products">
-                    <Button variant="ghost" size="icon" className="rounded-full bg-muted/50 hover:bg-muted">
+                    <Button variant="ghost" size="icon" className="rounded-full bg-muted/50 hover:bg-muted cursor-pointer">
                         <ChevronLeft className="w-5 h-5" />
                     </Button>
                 </Link>
                 <div>
-                    <h1 className="text-3xl font-serif font-black tracking-tight">Gestion de mon offre commerciale</h1>
+                    <h1 className="text-3xl font-serif font-black tracking-tight text-foreground">Gestion de mon offre commerciale</h1>
                     <p className="text-sm text-muted-foreground">Configurez vos déclinaisons, prix, stocks et visuels pour cette référence Ahizan.</p>
                 </div>
             </div>

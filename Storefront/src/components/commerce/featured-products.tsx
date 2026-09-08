@@ -100,37 +100,58 @@ export async function FeaturedProducts({
 
             {layout === 'list' ? (
                 <div className="space-y-4">
-                    {products.map((product: any) => (
-                        <Link key={product.productId} href={`/product/${product.slug}`}
-                            className="group flex items-center gap-4 bg-card rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
-                            <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
-                                <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
-                                    className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-sm truncate">{product.productName}</h3>
-                                <p className="text-primary font-black text-sm mt-1">{formatCFA(getPrice(product))}</p>
-                            </div>
-                        </Link>
-                    ))}
+                    {products.map((product: any) => {
+                        const targetVariantId = product.productVariantId || product.variantId || product.variants?.[0]?.id;
+                        const targetVendorId = product.vendorId || product.vendor?.id || product.customFields?.vendor?.id;
+                        const qp = new URLSearchParams();
+                        if (targetVariantId) qp.set('variantId', String(targetVariantId));
+                        if (targetVendorId) qp.set('vendorId', String(targetVendorId));
+                        const qStr = qp.toString();
+                        const href = `/product/${product.slug}${qStr ? `?${qStr}` : ''}`;
+
+                        return (
+                            <Link key={product.productId} href={href}
+                                className="group flex items-center gap-4 bg-card rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-muted no-underline text-inherit">
+                                <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
+                                    <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
+                                        className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-sm truncate">{product.productName}</h3>
+                                    <p className="text-primary font-black text-sm mt-1">{formatCFA(getPrice(product))}</p>
+                                </div>
+                            </Link>
+                        );
+                    })}
                 </div>
             ) : layout === 'grid' ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                    {products.map((product: any) => (
-                        <Link key={product.productId} href={`/product/${product.slug}`}
-                            className="group relative bg-card rounded-2xl p-3 md:p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit">
-                            <div className="aspect-square relative mb-3 overflow-hidden rounded-xl bg-muted">
-                                <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
-                                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />
-                            </div>
-                            <h3 className="font-bold text-xs md:text-sm mb-1 truncate">{product.productName}</h3>
-                            <p className="text-primary font-black text-sm mt-auto">{formatCFA(getPrice(product))}</p>
-                        </Link>
-                    ))}
+                    {products.map((product: any) => {
+                        const targetVariantId = product.productVariantId || product.variantId || product.variants?.[0]?.id;
+                        const targetVendorId = product.vendorId || product.vendor?.id || product.customFields?.vendor?.id;
+                        const qp = new URLSearchParams();
+                        if (targetVariantId) qp.set('variantId', String(targetVariantId));
+                        if (targetVendorId) qp.set('vendorId', String(targetVendorId));
+                        const qStr = qp.toString();
+                        const href = `/product/${product.slug}${qStr ? `?${qStr}` : ''}`;
+
+                        return (
+                            <Link key={product.productId} href={href}
+                                className="group relative bg-card rounded-2xl p-3 md:p-4 shadow-sm hover:shadow-xl transition-all border border-transparent hover:border-muted overflow-hidden flex flex-col no-underline text-inherit">
+                                <div className="aspect-square relative mb-3 overflow-hidden rounded-xl bg-muted">
+                                    <img src={product.productAsset?.preview || '/placeholder.png'} alt={product.productName}
+                                        className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />
+                                </div>
+                                <h3 className="font-bold text-xs md:text-sm mb-1 truncate">{product.productName}</h3>
+                                <p className="text-primary font-black text-sm mt-auto">{formatCFA(getPrice(product))}</p>
+                            </Link>
+                        );
+                    })}
                 </div>
             ) : (
                 <ProductCarousel title="" products={products} />
             )}
+
         </section>
     );
 }

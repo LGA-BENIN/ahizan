@@ -92,7 +92,9 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
             if (filterStatus === 'published') {
                 matchesStatus = approvalStatus === 'approved';
             } else if (filterStatus === 'draft') {
-                matchesStatus = approvalStatus === 'pending' || approvalStatus === 'rejected';
+                matchesStatus = approvalStatus === 'draft';
+            } else if (filterStatus === 'pending') {
+                matchesStatus = approvalStatus === 'pending' || approvalStatus === 'correction_requested';
             } else if (filterStatus === 'outofstock') {
                 matchesStatus = !product.variants || product.variants.length === 0 || product.variants.every((v: any) => v && v.stockLevel === 'OUT_OF_STOCK');
             }
@@ -217,9 +219,10 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                         onChange={(e) => setFilterStatus(e.target.value as any)}
                         className="h-11 w-full pl-4 pr-10 text-xs font-black uppercase tracking-wider bg-muted/30 border border-border rounded-xl focus:ring-2 focus:ring-primary/10 transition-all cursor-pointer hover:bg-muted/50 outline-none"
                     >
-                        <option value="all">Statuts</option>
+                        <option value="all">Tous les statuts</option>
                         <option value="published">Publiés</option>
                         <option value="draft">Brouillons</option>
+                        <option value="pending">En attente</option>
                         <option value="outofstock">En rupture</option>
                     </select>
                 </div>
@@ -355,7 +358,11 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
                                                         let badgeClass = 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/20 dark:text-amber-400';
                                                         let circleClass = 'text-amber-500';
                                                         
-                                                        if (status === 'approved' && (hasApprovedVariants || (product.variants || []).length === 0) && product.enabled !== false) {
+                                                        if (status === 'draft') {
+                                                            badgeLabel = 'Brouillon';
+                                                            badgeClass = 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700';
+                                                            circleClass = 'text-slate-400';
+                                                        } else if (status === 'approved' && (hasApprovedVariants || (product.variants || []).length === 0) && product.enabled !== false) {
                                                             badgeLabel = 'En ligne';
                                                             badgeClass = 'bg-green-50 text-green-700 border-green-100 dark:bg-green-950/20 dark:text-green-400';
                                                             circleClass = 'text-green-500';
@@ -426,15 +433,29 @@ export default function ProductListTable({ initialProducts, collectionTree }: Pr
 
                                                 {/* Action Buttons */}
                                                 <td className="px-2.5 sm:px-4 md:px-6 py-3.5 whitespace-nowrap text-right">
-                                                    <div className="flex items-center justify-end gap-1">
-                                                        <Link href={`/dashboard/products/${product.id}`}>
-                                                            <button 
-                                                                className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-border transition-all cursor-pointer"
-                                                                title="Éditer mes offres"
-                                                            >
-                                                                <Pencil className="w-4 h-4" />
-                                                            </button>
-                                                        </Link>
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {status === 'draft' ? (
+                                                            <Link href={`/dashboard/products/${product.id}`}>
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    variant="outline"
+                                                                    className="h-8 px-3 text-xs font-bold gap-1.5 rounded-lg border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+                                                                    title="Reprendre la création de ce brouillon"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                    <span>Reprendre</span>
+                                                                </Button>
+                                                            </Link>
+                                                        ) : (
+                                                            <Link href={`/dashboard/products/${product.id}`}>
+                                                                <button 
+                                                                    className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-border transition-all cursor-pointer"
+                                                                    title="Éditer mes offres"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                            </Link>
+                                                        )}
                                                         <DeleteProductDialog productId={product.id} productName={product.name} />
                                                     </div>
                                                 </td>

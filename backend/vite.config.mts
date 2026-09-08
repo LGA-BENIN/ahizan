@@ -56,18 +56,11 @@ export default defineConfig({
             gqlOutputPath: './src/gql',
         }),
     ],
-    optimizeDeps: {
-        include: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
-    },
     resolve: {
-        dedupe: ['react', 'react-dom', '@apollo/client', 'react-router-dom'],
         alias: {
             // This allows all plugins to reference a shared set of
             // GraphQL types.
             '@/gql': resolve(__dirname, './src/gql/graphql.ts'),
-            react: resolve(__dirname, 'node_modules/react'),
-            'react-dom': resolve(__dirname, 'node_modules/react-dom'),
-            '@apollo/client': resolve(__dirname, 'node_modules/@apollo/client'),
         },
     },
 });

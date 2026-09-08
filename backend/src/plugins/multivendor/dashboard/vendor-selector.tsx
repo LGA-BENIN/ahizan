@@ -1,5 +1,4 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
 
 // Helper local pour exécuter des requêtes GraphQL dans le dashboard
 async function fetchGraphQL(query: string, variables?: any) {
@@ -26,16 +25,38 @@ const GET_VENDORS_SELECT = `
     }
 `;
 
+let cachedVendors: any[] | null = null;
+let fetchPromise: Promise<any> | null = null;
+
 export function VendorSelector({ value, onChange, readonly = false }: { value: any; onChange: (val: any) => void; readonly?: boolean }) {
     // Le customField de type relation renvoie soit un objet avec un ID, soit l'ID directement
     const selectedId = value?.id || value || '';
+    const [vendors, setVendors] = useState<any[]>(cachedVendors || []);
+    const [isLoading, setIsLoading] = useState(!cachedVendors);
 
-    const { data, isLoading } = useQuery({
-        queryKey: ['vendors-select-list'],
-        queryFn: () => fetchGraphQL(GET_VENDORS_SELECT),
-    });
-
-    const vendors = data?.vendors?.items || [];
+    useEffect(() => {
+        if (cachedVendors) {
+            setVendors(cachedVendors);
+            setIsLoading(false);
+            return;
+        }
+        if (!fetchPromise) {
+            fetchPromise = fetchGraphQL(GET_VENDORS_SELECT)
+                .then(data => {
+                    cachedVendors = data?.vendors?.items || [];
+                    return cachedVendors;
+                })
+                .catch(err => {
+                    console.error('Error fetching vendors for selector:', err);
+                    fetchPromise = null;
+                    return [];
+                });
+        }
+        fetchPromise.then(items => {
+            setVendors(items);
+            setIsLoading(false);
+        });
+    }, []);
 
     if (readonly) {
         const selectedVendor = vendors.find((v: any) => String(v.id) === String(selectedId));
@@ -82,3 +103,4 @@ export function VendorSelector({ value, onChange, readonly = false }: { value: a
         </div>
     );
 }
+

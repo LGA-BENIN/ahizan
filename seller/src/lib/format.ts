@@ -36,7 +36,8 @@ const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 
 export function priceToSubunit(amount: number, currencyCode: string = 'XOF'): number {
     const activeCurrency = 'XOF';
     const isZeroDecimal = zeroDecimalCurrencies.includes(activeCurrency.toUpperCase());
-    return isZeroDecimal ? amount : amount * 100;
+    const val = isZeroDecimal ? amount : amount * 100;
+    return Math.round(Number(val) || 0);
 }
 
 export function priceFromSubunit(subunitAmount: number, currencyCode: string = 'XOF'): number {

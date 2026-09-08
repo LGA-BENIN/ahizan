@@ -39,6 +39,8 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const deliveryTimeValue = formData.get('deliveryTimeValue') ? parseInt(formData.get('deliveryTimeValue') as string) : 2;
     const deliveryTimeUnit = (formData.get('deliveryTimeUnit') as string) || 'd';
     const condition = (formData.get('condition') as string) || 'NEW';
+    const isDraft = formData.get('isDraft') === 'true';
+    const approvalStatus = (formData.get('approvalStatus') as string) || (isDraft ? 'draft' : 'pending');
 
     // Multi-variants & Option Groups parsing
     const rawOptionGroups = formData.get('optionGroups') as string;
@@ -72,11 +74,22 @@ export async function createProductAction(prevState: any, formData: FormData) {
         } catch (e) {}
     }
 
+    const draftId = formData.get('draftId') as string;
+
     try {
-        console.log(`[ACTION] Creating product: ${name}`);
+        if (draftId && draftId.trim() !== '' && draftId !== 'undefined' && draftId !== 'null') {
+            try {
+                console.log(`[ACTION] Replacing previous draft ${draftId}...`);
+                await mutate(DeleteMyProductMutation, { id: draftId }, { useAuthToken: true });
+            } catch (delErr) {
+                console.warn(`[ACTION] Could not delete previous draft ${draftId}:`, delErr);
+            }
+        }
+
+        console.log(`[ACTION] Creating product: ${name} (isDraft: ${isDraft})`);
         const { data } = await mutate(CreateMyProductMutation, {
             input: {
-                name,
+                name: name || (isDraft ? 'Brouillon sans titre' : 'Nouvel article'),
                 description,
                 shortDescription,
                 price,
@@ -97,6 +110,8 @@ export async function createProductAction(prevState: any, formData: FormData) {
                 deliveryTimeValue,
                 deliveryTimeUnit,
                 condition,
+                isDraft,
+                approvalStatus,
             },
         } as any, { useAuthToken: true });
 

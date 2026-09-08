@@ -1,17 +1,19 @@
 'use client';
 
 import {useState, useMemo, useTransition, useEffect} from 'react';
+import Link from 'next/link';
 import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
 import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy, Minus, Plus, Star, Clock, Store, BadgeCheck} from 'lucide-react';
-import {addToCart, getSellerOffersForVariant} from '@/app/(storefront)/product/[slug]/actions';
+import {addToCart, getSellerOffersForProductVariants} from '@/app/(storefront)/product/[slug]/actions';
 import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
 import { getPromoPriceInfo } from "@/lib/vendure/api-utils";
 import { useThemeSettings } from "@/components/providers/theme-provider";
 import { ProductMobileFixedBar } from './product-mobile-fixed-bar';
+import { encodeId } from '@/lib/hash-utils';
 import DOMPurify from 'dompurify';
 
 interface ProductInfoProps {
@@ -67,9 +69,10 @@ interface ProductInfoProps {
     searchParams: { [key: string]: string | string[] | undefined };
     config?: any;
     whatsappNumber?: string;
+    allOffers?: any[];
 }
 
-export function ProductInfo({product, searchParams, config, whatsappNumber}: ProductInfoProps) {
+export function ProductInfo({product, searchParams, config, whatsappNumber, allOffers}: ProductInfoProps) {
     const pathname = usePathname();
     const router = useRouter();
     const currentSearchParams = useSearchParams();
@@ -77,13 +80,67 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
     const [quantity, setQuantity] = useState(1);
-    const [sellerOffers, setSellerOffers] = useState<any[]>([]);
-    const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
-    const [isLoadingOffers, setIsLoadingOffers] = useState(false);
 
-    // Filter to only include approved and enabled variants
-    const approvedVariants = useMemo(() => {
-        const list = (product.variants || []).filter((v: any) => {
+    // Offers for this product (passed from server or fetched dynamically)
+    const [sellerOffers, setSellerOffers] = useState<any[]>(allOffers || []);
+
+    // Fallback client-side fetch if allOffers was not supplied
+    useEffect(() => {
+        if (!allOffers || allOffers.length === 0) {
+            const vIds = (product.variants || []).map((v) => v.id);
+            if (vIds.length > 0) {
+                getSellerOffersForProductVariants(vIds)
+                    .then((offers) => {
+                        if (offers && offers.length > 0) {
+                            setSellerOffers(offers);
+                        }
+                    })
+                    .catch(() => {});
+            }
+        }
+    }, [allOffers, product.variants]);
+
+    // 1. Identify the Selected Vendor
+    const selectedVendorId = useMemo(() => {
+        // Priority 1: explicitly passed in searchParams or URL (?vendorId=...)
+        const urlVendor = searchParams?.vendorId || currentSearchParams?.get('vendorId');
+        if (urlVendor) {
+            return String(Array.isArray(urlVendor) ? urlVendor[0] : urlVendor);
+        }
+
+        // Priority 2: if variantId is specified, check vendor of the offer for this variant
+        const urlVariant = searchParams?.variantId || currentSearchParams?.get('variantId');
+        if (urlVariant) {
+            const vId = String(Array.isArray(urlVariant) ? urlVariant[0] : urlVariant);
+            const matchedOffer = (sellerOffers || []).find((o) => String(o.productVariant?.id) === vId);
+            if (matchedOffer?.vendor?.id) {
+                return String(matchedOffer.vendor.id);
+            }
+        }
+
+        // Priority 3: product's own customFields vendor
+        if (product.customFields?.vendor?.id) {
+            return String(product.customFields.vendor.id);
+        }
+
+        // Priority 4: first vendor in seller offers
+        if (sellerOffers && sellerOffers.length > 0 && sellerOffers[0]?.vendor?.id) {
+            return String(sellerOffers[0].vendor.id);
+        }
+
+        return null;
+    }, [searchParams, currentSearchParams, sellerOffers, product.customFields?.vendor?.id]);
+
+    // 2. Filter offers that belong strictly to the selected vendor
+    const vendorOffers = useMemo(() => {
+        if (!sellerOffers || sellerOffers.length === 0) return [];
+        if (!selectedVendorId) return sellerOffers;
+        return sellerOffers.filter((o) => String(o.vendor?.id) === String(selectedVendorId));
+    }, [sellerOffers, selectedVendorId]);
+
+    // 3. Filter variants to those offered by THIS vendor
+    const vendorVariants = useMemo(() => {
+        const baseApproved = (product.variants || []).filter((v: any) => {
             if (v.enabled === false) return false;
             const offerStatus = (v.customFields as any)?.offerStatus || (v.customFields as any)?.offerstatus;
             if (offerStatus === 'PENDING' || offerStatus === 'pending' || offerStatus === 'REFUSED' || offerStatus === 'rejected') return false;
@@ -91,78 +148,28 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             if (approvalStatus === 'pending' || approvalStatus === 'refused' || approvalStatus === 'rejected') return false;
             return true;
         });
-        return list;
-    }, [product.variants]);
 
-    const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
-        if (searchParams?.variantId) {
-            const matched = approvedVariants.find(v => String(v.id) === String(searchParams.variantId));
-            if (matched) return String(matched.id);
-        }
-        return approvedVariants[0]?.id || '';
-    });
-
-    // Initialize selected options from URL or default to the target variant's options
-    const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
-        const initialOptions: Record<string, string> = {};
-
-        // 1. Check if specific variantId passed in searchParams
-        let matchedVariant = null;
-        if (searchParams?.variantId) {
-            matchedVariant = approvedVariants.find(v => String(v.id) === String(searchParams.variantId));
-        }
-
-        if (matchedVariant && matchedVariant.options && matchedVariant.options.length > 0) {
-            matchedVariant.options.forEach(opt => {
-                const gId = (opt as any).groupId || opt.group?.id;
-                if (gId) {
-                    initialOptions[gId] = opt.id;
-                }
-            });
-        }
-
-        // 2. Load from URL search params
-        product.optionGroups.forEach((group) => {
-            const paramValue = searchParams?.[group.code];
-            if (typeof paramValue === 'string') {
-                const option = group.options.find((opt) => opt.code === paramValue);
-                if (option) {
-                    initialOptions[group.id] = option.id;
-                }
+        if (vendorOffers.length > 0) {
+            const vendorVariantIds = new Set(vendorOffers.map((o) => String(o.productVariant?.id)));
+            const filtered = baseApproved.filter((v) => vendorVariantIds.has(String(v.id)));
+            if (filtered.length > 0) {
+                return filtered;
             }
-        });
-
-        // 3. For any missing option groups, pre-select from the matched or first variant
-        const defaultVariant = matchedVariant || approvedVariants[0];
-        if (defaultVariant && defaultVariant.options) {
-            defaultVariant.options.forEach(opt => {
-                const gId = (opt as any).groupId || opt.group?.id;
-                if (gId && !initialOptions[gId]) {
-                    initialOptions[gId] = opt.id;
-                }
-            });
         }
 
-        // 4. Fallback: if any group is still unselected, select its first option
-        product.optionGroups.forEach((group) => {
-            if (!initialOptions[group.id] && group.options.length > 0) {
-                initialOptions[group.id] = group.options[0].id;
-            }
-        });
+        return baseApproved;
+    }, [product.variants, vendorOffers]);
 
-        return initialOptions;
-    });
-
-    // Get all option IDs that actually belong to available variants
+    // 4. Extract available option IDs for THIS vendor's variants only
     const availableOptionIds = useMemo(() => {
         const ids = new Set<string>();
-        approvedVariants.forEach((v) => {
+        vendorVariants.forEach((v) => {
             (v.options || []).forEach((opt) => ids.add(String(opt.id)));
         });
         return ids;
-    }, [approvedVariants]);
+    }, [vendorVariants]);
 
-    // Filter option groups to only display groups and options that actually exist in variants
+    // 5. Filter option groups to ONLY display groups and options available for THIS vendor
     const filteredOptionGroups = useMemo(() => {
         return product.optionGroups
             .map((group) => ({
@@ -172,69 +179,127 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             .filter((group) => group.options.length > 0);
     }, [product.optionGroups, availableOptionIds]);
 
-    // Find the matching variant based on selected options or selected variant id
-    const selectedVariant = useMemo(() => {
-        if (approvedVariants.length === 0) return null;
-        if (approvedVariants.length === 1) {
-            return approvedVariants[0];
+    const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
+        if (searchParams?.variantId) {
+            const vId = String(Array.isArray(searchParams.variantId) ? searchParams.variantId[0] : searchParams.variantId);
+            const matched = vendorVariants.find((v) => String(v.id) === vId);
+            if (matched) return String(matched.id);
+        }
+        return vendorVariants[0]?.id || '';
+    });
+
+    useEffect(() => {
+        if (vendorVariants.length > 0) {
+            const exists = vendorVariants.some((v) => String(v.id) === String(selectedVariantId));
+            if (!exists) {
+                setSelectedVariantId(String(vendorVariants[0].id));
+            }
+        }
+    }, [vendorVariants, selectedVariantId]);
+
+    const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
+        const initialOptions: Record<string, string> = {};
+
+        let matchedVariant = null;
+        if (searchParams?.variantId) {
+            const vId = String(Array.isArray(searchParams.variantId) ? searchParams.variantId[0] : searchParams.variantId);
+            matchedVariant = vendorVariants.find((v) => String(v.id) === vId);
         }
 
-        // If product has option groups and user changed options
+        if (matchedVariant && matchedVariant.options && matchedVariant.options.length > 0) {
+            matchedVariant.options.forEach((opt) => {
+                const gId = (opt as any).groupId || opt.group?.id;
+                if (gId) {
+                    initialOptions[gId] = opt.id;
+                }
+            });
+        }
+
+        product.optionGroups.forEach((group) => {
+            const paramValue = searchParams?.[group.code];
+            if (typeof paramValue === 'string') {
+                const option = group.options.find((opt) => opt.code === paramValue && availableOptionIds.has(String(opt.id)));
+                if (option) {
+                    initialOptions[group.id] = option.id;
+                }
+            }
+        });
+
+        const defaultVariant = matchedVariant || vendorVariants[0];
+        if (defaultVariant && defaultVariant.options) {
+            defaultVariant.options.forEach((opt) => {
+                const gId = (opt as any).groupId || opt.group?.id;
+                if (gId && !initialOptions[gId]) {
+                    initialOptions[gId] = opt.id;
+                }
+            });
+        }
+
+        return initialOptions;
+    });
+
+    // Update selectedOptions when vendorVariants change
+    useEffect(() => {
+        if (vendorVariants.length > 0) {
+            const activeV = vendorVariants.find((v) => String(v.id) === String(selectedVariantId)) || vendorVariants[0];
+            if (activeV && activeV.options) {
+                const newOpts: Record<string, string> = {};
+                activeV.options.forEach((opt) => {
+                    const gId = (opt as any).groupId || opt.group?.id;
+                    if (gId) newOpts[gId] = opt.id;
+                });
+                setSelectedOptions(newOpts);
+            }
+        }
+    }, [vendorVariants, selectedVariantId]);
+
+    // Find the matching variant strictly within vendorVariants
+    const selectedVariant = useMemo(() => {
+        if (vendorVariants.length === 0) return null;
+        if (vendorVariants.length === 1) return vendorVariants[0];
+
         if (product.optionGroups.length > 0) {
             const selectedOptionIds = Object.values(selectedOptions);
             if (selectedOptionIds.length > 0) {
-                const found = approvedVariants.find((variant) => {
-                    const variantOptionIds = (variant.options || []).map((opt) => opt.id);
-                    return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
+                const found = vendorVariants.find((variant) => {
+                    const variantOptionIds = (variant.options || []).map((opt) => String(opt.id));
+                    return selectedOptionIds.every((optId) => variantOptionIds.includes(String(optId)));
                 });
                 if (found) return found;
             }
         }
 
-        // If direct variant selection
         if (selectedVariantId) {
-            const byId = approvedVariants.find(v => String(v.id) === String(selectedVariantId));
+            const byId = vendorVariants.find((v) => String(v.id) === String(selectedVariantId));
             if (byId) return byId;
         }
 
-        return approvedVariants[0];
-    }, [selectedOptions, approvedVariants, product.optionGroups, selectedVariantId]);
+        return vendorVariants[0];
+    }, [selectedOptions, vendorVariants, product.optionGroups, selectedVariantId]);
 
-    // Load seller offers dynamically whenever the selected variant changes
-    useEffect(() => {
-        let isMounted = true;
-        if (selectedVariant?.id) {
-            setIsLoadingOffers(true);
-            getSellerOffersForVariant(selectedVariant.id)
-                .then((offers) => {
-                    if (isMounted) {
-                        setSellerOffers(offers || []);
-                        if (offers && offers.length > 0) {
-                            const urlVendorId = searchParams?.vendorId || currentSearchParams?.get('vendorId');
-                            const matched = urlVendorId ? offers.find((o: any) => String(o.vendor?.id) === String(urlVendorId)) : null;
-                            setSelectedOfferId(matched ? matched.id : offers[0].id);
-                        } else {
-                            setSelectedOfferId(null);
-                        }
-                    }
-                })
-                .catch(() => {
-                    if (isMounted) setSellerOffers([]);
-                })
-                .finally(() => {
-                    if (isMounted) setIsLoadingOffers(false);
-                });
-        }
-        return () => { isMounted = false; };
-    }, [selectedVariant?.id, searchParams?.vendorId]);
-
-    // Active offer for the selected variant
+    // Active offer for the selected variant from this vendor
     const activeOffer = useMemo(() => {
-        if (!sellerOffers || sellerOffers.length === 0) return null;
-        return sellerOffers.find(o => o.id === selectedOfferId) || sellerOffers[0];
-    }, [sellerOffers, selectedOfferId]);
+        if (!selectedVariant || vendorOffers.length === 0) return null;
+        return vendorOffers.find((o) => String(o.productVariant?.id) === String(selectedVariant.id)) || vendorOffers[0];
+    }, [vendorOffers, selectedVariant]);
 
-    const activePrice = activeOffer ? activeOffer.price : selectedVariant?.priceWithTax;
+    // Active vendor details
+    const activeVendor = useMemo(() => {
+        if (activeOffer?.vendor) return activeOffer.vendor;
+        if (vendorOffers.length > 0 && vendorOffers[0]?.vendor) return vendorOffers[0].vendor;
+        if (product.customFields?.vendor) return product.customFields.vendor;
+        return null;
+    }, [activeOffer, vendorOffers, product.customFields?.vendor]);
+
+    const activePrice = useMemo(() => {
+        if (activeOffer) {
+            if (activeOffer.onPromotion && activeOffer.promotionalPrice) {
+                return activeOffer.promotionalPrice;
+            }
+            return activeOffer.price;
+        }
+        return selectedVariant?.priceWithTax;
+    }, [activeOffer, selectedVariant]);
 
     // Dispatch variant change event to synchronize image carousel and components
     useEffect(() => {
@@ -252,11 +317,11 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         };
         setSelectedOptions(nextOptions);
 
-        // Find newly matched variant
+        // Find newly matched variant within vendorVariants ONLY!
         const nextOptionIds = Object.values(nextOptions);
-        const nextVariant = approvedVariants.find((variant) => {
-            const variantOptionIds = (variant.options || []).map((opt) => opt.id);
-            return nextOptionIds.every((optId) => variantOptionIds.includes(optId));
+        const nextVariant = vendorVariants.find((variant) => {
+            const variantOptionIds = (variant.options || []).map((opt) => String(opt.id));
+            return nextOptionIds.every((optId) => variantOptionIds.includes(String(optId)));
         });
 
         if (nextVariant) {
@@ -266,6 +331,9 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         // Update URL shallowly without triggering full page reload
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
+            if (selectedVendorId) {
+                params.set('vendorId', selectedVendorId);
+            }
             if (nextVariant) {
                 params.set('variantId', String(nextVariant.id));
             }
@@ -282,7 +350,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
         if (!selectedVariant) return;
 
         startTransition(async () => {
-            const assignedVendorId = activeOffer?.vendor?.id || undefined;
+            const assignedVendorId = selectedVendorId || activeOffer?.vendor?.id || product.customFields?.vendor?.id || undefined;
             const result = await addToCart(selectedVariant.id, quantity, assignedVendorId);
 
             if (result.success) {
@@ -301,6 +369,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
             }
         });
     };
+
 
     const isInStock = Boolean(
         selectedVariant && 
@@ -353,9 +422,10 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                             </div>
                         ) : (
                             <p className="text-2xl font-bold text-primary">
-                                <Price value={selectedVariant.priceWithTax}/>
+                                <Price value={activePrice ?? selectedVariant.priceWithTax}/>
                             </p>
                         )}
+
                         {isInStock ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -416,15 +486,18 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                 </div>
             )}
 
-            {/* Direct Variants Selector (if no optionGroups but multiple variants exist) */}
-            {product.optionGroups.length === 0 && product.variants.length > 1 && (
+            {/* Direct Variants Selector (if no optionGroups but multiple variants exist for this vendor) */}
+
+            {product.optionGroups.length === 0 && vendorVariants.length > 1 && (
                 <div className="space-y-2 pt-4 border-t">
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
-                        Déclinaisons disponibles ({product.variants.length})
+                        Déclinaisons disponibles ({vendorVariants.length})
                     </Label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {product.variants.map((v) => {
+                        {vendorVariants.map((v) => {
                             const isSelected = selectedVariant?.id === v.id;
+                            const vOffer = vendorOffers.find((o) => String(o.productVariant?.id) === String(v.id));
+                            const vPrice = vOffer?.price ?? v.priceWithTax;
                             return (
                                 <button
                                     key={v.id}
@@ -434,7 +507,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                                 >
                                     <span className="truncate max-w-full">{v.name}</span>
                                     <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
-                                        <Price value={v.priceWithTax} />
+                                        <Price value={vPrice} />
                                     </span>
                                 </button>
                             );
@@ -467,85 +540,62 @@ export function ProductInfo({product, searchParams, config, whatsappNumber}: Pro
                 </div>
             )}
 
-            {/* Vendeurs & Offres pour cette déclinaison */}
-            {sellerOffers && sellerOffers.length > 0 && (
-                <div className="space-y-2.5 pt-3 border-t">
+            {/* Vendeur sélectionné pour ce produit (Offre unique du vendeur sélectionné) */}
+            {activeVendor && (
+                <div className="space-y-2 pt-3 border-t">
                     <div className="flex items-center justify-between">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 flex items-center gap-1.5">
                             <Store className="w-3.5 h-3.5 text-primary" />
-                            {sellerOffers.length > 1 
-                                ? `${sellerOffers.length} Offres de vendeurs disponibles` 
-                                : 'Vendeur de cette variante'}
+                            Vendeur de cette offre
                         </Label>
                     </div>
 
-                    <div className="space-y-2">
-                        {sellerOffers.map((offer: any) => {
-                            const isSelected = (activeOffer?.id === offer.id) || (sellerOffers.length === 1);
-                            const vendorName = offer.vendor?.name || 'Vendeur Ahizan';
-                            const vendorLogo = offer.vendor?.logo?.preview;
-                            const rating = offer.vendor?.rating || 5.0;
-                            const deliveryDelay = offer.deliveryTimeValue 
-                                ? `${offer.deliveryTimeValue} ${offer.deliveryTimeUnit === 'h' ? 'heures' : 'jours'}`
-                                : '24-48h';
-
-                            return (
-                                <div
-                                    key={offer.id}
-                                    onClick={() => setSelectedOfferId(offer.id)}
-                                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                                        isSelected
-                                            ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/20 shadow-sm'
-                                            : 'border-border/70 hover:border-border bg-card/60'
-                                    }`}
-                                >
-                                    <div className="flex items-center gap-3 min-w-0">
-                                        <div className="w-9 h-9 rounded-full bg-muted/80 border flex items-center justify-center overflow-hidden flex-shrink-0">
-                                            {vendorLogo ? (
-                                                <img src={vendorLogo} alt={vendorName} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <Store className="w-4 h-4 text-muted-foreground" />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="font-bold text-xs text-foreground truncate">{vendorName}</span>
-                                                <BadgeCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                                            </div>
-                                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                                                <span className="flex items-center gap-0.5 text-amber-500 font-semibold">
-                                                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                                                    {rating.toFixed(1)}
-                                                </span>
-                                                <span>•</span>
-                                                <span className="flex items-center gap-0.5">
-                                                    <Clock className="w-3 h-3" />
-                                                    {deliveryDelay}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="text-right flex-shrink-0 pl-2">
-                                        <div className="text-sm font-black text-primary">
-                                            <Price value={offer.price} />
-                                        </div>
-                                        {sellerOffers.length > 1 && (
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
-                                                isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                                            }`}>
-                                                {isSelected ? 'Sélectionné' : 'Choisir'}
-                                            </span>
-                                        )}
-                                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-xl border border-primary/20 bg-primary/[0.03] shadow-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-muted/80 border flex items-center justify-center overflow-hidden flex-shrink-0">
+                                {activeVendor.logo?.preview ? (
+                                    <img src={activeVendor.logo.preview} alt={activeVendor.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Store className="w-5 h-5 text-muted-foreground" />
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-xs text-foreground truncate">{activeVendor.name}</span>
+                                    <BadgeCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
                                 </div>
-                            );
-                        })}
+                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                                    <span className="flex items-center gap-0.5 text-amber-500 font-semibold">
+                                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                        {(activeVendor.rating || 5.0).toFixed(1)}
+                                    </span>
+                                    {activeOffer?.deliveryTimeValue && (
+                                        <>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-0.5">
+                                                <Clock className="w-3 h-3" />
+                                                {activeOffer.deliveryTimeValue} {activeOffer.deliveryTimeUnit === 'h' ? 'heures' : 'jours'}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {activeVendor.id && (
+                            <Link
+                                href={`/vendor/${encodeId(activeVendor.id)}`}
+                                className="text-xs font-bold text-primary hover:underline px-2.5 py-1 rounded-lg hover:bg-primary/10 transition-all flex items-center gap-1 flex-shrink-0"
+                            >
+                                Boutique →
+                            </Link>
+                        )}
                     </div>
                 </div>
             )}
 
             {/* Quantity Selector */}
+
             {canAddToCart && (
                 <div className="flex items-center gap-3 pt-2">
                     <span className="text-sm font-semibold text-muted-foreground">Quantité:</span>

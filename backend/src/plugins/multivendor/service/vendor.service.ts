@@ -26,6 +26,7 @@ import {
     ProductService,
     ProductVariantService,
     ProductVariant,
+    ProductOption,
     ProductEvent,
     OrderService,
     ChannelService,
@@ -36,7 +37,7 @@ import {
     FulfillmentStateTransitionEvent,
 } from '@vendure/core';
 import { Vendor, VendorStatus } from '../entities/vendor.entity';
-import { SellerOffer } from '../entities/seller-offer.entity';
+import { SellerOffer, ProductCondition, DeliveryTimeUnit } from '../entities/seller-offer.entity';
 import { WithdrawalRequest, WithdrawalStatus } from '../entities/withdrawal-request.entity';
 import { PlatformSettings } from '../entities/platform-settings.entity';
 import { VendorEvent, FundsReleasedEvent, WithdrawalEvent } from '../events/vendor-event';
@@ -642,42 +643,48 @@ export class VendorService implements OnApplicationBootstrap {
         newStatus: string,
         cascade: boolean = true
     ): Promise<boolean> {
-        const order = await this.connection.getRepository(ctx, Order).findOne({ 
-            where: { id: orderId },
-            relations: ['lines', 'lines.productVariant', 'lines.productVariant.product', 'lines.productVariant.product.customFields.vendor', 'lines.customFields.assignedVendor']
-        });
-        if (!order) {
+        const rawOrder = await this.connection.rawConnection.query(
+            `SELECT id, "customFieldsSellerstatus", "customFieldsAdminstatus", "customFieldsVendorstatuses", "customFieldsVendorid"
+             FROM "order" WHERE id = $1::int LIMIT 1`,
+            [Number(orderId)]
+        );
+        if (!rawOrder || rawOrder.length === 0) {
             throw new Error('Order not found');
         }
 
         let vMap: Record<string, any> = {};
         try {
-            if ((order.customFields as any)?.vendorStatuses) {
-                vMap = JSON.parse((order.customFields as any).vendorStatuses);
+            if (rawOrder[0].customFieldsVendorstatuses) {
+                vMap = typeof rawOrder[0].customFieldsVendorstatuses === 'string'
+                    ? JSON.parse(rawOrder[0].customFieldsVendorstatuses)
+                    : rawOrder[0].customFieldsVendorstatuses;
             }
         } catch (e) {}
 
-        // Collect all vendor IDs present in this order
+        // Collect all vendor IDs present in this order via reliable raw SQL
         const vendorIds = new Set<string>();
-        const defaultVendor = (order.customFields as any)?.vendor;
-        if (defaultVendor?.id) {
-            vendorIds.add(String(defaultVendor.id));
+        if (rawOrder[0].customFieldsVendorid) {
+            vendorIds.add(String(rawOrder[0].customFieldsVendorid));
         }
-        if (order.lines) {
-            for (const line of order.lines) {
-                const assignedVendor = (line.customFields as any)?.assignedVendor;
-                if (assignedVendor?.id) {
-                    vendorIds.add(String(assignedVendor.id));
-                } else {
-                    const lineVendor = (line as any).productVariant?.product?.customFields?.vendor;
-                    if (lineVendor?.id) {
-                        vendorIds.add(String(lineVendor.id));
-                    }
-                }
+
+        const vendorRows = await this.connection.rawConnection.query(
+            `SELECT DISTINCT COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid", o."customFieldsVendorid") as v_id
+             FROM order_line ol
+             LEFT JOIN "order" o ON ol."orderId" = o.id
+             LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+             LEFT JOIN product p ON pv."productId" = p.id
+             WHERE ol."orderId" = $1::int`,
+            [Number(orderId)]
+        );
+
+        for (const r of vendorRows) {
+            if (r.v_id) {
+                vendorIds.add(String(r.v_id));
             }
         }
 
         if (vendorId) {
+            vendorIds.add(String(vendorId));
             vMap[String(vendorId)] = {
                 ...(vMap[String(vendorId)] || {}),
                 [statusType]: newStatus,
@@ -694,12 +701,12 @@ export class VendorService implements OnApplicationBootstrap {
 
         const vIdList = Array.from(vendorIds);
         
-        let aggregateSellerStatus = (order.customFields as any)?.sellerStatus || 'pending';
-        let aggregateAdminStatus = (order.customFields as any)?.adminStatus || 'pending';
+        let aggregateSellerStatus = rawOrder[0].customFieldsSellerstatus || 'pending';
+        let aggregateAdminStatus = rawOrder[0].customFieldsAdminstatus || 'pending';
 
         if (vIdList.length > 0) {
             const sellerStatuses = vIdList.map(id => vMap[id]?.sellerStatus || 'pending');
-            if (sellerStatuses.every(s => s === 'confirmed')) {
+            if (sellerStatuses.every(s => s === 'confirmed' || s === 'approved')) {
                 aggregateSellerStatus = 'confirmed';
             } else if (sellerStatuses.some(s => s === 'reassigning' || s === 'refused')) {
                 aggregateSellerStatus = 'reassigning';
@@ -742,7 +749,7 @@ export class VendorService implements OnApplicationBootstrap {
         if (statusType === 'sellerStatus' && cascade) {
             try {
                 if (vendorId) {
-                    if (newStatus === 'confirmed') {
+                    if (newStatus === 'confirmed' || newStatus === 'approved') {
                         await this.connection.rawConnection.query(
                             `UPDATE order_line ol
                              SET "customFieldsSellerstatus" = $1
@@ -797,8 +804,9 @@ export class VendorService implements OnApplicationBootstrap {
     ): Promise<boolean> {
         // 1. Fetch the OrderLine
         const rawLines = await this.connection.rawConnection.query(
-            `SELECT ol.id, ol."orderId", COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") as vendor_id
+            `SELECT ol.id, ol."orderId", COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid", o."customFieldsVendorid") as vendor_id
              FROM order_line ol
+             LEFT JOIN "order" o ON ol."orderId" = o.id
              LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
              LEFT JOIN product p ON pv."productId" = p.id
              WHERE ol.id = $1::int LIMIT 1`,
@@ -812,8 +820,15 @@ export class VendorService implements OnApplicationBootstrap {
         const line = rawLines[0];
 
         // 2. Verify ownership
-        if (String(line.vendor_id) !== String(vendorId)) {
-            throw new Error('You do not have permission to update this order line');
+        if (line.vendor_id && String(line.vendor_id) !== String(vendorId)) {
+            // Check if vendor has access to this order
+            const orderVendorCheck = await this.connection.rawConnection.query(
+                `SELECT id FROM "order" WHERE id = $1::int AND "customFieldsVendorid" = $2::int LIMIT 1`,
+                [Number(line.orderId), Number(vendorId)]
+            );
+            if (!orderVendorCheck || orderVendorCheck.length === 0) {
+                throw new Error('You do not have permission to update this order line');
+            }
         }
 
         // 3. Update the OrderLine custom field — column is 'customFieldsSellerstatus'
@@ -841,9 +856,10 @@ export class VendorService implements OnApplicationBootstrap {
         const allVendorLines = await this.connection.rawConnection.query(
             `SELECT ol.id, ol."customFieldsSellerstatus"
              FROM order_line ol
+             LEFT JOIN "order" o ON ol."orderId" = o.id
              LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
              LEFT JOIN product p ON pv."productId" = p.id
-             WHERE ol."orderId" = $1::int AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid") = $2::int`,
+             WHERE ol."orderId" = $1::int AND COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid", o."customFieldsVendorid") = $2::int`,
             [Number(line.orderId), Number(vendorId)]
         );
 
@@ -854,18 +870,18 @@ export class VendorService implements OnApplicationBootstrap {
 
         for (const l of allVendorLines) {
             const status = l.customFieldsSellerstatus || 'pending';
-            if (status !== 'confirmed') allConfirmed = false;
+            if (status !== 'confirmed' && status !== 'approved') allConfirmed = false;
             if (status !== 'refused') allRefused = false;
             if (status !== 'reassigned_to_other') allReassigned = false;
             if (status === 'refused' || status === 'reassigning') someRefusedOrReassigning = true;
         }
 
         let newVendorStatus = 'pending';
-        if (allConfirmed) {
+        if (allConfirmed && allVendorLines.length > 0) {
             newVendorStatus = 'confirmed';
-        } else if (allRefused) {
+        } else if (allRefused && allVendorLines.length > 0) {
             newVendorStatus = 'refused';
-        } else if (allReassigned) {
+        } else if (allReassigned && allVendorLines.length > 0) {
             newVendorStatus = 'reassigned_to_other';
         } else if (someRefusedOrReassigning) {
             newVendorStatus = 'reassigning';
@@ -1615,6 +1631,321 @@ export class VendorService implements OnApplicationBootstrap {
         }
 
         return newProduct;
+    }
+
+    /**
+     * Superadmin reassigns a specific SellerOffer to a target ProductVariant
+     * (e.g. to merge duplicate variants submitted by sellers onto official variants).
+     */
+    async reassignOfferToTargetVariant(
+        ctx: RequestContext,
+        sourceOfferId: string,
+        targetVariantId: string,
+        deleteSourceVariantIfEmpty: boolean = true
+    ): Promise<SellerOffer> {
+        const offerRepo = this.connection.getRepository(ctx, SellerOffer);
+        const offer = await offerRepo.findOne({
+            where: { id: sourceOfferId },
+            relations: ['vendor', 'productVariant', 'productVariant.product']
+        });
+        if (!offer) {
+            throw new Error(`Offre vendeur #${sourceOfferId} introuvable.`);
+        }
+
+        const targetVariant = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: targetVariantId },
+            relations: ['product', 'channels']
+        });
+        if (!targetVariant) {
+            throw new Error(`Déclinaison cible #${targetVariantId} introuvable.`);
+        }
+
+        const oldVariantId = offer.productVariant?.id;
+        const oldProductId = offer.productVariant?.productId || (offer.productVariant?.product as any)?.id;
+
+        // 1. Point the offer to target variant
+        offer.productVariant = targetVariant;
+        offer.status = 'approved';
+        const savedOffer = await offerRepo.save(offer);
+
+        // 2. Ensure target variant is assigned to vendor channel and channel 1
+        if (offer.vendor?.channelId) {
+            try {
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                     VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                    [targetVariantId, offer.vendor.channelId]
+                );
+            } catch (_) {}
+        }
+        try {
+            await this.connection.rawConnection.query(
+                `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                 VALUES ($1, 1) ON CONFLICT DO NOTHING`,
+                [targetVariantId]
+            );
+        } catch (_) {}
+
+        // 3. Update target variant approval and enabled status
+        await this.connection.rawConnection.query(
+            `UPDATE product_variant SET enabled = true, "customFieldsOfferstatus" = 'APPROVED', "updatedAt" = NOW() WHERE id = $1`,
+            [targetVariantId]
+        );
+
+        // 4. Clean up source variant if it has no more offers
+        if (deleteSourceVariantIfEmpty && oldVariantId && String(oldVariantId) !== String(targetVariantId)) {
+            const remainingOffers = await this.connection.rawConnection.query(
+                `SELECT count(*) as cnt FROM seller_offer WHERE "productVariantId" = $1`,
+                [oldVariantId]
+            );
+            const remainingCount = parseInt(remainingOffers[0]?.cnt || '0', 10);
+            if (remainingCount === 0) {
+                // Soft-delete old variant
+                await this.connection.rawConnection.query(
+                    `UPDATE product_variant SET enabled = false, "deletedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1`,
+                    [oldVariantId]
+                );
+
+                // Remove from search index
+                await this.connection.rawConnection.query(
+                    `DELETE FROM search_index_item WHERE "productVariantId" = $1`,
+                    [oldVariantId]
+                );
+
+                // Check if old product has any active variants left
+                if (oldProductId) {
+                    const remainingVariants = await this.connection.rawConnection.query(
+                        `SELECT count(*) as cnt FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL`,
+                        [oldProductId]
+                    );
+                    const remVarCount = parseInt(remainingVariants[0]?.cnt || '0', 10);
+                    if (remVarCount === 0) {
+                        await this.connection.rawConnection.query(
+                            `UPDATE product SET enabled = false, "deletedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
+                            [oldProductId]
+                        );
+                    }
+                }
+            }
+        }
+
+        console.log(`[reassignOfferToTargetVariant] Successfully reassigned Offer #${sourceOfferId} to Variant #${targetVariantId}`);
+        return savedOffer;
+    }
+
+    /**
+     * Merges a source variant (duplicate/vendor proposal) directly into a target official variant.
+     * All seller offers are moved to the target variant, the source variant is deleted,
+     * and the source product is cleaned up if empty.
+     */
+    async mergeVariantIntoTargetVariant(
+        ctx: RequestContext,
+        sourceVariantId: string,
+        targetVariantId: string
+    ): Promise<ProductVariant> {
+        const variantRepo = this.connection.getRepository(ctx, ProductVariant);
+        const sourceVariant = await variantRepo.findOne({
+            where: { id: sourceVariantId },
+            relations: ['product', 'channels']
+        });
+        if (!sourceVariant) {
+            throw new Error(`Déclinaison source #${sourceVariantId} introuvable.`);
+        }
+
+        const targetVariant = await variantRepo.findOne({
+            where: { id: targetVariantId },
+            relations: ['product', 'channels']
+        });
+        if (!targetVariant) {
+            throw new Error(`Déclinaison cible #${targetVariantId} introuvable.`);
+        }
+
+        const sourceProductId = sourceVariant.productId || (sourceVariant.product as any)?.id;
+        const targetProductId = targetVariant.productId || (targetVariant.product as any)?.id;
+
+        // 1. Move or create SellerOffer records
+        const offerRepo = this.connection.getRepository(ctx, SellerOffer);
+        const sourceOffers = await offerRepo.find({
+            where: { productVariant: { id: sourceVariantId } },
+            relations: ['vendor']
+        });
+
+        if (sourceOffers.length > 0) {
+            for (const offer of sourceOffers) {
+                offer.productVariant = targetVariant;
+                offer.status = 'approved';
+                offer.rejectionReason = null;
+                await offerRepo.save(offer);
+
+                if (offer.vendor?.channelId) {
+                    try {
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                             VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                            [targetVariantId, offer.vendor.channelId]
+                        );
+                    } catch (_) {}
+                }
+            }
+        } else {
+            // Check if source variant's product was owned by a vendor
+            const vendorIdRes = await this.connection.rawConnection.query(
+                `SELECT "customFieldsVendorid" as "vendorId" FROM product WHERE id = $1`,
+                [sourceProductId]
+            );
+            const vendorId = vendorIdRes[0]?.vendorId;
+            if (vendorId) {
+                const vendor = await this.connection.getRepository(ctx, Vendor).findOne({
+                    where: { id: vendorId }
+                });
+                if (vendor) {
+                    const newOffer = offerRepo.create({
+                        vendor,
+                        productVariant: targetVariant,
+                        price: sourceVariant.price || 0,
+                        stock: ((sourceVariant as any).stockOnHand || (sourceVariant as any).stockLevel || 5),
+                        sku: sourceVariant.sku || null,
+                        status: 'approved',
+                        rejectionReason: null,
+                        condition: ProductCondition.NEW,
+                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                        deliveryTimeValue: 2,
+                    });
+                    await offerRepo.save(newOffer);
+
+                    if (vendor.channelId) {
+                        try {
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                                 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [targetVariantId, vendor.channelId]
+                            );
+                        } catch (_) {}
+                    }
+                }
+            }
+        }
+
+        // 2. Ensure target variant is assigned to Default Channel (Channel 1)
+        try {
+            await this.connection.rawConnection.query(
+                `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                 VALUES ($1, 1) ON CONFLICT DO NOTHING`,
+                [targetVariantId]
+            );
+        } catch (_) {}
+
+        // 3. Mark target variant enabled and approved
+        await this.connection.rawConnection.query(
+            `UPDATE product_variant SET enabled = true, "customFieldsOfferstatus" = 'APPROVED', "updatedAt" = NOW() WHERE id = $1`,
+            [targetVariantId]
+        );
+
+        // 4. Soft-delete the source variant and clean search index
+        await this.connection.rawConnection.query(
+            `UPDATE product_variant SET enabled = false, "deletedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1`,
+            [sourceVariantId]
+        );
+        await this.connection.rawConnection.query(
+            `DELETE FROM search_index_item WHERE "productVariantId" = $1`,
+            [sourceVariantId]
+        );
+
+        // 5. If source product has no remaining active variants, soft-delete it
+        if (sourceProductId && String(sourceProductId) !== String(targetProductId)) {
+            const remCountRes = await this.connection.rawConnection.query(
+                `SELECT count(*) as cnt FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL`,
+                [sourceProductId]
+            );
+            const remCount = parseInt(remCountRes[0]?.cnt || '0', 10);
+            if (remCount === 0) {
+                await this.connection.rawConnection.query(
+                    `UPDATE product SET enabled = false, "deletedAt" = NOW(), "updatedAt" = NOW() WHERE id = $1`,
+                    [sourceProductId]
+                );
+            }
+        }
+
+        console.log(`[mergeVariantIntoTargetVariant] Successfully merged variant #${sourceVariantId} into official variant #${targetVariantId}`);
+
+        const updatedTargetVariant = await variantRepo.findOne({
+            where: { id: targetVariantId },
+            relations: ['product', 'options', 'options.group', 'channels']
+        });
+
+        return updatedTargetVariant || targetVariant;
+    }
+
+    /**
+     * Admin updates/normalizes the ProductOptions associated with a ProductVariant.
+     */
+    async adminUpdateVariantOptions(
+        ctx: RequestContext,
+        variantId: string,
+        optionIds: string[]
+    ): Promise<ProductVariant> {
+        const variant = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: variantId },
+            relations: ['product', 'options', 'options.group']
+        });
+        if (!variant) {
+            throw new Error(`Déclinaison #${variantId} introuvable.`);
+        }
+
+        // 1. Clear old option associations for this variant
+        await this.connection.rawConnection.query(
+            `DELETE FROM product_variant_options_product_option WHERE "productVariantId" = $1`,
+            [variantId]
+        );
+
+        // 2. Insert new option associations
+        for (const optId of optionIds) {
+            await this.connection.rawConnection.query(
+                `INSERT INTO product_variant_options_product_option ("productVariantId", "productOptionId")
+                 VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [variantId, optId]
+            );
+
+            // Ensure the product has the option's group
+            const opt = await this.connection.getRepository(ctx, ProductOption).findOne({
+                where: { id: optId },
+                relations: ['group']
+            });
+            if (opt?.group && variant.productId) {
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_option_groups_product_option_group ("productId", "productOptionGroupId")
+                     VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                    [variant.productId, opt.group.id]
+                );
+            }
+        }
+
+        // 3. Update variant translation name
+        const optionNamesRes = await this.connection.rawConnection.query(
+            `SELECT pot.name 
+             FROM product_variant_options_product_option pvo
+             JOIN product_option_translation pot ON pot."baseId" = pvo."productOptionId" AND pot."languageCode" = 'fr'
+             WHERE pvo."productVariantId" = $1`,
+            [variantId]
+        );
+        const optionNames = optionNamesRes.map((r: any) => r.name).filter(Boolean);
+        const prodTranslation = await this.connection.rawConnection.query(
+            `SELECT name FROM product_translation WHERE "baseId" = $1 AND "languageCode" = 'fr' LIMIT 1`,
+            [variant.productId]
+        );
+        const prodName = prodTranslation[0]?.name || 'Produit';
+        const newVariantName = optionNames.length > 0 ? `${prodName} - ${optionNames.join(' - ')}` : prodName;
+
+        await this.connection.rawConnection.query(
+            `UPDATE product_variant_translation SET name = $1 WHERE "baseId" = $2 AND "languageCode" = 'fr'`,
+            [newVariantName, variantId]
+        );
+
+        const updated = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: variantId },
+            relations: ['product', 'options', 'options.group', 'translations']
+        });
+        return updated || variant;
     }
 
     /**

@@ -92,15 +92,11 @@ export async function ProductVendor({ productSlug, vendorId, variantId }: Produc
             }
         }
 
-        // If there are multiple seller offers and no specific vendor was requested, show the multi-vendor panel
-        if (offers.length > 1 && !vendorId) {
-            return <SellerOffersPanel offers={offers} />;
-        }
-
-        // Otherwise show the vendor badge from product or first offer
+        // Always show the vendor badge for the active vendor, never competing offers panel
         const activeVendor = (offers.length > 0 ? offers[0]?.vendor : null) || vendor;
         if (!activeVendor) return null;
         return <VendorBadge vendor={activeVendor} />;
+
     } catch {
         return null;
     }

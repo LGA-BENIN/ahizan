@@ -13,7 +13,6 @@ export const variantIdCollectionFilter = new CollectionFilter({
         variantIds: {
             type: 'string',
             list: true,
-            ui: { component: 'item-id-input' },
         },
     },
     apply: (qb, args) => {

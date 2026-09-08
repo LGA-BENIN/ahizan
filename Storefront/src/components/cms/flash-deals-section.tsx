@@ -114,9 +114,18 @@ export function FlashDealsSection({
                         if (!product.slug) {
                             console.warn(`[FlashDeals] Product ${product.name} (ID: ${product.id}) is missing a slug!`);
                         }
+                        const targetVariantId = (product as any).productVariantId || (product as any).variantId || (product as any).variants?.[0]?.id;
+                        const targetVendorId = (product as any).vendorId || (product as any).vendor?.id;
+                        const qp = new URLSearchParams();
+                        if (targetVariantId) qp.set('variantId', String(targetVariantId));
+                        if (targetVendorId) qp.set('vendorId', String(targetVendorId));
+                        const qStr = qp.toString();
+                        const href = `/product/${product.slug}${qStr ? `?${qStr}` : ''}`;
+
                         return (
-                            <Link key={product.id} href={`/product/${product.slug}`}
+                            <Link key={product.id} href={href}
                                 className="group bg-white rounded-xl p-3 shadow-sm hover:shadow-lg transition-all border border-transparent hover:border-red-200 no-underline text-inherit">
+
                             <div className="aspect-square relative mb-3 overflow-hidden rounded-lg bg-muted">
                                 {product.imageUrl && (
                                     <img src={product.imageUrl} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />

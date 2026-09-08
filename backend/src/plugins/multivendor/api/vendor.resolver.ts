@@ -243,16 +243,29 @@ export class VendorResolver {
         }
 
         // Must be a valid seller state
-        if (!['pending', 'confirmed', 'refused'].includes(statusCode)) {
+        const validStatuses = [
+            'pending',
+            'confirmed',
+            'approved',
+            'ready_for_pickup',
+            'refused',
+            'rejected',
+            'reassigning',
+            'reassigned_to_other',
+            'cancelled'
+        ];
+        if (!validStatuses.includes(statusCode)) {
             throw new Error('Invalid seller status');
         }
+
+        const normalizedStatus = statusCode === 'approved' ? 'confirmed' : statusCode === 'rejected' ? 'refused' : statusCode;
 
         return this.vendorService.updateVendorOrderStatus(
             ctx,
             orderId,
             String(vendor.id),
             'sellerStatus',
-            statusCode
+            normalizedStatus
         );
     }
 
@@ -269,15 +282,28 @@ export class VendorResolver {
         }
         
         // Must be a valid seller state
-        if (!['pending', 'confirmed', 'refused'].includes(statusCode)) {
+        const validStatuses = [
+            'pending',
+            'confirmed',
+            'approved',
+            'ready_for_pickup',
+            'refused',
+            'rejected',
+            'reassigning',
+            'reassigned_to_other',
+            'cancelled'
+        ];
+        if (!validStatuses.includes(statusCode)) {
             throw new Error('Invalid seller status');
         }
+
+        const normalizedStatus = statusCode === 'approved' ? 'confirmed' : statusCode === 'rejected' ? 'refused' : statusCode;
 
         return this.vendorService.updateVendorOrderLineStatus(
             ctx, 
             lineId, 
             String(vendor.id), 
-            statusCode
+            normalizedStatus
         );
     }
 
@@ -1553,6 +1579,37 @@ export class VendorAdminResolver {
         @Args('approveOffer') approveOffer?: boolean,
     ): Promise<ProductVariant> {
         return this.vendorService.reassignVariantToProduct(ctx, variantId, targetProductId, approveOffer);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async reassignOfferToTargetVariant(
+        @Ctx() ctx: RequestContext,
+        @Args('sourceOfferId') sourceOfferId: string,
+        @Args('targetVariantId') targetVariantId: string,
+        @Args('deleteSourceVariantIfEmpty') deleteSourceVariantIfEmpty?: boolean,
+    ): Promise<SellerOffer> {
+        return this.vendorService.reassignOfferToTargetVariant(ctx, sourceOfferId, targetVariantId, deleteSourceVariantIfEmpty);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async mergeVariantIntoTargetVariant(
+        @Ctx() ctx: RequestContext,
+        @Args('sourceVariantId') sourceVariantId: string,
+        @Args('targetVariantId') targetVariantId: string,
+    ): Promise<ProductVariant> {
+        return this.vendorService.mergeVariantIntoTargetVariant(ctx, sourceVariantId, targetVariantId);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async adminUpdateVariantOptions(
+        @Ctx() ctx: RequestContext,
+        @Args('variantId') variantId: string,
+        @Args('optionIds') optionIds: string[],
+    ): Promise<ProductVariant> {
+        return this.vendorService.adminUpdateVariantOptions(ctx, variantId, optionIds);
     }
 
     @Mutation()

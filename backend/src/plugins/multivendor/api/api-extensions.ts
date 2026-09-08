@@ -332,6 +332,8 @@ export const commonApiExtensions = `
         deliveryTimeValue: Int
         deliveryTimeUnit: String
         condition: String
+        isDraft: Boolean
+        approvalStatus: String
     }
 
     input UpdateVendorProductInput {
@@ -355,6 +357,8 @@ export const commonApiExtensions = `
         deliveryTimeValue: Int
         deliveryTimeUnit: String
         condition: String
+        isDraft: Boolean
+        approvalStatus: String
     }
 
     input UpdateVendorProductVariantInput {
@@ -831,6 +835,9 @@ export const adminApiExtensions = `
         ): Product!
         adminReviewSellerOffer(id: ID!, status: String!, rejectionReason: String): SellerOffer!
         reassignVariantToProduct(variantId: ID!, targetProductId: ID!, approveOffer: Boolean): ProductVariant!
+        reassignOfferToTargetVariant(sourceOfferId: ID!, targetVariantId: ID!, deleteSourceVariantIfEmpty: Boolean): SellerOffer!
+        mergeVariantIntoTargetVariant(sourceVariantId: ID!, targetVariantId: ID!): ProductVariant!
+        adminUpdateVariantOptions(variantId: ID!, optionIds: [ID!]!): ProductVariant!
         createOfficialProductFromVariant(
             variantId: ID!
             name: String!

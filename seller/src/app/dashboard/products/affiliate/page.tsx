@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { uploadFileAction, tagProductWithVariantOffersAction } from '@/app/dashboard/products/actions';
 import ImageCropModal from '@/components/ImageCropModal';
 import { priceToSubunit } from '@/lib/format';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     ArrowLeft,
     Search,
@@ -21,6 +22,11 @@ import {
     CheckCircle2,
     Tag,
     ChevronRight,
+    ChevronDown,
+    ChevronUp,
+    CheckSquare,
+    Square,
+    FileText,
     Sparkles,
     Check,
     X,
@@ -30,6 +36,8 @@ import {
     Coins,
     SlidersHorizontal,
     Eye,
+    EyeOff,
+    Clock,
     Plus,
     Camera,
     UploadCloud,
@@ -56,6 +64,19 @@ const SEARCH_OFFICIAL_PRODUCTS_QUERY = `
           name
           sku
           price
+          featuredAsset {
+            id
+            preview
+          }
+          options {
+            id
+            code
+            name
+            group {
+              id
+              name
+            }
+          }
         }
       }
       totalItems
@@ -178,10 +199,11 @@ interface GeneratedVariantRow {
 interface AffiliateProductPageProps {
     initialSelectedProduct?: any;
     initialSearchTerm?: string;
+    initialSelectedVariantId?: string | null;
     onBack?: () => void;
 }
 
-function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm, onBack }: AffiliateProductPageProps = {}) {
+function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm, initialSelectedVariantId, onBack }: AffiliateProductPageProps = {}) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const productIdFromQuery = searchParams?.get('id') || searchParams?.get('productId') || searchParams?.get('term');
@@ -209,10 +231,166 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
     const [isSubmittingOffers, setIsSubmittingOffers] = useState(false);
     const [uploadingVariantKey, setUploadingVariantKey] = useState<string | null>(null);
 
-    // Global defaults for fast fill
+    // Missing variant modal / inline state
+    const [isAddingMissingVariant, setIsAddingMissingVariant] = useState(false);
+    const [missingVariantValues, setMissingVariantValues] = useState<{ [groupName: string]: string }>({});
+    const [missingVariantPrice, setMissingVariantPrice] = useState<string>('');
+    const [missingVariantStock, setMissingVariantStock] = useState<string>('');
+
+    // Global defaults for fast fill (No pre-inserted stock or price)
     const [bulkPrice, setBulkPrice] = useState<string>('');
-    const [bulkStock, setBulkStock] = useState<string>('5');
+    const [bulkStock, setBulkStock] = useState<string>('');
     const [bulkCondition, setBulkCondition] = useState<string>('NEW');
+
+    // Step 1 Flattened Search State
+    const [showAllAffiliateSearch, setShowAllAffiliateSearch] = useState(false);
+
+    // Step 3 UI, Tabs & Filtering State: starts on 'active' tab by default for existing products
+    const [activeAffiliateTab, setActiveAffiliateTab] = useState<'active' | 'draft'>('active');
+    const [searchAffiliateFilter, setSearchAffiliateFilter] = useState('');
+    const [expandedVariantKeys, setExpandedVariantKeys] = useState<Set<string>>(new Set());
+    const [selectedAffiliateKeys, setSelectedAffiliateKeys] = useState<Set<string>>(new Set());
+
+    // Flattened Search Results (Directly list declinations with thumbnail, title and action)
+    const flattenedSearchResults = useMemo(() => {
+        const list: Array<{
+            key: string;
+            product: any;
+            variantId?: string;
+            title: string;
+            optionsLabel: string;
+            preview: string | null;
+            sku?: string;
+        }> = [];
+
+        searchResults.forEach(prod => {
+            if (prod.variants && prod.variants.length > 0) {
+                prod.variants.forEach((v: any) => {
+                    const optString = (v.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' ');
+                    const fullTitle = optString ? `${prod.name} - ${optString}` : (v.name || prod.name);
+                    const preview = v.featuredAsset?.preview || prod.preview || null;
+                    list.push({
+                        key: `var-${v.id}`,
+                        product: prod,
+                        variantId: v.id,
+                        title: fullTitle,
+                        optionsLabel: optString || 'Standard',
+                        preview,
+                        sku: v.sku
+                    });
+                });
+            } else {
+                list.push({
+                    key: `prod-${prod.id}`,
+                    product: prod,
+                    variantId: undefined,
+                    title: prod.name,
+                    optionsLabel: 'Standard',
+                    preview: prod.preview || null,
+                    sku: prod.slug
+                });
+            }
+        });
+
+        // Deduplicate by normalized title
+        const seen = new Set<string>();
+        return list.filter(item => {
+            const canonical = item.title.toLowerCase().trim();
+            if (seen.has(canonical)) return false;
+            seen.add(canonical);
+            return true;
+        });
+    }, [searchResults]);
+
+    // Step 3 Tab Memos
+    const activeVariants = useMemo(() => generatedVariants.filter((v: GeneratedVariantRow) => v.enabled), [generatedVariants]);
+    const draftVariants = useMemo(() => generatedVariants.filter((v: GeneratedVariantRow) => !v.enabled), [generatedVariants]);
+    const tabVariants = activeAffiliateTab === 'active' ? activeVariants : draftVariants;
+
+    const tabFilteredVariants = useMemo(() => {
+        if (!searchAffiliateFilter.trim()) return tabVariants;
+        const term = searchAffiliateFilter.toLowerCase().trim();
+        return tabVariants.filter((v: GeneratedVariantRow) => 
+            v.name.toLowerCase().includes(term) ||
+            Boolean(v.sku && v.sku.toLowerCase().includes(term))
+        );
+    }, [tabVariants, searchAffiliateFilter]);
+
+    const isAllSelectedInTab = tabFilteredVariants.length > 0 && tabFilteredVariants.every((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key));
+
+    const handleToggleSelectAllInTab = () => {
+        if (isAllSelectedInTab) {
+            setSelectedAffiliateKeys((prev: Set<string>) => {
+                const next = new Set(prev);
+                tabFilteredVariants.forEach((v: GeneratedVariantRow) => next.delete(v.key));
+                return next;
+            });
+        } else {
+            setSelectedAffiliateKeys((prev: Set<string>) => {
+                const next = new Set(prev);
+                tabFilteredVariants.forEach((v: GeneratedVariantRow) => next.add(v.key));
+                return next;
+            });
+        }
+    };
+
+    const toggleExpandVariantKey = (key: string) => {
+        setExpandedVariantKeys((prev: Set<string>) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const toggleSelectVariantKey = (key: string) => {
+        setSelectedAffiliateKeys((prev: Set<string>) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const handleBulkActivate = () => {
+        if (selectedAffiliateKeys.size === 0) return;
+        setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.map((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key) ? { ...v, enabled: true } : v));
+        const count = selectedAffiliateKeys.size;
+        setSelectedAffiliateKeys(new Set());
+        toast.success(`${count} déclinaison(s) activée(s) !`);
+    };
+
+    const handleBulkDeactivate = () => {
+        if (selectedAffiliateKeys.size === 0) return;
+        setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.map((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key) ? { ...v, enabled: false } : v));
+        const count = selectedAffiliateKeys.size;
+        setSelectedAffiliateKeys(new Set());
+        toast.info(`${count} déclinaison(s) passée(s) en brouillon !`);
+    };
+
+    const handleBulkSetPrice = (priceVal: number) => {
+        if (selectedAffiliateKeys.size === 0 || priceVal <= 0) return;
+        setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.map((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key) ? { ...v, price: priceVal } : v));
+        toast.success(`Prix (${priceVal.toLocaleString('fr-FR')} FCFA) appliqué à ${selectedAffiliateKeys.size} déclinaison(s) !`);
+    };
+
+    const handleBulkSetStock = (stockVal: number) => {
+        if (selectedAffiliateKeys.size === 0) return;
+        setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.map((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key) ? { ...v, stock: stockVal } : v));
+        toast.success(`Stock (${stockVal}) appliqué à ${selectedAffiliateKeys.size} déclinaison(s) !`);
+    };
+
+    const handleBulkDelete = () => {
+        if (selectedAffiliateKeys.size === 0) return;
+        if (generatedVariants.length <= selectedAffiliateKeys.size) {
+            toast.warning("Vous devez conserver au moins une déclinaison.");
+            return;
+        }
+        const count = selectedAffiliateKeys.size;
+        setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.filter((v: GeneratedVariantRow) => !selectedAffiliateKeys.has(v.key)));
+        setSelectedAffiliateKeys(new Set());
+        toast.info(`${count} déclinaison(s) supprimée(s) !`);
+    };
 
     // Fetch Global Option Groups
     useEffect(() => {
@@ -230,14 +408,15 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
     }, []);
 
     // Step 1 Search Handler
-    const handleSearch = async (e?: React.FormEvent) => {
+    const handleSearch = useCallback(async (e?: React.FormEvent, customTerm?: string) => {
         if (e) e.preventDefault();
-        if (!searchTerm.trim()) return;
+        const q = (customTerm !== undefined ? customTerm : searchTerm).trim();
+        if (!q) return;
 
         setIsSearching(true);
         try {
             const result = await query(SEARCH_OFFICIAL_PRODUCTS_QUERY, {
-                term: searchTerm.trim(),
+                term: q,
                 take: 40
             });
             const items = result.data?.searchOfficialProducts?.items || [];
@@ -257,41 +436,92 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         } finally {
             setIsSearching(false);
         }
-    };
+    }, [searchTerm]);
 
-    // Step 1 -> Step 2: Select Product
-    const handleSelectProduct = useCallback(async (productSummary: any) => {
+    // Step 1 -> Step 2/3: Select Product
+    const handleSelectProduct = useCallback(async (productSummary: any, preselectedVariantId?: string | null) => {
         if (!productSummary || !productSummary.id) return;
         setSelectedProductSummary(productSummary);
         setIsLoadingDetails(true);
-        setStep(2);
 
         try {
             const res = await query(GET_PRODUCT_DETAIL_QUERY, { id: productSummary.id });
-            const prod = res.data?.product;
-            setProductDetails(prod || productSummary);
+            const prod = res.data?.product || productSummary;
+            setProductDetails(prod);
 
-            // Clean reset state for this product so no unselected values linger
-            setSelectedGroupIds([]);
-            setGroupValuesMap({});
+            // Pre-populate option groups & values from official product
+            if (prod.optionGroups && prod.optionGroups.length > 0) {
+                const groupIds = prod.optionGroups.map((g: any) => String(g.id));
+                setSelectedGroupIds(groupIds);
+                const valMap: Record<string, string[]> = {};
+                for (const og of prod.optionGroups) {
+                    valMap[String(og.id)] = (og.options || []).map((o: any) => o.name);
+                }
+                setGroupValuesMap(valMap);
+            } else {
+                setSelectedGroupIds([]);
+                setGroupValuesMap({});
+            }
             setCustomGroups([]);
-            setGeneratedVariants([]);
+
+            // If official variants exist, preload them directly so the seller sees them immediately
+            if (prod.variants && prod.variants.length > 0) {
+                const initialRows: GeneratedVariantRow[] = prod.variants.map((pv: any, idx: number) => {
+                    const optionPairs = (pv.options || []).map((o: any) => ({
+                        groupName: o.group?.name || 'Option',
+                        optName: o.name || o.code,
+                    }));
+                    const isTargetVariant = preselectedVariantId ? String(pv.id) === String(preselectedVariantId) : true;
+                    return {
+                        id: String(pv.id),
+                        key: `existing_${pv.id}`,
+                        enabled: isTargetVariant,
+                        name: pv.name || `${prod.name} ${optionPairs.map((op: any) => op.optName).join(' ')}`,
+                        optionValues: optionPairs,
+                        price: 0,
+                        stock: 0,
+                        sku: `OFFER-${pv.sku || pv.id}`,
+                        onPromotion: false,
+                        promotionalPrice: 0,
+                        featuredAssetId: pv.featuredAsset?.id || prod.featuredAsset?.id,
+                        assetPreview: pv.featuredAsset?.preview || prod.featuredAsset?.preview,
+                        deliveryTimeValue: 2,
+                        deliveryTimeUnit: 'd',
+                        condition: 'NEW',
+                    };
+                });
+                setGeneratedVariants(initialRows);
+                setActiveAffiliateTab('active');
+                setStep(3);
+                if (preselectedVariantId) {
+                    const targetVar = initialRows.find(r => r.enabled);
+                    toast.success(`Déclinaison "${targetVar?.name || 'sélectionnée'}" prête ! Saisissez votre prix et stock.`);
+                } else {
+                    toast.success(`${initialRows.length} déclinaison(s) prête(s) ! Renseignez vos prix et stocks.`);
+                }
+            } else {
+                setGeneratedVariants([]);
+                setStep(2);
+            }
         } catch (err) {
             console.error('[AffiliatePage] Failed to fetch product details:', err);
             setProductDetails(productSummary);
+            setStep(2);
         } finally {
             setIsLoadingDetails(false);
         }
     }, []);
 
-    // Auto-select initial product if provided via URL query or props
+    // Auto-select initial product or auto-trigger search if provided via URL query or props
     useEffect(() => {
         if (productIdFromQuery) {
             handleSelectProduct({ id: productIdFromQuery });
         } else if (initialSelectedProduct && initialSelectedProduct.id) {
-            handleSelectProduct(initialSelectedProduct);
+            handleSelectProduct(initialSelectedProduct, initialSelectedVariantId);
+        } else if (initialSearchTerm && initialSearchTerm.trim()) {
+            handleSearch(undefined, initialSearchTerm.trim());
         }
-    }, [productIdFromQuery, initialSelectedProduct, handleSelectProduct]);
+    }, [productIdFromQuery, initialSelectedProduct, initialSelectedVariantId, initialSearchTerm, handleSelectProduct, handleSearch]);
 
     const isNoisyCompositeOption = (name: string): boolean => {
         const trimmed = (name || '').trim();
@@ -406,7 +636,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         });
     };
 
-    // Step 2 -> Step 3: Generate Combinations
+    // Step 2 -> Step 3: Generate Combinations with strict anti-permutation & anti-duplication
     const handleGenerateCombinations = () => {
         // Gather all selected groups that have at least one value
         const activeGroups: { id: string; name: string; code: string; values: string[] }[] = [];
@@ -418,17 +648,30 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 const found = displayOptionGroups.find(g => String(g.id) === String(gId) || g.code === gId);
                 const groupName = found?.name || gId;
                 const groupCode = found?.code || gId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-                activeGroups.push({ id: gId, name: groupName, code: groupCode, values: vals });
+                // Deduplicate values within the group
+                const cleanVals: string[] = Array.from(new Set(vals.map((v: string) => v.trim()).filter(Boolean)));
+                if (cleanVals.length > 0) {
+                    activeGroups.push({ id: gId, name: groupName, code: groupCode, values: cleanVals });
+                }
             }
         }
 
         // 2. Custom groups
         for (const cg of customGroups) {
             const vals = groupValuesMap[cg.id] || [];
-            if (cg.name.trim() && vals.length > 0) {
-                activeGroups.push({ id: cg.id, name: cg.name.trim(), code: cg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), values: vals });
+            const cleanVals: string[] = Array.from(new Set(vals.map((v: string) => v.trim()).filter(Boolean)));
+            if (cg.name.trim() && cleanVals.length > 0) {
+                activeGroups.push({
+                    id: cg.id,
+                    name: cg.name.trim(),
+                    code: cg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                    values: cleanVals
+                });
             }
         }
+
+        // Deterministically sort option groups alphabetically to guarantee consistent order
+        activeGroups.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
 
         // If no option groups, generate 1 single standard variant offer
         if (activeGroups.length === 0) {
@@ -438,8 +681,8 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 enabled: true,
                 name: productDetails?.name || 'Standard',
                 optionValues: [],
-                price: bulkPrice ? Number(bulkPrice) : 10000,
-                stock: bulkStock ? Number(bulkStock) : 5,
+                price: bulkPrice ? Number(bulkPrice) : 0,
+                stock: bulkStock ? Number(bulkStock) : 0,
                 sku: `OFFER-${productDetails?.id || Date.now()}`,
                 onPromotion: false,
                 promotionalPrice: 0,
@@ -450,6 +693,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 condition: bulkCondition || 'NEW',
             };
             setGeneratedVariants([singleRow]);
+            setActiveAffiliateTab('active');
             setStep(3);
             toast.info('Offre standard créée (aucune déclinaison sélectionnée).');
             return;
@@ -462,10 +706,22 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             }, [[]] as string[][]);
         };
 
-        const groupArrays = activeGroups.map(g => g.values);
-        const combinations = cartesian(groupArrays);
+        const rawCombinations = cartesian(activeGroups.map(g => g.values));
 
-        const rows: GeneratedVariantRow[] = combinations.map((combo, idx) => {
+        // Strict anti-permutation deduplication (e.g. Yellow + XL vs XL + Yellow)
+        const seenCanonicalKeys = new Set<string>();
+        const uniqueCombinations: string[][] = [];
+
+        for (const comb of rawCombinations) {
+            const canonicalKey = comb.map(c => c.trim().toLowerCase()).sort().join(':::');
+            if (!seenCanonicalKeys.has(canonicalKey)) {
+                seenCanonicalKeys.add(canonicalKey);
+                uniqueCombinations.push(comb);
+            }
+        }
+
+        const rows: GeneratedVariantRow[] = uniqueCombinations.map((combo, idx) => {
+            const comboCanonicalKey = combo.map(c => c.trim().toLowerCase()).sort().join(':::');
             const optionPairs = combo.map((val, gIdx) => ({
                 groupName: activeGroups[gIdx].name,
                 optName: val,
@@ -474,34 +730,42 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             const comboName = `${productDetails?.name || 'Produit'} ${combo.join(' ')}`;
             const comboKey = combo.join('-');
 
-            // Try to match with existing product variant in Vendure
+            // Match with existing product variant in Vendure canonically
             const existingVariant = (productDetails?.variants || []).find((pv: any) => {
-                const pvOptionNames = (pv.options || []).map((o: any) => (o.name || o.code || '').toLowerCase().trim());
-                return combo.length === pvOptionNames.length && combo.every(c => pvOptionNames.includes(c.toLowerCase().trim()));
+                const pvOptionNames = (pv.options || []).map((o: any) => (o.name || o.code || '').toLowerCase().trim()).sort().join(':::');
+                return pvOptionNames === comboCanonicalKey;
+            });
+
+            // Match with previously configured row if seller regenerates
+            const previousRow = generatedVariants.find(r => {
+                const rCanonicalKey = (r.optionValues || []).map(ov => ov.optName.trim().toLowerCase()).sort().join(':::');
+                return rCanonicalKey === comboCanonicalKey;
             });
 
             return {
-                id: existingVariant ? String(existingVariant.id) : `combo_${idx}_${Date.now()}`,
+                id: existingVariant ? String(existingVariant.id) : (previousRow?.id || `combo_${idx}_${Date.now()}`),
                 key: comboKey,
-                enabled: true,
+                // If previously customized, retain enabled status; otherwise start enabled
+                enabled: previousRow ? previousRow.enabled : true,
                 name: comboName,
                 optionValues: optionPairs,
-                price: bulkPrice ? Number(bulkPrice) : (existingVariant?.price ? (existingVariant.price / 100) : 10000),
-                stock: bulkStock ? Number(bulkStock) : 5,
-                sku: `OFFER-${idx + 1}`,
-                onPromotion: false,
-                promotionalPrice: 0,
-                featuredAssetId: existingVariant?.featuredAsset?.id || undefined,
-                assetPreview: existingVariant?.featuredAsset?.preview || undefined,
-                deliveryTimeValue: 2,
-                deliveryTimeUnit: 'd',
-                condition: bulkCondition || 'NEW',
+                price: previousRow ? previousRow.price : (bulkPrice ? Number(bulkPrice) : 0),
+                stock: previousRow ? previousRow.stock : (bulkStock ? Number(bulkStock) : 0),
+                sku: previousRow?.sku || `OFFER-${idx + 1}`,
+                onPromotion: previousRow?.onPromotion || false,
+                promotionalPrice: previousRow?.promotionalPrice || 0,
+                featuredAssetId: previousRow?.featuredAssetId || existingVariant?.featuredAsset?.id || undefined,
+                assetPreview: previousRow?.assetPreview || existingVariant?.featuredAsset?.preview || undefined,
+                deliveryTimeValue: previousRow?.deliveryTimeValue || 2,
+                deliveryTimeUnit: previousRow?.deliveryTimeUnit || 'd',
+                condition: previousRow?.condition || bulkCondition || 'NEW',
             };
         });
 
         setGeneratedVariants(rows);
+        setActiveAffiliateTab('active');
         setStep(3);
-        toast.success(`${rows.length} combinaison(s) générée(s) avec succès !`);
+        toast.success(`${rows.length} combinaison(s) générée(s) sans aucun doublon !`);
     };
 
     // Bulk Apply Values to All Active Combinations
@@ -578,6 +842,81 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         }
     };
 
+    // Add missing variant handler with anti-duplication check
+    const handleAddMissingVariantRow = () => {
+        if (!productDetails) return;
+        const optionPairs = Object.entries(missingVariantValues)
+            .filter(([_, optVal]) => Boolean(optVal && (optVal as string).trim()))
+            .map(([groupName, optVal]) => ({
+                groupName,
+                optName: (optVal as string).trim(),
+            }));
+
+        if (optionPairs.length === 0) {
+            toast.error("Veuillez préciser au moins une option (ex: Taille ou Couleur) pour cette variante.");
+            return;
+        }
+
+        // Strict anti-duplication check against existing generated variants
+        const newCanonicalKey = optionPairs.map(op => op.optName.trim().toLowerCase()).sort().join(':::');
+        const duplicateExists = generatedVariants.some(v => {
+            const vCanon = (v.optionValues || []).map(ov => ov.optName.trim().toLowerCase()).sort().join(':::');
+            return vCanon === newCanonicalKey;
+        });
+        if (duplicateExists) {
+            toast.warning("Une déclinaison avec exactement ces mêmes options existe déjà parmi vos déclinaisons !");
+            return;
+        }
+
+        const priceVal = missingVariantPrice ? Number(missingVariantPrice) : (bulkPrice ? Number(bulkPrice) : 0);
+        if (priceVal <= 0) {
+            toast.error("Veuillez indiquer un prix valide.");
+            return;
+        }
+
+        const variantName = `${productDetails.name} ${optionPairs.map(op => op.optName).join(' ')}`;
+        const newRowKey = `custom_${Date.now()}`;
+        const newRow: GeneratedVariantRow = {
+            id: newRowKey,
+            key: newRowKey,
+            enabled: true,
+            name: variantName,
+            optionValues: optionPairs,
+            price: priceVal,
+            stock: missingVariantStock ? Number(missingVariantStock) : (bulkStock ? Number(bulkStock) : 0),
+            sku: `OFFER-NEW-${Date.now().toString().slice(-4)}`,
+            onPromotion: false,
+            promotionalPrice: 0,
+            featuredAssetId: productDetails.featuredAsset?.id,
+            assetPreview: productDetails.featuredAsset?.preview,
+            deliveryTimeValue: 2,
+            deliveryTimeUnit: 'd',
+            condition: bulkCondition || 'NEW',
+        };
+
+        // Also register any new option value in groupValuesMap
+        setGroupValuesMap(prev => {
+            const next = { ...prev };
+            for (const pair of optionPairs) {
+                const matchedGroup = displayOptionGroups.find(g => g.name.toLowerCase() === pair.groupName.toLowerCase());
+                if (matchedGroup) {
+                    const existingVals = next[matchedGroup.id] || [];
+                    if (!existingVals.includes(pair.optName)) {
+                        next[matchedGroup.id] = [...existingVals, pair.optName];
+                    }
+                }
+            }
+            return next;
+        });
+
+        setGeneratedVariants(prev => [...prev, newRow]);
+        setIsAddingMissingVariant(false);
+        setMissingVariantValues({});
+        setMissingVariantPrice('');
+        setMissingVariantStock('');
+        toast.success(`Variante "${variantName}" ajoutée à vos offres !`);
+    };
+
     // Step 3: Submit Offers Bundle
     const handleSubmitAllOffers = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -626,16 +965,17 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 }
             }
 
-            // Prepare offers payload
+            // Prepare offers payload - includes variantId when matching an existing official variant
             const offersPayload = activeRows.map(row => ({
+                variantId: (row.id && /^\d+$/.test(String(row.id))) ? row.id : undefined,
                 name: row.name,
                 optionNames: row.optionValues.map(o => o.optName),
                 optionCodes: row.optionValues.map(o => o.optName.toLowerCase().replace(/[^a-z0-9]+/g, '-')),
                 sku: row.sku || undefined,
-                price: priceToSubunit(row.price),
-                stock: row.stock,
+                price: Math.round(Number(priceToSubunit(row.price)) || 0),
+                stock: Math.round(Number(row.stock) || 0),
                 onPromotion: row.onPromotion,
-                promotionalPrice: row.onPromotion ? priceToSubunit(row.promotionalPrice) : undefined,
+                promotionalPrice: row.onPromotion ? Math.round(Number(priceToSubunit(row.promotionalPrice)) || 0) : undefined,
                 featuredAssetId: row.featuredAssetId || undefined,
                 deliveryTimeValue: row.deliveryTimeValue || 2,
                 deliveryTimeUnit: (row.deliveryTimeUnit === 'HOURS' || row.deliveryTimeUnit === 'h') ? 'HOURS' : 'DAYS',
@@ -732,38 +1072,73 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
                             <p className="text-xs font-bold uppercase tracking-widest">Recherche dans le catalogue Ahizan...</p>
                         </div>
-                    ) : searchResults.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                            {searchResults.map(prod => (
-                                <div
-                                    key={prod.id}
-                                    className="p-4 rounded-2xl border border-border bg-card hover:border-primary/50 hover:shadow-md transition-all flex items-center justify-between gap-4 group"
-                                >
-                                    <div className="flex items-center gap-3.5 min-w-0">
-                                        <div className="w-16 h-16 rounded-xl bg-muted/50 border border-border overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                            {prod.preview ? (
-                                                <img src={prod.preview} alt={prod.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
-                                            ) : (
-                                                <Package className="w-6 h-6 text-muted-foreground" />
-                                            )}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <h3 className="font-bold text-foreground text-sm truncate" title={prod.name}>
-                                                {prod.name}
-                                            </h3>
-                                            <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                                                {prod.variants?.length || 1} déclinaison(s) répertoriée(s)
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <Button
-                                        onClick={() => handleSelectProduct(prod)}
-                                        className="h-10 px-5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+                    ) : flattenedSearchResults.length > 0 ? (
+                        <div className="space-y-4 pt-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                    <Sparkles className="w-4 h-4 text-primary" />
+                                    <span>{flattenedSearchResults.length} déclinaison(s) trouvée(s) dans le catalogue officiel :</span>
+                                </span>
+                                <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                                    Sélectionnez une déclinaison pour définir directement votre tarif et stock
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                                {(showAllAffiliateSearch ? flattenedSearchResults : flattenedSearchResults.slice(0, 12)).map(item => (
+                                    <div
+                                        key={item.key}
+                                        onClick={() => handleSelectProduct(item.product, item.variantId)}
+                                        className="p-3.5 rounded-2xl border border-border bg-card hover:border-primary hover:shadow-md transition-all flex flex-col justify-between gap-3 group cursor-pointer"
+                                        title={`Vendre la déclinaison "${item.title}"`}
                                     >
-                                        Choisir
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-14 h-14 rounded-xl bg-muted/60 border border-border overflow-hidden shrink-0 flex items-center justify-center p-0.5">
+                                                {item.preview ? (
+                                                    <img src={item.preview} alt={item.title} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                                                ) : (
+                                                    <Package className="w-6 h-6 text-muted-foreground" />
+                                                )}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="font-bold text-foreground text-xs sm:text-sm line-clamp-2 group-hover:text-primary transition-colors" title={item.title}>
+                                                    {item.title}
+                                                </h4>
+                                                <p className="text-[10px] text-muted-foreground font-medium mt-1">
+                                                    Réf: {item.sku || 'OFFICIEL'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            size="sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSelectProduct(item.product, item.variantId);
+                                            }}
+                                            className="w-full h-8 rounded-xl bg-primary/10 group-hover:bg-primary text-primary group-hover:text-white font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <span>Vendre cette déclinaison</span>
+                                            <ChevronRight className="w-3.5 h-3.5" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {flattenedSearchResults.length > 12 && (
+                                <div className="flex justify-center pt-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setShowAllAffiliateSearch(!showAllAffiliateSearch)}
+                                        className="rounded-xl text-xs font-bold cursor-pointer"
+                                    >
+                                        {showAllAffiliateSearch
+                                            ? "Voir moins"
+                                            : `Voir plus (+${flattenedSearchResults.length - 12} autre(s) déclinaison(s))`}
                                     </Button>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     ) : null}
                 </div>
@@ -1009,17 +1384,141 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
                                 <h3 className="text-base font-black text-foreground">Remplissage Rapide des Tarifs &amp; Stocks</h3>
-                                <p className="text-xs text-muted-foreground mt-0.5">Appliquez un prix et une quantité par défaut à toutes les combinaisons actives.</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">Appliquez un prix et une quantité par défaut ou activez uniquement les déclinaisons que vous possédez.</p>
                             </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setStep(2)}
-                                className="rounded-xl text-xs font-bold cursor-pointer"
-                            >
-                                Modifier les options
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsAddingMissingVariant(!isAddingMissingVariant);
+                                        if (!isAddingMissingVariant && productDetails) {
+                                            const initVals: Record<string, string> = {};
+                                            (productDetails.optionGroups || []).forEach((og: any) => {
+                                                initVals[og.name] = '';
+                                            });
+                                            setMissingVariantValues(initVals);
+                                        }
+                                    }}
+                                    className="rounded-xl text-xs font-black bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Ajouter une variante manquante
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setStep(2)}
+                                    className="rounded-xl text-xs font-bold cursor-pointer"
+                                >
+                                    Configurateur d'options
+                                </Button>
+                            </div>
                         </div>
+
+                        {/* Inline Missing Variant Creator Panel */}
+                        {isAddingMissingVariant && (
+                            <div className="bg-primary/5 border-2 border-dashed border-primary/30 p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Sparkles className="w-4 h-4 text-primary" />
+                                        <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Ajouter une déclinaison manquante</h4>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsAddingMissingVariant(false)}
+                                        className="rounded-lg h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                    >
+                                        ✕
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Indiquez la caractéristique de votre article (ex: taille ou couleur) si elle n'est pas encore listée dans le catalogue :
+                                </p>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+                                    {(productDetails?.optionGroups && productDetails.optionGroups.length > 0) ? (
+                                        productDetails.optionGroups.map((og: any) => (
+                                            <div key={og.id || og.name}>
+                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                    {og.name} *
+                                                </Label>
+                                                <Input
+                                                    type="text"
+                                                    placeholder={`Ex: ${og.options?.[0]?.name || 'XL, Rouge, etc.'}`}
+                                                    value={missingVariantValues[og.name] || ''}
+                                                    onChange={e => setMissingVariantValues({ ...missingVariantValues, [og.name]: e.target.value })}
+                                                    className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
+                                                />
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                Caractéristique / Option *
+                                            </Label>
+                                            <Input
+                                                type="text"
+                                                placeholder="Ex: Taille XL ou 128 Go"
+                                                value={missingVariantValues['Option'] || ''}
+                                                onChange={e => setMissingVariantValues({ ...missingVariantValues, ['Option']: e.target.value })}
+                                                className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                            Prix Vendeur (FCFA) *
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            placeholder={bulkPrice || "Ex: 15000"}
+                                            value={missingVariantPrice}
+                                            onChange={e => setMissingVariantPrice(e.target.value)}
+                                            className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                            Stock *
+                                        </Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            placeholder="5"
+                                            value={missingVariantStock}
+                                            onChange={e => setMissingVariantStock(e.target.value)}
+                                            className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2 border-t border-primary/20">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setIsAddingMissingVariant(false)}
+                                        className="rounded-xl text-xs font-bold"
+                                    >
+                                        Annuler
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={handleAddMissingVariantRow}
+                                        className="rounded-xl text-xs font-black bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5"
+                                    >
+                                        <Check className="w-3.5 h-3.5" />
+                                        Ajouter cette déclinaison
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
                             <div>
@@ -1069,265 +1568,531 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         </div>
                     </div>
 
-                    {/* Generated Variants Grid Form */}
-                    <form onSubmit={handleSubmitAllOffers} className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4">
-                            {generatedVariants.map((row, idx) => (
-                                <div
-                                    key={row.key}
+                    {/* ── STEP 3: TABS & SCROLLABLE BOX CONTAINER ── */}
+                    <div className="space-y-4">
+                        {/* 2 Tabs: Déclinaisons utilisées vs Déclinaisons brouillons */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 p-1.5 bg-muted/60 rounded-2xl border border-border/80">
+                                <button
+                                    type="button"
+                                    onClick={() => { setActiveAffiliateTab('active'); setSelectedAffiliateKeys(new Set()); }}
                                     className={cn(
-                                        "p-5 rounded-3xl border transition-all space-y-4 shadow-sm",
-                                        row.enabled ? "bg-card border-border hover:border-primary/40" : "bg-muted/20 border-border/50 opacity-60"
+                                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer",
+                                        activeAffiliateTab === 'active'
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    {/* Admin Correction Notice if available */}
-                                    {row.rejectionReason && (
-                                        <div className="bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 p-3.5 rounded-2xl flex items-start gap-2.5 text-xs font-medium animate-in fade-in">
-                                            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                                            <div className="space-y-0.5">
-                                                <span className="font-bold uppercase tracking-wider text-[10px] text-amber-700 dark:text-amber-400 block">
-                                                    Demande de correction de l'administrateur :
-                                                </span>
-                                                <p className="text-xs leading-relaxed">{row.rejectionReason}</p>
-                                            </div>
-                                        </div>
-                                    )}
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span>Déclinaisons utilisées</span>
+                                    <span className={cn(
+                                        "px-2 py-0.5 rounded-full text-[10px] font-black",
+                                        activeAffiliateTab === 'active' ? "bg-primary-foreground/25 text-primary-foreground" : "bg-muted text-muted-foreground"
+                                    )}>
+                                        {activeVariants.length}
+                                    </span>
+                                </button>
 
-                                    {/* Row Top Bar: Toggle, Title, Options Pills */}
-                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                        <div className="flex items-center gap-3">
-                                            <Switch
-                                                checked={row.enabled}
-                                                onCheckedChange={checked => handleUpdateVariantRow(row.key, 'enabled', checked)}
-                                            />
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-black text-sm text-foreground">
-                                                        #{idx + 1} • {row.name}
-                                                    </span>
-                                                    {!row.enabled && (
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
-                                                            Désactivé
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-wrap gap-1.5 mt-1">
-                                                    {row.optionValues.map(ov => (
-                                                        <span key={ov.groupName} className="text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-lg border border-primary/20">
-                                                            {ov.groupName}: <strong>{ov.optName}</strong>
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setActiveAffiliateTab('draft'); setSelectedAffiliateKeys(new Set()); }}
+                                    className={cn(
+                                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer",
+                                        activeAffiliateTab === 'draft'
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    <Clock className="w-4 h-4" />
+                                    <span>Déclinaisons brouillons</span>
+                                    <span className={cn(
+                                        "px-2 py-0.5 rounded-full text-[10px] font-black",
+                                        activeAffiliateTab === 'draft' ? "bg-primary-foreground/25 text-primary-foreground" : "bg-muted text-muted-foreground"
+                                    )}>
+                                        {draftVariants.length}
+                                    </span>
+                                </button>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground font-medium">
+                                Total: <strong className="text-foreground">{generatedVariants.length}</strong> déclinaison(s) disponible(s)
+                            </div>
+                        </div>
+
+                        {/* Styled Box Container with Internal Search & Bulk Actions */}
+                        <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden flex flex-col">
+                            {/* Box Header Toolbar */}
+                            <div className="p-3.5 bg-muted/30 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                {/* Search inside box */}
+                                <div className="relative flex-1 max-w-sm">
+                                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Filtrer par nom, option, SKU..."
+                                        value={searchAffiliateFilter}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchAffiliateFilter(e.target.value)}
+                                        className="pl-8 h-9 text-xs rounded-xl bg-background"
+                                    />
+                                    {searchAffiliateFilter && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchAffiliateFilter('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground p-0.5"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Selection & Bulk Actions Toolbar */}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2 pr-3 border-r border-border">
+                                        <Checkbox
+                                            id="select-all-affiliate"
+                                            checked={isAllSelectedInTab}
+                                            onCheckedChange={handleToggleSelectAllInTab}
+                                        />
+                                        <label htmlFor="select-all-affiliate" className="text-xs font-bold text-foreground cursor-pointer select-none">
+                                            Tout cocher ({tabFilteredVariants.length})
+                                        </label>
                                     </div>
 
-                                    {/* Row Fields (when enabled) */}
-                                    {row.enabled && (
-                                        <div className="space-y-4 pt-3 border-t border-border/60">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                                                {/* Custom Photo for this variant */}
-                                                <div className="flex flex-col justify-between">
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">
-                                                        Photo Variante
-                                                    </Label>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
+                                    {selectedAffiliateKeys.size > 0 && (
+                                        <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                                            <span className="text-xs font-black text-primary px-1">
+                                                {selectedAffiliateKeys.size} sél. :
+                                            </span>
+
+                                            {activeAffiliateTab === 'draft' ? (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={handleBulkActivate}
+                                                    className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <Check className="w-3.5 h-3.5" />
+                                                    Activer
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={handleBulkDeactivate}
+                                                    className="h-8 rounded-xl text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <EyeOff className="w-3.5 h-3.5" />
+                                                    Passer en brouillon
+                                                </Button>
+                                            )}
+
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    const val = window.prompt("Prix groupé (FCFA) pour la sélection :", bulkPrice || "");
+                                                    if (val && Number(val) > 0) handleBulkSetPrice(Number(val));
+                                                }}
+                                                className="h-8 rounded-xl text-[11px] font-bold cursor-pointer"
+                                            >
+                                                Prix groupé
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    const val = window.prompt("Stock groupé pour la sélection :", bulkStock || "");
+                                                    if (val !== null && !isNaN(Number(val))) handleBulkSetStock(Math.max(0, Number(val)));
+                                                }}
+                                                className="h-8 rounded-xl text-[11px] font-bold cursor-pointer"
+                                            >
+                                                Stock groupé
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={handleBulkDelete}
+                                                className="h-8 rounded-xl text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 text-[11px] font-bold p-2 cursor-pointer"
+                                                title="Supprimer la sélection"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Scrollable Box Body with compact cards */}
+                            <div className="p-4 max-h-[580px] overflow-y-auto space-y-3">
+                                {tabFilteredVariants.length === 0 ? (
+                                    <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
+                                        <Package className="w-8 h-8 text-muted-foreground/50" />
+                                        <p className="text-xs font-bold text-muted-foreground">
+                                            {searchAffiliateFilter
+                                                ? `Aucune déclinaison ne correspond au filtre "${searchAffiliateFilter}".`
+                                                : activeAffiliateTab === 'active'
+                                                    ? 'Aucune déclinaison activée pour le moment. Passez sur l\'onglet "Déclinaisons brouillons" pour en activer !'
+                                                    : 'Aucune déclinaison en brouillon.'
+                                            }
+                                        </p>
+                                        {activeAffiliateTab === 'active' && draftVariants.length > 0 && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setActiveAffiliateTab('draft')}
+                                                className="rounded-xl text-xs font-bold mt-2"
+                                            >
+                                                Voir les {draftVariants.length} déclinaisons brouillons
+                                            </Button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    tabFilteredVariants.map((row: GeneratedVariantRow) => {
+                                        const isExpanded = expandedVariantKeys.has(row.key);
+                                        const isSelected = selectedAffiliateKeys.has(row.key);
+
+                                        return (
+                                            <div
+                                                key={row.key}
+                                                className={cn(
+                                                    "rounded-2xl border transition-all shadow-xs overflow-hidden",
+                                                    row.enabled ? "bg-card border-border hover:border-primary/40" : "bg-muted/20 border-border/60 opacity-70"
+                                                )}
+                                            >
+                                                {/* Admin Correction Notice if available */}
+                                                {row.rejectionReason && (
+                                                    <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-900 dark:text-amber-200 p-3 flex items-start gap-2 text-xs font-medium">
+                                                        <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                                                        <div className="space-y-0.5">
+                                                            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-700 dark:text-amber-400 block">
+                                                                Demande de correction de l'administrateur :
+                                                            </span>
+                                                            <p className="text-xs leading-relaxed">{row.rejectionReason}</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Compact Header Bar */}
+                                                <div className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                                    {/* Left: Checkbox + Switch + Thumbnail + Title + Option Badges */}
+                                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                        <Checkbox
+                                                            checked={isSelected}
+                                                            onCheckedChange={() => toggleSelectVariantKey(row.key)}
+                                                        />
+                                                        <Switch
+                                                            checked={row.enabled}
+                                                            onCheckedChange={(checked: boolean) => handleUpdateVariantRow(row.key, 'enabled', checked)}
+                                                            title={row.enabled ? "Désactiver cette déclinaison" : "Activer cette déclinaison"}
+                                                        />
+                                                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
                                                             {row.assetPreview ? (
                                                                 <img src={row.assetPreview} alt={row.name} className="w-full h-full object-cover" />
                                                             ) : (
                                                                 <ImageIcon className="w-4 h-4 text-muted-foreground" />
                                                             )}
-                                                            {uploadingVariantKey === row.key && (
-                                                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                                                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                                                                </div>
-                                                            )}
                                                         </div>
-                                                        <label className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-muted/60 hover:bg-muted text-[10px] font-bold text-foreground border border-border/80 cursor-pointer transition-colors">
-                                                            <Camera className="w-3 h-3 text-primary" />
-                                                            <span>{row.featuredAssetId ? 'Changer' : 'Ajouter'}</span>
-                                                            <input
-                                                                type="file"
-                                                                accept="image/*"
-                                                                className="hidden"
-                                                                disabled={uploadingVariantKey === row.key}
-                                                                onChange={e => handleVariantFileChange(row.key, e)}
-                                                            />
-                                                        </label>
-                                                    </div>
-                                                </div>
-
-                                                {/* Price */}
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                        Prix Normal (FCFA) *
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="1"
-                                                        required
-                                                        value={row.price || ''}
-                                                        onChange={e => handleUpdateVariantRow(row.key, 'price', Number(e.target.value))}
-                                                        className="h-10 rounded-xl font-black text-sm bg-muted/10 mt-1"
-                                                        placeholder="15000"
-                                                    />
-                                                </div>
-
-                                                {/* Stock */}
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                        Stock *
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        required
-                                                        value={row.stock}
-                                                        onChange={e => handleUpdateVariantRow(row.key, 'stock', Math.max(0, Number(e.target.value) || 0))}
-                                                        className="h-10 rounded-xl font-bold text-sm bg-muted/10 mt-1"
-                                                    />
-                                                </div>
-
-                                                {/* SKU */}
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                        SKU Vendeur
-                                                    </Label>
-                                                    <Input
-                                                        type="text"
-                                                        value={row.sku}
-                                                        onChange={e => handleUpdateVariantRow(row.key, 'sku', e.target.value)}
-                                                        className="h-10 rounded-xl font-mono text-xs bg-muted/10 mt-1"
-                                                        placeholder="SKU-OFFER"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Condition & Prominent Promotion System */}
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-                                                {/* Condition */}
-                                                <div>
-                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                        État du Produit
-                                                    </Label>
-                                                    <Select
-                                                        value={row.condition}
-                                                        onValueChange={val => handleUpdateVariantRow(row.key, 'condition', val)}
-                                                    >
-                                                        <SelectTrigger className="h-11 rounded-xl font-bold text-xs mt-1">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="NEW">Neuf</SelectItem>
-                                                            <SelectItem value="USED">Occasion</SelectItem>
-                                                            <SelectItem value="REFURBISHED">Reconditionné</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                {/* Prominent Promotion Activation Box */}
-                                                <div className={cn(
-                                                    "col-span-1 md:col-span-2 p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5",
-                                                    row.onPromotion 
-                                                        ? "bg-rose-500/5 border-rose-500/30 shadow-xs" 
-                                                        : "bg-muted/30 border-border/70"
-                                                )}>
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={cn(
-                                                                "w-7 h-7 rounded-lg flex items-center justify-center",
-                                                                row.onPromotion ? "bg-rose-500 text-white" : "bg-muted text-muted-foreground"
-                                                            )}>
-                                                                <Percent className="w-4 h-4" />
-                                                            </div>
-                                                            <div>
-                                                                <Label className="text-xs font-bold cursor-pointer text-foreground block">
-                                                                    Activer une promotion
-                                                                </Label>
-                                                                <span className="text-[10px] text-muted-foreground">
-                                                                    Appliquer un prix réduit et attirer plus de clients
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="font-black text-xs text-foreground truncate">
+                                                                    {row.name}
+                                                                </h4>
+                                                                <span className={cn(
+                                                                    "text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0",
+                                                                    row.enabled ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-muted text-muted-foreground"
+                                                                )}>
+                                                                    {row.enabled ? "Active" : "Brouillon"}
                                                                 </span>
                                                             </div>
-                                                        </div>
-                                                        <Switch
-                                                            checked={row.onPromotion}
-                                                            onCheckedChange={checked => handleUpdateVariantRow(row.key, 'onPromotion', checked)}
-                                                        />
-                                                    </div>
-
-                                                    {row.onPromotion ? (
-                                                        <div className="space-y-2 pt-1 animate-in fade-in duration-200">
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
-                                                                <div>
-                                                                    <Label className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
-                                                                        Prix Soldé (FCFA) *
-                                                                    </Label>
-                                                                    <Input
-                                                                        type="number"
-                                                                        min="1"
-                                                                        required
-                                                                        placeholder="Ex: 12000"
-                                                                        value={row.promotionalPrice || ''}
-                                                                        onChange={e => handleUpdateVariantRow(row.key, 'promotionalPrice', Number(e.target.value))}
-                                                                        className="h-10 rounded-xl font-black text-sm text-rose-600 bg-background border-rose-200 dark:border-rose-900/50 mt-1"
-                                                                    />
-                                                                </div>
-                                                                {row.price && row.promotionalPrice && row.promotionalPrice < row.price ? (
-                                                                    <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-0.5">
-                                                                        <div className="text-[11px] font-black flex items-center justify-between">
-                                                                            <span>Remise : -{Math.round(((row.price - row.promotionalPrice) / row.price) * 100)}%</span>
-                                                                            <span className="line-through text-muted-foreground text-[10px]">{row.price.toLocaleString('fr-FR')} F</span>
-                                                                        </div>
-                                                                        <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-                                                                            Économie : {(row.price - row.promotionalPrice).toLocaleString('fr-FR')} FCFA
-                                                                        </p>
-                                                                    </div>
-                                                                ) : (
-                                                                    <p className="text-[10px] text-muted-foreground italic">
-                                                                        Indiquez un montant inférieur au prix normal ({row.price || 0} FCFA).
-                                                                    </p>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {row.optionValues.map((ov: any) => (
+                                                                    <span key={ov.groupName} className="text-[9px] font-bold bg-primary/10 text-primary px-2 py-0.2 rounded-md border border-primary/20">
+                                                                        {ov.groupName}: <strong>{ov.optName}</strong>
+                                                                    </span>
+                                                                ))}
+                                                                {row.sku && (
+                                                                    <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1.5 py-0.2 rounded">
+                                                                        {row.sku}
+                                                                    </span>
                                                                 )}
                                                             </div>
                                                         </div>
-                                                    ) : (
-                                                        <p className="text-[10px] text-muted-foreground italic">
-                                                            Aucune promotion active. Le produit sera vendu au prix standard de {row.price ? `${row.price.toLocaleString('fr-FR')} FCFA` : '—'}.
-                                                        </p>
-                                                    )}
+                                                    </div>
+
+                                                    {/* Right: Quick Price + Quick Stock + Expand Button */}
+                                                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="w-28">
+                                                                <div className="relative">
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        placeholder="Prix (F)"
+                                                                        value={row.price || ''}
+                                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateVariantRow(row.key, 'price', Number(e.target.value))}
+                                                                        className="h-8 text-xs font-black rounded-xl pr-6 bg-background"
+                                                                    />
+                                                                    <span className="text-[9px] font-bold text-muted-foreground absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">F</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="w-20">
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    placeholder="Stock"
+                                                                    value={row.stock || ''}
+                                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateVariantRow(row.key, 'stock', Math.max(0, Number(e.target.value) || 0))}
+                                                                    className="h-8 text-xs font-bold rounded-xl bg-background"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {!row.enabled ? (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const hasPrice = row.price && Number(row.price) > 0;
+                                                                    const hasStock = row.stock !== undefined && row.stock !== null && Number(row.stock) > 0;
+
+                                                                    if (hasPrice && !hasStock) {
+                                                                        toast.error(`Veuillez entrer le stock de la déclinaison "${row.name}" ou effacer son prix pour l'enlever de la liste.`);
+                                                                        return;
+                                                                    }
+                                                                    if (!hasPrice && hasStock) {
+                                                                        toast.error(`Veuillez entrer le prix de la déclinaison "${row.name}" ou effacer son stock pour l'enlever de la liste.`);
+                                                                        return;
+                                                                    }
+                                                                    if (!hasPrice && !hasStock) {
+                                                                        toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${row.name}" avant de l'enregistrer.`);
+                                                                        return;
+                                                                    }
+                                                                    if (row.onPromotion) {
+                                                                        if (!row.promotionalPrice || Number(row.promotionalPrice) <= 0) {
+                                                                            toast.error(`Veuillez renseigner le prix promotionnel pour "${row.name}".`);
+                                                                            return;
+                                                                        }
+                                                                        if (Number(row.promotionalPrice) >= Number(row.price)) {
+                                                                            toast.error(`Le prix promo (${row.promotionalPrice} F) doit être inférieur au prix normal (${row.price} F) pour "${row.name}".`);
+                                                                            return;
+                                                                        }
+                                                                    }
+                                                                    handleUpdateVariantRow(row.key, 'enabled', true);
+                                                                    toast.success(`"${row.name}" enregistrée dans vos déclinaisons utilisées !`);
+                                                                }}
+                                                                className="h-8 px-2.5 rounded-xl text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer shrink-0"
+                                                                title="Enregistrer et ajouter aux déclinaisons utilisées"
+                                                            >
+                                                                <Check className="w-3.5 h-3.5" />
+                                                                <span>Enregistrer</span>
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => {
+                                                                    handleUpdateVariantRow(row.key, 'enabled', false);
+                                                                    toast.info(`"${row.name}" passée en brouillon.`);
+                                                                }}
+                                                                className="h-8 px-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer shrink-0"
+                                                                title="Passer en brouillon"
+                                                            >
+                                                                <EyeOff className="w-3.5 h-3.5" />
+                                                                <span className="hidden sm:inline">Brouillon</span>
+                                                            </Button>
+                                                        )}
+
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => toggleExpandVariantKey(row.key)}
+                                                            className="h-8 w-8 p-0 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                                            title={isExpanded ? "Replier les détails" : "Déplier les détails"}
+                                                        >
+                                                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                        </Button>
+                                                    </div>
                                                 </div>
+
+                                                {/* Expanded Details Section */}
+                                                {isExpanded && (
+                                                    <div className="p-4 bg-muted/15 border-t border-border/60 space-y-4 animate-in fade-in duration-150">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                                            {/* Variant Custom Photo */}
+                                                            <div>
+                                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">
+                                                                    Photo de la déclinaison
+                                                                </Label>
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-muted border border-border shrink-0 flex items-center justify-center">
+                                                                        {row.assetPreview ? (
+                                                                            <img src={row.assetPreview} alt={row.name} className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                                                                        )}
+                                                                        {uploadingVariantKey === row.key && (
+                                                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                                                                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <label className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-card hover:bg-muted text-[11px] font-bold text-foreground border border-border shadow-xs cursor-pointer transition-colors">
+                                                                        <Camera className="w-3.5 h-3.5 text-primary" />
+                                                                        <span>{row.featuredAssetId ? 'Changer' : 'Ajouter'}</span>
+                                                                        <input
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            className="hidden"
+                                                                            disabled={uploadingVariantKey === row.key}
+                                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantFileChange(row.key, e)}
+                                                                        />
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Condition */}
+                                                            <div>
+                                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                                    État de l'article
+                                                                </Label>
+                                                                <Select
+                                                                    value={row.condition}
+                                                                    onValueChange={(val: string) => handleUpdateVariantRow(row.key, 'condition', val)}
+                                                                >
+                                                                    <SelectTrigger className="h-10 rounded-xl font-bold text-xs mt-1 bg-card">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="NEW">Neuf</SelectItem>
+                                                                        <SelectItem value="USED">Occasion</SelectItem>
+                                                                        <SelectItem value="REFURBISHED">Reconditionné</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+
+                                                            {/* SKU */}
+                                                            <div>
+                                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                                    SKU Vendeur
+                                                                </Label>
+                                                                <Input
+                                                                    type="text"
+                                                                    value={row.sku}
+                                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateVariantRow(row.key, 'sku', e.target.value)}
+                                                                    className="h-10 rounded-xl font-mono text-xs mt-1 bg-card"
+                                                                    placeholder="SKU-OFFER"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Promotion Box */}
+                                                        <div className={cn(
+                                                            "p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5",
+                                                            row.onPromotion 
+                                                                ? "bg-rose-500/5 border-rose-500/30 shadow-xs" 
+                                                                : "bg-muted/30 border-border/70"
+                                                        )}>
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={cn(
+                                                                        "w-7 h-7 rounded-lg flex items-center justify-center",
+                                                                        row.onPromotion ? "bg-rose-500 text-white" : "bg-muted text-muted-foreground"
+                                                                    )}>
+                                                                        <Percent className="w-4 h-4" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <Label className="text-xs font-bold cursor-pointer text-foreground block">
+                                                                            Activer une promotion sur cette déclinaison
+                                                                        </Label>
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                            Appliquer un prix réduit et attirer plus de clients
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <Switch
+                                                                    checked={row.onPromotion}
+                                                                    onCheckedChange={(checked: boolean) => handleUpdateVariantRow(row.key, 'onPromotion', checked)}
+                                                                />
+                                                            </div>
+
+                                                            {row.onPromotion && (
+                                                                <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                                                                        <div>
+                                                                            <Label className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
+                                                                                Prix Soldé (FCFA) *
+                                                                            </Label>
+                                                                            <Input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                placeholder="Ex: 12000"
+                                                                                value={row.promotionalPrice || ''}
+                                                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateVariantRow(row.key, 'promotionalPrice', Number(e.target.value))}
+                                                                                className="h-10 rounded-xl font-black text-sm text-rose-600 bg-card border-rose-200 dark:border-rose-900/50 mt-1"
+                                                                            />
+                                                                        </div>
+                                                                        {row.price && row.promotionalPrice && row.promotionalPrice < row.price ? (
+                                                                            <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-0.5">
+                                                                                <div className="text-[11px] font-black flex items-center justify-between">
+                                                                                    <span>Remise : -{Math.round(((row.price - row.promotionalPrice) / row.price) * 100)}%</span>
+                                                                                    <span className="line-through text-muted-foreground text-[10px]">{row.price.toLocaleString('fr-FR')} F</span>
+                                                                                </div>
+                                                                                <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                                                                                    Économie client : {(row.price - row.promotionalPrice).toLocaleString('fr-FR')} FCFA
+                                                                                </p>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-[10px] text-muted-foreground italic">
+                                                                                Indiquez un montant inférieur au prix normal ({row.price || 0} FCFA).
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
 
-                        {/* Submit Action */}
-                        <div className="pt-6 flex justify-between items-center bg-card p-6 rounded-3xl border border-border shadow-sm">
+                        {/* Action Buttons directly below the Box */}
+                        <div className="pt-2 flex flex-col sm:flex-row justify-between items-center gap-3">
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => setStep(2)}
                                 className="h-12 px-6 rounded-2xl text-xs font-bold uppercase tracking-wider cursor-pointer"
                             >
-                                Retour aux options
+                                ← Retour aux options
                             </Button>
 
                             <Button
-                                type="submit"
-                                disabled={isSubmittingOffers}
-                                className="h-13 px-10 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                type="button"
+                                onClick={(e: any) => handleSubmitAllOffers(e)}
+                                disabled={isSubmittingOffers || activeVariants.length === 0}
+                                className="h-12 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
                             >
                                 {isSubmittingOffers ? (
                                     <Loader2 className="w-5 h-5 animate-spin" />
                                 ) : (
                                     <CheckCircle2 className="w-5 h-5" />
                                 )}
-                                Envoyer mes Offres pour Validation
+                                <span>Envoyer mon offre ({activeVariants.length} active{activeVariants.length > 1 ? 's' : ''})</span>
                             </Button>
                         </div>
-                    </form>
+                    </div>
                 </div>
             )}
 

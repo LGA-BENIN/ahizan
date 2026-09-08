@@ -499,8 +499,8 @@ export function OrdersListComponent() {
                         <select className="po-input" value={sellerFilter} onChange={e => setSellerFilter(e.target.value)}>
                             <option value="">Tous les vendeurs</option>
                             <option value="pending">⏳ En attente</option>
-                            <option value="confirmed">✅ Acceptée</option>
-                            <option value="refused">❌ Refusée</option>
+                            <option value="confirmed">✅ Approuvée</option>
+                            <option value="refused">❌ Rejetée</option>
                             <option value="reassigning">🔄 En réassignation</option>
                             <option value="reassigned_to_other">⏭️ Réassignée</option>
                         </select>
@@ -579,10 +579,10 @@ export function OrdersListComponent() {
                                             </td>
                                             <td>
                                                 <span className="po-status-badge" style={{
-                                                    background: seller === 'confirmed' ? '#dcfce7' : seller === 'refused' ? '#fee2e2' : seller === 'reassigning' ? '#ede9fe' : seller === 'reassigned_to_other' ? '#f3f4f6' : '#fef3c7',
-                                                    color: seller === 'confirmed' ? '#166534' : seller === 'refused' ? '#991b1b' : seller === 'reassigning' ? '#5b21b6' : seller === 'reassigned_to_other' ? '#4b5563' : '#92400e',
+                                                    background: seller === 'confirmed' || seller === 'approved' ? '#dcfce7' : seller === 'refused' || seller === 'rejected' ? '#fee2e2' : seller === 'reassigning' ? '#ede9fe' : seller === 'reassigned_to_other' ? '#f3f4f6' : '#fef3c7',
+                                                    color: seller === 'confirmed' || seller === 'approved' ? '#166534' : seller === 'refused' || seller === 'rejected' ? '#991b1b' : seller === 'reassigning' ? '#5b21b6' : seller === 'reassigned_to_other' ? '#4b5563' : '#92400e',
                                                 }}>
-                                                    {seller === 'confirmed' ? '✅ Acceptée' : seller === 'refused' ? '❌ Refusée' : seller === 'reassigning' ? '🔄 En réassignation' : seller === 'reassigned_to_other' ? '⏭️ Réassignée' : '⏳ En attente'}
+                                                    {seller === 'confirmed' || seller === 'approved' ? '✅ Approuvée' : seller === 'refused' || seller === 'rejected' ? '❌ Rejetée' : seller === 'reassigning' ? '🔄 En réassignation' : seller === 'reassigned_to_other' ? '⏭️ Réassignée' : '⏳ En attente'}
                                                 </span>
                                             </td>
                                             <td>
@@ -804,6 +804,18 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
         }
     });
 
+    const deleteOrderMutation = useMutation({
+        mutationFn: ({ orderId }: any) => fetchGraphQL(DELETE_VENDOR_ORDER, { orderId }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
+            alert('Commande supprimée avec succès !');
+            onClose();
+        },
+        onError: (err: any) => {
+            alert('❌ Erreur lors de la suppression : ' + (err?.message || 'Erreur inconnue'));
+        }
+    });
+
     return (
         <div className="po-modal-overlay" onClick={onClose} style={{ backdropFilter: 'blur(6px)', background: 'rgba(15, 23, 42, 0.65)' }}>
             <div className="po-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '1150px', width: '95vw', maxHeight: '92vh', borderRadius: '20px', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', border: '1px solid #cbd5e1' }}>
@@ -895,18 +907,42 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                         {/* LIST OF VENDORS & THEIR ITEMS */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             {vendorSubOrders.map((so, vIdx) => {
-                                const vId = so?.vendor?.id || 'default';
-                                const soVendorStatus = vendorStatusesMap[vId]?.sellerStatus || 'pending';
+                                const vId = String(so?.vendor?.id || 'default');
+                                
+                                // Directly evaluate line statuses for real-time accuracy
+                                const isAllConfirmed = so.lines.length > 0 && so.lines.every((l: any) => {
+                                    const st = l.customFields?.sellerStatus || 'pending';
+                                    return st === 'confirmed' || st === 'approved';
+                                });
+                                const hasAnyRefused = so.lines.some((l: any) => {
+                                    const st = l.customFields?.sellerStatus || 'pending';
+                                    return st === 'refused' || st === 'reassigning';
+                                });
+                                const isAllReassigned = so.lines.length > 0 && so.lines.every((l: any) => {
+                                    const st = l.customFields?.sellerStatus || 'pending';
+                                    return st === 'reassigned_to_other';
+                                });
+
+                                let soVendorStatus = vendorStatusesMap[vId]?.sellerStatus || vendorStatusesMap[String(vId)]?.sellerStatus;
+                                if (!soVendorStatus || soVendorStatus === 'pending') {
+                                    if (isAllConfirmed) soVendorStatus = 'confirmed';
+                                    else if (hasAnyRefused) soVendorStatus = 'reassigning';
+                                    else if (isAllReassigned) soVendorStatus = 'reassigned_to_other';
+                                    else soVendorStatus = order.customFields?.sellerStatus || 'pending';
+                                } else if (isAllConfirmed) {
+                                    soVendorStatus = 'confirmed';
+                                }
                                 
                                 const statusMetaMap: Record<string, { label: string; color: string; bg: string; border: string }> = {
-                                    confirmed: { label: 'Acceptée par le vendeur', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-                                    refused: { label: 'Refusée par le vendeur', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
-                                    reassigning: { label: 'En réassignation', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-                                    reassigned_to_other: { label: 'Réassignée', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' },
-                                    pending: { label: 'En attente validation', color: '#b45309', bg: '#fffbeb', border: '#fde68a' }
+                                    confirmed: { label: '✅ Approuvé par le vendeur', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+                                    approved: { label: '✅ Approuvé par le vendeur', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+                                    refused: { label: '❌ Rejeté par le vendeur', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+                                    rejected: { label: '❌ Rejeté par le vendeur', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+                                    reassigning: { label: '🔄 En réassignation', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+                                    reassigned_to_other: { label: '⏭️ Réassigné', color: '#475569', bg: '#f1f5f9', border: '#cbd5e1' },
+                                    pending: { label: '⏳ En attente de validation', color: '#b45309', bg: '#fffbeb', border: '#fde68a' }
                                 };
                                 const meta = statusMetaMap[soVendorStatus] || statusMetaMap.pending;
-                                const isAllConfirmed = so.lines.every((l: any) => l.customFields?.sellerStatus === 'confirmed');
 
                                 return (
                                     <div 
@@ -975,10 +1011,11 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                         <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             {so.lines.map((line: any) => {
                                                 const lineStatus = line.customFields?.sellerStatus || 'pending';
-                                                const isConfirmed = lineStatus === 'confirmed';
-                                                const isRefused = lineStatus === 'refused';
+                                                const isConfirmed = lineStatus === 'confirmed' || lineStatus === 'approved';
+                                                const isRefused = lineStatus === 'refused' || lineStatus === 'rejected';
                                                 const isReassigned = lineStatus === 'reassigned_to_other';
                                                 const isReassigning = lineStatus === 'reassigning';
+                                                const isPending = !isConfirmed && !isRefused && !isReassigned && !isReassigning;
 
                                                 return (
                                                     <div 
@@ -1007,12 +1044,12 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                                 {/* Status Badge */}
                                                                 {isConfirmed && (
                                                                     <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
-                                                                        ✅ Accepté
+                                                                        ✅ Approuvé
                                                                     </span>
                                                                 )}
                                                                 {isRefused && (
                                                                     <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>
-                                                                        ❌ Refusé
+                                                                        ❌ Rejeté
                                                                     </span>
                                                                 )}
                                                                 {isReassigning && (
@@ -1025,7 +1062,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                                         ⏭️ Réassigné
                                                                     </span>
                                                                 )}
-                                                                {!isConfirmed && !isRefused && !isReassigning && !isReassigned && (
+                                                                {isPending && (
                                                                     <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}>
                                                                         ⏳ En attente
                                                                     </span>
@@ -1049,7 +1086,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                         <div style={{ minWidth: '150px', textAlign: 'right' }}>
                                                             {isConfirmed ? (
                                                                 <span 
-                                                                    title="Cet article a été accepté par le vendeur et ne peut plus être réassigné." 
+                                                                    title="Cet article a été approuvé par le vendeur." 
                                                                     style={{ 
                                                                         fontSize: '11px', 
                                                                         fontWeight: 800, 
@@ -1063,7 +1100,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                                         gap: '4px'
                                                                     }}
                                                                 >
-                                                                    🔒 Accepté
+                                                                    🔒 Approuvé
                                                                 </span>
                                                             ) : isReassigned ? (
                                                                 <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
@@ -1085,7 +1122,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                                         fontWeight: 800,
                                                                         padding: '6px 12px',
                                                                         borderRadius: '8px',
-                                                                        backgroundColor: isRefused ? '#dc2626' : '#7c3aed',
+                                                                        backgroundColor: isRefused ? '#dc2626' : isPending ? '#d97706' : '#7c3aed',
                                                                         color: 'white',
                                                                         border: 'none',
                                                                         cursor: 'pointer',

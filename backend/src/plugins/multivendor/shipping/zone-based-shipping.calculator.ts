@@ -21,7 +21,6 @@ export const zoneBasedShippingCalculator = new ShippingCalculator({
                 { languageCode: LanguageCode.en, value: 'Price (fallback)' },
                 { languageCode: LanguageCode.fr, value: 'Prix (fallback)' },
             ],
-            ui: { component: 'currency-form-input' },
         },
     },
     calculate: (ctx, order, args) => {

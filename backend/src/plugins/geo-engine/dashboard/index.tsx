@@ -79,17 +79,11 @@ const GeoEngineControlPanel = () => {
     );
 };
 
-const WrappedGeoEngine = () => (
-    <QueryClientProvider client={queryClient}>
-        <GeoEngineControlPanel />
-    </QueryClientProvider>
-);
-
 export default defineDashboardExtension({
     routes: [
         {
             path: 'geo-engine',
-            component: WrappedGeoEngine,
+            component: GeoEngineControlPanel,
             navMenuItem: {
                 id: 'geo-engine-menu',
                 sectionId: 'geo-engine-section',

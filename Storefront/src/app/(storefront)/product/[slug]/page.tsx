@@ -162,11 +162,10 @@ function buildBreadcrumbJsonLd(product: any) {
 }
 
 
-function ProductOverview({ config, product, searchParams, slug, whatsappNumber }: { config: any, product: any, searchParams: any, slug: string, whatsappNumber?: string }) {
+function ProductOverview({ config, product, searchParams, slug, whatsappNumber, allOffers }: { config: any, product: any, searchParams: any, slug: string, whatsappNumber?: string, allOffers?: any[] }) {
     if (!product) return null;
 
     const layout = config.layout || 'split';
-    const showVendor = config.showVendor !== false;
 
     let containerClass = "grid grid-cols-1 gap-6 lg:gap-12 items-start";
     let leftColClass = "w-full mx-auto";
@@ -197,19 +196,13 @@ function ProductOverview({ config, product, searchParams, slug, whatsappNumber }
 
                     {/* Right Column: Product Info */}
                     <div className={rightColClass}>
-                        <ProductInfo product={product} searchParams={searchParams} config={config} whatsappNumber={whatsappNumber} />
-                        
-                        {showVendor && (
-                            <div className="pt-4 border-t">
-                                <Suspense fallback={null}>
-                                    <ProductVendor 
-                                        productSlug={slug} 
-                                        vendorId={searchParams?.vendorId as string | undefined}
-                                        variantId={searchParams?.variantId as string | undefined}
-                                    />
-                                </Suspense>
-                            </div>
-                        )}
+                        <ProductInfo 
+                            product={product} 
+                            searchParams={searchParams} 
+                            config={config} 
+                            whatsappNumber={whatsappNumber} 
+                            allOffers={allOffers}
+                        />
                     </div>
                 </div>
             </div>
@@ -219,6 +212,7 @@ function ProductOverview({ config, product, searchParams, slug, whatsappNumber }
         </>
     );
 }
+
 
 function ProductReviews({ config }: { config: any }) {
     const showReviews = config.showReviews !== false;
@@ -283,6 +277,47 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
 
     if (!product) {
         notFound();
+    }
+
+    // Fetch all approved seller offers for this product's variants
+    const variantIds = (product.variants || []).map((v: any) => v.id);
+    let allOffers: any[] = [];
+    if (variantIds.length > 0) {
+        try {
+            const GET_PRODUCT_OFFERS_QUERY = `
+                query GetProductOffers($variantIds: [ID!]!) {
+                    sellerOffersForVariants(variantIds: $variantIds) {
+                        id
+                        price
+                        stock
+                        onPromotion
+                        promotionalPrice
+                        condition
+                        deliveryTimeValue
+                        deliveryTimeUnit
+                        vendor {
+                            id
+                            name
+                            rating
+                            ratingCount
+                            logo {
+                                preview
+                            }
+                        }
+                        productVariant {
+                            id
+                            name
+                            sku
+                        }
+                    }
+                }
+            `;
+            const offersRes = await rawQuery(GET_PRODUCT_OFFERS_QUERY, { variables: { variantIds } });
+            allOffers = offersRes?.sellerOffersForVariants || [];
+
+        } catch (e) {
+            console.warn('[ProductDetailPage] Failed to fetch sellerOffersForVariants:', e);
+        }
     }
 
     const primaryCollection = product.collections?.find((c: any) => c.parent?.id) ?? product.collections?.[0];
@@ -355,9 +390,11 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                                     searchParams={searchParamsResolved}
                                     slug={slug}
                                     whatsappNumber={whatsappNumber}
+                                    allOffers={allOffers}
                                 />
                             );
                         } else if (section.type === 'PRODUCT_REVIEWS') {
+
                             content = (
                                 <ProductReviews 
                                     config={section.data || {}}
@@ -433,13 +470,14 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                     </div>
 
                     <div className="lg:col-span-7 xl:col-span-7 flex flex-col gap-6">
-                        <ProductInfo product={product} searchParams={searchParamsResolved} whatsappNumber={whatsappNumber} />
-                        <div className="pt-4 border-t">
-                            <Suspense fallback={null}>
-                                <ProductVendor productSlug={slug} />
-                            </Suspense>
-                        </div>
+                        <ProductInfo 
+                            product={product} 
+                            searchParams={searchParamsResolved} 
+                            whatsappNumber={whatsappNumber} 
+                            allOffers={allOffers}
+                        />
                     </div>
+
                 </div>
                 <div id="cms-penultimate-section-bottom" />
             </div>

@@ -8,7 +8,6 @@ export const globalFixedShippingCalculator = new ShippingCalculator({
             type: 'int',
             config: { inputType: 'money' },
             label: [{ languageCode: LanguageCode.en, value: 'Shipping Price (CFA)' }, { languageCode: LanguageCode.fr, value: 'Prix Livraison (CFA)' }],
-            ui: { component: 'currency-form-input' },
         },
     },
     calculate: (ctx, order, args) => {

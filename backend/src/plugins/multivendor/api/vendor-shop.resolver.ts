@@ -860,6 +860,11 @@ export class VendorShopResolver {
             .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
             .leftJoinAndSelect('product.variants', 'variants', 'variants.deletedAt IS NULL')
             .leftJoinAndSelect('variants.productVariantPrices', 'prices')
+            .leftJoinAndSelect('variants.translations', 'variantTranslations')
+            .leftJoinAndSelect('variants.options', 'variantOptions')
+            .leftJoinAndSelect('variantOptions.translations', 'variantOptionTranslations')
+            .leftJoinAndSelect('variantOptions.group', 'variantOptionGroup')
+            .leftJoinAndSelect('variantOptionGroup.translations', 'variantOptionGroupTranslations')
             .where('product.deletedAt IS NULL')
             .andWhere("product.customFields.approvalStatus = 'approved'");
 
@@ -876,6 +881,8 @@ export class VendorShopResolver {
                     `(translate(LOWER(translations.name), 'áàâäãéèêëíìîïóòôöõúùûüçñ', 'aaaaaeeeeiiiiooooouuuucn') LIKE :${param} OR ` +
                     `translate(LOWER(translations.slug), 'áàâäãéèêëíìîïóòôöõúùûüçñ', 'aaaaaeeeeiiiiooooouuuucn') LIKE :${param} OR ` +
                     `translate(LOWER(COALESCE(translations.description, '')), 'áàâäãéèêëíìîïóòôöõúùûüçñ', 'aaaaaeeeeiiiiooooouuuucn') LIKE :${param} OR ` +
+                    `translate(LOWER(COALESCE(variantTranslations.name, '')), 'áàâäãéèêëíìîïóòôöõúùûüçñ', 'aaaaaeeeeiiiiooooouuuucn') LIKE :${param} OR ` +
+                    `translate(LOWER(COALESCE(variantOptionTranslations.name, '')), 'áàâäãéèêëíìîïóòôöõúùûüçñ', 'aaaaaeeeeiiiiooooouuuucn') LIKE :${param} OR ` +
                     `LOWER(COALESCE(variants.sku, '')) LIKE :${param})`,
                     { [param]: searchPattern }
                 );
@@ -990,15 +997,20 @@ export class VendorShopResolver {
         const finalFacetValueIds = Array.from(new Set([...(input.facetValueIds || []), ...extractedFacetIds]));
         console.log(`createMyProduct: Final facetValueIds to be saved:`, finalFacetValueIds);
         
-        // 1. Pre-validation checks (Price and SKU uniqueness)
-        if ((input as any).variants && (input as any).variants.length > 0) {
-            for (const v of (input as any).variants) {
-                await this.validateMinimumPrice(ctx, v.price);
-                await this.validateSkuUniqueness(ctx, v.sku);
+        const isDraft = (input as any).isDraft === true || (input as any).approvalStatus === 'draft';
+        const targetApprovalStatus = isDraft ? 'draft' : 'pending';
+        
+        // 1. Pre-validation checks (Price and SKU uniqueness - bypassed for rough drafts)
+        if (!isDraft) {
+            if ((input as any).variants && (input as any).variants.length > 0) {
+                for (const v of (input as any).variants) {
+                    await this.validateMinimumPrice(ctx, v.price);
+                    await this.validateSkuUniqueness(ctx, v.sku);
+                }
+            } else {
+                await this.validateMinimumPrice(ctx, input.price);
+                await this.validateSkuUniqueness(ctx, (input as any).sku);
             }
-        } else {
-            await this.validateMinimumPrice(ctx, input.price);
-            await this.validateSkuUniqueness(ctx, (input as any).sku);
         }
 
         // Get superadmin elevated context to execute core Vendure product creation
@@ -1023,7 +1035,7 @@ export class VendorShopResolver {
                 customFields: {
                     vendor: { id: vendor.id },
                     shortDescription: input.shortDescription || '',
-                    approvalStatus: 'pending',
+                    approvalStatus: ((input as any).isDraft === true || (input as any).approvalStatus === 'draft') ? 'draft' : 'pending',
                     weight: (input as any).weight,
                     width: (input as any).width,
                     height: (input as any).height,
@@ -1369,7 +1381,7 @@ export class VendorShopResolver {
                 facetValueIds: finalFacetValueIds,
                 customFields: {
                     shortDescription: input.shortDescription || '',
-                    approvalStatus: 'pending',
+                    approvalStatus: targetApprovalStatus,
                     weight: (input as any).weight,
                     width: (input as any).width,
                     height: (input as any).height,
@@ -1406,26 +1418,29 @@ export class VendorShopResolver {
             const finalProduct = await this.productService.findOne(transactionalCtx, product.id) as Product;
             this.eventBus.publish(new ProductEvent(transactionalCtx, finalProduct, 'created', { id: product.id }));
 
-            const pName = (input as any).name || (input as any).translations?.[0]?.name || 'Nouveau Produit';
-            this.notificationsService.notifySuperAdmins(ctx, {
-                eventType: 'PRODUCT_SUBMITTED',
-                title: 'Nouveau produit soumis 📦',
-                body: `Le vendeur "${vendor.name}" a soumis le produit "${pName}" pour validation.`,
-                actionUrl: '/admin/products',
-                channels: ['IN_APP', 'PUSH'],
-                data: { productId: product.id, vendorId: vendor.id }
-            }).catch(() => null);
-
-            if (ctx.activeUserId) {
-                this.notificationsService.notify(ctx, {
-                    userId: ctx.activeUserId.toString(),
+            // Notify superadmins & seller only if submitting for approval (not draft)
+            if (!isDraft) {
+                const pName = (input as any).name || (input as any).translations?.[0]?.name || 'Nouveau Produit';
+                this.notificationsService.notifySuperAdmins(ctx, {
                     eventType: 'PRODUCT_SUBMITTED',
-                    title: 'Produit soumis avec succès ✅',
-                    body: `Votre produit "${pName}" a été soumis pour validation auprès de l'équipe Ahizan.`,
-                    targetRole: 'VENDOR',
-                    actionUrl: '/dashboard/products',
-                    channels: ['IN_APP', 'PUSH']
+                    title: 'Nouveau produit soumis 📦',
+                    body: `Le vendeur "${vendor.name}" a soumis le produit "${pName}" pour validation.`,
+                    actionUrl: '/admin/products',
+                    channels: ['IN_APP', 'PUSH'],
+                    data: { productId: product.id, vendorId: vendor.id }
                 }).catch(() => null);
+
+                if (ctx.activeUserId) {
+                    this.notificationsService.notify(ctx, {
+                        userId: ctx.activeUserId.toString(),
+                        eventType: 'PRODUCT_SUBMITTED',
+                        title: 'Produit soumis avec succès ✅',
+                        body: `Votre produit "${pName}" a été soumis pour validation auprès de l'équipe Ahizan.`,
+                        targetRole: 'VENDOR',
+                        actionUrl: '/dashboard/products',
+                        channels: ['IN_APP', 'PUSH']
+                    }).catch(() => null);
+                }
             }
 
             return finalProduct;
@@ -1500,13 +1515,16 @@ export class VendorShopResolver {
         const extractedFacetIds = await this.extractFacetValuesFromCollections(ctx, collectionIds || []);
         const finalFacetValueIds = Array.from(new Set([...(facetValueIds || []), ...extractedFacetIds]));
 
+        const isDraft = (input as any).isDraft === true || (input as any).approvalStatus === 'draft';
+        const targetApprovalStatus = isDraft ? 'draft' : 'pending';
+
         const updateData: any = {
             id,
             ...productInput,
             facetValueIds: finalFacetValueIds,
             enabled: false,
             customFields: {
-                approvalStatus: 'pending',
+                approvalStatus: targetApprovalStatus,
                 rejectionReason: '',
                 ...(shortDescription !== undefined ? { shortDescription } : {}),
                 ...(input.weight !== undefined ? { weight: input.weight } : {}),

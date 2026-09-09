@@ -36,7 +36,7 @@ export function getAssetUrl(path: string | null | undefined): string | undefined
     const normalizedPath = path.replace(/\\/g, '/');
 
     if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
-        return encodeURI(normalizedPath);
+        return normalizedPath;
     }
     if (normalizedPath.startsWith('data:')) {
         return normalizedPath;

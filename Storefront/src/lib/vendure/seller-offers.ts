@@ -40,10 +40,15 @@ const GET_SELLER_OFFERS_FOR_VARIANTS = `
 /**
  * Expands a list of SearchResult/Product items into individual Seller Offer cards.
  * If a variant has multiple approved seller offers (e.g. Seller A @ 1000 and Seller B @ 9889),
- * each seller's offer is presented as a distinct card with their price, image, and vendor badge.
+ * each seller's unique offer is presented as a distinct card with their price, image, and vendor badge.
  */
 export async function expandProductsWithSellerOffers(items: any[]): Promise<any[]> {
     if (!items || items.length === 0) return [];
+
+    // If items are already expanded, return them as is to prevent double expansion
+    if (items.some(i => i.isExpandedOffer)) {
+        return items;
+    }
 
     const variantIds = Array.from(
         new Set(items.map(i => i.productVariantId || i.id).filter(Boolean))
@@ -60,6 +65,7 @@ export async function expandProductsWithSellerOffers(items: any[]): Promise<any[
         if (offers.length === 0) return items;
 
         const expanded: any[] = [];
+        const seenOfferIds = new Set<string>();
 
         for (const item of items) {
             const vId = String(item.productVariantId || item.id);
@@ -69,15 +75,22 @@ export async function expandProductsWithSellerOffers(items: any[]): Promise<any[
 
             if (matchingOffers.length > 0) {
                 for (const offer of matchingOffers) {
+                    const offerId = String(offer.id);
+                    if (seenOfferIds.has(offerId)) {
+                        continue;
+                    }
+                    seenOfferIds.add(offerId);
+
                     const offerAsset = offer.productVariant?.featuredAsset
                         || offer.productVariant?.product?.featuredAsset
                         || item.productVariantAsset
-                        || item.productAsset;
+                        || item.productAsset
+                        || item.featuredAsset;
                     const effectivePrice = offer.onPromotion && offer.promotionalPrice ? offer.promotionalPrice : offer.price;
 
                     expanded.push({
                         ...item,
-                        id: `${item.id || item.productId}-offer-${offer.id}`,
+                        id: `${item.productId || item.id}-offer-${offer.id}`,
                         productVariantId: vId,
                         vendorId: offer.vendor?.id,
                         vendorName: offer.vendor?.name,
@@ -89,12 +102,17 @@ export async function expandProductsWithSellerOffers(items: any[]): Promise<any[
                         },
                         price: effectivePrice,
                         productVariantAsset: offerAsset,
-                        productAsset: item.productAsset || offerAsset,
+                        productAsset: offerAsset || item.productAsset,
+                        featuredAsset: offerAsset,
                         inStock: offer.stock > 0,
+                        isExpandedOffer: true,
                     });
                 }
             } else {
-                expanded.push(item);
+                expanded.push({
+                    ...item,
+                    isExpandedOffer: true,
+                });
             }
         }
 

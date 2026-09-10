@@ -133,6 +133,23 @@ services:
       - internal
     # Pas de port mapping nécessaire, communication interne Docker uniquement
 
+  ai:
+    image: node:20-alpine
+    container_name: ahizan_ai
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    working_dir: /app
+    volumes:
+      - ./ahizan-ai:/app
+    command: node dist/index.js
+    labels:
+      - "VIRTUAL_HOST=ai.ahizan.com"
+      - "VIRTUAL_PORT=3005"
+    networks:
+      - web
+      - internal
+
 volumes:
   db_data:
 

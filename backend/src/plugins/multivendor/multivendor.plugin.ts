@@ -37,9 +37,11 @@ import { LogisticsHubService } from './service/logistics-hub.service';
 import { SettlementService } from './service/settlement.service';
 import { LogisticsHubAdminResolver } from './api/logistics-hub.resolver';
 import { SettlementAdminResolver } from './api/settlement.resolver';
+import { AhizanAIProxyController } from './api/ahizan-ai.controller';
 
 @VendurePlugin({
     imports: [PluginCommonModule, GeoEnginePlugin, AhizanNotificationsPlugin],
+    controllers: [AhizanAIProxyController],
 
     entities: [
         Vendor, 

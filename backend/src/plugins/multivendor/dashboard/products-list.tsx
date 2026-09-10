@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GET_COLLECTIONS } from './queries';
+import { ProductValidationCockpit } from './product-validation-cockpit';
+import { AhizanAIChatDrawer } from './ai-chat-drawer';
 
 // --- Interfaces ---
 export interface SellerOfferItem {
@@ -652,6 +654,7 @@ export function ProductListComponent() {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
     const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+    const [aiCockpitProductId, setAiCockpitProductId] = useState<string | null>(null);
 
     // Modal state for Approval Review
     const [reviewProduct, setReviewProduct] = useState<MarketplaceProduct | null>(null);
@@ -1992,21 +1995,44 @@ export function ProductListComponent() {
                                                                 </button>
                                                             </div>
                                                         ) : (
-                                                            <button
-                                                                onClick={() => handleOpenReview(product)}
-                                                                style={{
-                                                                    padding: '7px 14px',
-                                                                    borderRadius: '8px',
-                                                                    background: '#0f172a',
-                                                                    color: '#ffffff',
-                                                                    border: 'none',
-                                                                    fontSize: '12px',
-                                                                    fontWeight: 700,
-                                                                    cursor: 'pointer',
-                                                                }}
-                                                            >
-                                                                Examiner
-                                                            </button>
+                                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                                <button
+                                                                    onClick={() => handleOpenReview(product)}
+                                                                    style={{
+                                                                        padding: '7px 12px',
+                                                                        borderRadius: '8px',
+                                                                        background: '#0f172a',
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                    }}
+                                                                >
+                                                                    Examiner
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setAiCockpitProductId(product.id)}
+                                                                    style={{
+                                                                        padding: '7px 12px',
+                                                                        borderRadius: '8px',
+                                                                        background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 800,
+                                                                        cursor: 'pointer',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        boxShadow: '0 2px 6px rgba(99, 102, 241, 0.3)',
+                                                                        transition: 'transform 0.15s ease'
+                                                                    }}
+                                                                    title="Ouvrir le Cockpit IA pour validation assistée & détection de doublons"
+                                                                >
+                                                                    <span>✨</span> Cockpit IA
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -3825,6 +3851,19 @@ export function ProductListComponent() {
                     onSkip={handleAdminCropComplete}
                 />
             )}
+
+            {/* Ahizan AI Product Validation Cockpit Modal */}
+            <ProductValidationCockpit
+                productId={aiCockpitProductId}
+                isOpen={!!aiCockpitProductId}
+                onClose={() => setAiCockpitProductId(null)}
+                onRefresh={() => {
+                    queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                }}
+            />
+
+            {/* Global Floating Ahizan AI Assistant */}
+            <AhizanAIChatDrawer />
 
         </div>
     );

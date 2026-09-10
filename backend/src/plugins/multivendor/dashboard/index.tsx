@@ -10,9 +10,24 @@ import { PaymentManagementComponent } from './payment-management';
 import { VendorSelector } from './vendor-selector';
 import { SuivreDiscussionsComponent } from './suivre-discussions';
 import { EmployeeRolesManagementComponent } from './employee-roles-management';
+import { AhizanAIHubComponent } from './ai-hub';
 
 export default defineDashboardExtension({
     routes: [
+        {
+            path: 'ahizan-ai',
+            component: AhizanAIHubComponent,
+            navMenuItem: {
+                id: 'ahizan-ai',
+                title: '✨ Ahizan AI (Hub)',
+                sectionId: 'marketplace',
+                url: '/ahizan-ai',
+            },
+        },
+        {
+            path: 'extensions/ahizan-ai',
+            component: AhizanAIHubComponent,
+        },
         {
             path: 'gestion-paiement',
             component: PaymentManagementComponent,

@@ -1,0 +1,167 @@
+{
+  "project_metadata": {
+    "title": "AI Elements Documentation and Integration Guide",
+    "target_system": "Ahizan / Ariza AI Ecosystem",
+    "objective": "Pivot from custom ReAct engine (ahizan-ai V1) to Vercel AI SDK V2 enterprise architecture",
+    "version": "2.0.0",
+    "generated_at": "2026-09-10"
+  },
+  "sitemap": [
+    {
+      "category": "1. Architecture et Projet Interne (Ahizan / Ariza)",
+      "sources": [
+        {
+          "id": "SOURCE_1",
+          "title": "Contexte & Objectifs V2 (Pivot vers Vercel AI SDK & Console Admin)",
+          "type": "markdown",
+          "scope": "Project Strategy"
+        },
+        {
+          "id": "SOURCE_5",
+          "title": "Analyse Technique Complète de l'Existant (ahizan-ai V1)",
+          "type": "markdown",
+          "scope": "Technical Audit"
+        }
+      ]
+    },
+    {
+      "category": "2. SDKs Core & Infrastructure IA (Vercel Stack)",
+      "sources": [
+        {
+          "id": "SOURCE_2",
+          "title": "AI SDK",
+          "type": "url",
+          "url": "https://ai-sdk.dev/",
+          "scope": "Unified Model Layer & Streaming"
+        },
+        {
+          "id": "SOURCE_3",
+          "title": "Chat SDK",
+          "type": "url",
+          "url": "https://chat-sdk.dev/",
+          "scope": "Multi-Platform Chat Adapter Engine"
+        },
+        {
+          "id": "SOURCE_7",
+          "title": "Workflow SDK",
+          "type": "url",
+          "url": "https://workflow-sdk.dev/",
+          "scope": "Durable Functions & Execution State"
+        }
+      ]
+    },
+    {
+      "category": "3. Agents et Composants Interface (UI)",
+      "sources": [
+        {
+          "id": "SOURCE_8",
+          "title": "eve – durable AI agent framework",
+          "type": "url",
+          "url": "https://eve.dev/",
+          "scope": "Folder-based Agent Orchestration"
+        },
+        {
+          "id": "SOURCE_4",
+          "title": "AI Elements (Introduction)",
+          "type": "url",
+          "url": "https://elements.ai-sdk.dev/",
+          "scope": "React 19 / shadcn UI Component Registry"
+        }
+      ]
+    },
+    {
+      "category": "4. Feature Flags & Deployment Control",
+      "sources": [
+        {
+          "id": "SOURCE_6",
+          "title": "Flags SDK (Slash forward icon)",
+          "type": "url",
+          "url": "https://flags-sdk.dev/",
+          "scope": "Server-Only Feature Flags as Code"
+        }
+      ]
+    }
+  ],
+  "summaries": {
+    "ahizan_ai_v1_audit": {
+      "stack": "Node.js (v20+) pure TypeScript, 0 external npm dependencies, native node:http server on port 3005",
+      "architecture": {
+        "gateway": "Custom REST gateway supporting Google Gemini, OpenRouter/DeepSeek, and deterministic local MockProvider",
+        "react_engine": "Hand-crafted ReAct (Reasoning + Acting) loop capped at 5 steps",
+        "tool_registry": "GraphQL client connected to Vendure Admin API (products, sales, duplicate detection, FQS audit)",
+        "client_sdk": "@ahizan/ai-sdk lightweight TypeScript client"
+      },
+      "bottlenecks": [
+        "Lack of response streaming (responses sent in blocking chunks)",
+        "Fragile manual maintenance of vendor tool-calling formats",
+        "No schema validation (lacks Zod / Structured Outputs)",
+        "Absence of dynamic admin configuration playground"
+      ],
+      "v2_goals": "Adopt Vercel AI SDK (@ai-sdk) for standardized streaming, tool execution, and modular admin console"
+    },
+    "vercel_ai_sdk": {
+      "key": "ai",
+      "license": "Apache-2.0",
+      "type": "Universal Framework-Agnostic AI Layer (React, Vue, Node.js, Next.js)",
+      "features": [
+        "Support for 100+ LLM models with unified API",
+        "Native response streaming (streamText, toDataStreamResponse)",
+        "Automatic multi-step tool calling (maxSteps)",
+        "Zod schema validation for structured outputs",
+        "AI SDK Core (backend) and AI SDK UI (useChat, useCompletion)"
+      ]
+    },
+    "chat_sdk": {
+      "key": "chat",
+      "type": "Event-driven, multi-platform conversational framework",
+      "supported_platforms": ["Slack", "Discord", "WhatsApp", "Microsoft Teams", "Google Chat", "GitHub", "Linear"],
+      "features": [
+        "Type-safe adapters and handlers",
+        "Thread subscription and mention listening (onNewMention, onReaction)",
+        "JSX-based rich cards rendering across channels"
+      ]
+    },
+    "workflow_sdk": {
+      "key": "workflow",
+      "type": "Durable execution framework for TypeScript functions",
+      "directive": "\"use workflow\" and \"use step\"",
+      "features": [
+        "Automatic state persistence and step checkpointing",
+        "Long-running sleep capabilities without resource consumption (e.g. sleep('7 days'))",
+        "Built-in exponential retries and failure recovery",
+        "Observability and audit trace per workflow execution",
+        "Seamless integration with AI SDK for reliable agentic flows"
+      ]
+    },
+    "eve_framework": {
+      "key": "eve",
+      "type": "Directory-structured agentic framework (Next.js paradigm for AI agents)",
+      "directory_structure": {
+        "instructions": "agent/instructions.md (Agent prompt & persona)",
+        "config": "agent/agent.ts (Model & runtime config)",
+        "skills": "agent/skills/*.md (Playbooks loaded on demand)",
+        "tools": "agent/tools/*.ts (TypeScript tools with Zod validation)",
+        "channels": "agent/channels/*.ts (Slack, Discord, Web deployment)",
+        "sandbox": "agent/sandbox/sandbox.ts (Isolated Docker compute execution)",
+        "evals": "agent/evals/*.eval.ts (Automated scoring & regression tests)"
+      }
+    },
+    "ai_elements": {
+      "key": "ai-elements",
+      "license": "MIT",
+      "type": "AI-native UI component registry built on shadcn/ui and Tailwind CSS 4",
+      "target_stack": "React 19, Next.js, Vercel AI SDK",
+      "cli_command": "npx ai-elements@latest"
+    },
+    "flags_sdk": {
+      "key": "flags",
+      "type": "Server-only feature flags library as code",
+      "target_stack": "Next.js, SvelteKit",
+      "features": [
+        "A/B testing and canary releases",
+        "Zero client-side loading spinners (server evaluation)",
+        "Compatible with any flag provider or custom logic"
+      ]
+    }
+  }
+}

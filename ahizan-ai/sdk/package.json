@@ -1,0 +1,11 @@
+{
+  "name": "@ahizan/ai-sdk",
+  "version": "1.0.0",
+  "description": "Lightweight client SDK for Ahizan AI",
+  "main": "index.ts",
+  "module": "index.ts",
+  "types": "index.ts",
+  "keywords": ["ahizan", "ai", "sdk"],
+  "author": "Ahizan Engineering",
+  "license": "ISC"
+}

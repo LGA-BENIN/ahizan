@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ahizanAi } from './ahizan-ai-client';
 
 export interface ProductVariantRow {
     id: string;
@@ -122,7 +123,60 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
     const [auditLogs, setAuditLogs] = useState<Array<{ timestamp: string; user: string; role: string; action: string; details: string }>>([]);
 
     // --- Deduplication Scanner ---
-    const [duplicateMatch, setDuplicateMatch] = useState<{ found: boolean; existingProductName?: string; existingEan?: string } | null>(null);
+    const [duplicateMatch, setDuplicateMatch] = useState<{ found: boolean; existingProductName?: string; existingEan?: string; targetProductId?: string } | null>(null);
+    const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+    const [isAiLoading, setIsAiLoading] = useState(false);
+
+    const runAiAnalysis = async (prodId: string) => {
+        setIsAiLoading(true);
+        try {
+            const analysis = await ahizanAi.products.analyze(prodId);
+            setAiAnalysis(analysis);
+
+            if (analysis.proposedOfficialProduct) {
+                const prop = analysis.proposedOfficialProduct;
+                setAiProposal({
+                    title: { value: prop.name, confidence: Math.round(analysis.confidence * 100) },
+                    brand: { value: prop.brand, confidence: 95 },
+                    model: { value: prop.model, confidence: 90 },
+                    category: { value: prop.categoryName || 'Catalogue Général', confidence: 85 },
+                    storage: { value: 'Standard', confidence: 80 },
+                    ram: { value: 'Standard', confidence: 75 },
+                    color: { value: 'Standard', confidence: 80 },
+                    shortDescription: { value: prop.shortDescription, confidence: 90 },
+                });
+            }
+
+            if (analysis.duplicateMatch) {
+                setDuplicateMatch({
+                    found: analysis.duplicateMatch.found,
+                    existingProductName: analysis.duplicateMatch.targetProductName,
+                    existingEan: analysis.duplicateMatch.targetProductId ? `Fiche Officielle #${analysis.duplicateMatch.targetProductId}` : undefined,
+                    targetProductId: analysis.duplicateMatch.targetProductId
+                });
+
+                if (analysis.recommendation === 'REGRAFT_EXISTING' && analysis.duplicateMatch.targetProductId) {
+                    setDecisionMode('RE_GRAFT_EXISTING');
+                    setTargetExistingProductId(analysis.duplicateMatch.targetProductId);
+                }
+            }
+
+            setAuditLogs(prev => [
+                {
+                    timestamp: new Date().toLocaleString('fr-FR'),
+                    user: 'Ahizan AI Engine',
+                    role: 'Système IA',
+                    action: 'ANALYSE_REELLE_AHIZAN_AI',
+                    details: `Recommandation : [${analysis.recommendation}] (${Math.round(analysis.confidence * 100)}% confiance). ${analysis.decisionRationale}`
+                },
+                ...prev
+            ]);
+        } catch (err: any) {
+            console.warn('[Cockpit] Ahizan AI analysis notice:', err.message);
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
 
     // Fetch product details
     useEffect(() => {
@@ -269,16 +323,8 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
                         }
                     ]);
 
-                    // Deduplication match test
-                    if ((p.name || '').toLowerCase().includes('iphone') || (p.name || '').toLowerCase().includes('samsung')) {
-                        setDuplicateMatch({
-                            found: true,
-                            existingProductName: `${brandGuess} ${modelGuess} (Fiche Centrale Ahizan)`,
-                            existingEan: '3700123456789'
-                        });
-                    } else {
-                        setDuplicateMatch({ found: false });
-                    }
+                    // Déclenchement de l'analyse réelle Ahizan AI
+                    runAiAnalysis(p.id);
                 }
             } catch (err) {
                 console.error('[ProductValidationCockpit] Error loading product:', err);
@@ -340,6 +386,9 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
             brand: aiProposal.brand.value || prev.brand,
             model: aiProposal.model.value || prev.model,
             shortDescription: aiProposal.shortDescription.value || prev.shortDescription,
+            seoTitle: aiAnalysis?.proposedOfficialProduct?.seoTitle || prev.seoTitle,
+            seoDescription: aiAnalysis?.proposedOfficialProduct?.seoDescription || prev.seoDescription,
+            categoryId: aiAnalysis?.proposedOfficialProduct?.collectionId || prev.categoryId,
         }));
         setAuditLogs(prev => [
             {
@@ -347,11 +396,11 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
                 user: 'Opérateur Catalogue',
                 role: 'Opérateur',
                 action: 'APPLIQUER_SUGGESTIONS_IA',
-                details: 'Copie des données normalisées par l\'IA dans la fiche centrale Ahizan.'
+                details: 'Copie des données normalisées par Ahizan AI dans la fiche centrale Ahizan.'
             },
             ...prev
         ]);
-        alert('Proposition IA appliquée à la version finale !');
+        alert('✨ Proposition Ahizan AI appliquée avec succès à la fiche officielle !');
     };
 
     const handleSaveDraft = async () => {
@@ -688,17 +737,63 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
 
                         {/* COLUMN 2: AI PROPOSAL & CONFIDENCE METRICS */}
                         <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '16px', padding: '18px' }}>
-                            <div style={{ borderBottom: '1px solid #e0f2fe', pb: '10px', mb: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0369a1' }}>
-                                    🤖 2. Proposition IA & Confiance
-                                </h3>
-                                <button
-                                    onClick={handleApplyAiSuggestions}
-                                    style={{ background: '#0284c7', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}
-                                >
-                                    ✨ Appliquer
-                                </button>
+                            <div style={{ borderBottom: '1px solid #bae6fd', pb: '10px', mb: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0369a1' }}>
+                                        🤖 2. Proposition Ahizan AI
+                                    </h3>
+                                    {isAiLoading && (
+                                        <span style={{ fontSize: '11px', color: '#0284c7', animation: 'spin 1s linear infinite' }}>⏳</span>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button
+                                        onClick={() => runAiAnalysis(productId)}
+                                        disabled={isAiLoading}
+                                        style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '11px', fontWeight: 700, padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}
+                                        title="Relancer l'analyse intelligente avec Ahizan AI"
+                                    >
+                                        🔄 {isAiLoading ? 'Analyse...' : 'Réanalyser'}
+                                    </button>
+                                    <button
+                                        onClick={handleApplyAiSuggestions}
+                                        style={{ background: '#0284c7', color: '#ffffff', border: 'none', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}
+                                    >
+                                        ✨ Appliquer
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* Ahizan AI Recommendation Badge */}
+                            {aiAnalysis && (
+                                <div style={{
+                                    background: aiAnalysis.recommendation === 'REGRAFT_EXISTING' ? '#fef3c7' :
+                                                aiAnalysis.recommendation === 'APPROVE_OFFICIAL' ? '#dcfce7' : '#fee2e2',
+                                    border: `1px solid ${
+                                        aiAnalysis.recommendation === 'REGRAFT_EXISTING' ? '#f59e0b' :
+                                        aiAnalysis.recommendation === 'APPROVE_OFFICIAL' ? '#10b981' : '#ef4444'
+                                    }`,
+                                    borderRadius: '10px',
+                                    padding: '10px 12px',
+                                    marginBottom: '12px',
+                                    fontSize: '12px',
+                                    color: '#1e293b'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: 800, color: aiAnalysis.recommendation === 'REGRAFT_EXISTING' ? '#92400e' : aiAnalysis.recommendation === 'APPROVE_OFFICIAL' ? '#065f46' : '#991b1b' }}>
+                                            {aiAnalysis.recommendation === 'REGRAFT_EXISTING' ? '🔗 RE-GREFFAGE CONSEILLÉ (DOUBLON DÉTECTÉ)' :
+                                             aiAnalysis.recommendation === 'APPROVE_OFFICIAL' ? '✅ CRÉATION FICHE OFFICIELLE RECOMMANDÉE' :
+                                             '⚠️ COMPLÉMENT D\'INFORMATION REQUIS'}
+                                        </span>
+                                        <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(255,255,255,0.8)', padding: '2px 6px', borderRadius: '4px' }}>
+                                            {Math.round((aiAnalysis.confidence || 0.85) * 100)}% confiance
+                                        </span>
+                                    </div>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', lineHeight: '1.4', color: '#334155' }}>
+                                        {aiAnalysis.decisionRationale}
+                                    </p>
+                                </div>
+                            )}
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <div>

@@ -322,7 +322,8 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         const defaultStock = variantOffers[0]?.stock || 5;
 
         const newGeneratedVariants: VariantOfferRow[] = combinations.map((combo, idx) => {
-            const variantName = `${product.name} ${combo.map(c => c.name).join(' ')}`;
+            const prodPrefix = product.name ? `${product.name} - ` : '';
+            const variantName = `${prodPrefix}${combo.map(c => `${c.groupName} : ${c.name}`).join(' - ')}`;
             const optIds = combo.map(c => c.id).filter(id => !id.startsWith('custom_'));
 
             return {
@@ -808,9 +809,11 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                         </label>
                                     </div>
 
-                                    <div>
-                                        <h4 className="font-bold text-sm text-foreground">
-                                            {variant.name}
+                                    <div className="min-w-0 flex-1">
+                                        <h4 className="font-bold text-sm text-foreground break-words leading-snug whitespace-normal">
+                                            {variant.name && product?.name && variant.name.startsWith(product.name) 
+                                                ? variant.name 
+                                                : (product?.name ? `${product.name} - ${variant.name}` : variant.name)}
                                         </h4>
                                         <span className="text-[10px] text-muted-foreground font-mono">
                                             Déclinaison #{index + 1}

@@ -727,7 +727,8 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 optName: val,
             }));
 
-            const comboName = `${productDetails?.name || 'Produit'} ${combo.join(' ')}`;
+            const explicitOptionsStr = optionPairs.map(op => `${op.groupName} : ${op.optName}`).join(' - ');
+            const comboName = productDetails?.name ? `${productDetails.name} - ${explicitOptionsStr}` : explicitOptionsStr;
             const comboKey = combo.join('-');
 
             // Match with existing product variant in Vendure canonically

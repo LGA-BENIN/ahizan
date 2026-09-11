@@ -2,6 +2,7 @@ import { AhizanClient } from './ahizan-client';
 import { RequestContext } from './types';
 import { createProductTools } from './products/product-tools';
 import { createAnalyticsTools } from './analytics/analytics-tools';
+import { createModerationTools } from './products/moderation-tools';
 
 export class ToolRegistry {
   private client: AhizanClient;
@@ -14,13 +15,19 @@ export class ToolRegistry {
     let currentContext = context;
     const getCtx = () => currentContext;
 
-    const productTools = createProductTools(this.client, getCtx);
-    const analyticsTools = createAnalyticsTools(this.client, getCtx);
-
-    return {
-      ...productTools,
-      ...analyticsTools,
+    const tools: Record<string, any> = {
+      ...createProductTools(this.client, getCtx),
+      ...createAnalyticsTools(this.client, getCtx),
     };
+
+    // P3-1 : les outils d'écriture (approve/reject) ne sont exposés au modèle que
+    // pour un Super Admin authentifié. Un STAFF ne peut même pas déclencher la
+    // demande d'approbation.
+    if (context?.role === 'SUPER_ADMIN') {
+      Object.assign(tools, createModerationTools(this.client, getCtx));
+    }
+
+    return tools;
   }
 
   async execute(name: string, args: any, context?: RequestContext): Promise<any> {
@@ -41,5 +48,3 @@ export class ToolRegistry {
     return this.client;
   }
 }
-
-export const defaultToolRegistry = new ToolRegistry();

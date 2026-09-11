@@ -6,7 +6,7 @@ import { RequestContext } from '../types';
 export function createAnalyticsTools(client: AhizanClient, getContext?: () => RequestContext | undefined) {
   const getSalesStatistics = tool({
     description: 'Retourne les statistiques réelles des ventes et des commandes sur Ahizan (chiffre d\'affaires total, nombre de commandes, commandes payées, panier moyen).',
-    parameters: z.object({
+    inputSchema: z.object({
       period: z.string().optional().describe('Période d\'analyse (ex: "all", "today", "week", "month")'),
     }),
     execute: async ({ period = 'all' }) => {
@@ -58,7 +58,7 @@ export function createAnalyticsTools(client: AhizanClient, getContext?: () => Re
 
   const getTopVendors = tool({
     description: 'Liste les vendeurs de la marketplace Ahizan, leurs statuts et leur volume de produits.',
-    parameters: z.object({
+    inputSchema: z.object({
       limit: z.number().optional().describe('Nombre de vendeurs à retourner (défaut 10)'),
     }),
     execute: async ({ limit = 10 }) => {

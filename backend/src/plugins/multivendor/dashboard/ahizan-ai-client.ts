@@ -1,6 +1,8 @@
 /**
- * Ahizan AI Client for Vendure Dashboard Extensions (V2 - Vercel AI SDK Core)
- * Connects directly to the Ahizan AI microservice (port 3005) or Vendure proxy
+ * Ahizan AI Client for Vendure Dashboard Extensions (V3 - UI Message Stream).
+ * Utilise le proxy same-origin /ahizan-ai-api (AhizanAIProxyController) qui forward
+ * le token Vendure et supporte le streaming SSE. Plus de problème CORS ni de
+ * connexion à 127.0.0.1:3005 depuis le navigateur.
  */
 
 export interface ChatMessage {
@@ -18,53 +20,10 @@ export interface ModelInfo {
 
 export interface ChatResponse {
   text: string;
-  toolCalls?: Array<{
-    id: string;
-    name: string;
-    arguments: any;
-  }>;
-  traces?: Array<{
-    step: number;
-    toolCall?: { name: string; args: any };
-    toolResult?: any;
-    latencyMs: number;
-  }>;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
+  toolCalls?: Array<{ id: string; name: string; arguments: any }>;
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   modelUsed?: string;
   finishReason?: string;
-}
-
-export interface ProposedOfficialProduct {
-  name: string;
-  brand: string;
-  model: string;
-  shortDescription: string;
-  description?: string;
-  seoTitle: string;
-  seoDescription: string;
-  categoryName?: string;
-  collectionId?: string;
-}
-
-export interface DuplicateMatchInfo {
-  found: boolean;
-  confidence: number;
-  targetProductId?: string;
-  targetProductName?: string;
-  similarityScore?: number;
-  reason?: string;
-}
-
-export interface QualityScoreAudit {
-  score: number;
-  ratingLabel: string;
-  canPublish: boolean;
-  missingElements: string[];
-  strengths: string[];
 }
 
 export interface ProductApprovalAnalysis {
@@ -72,75 +31,68 @@ export interface ProductApprovalAnalysis {
   recommendation: 'APPROVE_OFFICIAL' | 'REGRAFT_EXISTING' | 'REQUEST_INFORMATION' | 'REJECT';
   confidence: number;
   decisionRationale: string;
-  duplicateMatch: DuplicateMatchInfo;
-  proposedOfficialProduct: ProposedOfficialProduct;
-  qualityScore: QualityScoreAudit;
+  duplicateMatch: any;
+  proposedOfficialProduct: any;
+  qualityScore: any;
   usedDataSources: string[];
 }
 
+/** Token Vendure stocké par le dashboard v3 (localStorage: 'vendure-session-token'). */
+function getVendureToken(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return (
+    localStorage.getItem('vendure-session-token') ||
+    localStorage.getItem('vendure-auth-token') ||
+    sessionStorage.getItem('vendure-session-token') ||
+    sessionStorage.getItem('vendure-auth-token') ||
+    undefined
+  );
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getVendureToken();
+  // Vendure v3 envoie le token via Authorization: Bearer, on fait de même.
+  return token ? { Authorization: `Bearer ${token}`, 'vendure-auth-token': token } : {};
+}
+
 class AhizanAIClient {
-  private getBaseUrl(): string {
-    if (typeof window !== 'undefined') {
-      // Connect directly to port 3005 on same hostname for high-speed streaming
-      return `${window.location.protocol}//${window.location.hostname}:3005/api`;
-    }
-    return 'http://127.0.0.1:3005/api';
-  }
+  private baseUrl = '/ahizan-ai-api';
 
   private async post<T>(endpoint: string, body: any): Promise<T> {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const url = `${this.getBaseUrl()}${cleanEndpoint}`;
-    
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    } catch {
-      // Fallback to proxy if direct connection fails
-      res = await fetch(`/ahizan-ai-api${cleanEndpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }
-
+    const res = await fetch(`${this.baseUrl}${cleanEndpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    });
     if (!res.ok) {
       let errMsg = `Erreur AI [${res.status}]`;
-      try {
-        const json = await res.json();
-        if (json.error) errMsg = json.error;
-      } catch {}
+      try { const json = await res.json(); if (json.error) errMsg = json.error; } catch {}
       throw new Error(errMsg);
     }
+    return await res.json();
+  }
 
+  private async get<T>(endpoint: string): Promise<T> {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${this.baseUrl}${cleanEndpoint}`, {
+      headers: { ...authHeaders() },
+    });
+    if (!res.ok) throw new Error(`Erreur AI [${res.status}]`);
     return await res.json();
   }
 
   async checkHealth(): Promise<any> {
-    try {
-      const res = await fetch(`${this.getBaseUrl()}/health`);
-      if (res.ok) return await res.json();
-      const fallback = await fetch('/ahizan-ai-api/health');
-      return await fallback.json();
-    } catch {
-      return { status: 'offline' };
-    }
+    try { return await this.get<any>('/health'); } catch { return { status: 'offline' }; }
   }
 
   async getModels(): Promise<ModelInfo[]> {
     try {
-      const res = await fetch(`${this.getBaseUrl()}/models`);
-      if (res.ok) {
-        const data = await res.json();
-        return data.models || [];
-      }
-    } catch {}
-    return [
-      { id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash', provider: 'google', description: 'Recommandé', available: true }
-    ];
+      const data = await this.get<{ models?: ModelInfo[] }>('/models');
+      return data.models || [];
+    } catch {
+      return [{ id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash', provider: 'google', description: 'Recommandé', available: true }];
+    }
   }
 
   async chat(messages: ChatMessage[], modelId?: string): Promise<ChatResponse> {
@@ -148,75 +100,97 @@ class AhizanAIClient {
   }
 
   /**
-   * Streaming en direct via Server-Sent Events (Vercel AI SDK DataStream)
+   * Streaming via UI Message Stream protocol (AI SDK v6).
+   * Appelle onEvent avec chaque événement structuré (text-delta, tool-*, etc.).
+   * Retourne le texte complet accumulé.
    */
   async streamChat(
     messages: ChatMessage[],
-    onToken: (textChunk: string) => void,
+    onEvent: (event: StreamEvent) => void,
     modelId?: string
   ): Promise<string> {
-    const url = `${this.getBaseUrl()}/chat/stream`;
-    const res = await fetch(url, {
+    const res = await fetch(`${this.baseUrl}/chat/stream`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
-      body: JSON.stringify({
-        messages,
-        modelId,
-        stream: true,
-      }),
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...authHeaders() },
+      body: JSON.stringify({ messages, modelId, stream: true }),
     });
 
     if (!res.ok || !res.body) {
-      // Fallback to non-streaming
       const fallback = await this.chat(messages, modelId);
-      onToken(fallback.text);
+      onEvent({ type: 'text-delta', textDelta: fallback.text });
+      onEvent({ type: 'finish' });
       return fallback.text;
     }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
+    let buffer = '';
     let fullText = '';
+
+    const handleEvent = (dataStr: string) => {
+      if (!dataStr || dataStr === '[DONE]') return;
+      try {
+        const evt = JSON.parse(dataStr);
+        onEvent(evt);
+        if (evt.type === 'text-delta' && evt.textDelta) fullText += evt.textDelta;
+      } catch { /* ligne partielle ou non-JSON */ }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      
-      // Parse AI SDK data stream protocol: lines starting with '0:' are text deltas
-      const lines = chunk.split('\n');
-      for (const line of lines) {
-        if (line.startsWith('0:')) {
-          try {
-            const textPart = JSON.parse(line.substring(2));
-            fullText += textPart;
-            onToken(textPart);
-          } catch {
-            // Raw text fallback
-            const raw = line.substring(2).replace(/^"|"$/g, '');
-            fullText += raw;
-            onToken(raw);
-          }
+      buffer += decoder.decode(value, { stream: true });
+      // Les événements SSE sont séparés par \n\n
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        for (const line of block.split('\n')) {
+          if (line.startsWith('data:')) handleEvent(line.slice(5).trim());
         }
       }
     }
-
+    // Traiter le reste du buffer
+    if (buffer.trim()) {
+      for (const line of buffer.split('\n')) {
+        if (line.startsWith('data:')) handleEvent(line.slice(5).trim());
+      }
+    }
+    onEvent({ type: 'finish' });
     return fullText;
   }
 
+  async getDashboardModelConfig(): Promise<{ primaryModel?: string; secondaryModel?: string }> {
+    try { return await this.get<any>('/config/dashboard-model'); } catch { return {}; }
+  }
+
+  async setDashboardModelConfig(config: { primaryModel?: string; secondaryModel?: string }): Promise<any> {
+    return this.post<any>('/config/dashboard-model', config);
+  }
+
   readonly products = {
-    analyze: async (productId: string): Promise<ProductApprovalAnalysis> => {
-      return this.post<ProductApprovalAnalysis>('/products/analyze', { productId });
-    },
-    suggestOfficial: async (productId: string): Promise<ProposedOfficialProduct> => {
-      return this.post<ProposedOfficialProduct>('/products/suggest-official', { productId });
-    },
-    detectDuplicates: async (productId: string): Promise<DuplicateMatchInfo> => {
-      return this.post<DuplicateMatchInfo>('/products/detect-duplicates', { productId });
-    },
+    analyze: async (productId: string): Promise<ProductApprovalAnalysis> =>
+      this.post<ProductApprovalAnalysis>('/products/analyze', { productId }),
+    suggestOfficial: async (productId: string): Promise<any> =>
+      this.post<any>('/products/suggest-official', { productId }),
+    detectDuplicates: async (productId: string): Promise<any> =>
+      this.post<any>('/products/detect-duplicates', { productId }),
   };
 }
+
+export type StreamEvent =
+  | { type: 'start' }
+  | { type: 'start-step' }
+  | { type: 'finish-step' }
+  | { type: 'finish'; finishReason?: string }
+  | { type: 'text-delta'; textDelta: string }
+  | { type: 'reasoning'; textDelta?: string; reasoning?: string }
+  | { type: 'tool-input-start'; toolCallId: string; toolName: string }
+  | { type: 'tool-input-delta'; toolCallId: string; inputTextDelta: string }
+  | { type: 'tool-input-available'; toolCallId: string; toolName: string; input: any }
+  | { type: 'tool-output-available'; toolCallId: string; output: any }
+  | { type: 'tool-output-error'; toolCallId: string; errorText?: string }
+  | { type: 'error'; error?: string }
+  | { type: string; [key: string]: any };
 
 export const ahizanAi = new AhizanAIClient();

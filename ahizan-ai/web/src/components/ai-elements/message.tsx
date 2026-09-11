@@ -1,6 +1,10 @@
 import React from 'react';
 import { marked } from 'marked';
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
+}
+
 interface MessageProps {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -12,7 +16,13 @@ interface MessageProps {
 
 export function Message({ role, content, isStreaming, avatar, header, children }: MessageProps) {
   const isAssistant = role === 'assistant';
-  const htmlContent = marked.parse(content || '', { async: false }) as string;
+  // P4-4 : pendant le streaming, on n'appelle PAS marked.parse à chaque delta
+  // (coûteux, provoque un rendu saccadé "disque rayé"). On affiche le texte brut
+  // avec conservation des retours à la ligne, et on ne parse le Markdown qu'une
+  // fois le stream terminé (isStreaming = false).
+  const htmlContent = isStreaming
+    ? escapeHtml(content || '').replace(/\n/g, '<br/>')
+    : (marked.parse(content || '', { async: false }) as string);
 
   return (
     <div className={`flex gap-2 sm:gap-3 md:gap-4 w-full transition-all ${isAssistant ? 'flex-row' : 'flex-row-reverse'}`}>

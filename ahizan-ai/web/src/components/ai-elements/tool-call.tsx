@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
-import { Wrench, ChevronDown, ChevronRight, CheckCircle2, Clock } from 'lucide-react';
+import { Wrench, ChevronDown, ChevronRight, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { ToolResultRenderer } from './tool-result-renderer';
 
 interface ToolCallProps {
   toolName: string;
   args?: any;
   result?: any;
-  state?: 'call' | 'result' | 'running';
+  state?: 'call' | 'result' | 'running' | 'error';
+  errorText?: string;
 }
 
-export function ToolCall({ toolName, args, result, state = 'result' }: ToolCallProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const isDone = state === 'result' || !!result;
+export function ToolCall({ toolName, args, result, state = 'result', errorText }: ToolCallProps) {
+  const [isOpen, setIsOpen] = useState(state === 'error');
+  const isDone = state === 'result' || (!!result && state !== 'error');
+  const isError = state === 'error';
 
   return (
-    <div className="w-full mt-2 border border-slate-800 bg-slate-950/60 rounded-xl overflow-hidden text-xs">
+    <div className={`w-full mt-2 border rounded-xl overflow-hidden text-xs ${isError ? 'border-rose-500/30 bg-rose-950/20' : 'border-slate-800 bg-slate-950/60'}`}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -25,7 +28,12 @@ export function ToolCall({ toolName, args, result, state = 'result' }: ToolCallP
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {isDone ? (
+          {isError ? (
+            <span className="flex items-center gap-1 text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded-full text-[10px]">
+              <XCircle className="w-3 h-3" />
+              <span className="hidden sm:inline">Échec</span>
+            </span>
+          ) : isDone ? (
             <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full text-[10px]">
               <CheckCircle2 className="w-3 h-3" />
               <span className="hidden sm:inline">Succès</span>
@@ -50,12 +58,18 @@ export function ToolCall({ toolName, args, result, state = 'result' }: ToolCallP
               </pre>
             </div>
           )}
-          {result && (
+          {isError && errorText && (
             <div>
-              <span className="text-slate-500 block mb-0.5">Résultat Vendure GraphQL :</span>
-              <pre className="bg-slate-900 p-2 rounded border border-slate-800 text-emerald-300/90 overflow-x-auto">
-                {JSON.stringify(result, null, 2)}
+              <span className="text-rose-400 block mb-0.5">Erreur :</span>
+              <pre className="bg-slate-900 p-2 rounded border border-rose-500/30 text-rose-300 overflow-x-auto whitespace-pre-wrap">
+                {errorText}
               </pre>
+            </div>
+          )}
+          {!isError && result && (
+            <div>
+              <span className="text-slate-500 block mb-0.5">Résultat :</span>
+              <ToolResultRenderer toolName={toolName} result={result} />
             </div>
           )}
         </div>

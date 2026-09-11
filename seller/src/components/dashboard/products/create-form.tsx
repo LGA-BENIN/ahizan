@@ -747,12 +747,23 @@ export default function CreateProductForm({
         }
 
         const getCanonicalKeyFromName = (name: string) => {
+            const partsWithColons = name.split(' - ').filter(s => s.includes(':'));
+            if (partsWithColons.length > 0) {
+                return partsWithColons.map(s => {
+                    const colonIdx = s.indexOf(':');
+                    const val = colonIdx !== -1 ? s.substring(colonIdx + 1) : s;
+                    return val.trim().toLowerCase();
+                }).sort().join(':::');
+            }
             return name.split(' - ').map(s => s.trim().toLowerCase()).sort().join(':::');
         };
 
+        const prodPrefix = formData.name.trim() ? `${formData.name.trim()} - ` : '';
+
         setVariants(prevVariants => {
             return uniqueCombinations.map((comb, index) => {
-                const variantName = comb.join(' - ');
+                const variantOptionStr = comb.map((val, i) => `${activeGroupEntries[i].name} : ${val}`).join(' - ');
+                const variantName = `${prodPrefix}${variantOptionStr}`;
                 const combCanonicalKey = comb.map(c => c.trim().toLowerCase()).sort().join(':::');
 
                 // Match existing variant by canonical key or exact name
@@ -777,7 +788,7 @@ export default function CreateProductForm({
             });
         });
         setActiveVariantTab('draft');
-    }, [hasMultipleVariants, selectedStandardGroups, groupValuesMap]);
+    }, [hasMultipleVariants, selectedStandardGroups, groupValuesMap, formData.name]);
 
     // Validation per step
     const handleNextStep = () => {
@@ -868,7 +879,10 @@ export default function CreateProductForm({
             }
 
             const formattedVariants = variants.map(v => {
-                const parts = v.name.split(' - ').map(p => p.trim());
+                const partsWithColons = v.name.split(' - ').filter(p => p.includes(':'));
+                const parts = partsWithColons.length > 0
+                    ? partsWithColons.map(p => p.substring(p.indexOf(':') + 1).trim())
+                    : v.name.split(' - ').map(p => p.trim());
                 const optionCodes = parts.map(p => p.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
                 return {
                     ...v,
@@ -1098,7 +1112,10 @@ export default function CreateProductForm({
             // CRITICAL: We ONLY send the registered/active variants to the database!
             // Unused draft variants stay in the PC cache (localStorage) and are not sent to the DB.
             const formattedVariants = activeVariants.map(v => {
-                const parts = v.name.split(' - ').map(p => p.trim());
+                const partsWithColons = v.name.split(' - ').filter(p => p.includes(':'));
+                const parts = partsWithColons.length > 0
+                    ? partsWithColons.map(p => p.substring(p.indexOf(':') + 1).trim())
+                    : v.name.split(' - ').map(p => p.trim());
                 const optionCodes = parts.map(p => p.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
                 return {
                     ...v,
@@ -1795,22 +1812,22 @@ export default function CreateProductForm({
                                             {/* Compact Row Header */}
                                             <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                 {/* Left: Checkbox, Badge, Name & Enabled Switch */}
-                                                <div className="flex items-center gap-3 min-w-0">
+                                                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
                                                     <input
                                                         type="checkbox"
                                                         checked={isSelected}
                                                         onChange={() => toggleSelectVariant(v.id)}
-                                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer shrink-0"
+                                                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary cursor-pointer shrink-0 mt-1 sm:mt-0"
                                                     />
                                                     <span className={cn(
-                                                        "w-6 h-6 rounded-lg font-black text-[11px] flex items-center justify-center shrink-0",
+                                                        "w-6 h-6 rounded-lg font-black text-[11px] flex items-center justify-center shrink-0 mt-0.5 sm:mt-0",
                                                         isError ? "bg-red-500 text-white" : "bg-muted text-foreground"
                                                     )}>
                                                         {actualIndex + 1}
                                                     </span>
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-sm text-foreground truncate block" title={v.name}>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="font-bold text-sm text-foreground break-words leading-snug whitespace-normal" title={v.name}>
                                                                 {v.name}
                                                             </span>
                                                             {v.onPromotion && (
@@ -1834,10 +1851,10 @@ export default function CreateProductForm({
                                                     </div>
                                                 </div>
 
-                                                {/* Right: Quick Price, Quick Stock & Actions */}
-                                                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                                                {/* Right / Bottom on mobile: Quick Price, Quick Stock & Actions */}
+                                                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-border/40">
                                                     {/* Quick Price Input */}
-                                                    <div className="w-28">
+                                                    <div className="flex-1 sm:w-28 min-w-[110px]">
                                                         <Input
                                                             type="number"
                                                             placeholder="Prix (FCFA)"
@@ -1851,14 +1868,14 @@ export default function CreateProductForm({
                                                                 }
                                                             }}
                                                             className={cn(
-                                                                "h-8 text-xs font-bold rounded-lg",
+                                                                "h-9 sm:h-8 text-xs font-bold rounded-lg w-full bg-background",
                                                                 isError && (!v.price || v.price <= 0) && "border-red-500 bg-red-50/20"
                                                             )}
                                                         />
                                                     </div>
 
                                                     {/* Quick Stock Input */}
-                                                    <div className="w-20">
+                                                    <div className="w-20 sm:w-20 min-w-[70px]">
                                                         <Input
                                                             type="number"
                                                             min="0"
@@ -1868,78 +1885,81 @@ export default function CreateProductForm({
                                                                 const val = Math.max(0, parseInt(e.target.value) || 0);
                                                                 setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, stock: val } : item));
                                                             }}
-                                                            className="h-8 text-xs font-bold rounded-lg"
+                                                            className="h-9 sm:h-8 text-xs font-bold rounded-lg w-full bg-background"
                                                         />
                                                     </div>
 
-                                                    {/* Enregistrer / Activer Button when in draft tab */}
-                                                    {activeVariantTab === 'draft' ? (
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                const hasPrice = v.price && Number(v.price) > 0;
-                                                                const hasStock = v.stock !== undefined && v.stock !== null && Number(v.stock) > 0;
+                                                    {/* Action Button & Chevron */}
+                                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
+                                                        {/* Enregistrer / Activer Button when in draft tab */}
+                                                        {activeVariantTab === 'draft' ? (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const hasPrice = v.price && Number(v.price) > 0;
+                                                                    const hasStock = v.stock !== undefined && v.stock !== null && Number(v.stock) > 0;
 
-                                                                if (hasPrice && !hasStock) {
-                                                                    toast.error(`Veuillez entrer le stock de la déclinaison "${v.name}" ou effacer son prix pour l'enlever de la liste.`);
-                                                                    return;
-                                                                }
-                                                                if (!hasPrice && hasStock) {
-                                                                    toast.error(`Veuillez entrer le prix de la déclinaison "${v.name}" ou effacer son stock pour l'enlever de la liste.`);
-                                                                    return;
-                                                                }
-                                                                if (!hasPrice && !hasStock) {
-                                                                    toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${v.name}" avant de l'enregistrer.`);
-                                                                    return;
-                                                                }
-                                                                if (v.onPromotion) {
-                                                                    if (!v.promotionalPrice || Number(v.promotionalPrice) <= 0) {
-                                                                        toast.error(`Veuillez renseigner le prix promotionnel pour "${v.name}".`);
+                                                                    if (hasPrice && !hasStock) {
+                                                                        toast.error(`Veuillez entrer le stock de la déclinaison "${v.name}" ou effacer son prix pour l'enlever de la liste.`);
                                                                         return;
                                                                     }
-                                                                    if (Number(v.promotionalPrice) >= Number(v.price)) {
-                                                                        toast.error(`Le prix promo (${v.promotionalPrice} F) doit être inférieur au prix normal (${v.price} F) pour "${v.name}".`);
+                                                                    if (!hasPrice && hasStock) {
+                                                                        toast.error(`Veuillez entrer le prix de la déclinaison "${v.name}" ou effacer son stock pour l'enlever de la liste.`);
                                                                         return;
                                                                     }
-                                                                }
-                                                                setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: true } : item));
-                                                                toast.success(`"${v.name}" enregistrée dans les déclinaisons utilisées !`);
-                                                            }}
-                                                            className="h-8 px-2.5 rounded-lg text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer shrink-0"
-                                                            title="Enregistrer et déplacer vers les déclinaisons utilisées"
-                                                        >
-                                                            <Check className="w-3.5 h-3.5" />
-                                                            <span>Enregistrer</span>
-                                                        </Button>
-                                                    ) : (
+                                                                    if (!hasPrice && !hasStock) {
+                                                                        toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${v.name}" avant de l'enregistrer.`);
+                                                                        return;
+                                                                    }
+                                                                    if (v.onPromotion) {
+                                                                        if (!v.promotionalPrice || Number(v.promotionalPrice) <= 0) {
+                                                                            toast.error(`Veuillez renseigner le prix promotionnel pour "${v.name}".`);
+                                                                            return;
+                                                                        }
+                                                                        if (Number(v.promotionalPrice) >= Number(v.price)) {
+                                                                            toast.error(`Le prix promo (${v.promotionalPrice} F) doit être inférieur au prix normal (${v.price} F) pour "${v.name}".`);
+                                                                            return;
+                                                                        }
+                                                                    }
+                                                                    setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: true } : item));
+                                                                    toast.success(`"${v.name}" enregistrée dans les déclinaisons utilisées !`);
+                                                                }}
+                                                                className="h-9 sm:h-8 px-3 sm:px-2.5 rounded-lg text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer shrink-0 shadow-xs"
+                                                                title="Enregistrer et déplacer vers les déclinaisons utilisées"
+                                                            >
+                                                                <Check className="w-3.5 h-3.5" />
+                                                                <span>Enregistrer</span>
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => {
+                                                                    setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: false } : item));
+                                                                    toast.info(`"${v.name}" passée en brouillon.`);
+                                                                }}
+                                                                className="h-9 sm:h-8 px-2.5 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer shrink-0 border border-border/50 sm:border-0"
+                                                                title="Passer en brouillon"
+                                                            >
+                                                                <EyeOff className="w-3.5 h-3.5" />
+                                                                <span>Brouillon</span>
+                                                            </Button>
+                                                        )}
+
+                                                        {/* Chevron toggle to expand/collapse */}
                                                         <Button
                                                             type="button"
-                                                            size="sm"
                                                             variant="ghost"
-                                                            onClick={() => {
-                                                                setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: false } : item));
-                                                                toast.info(`"${v.name}" passée en brouillon.`);
-                                                            }}
-                                                            className="h-8 px-2 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer shrink-0"
-                                                            title="Passer en brouillon"
+                                                            size="sm"
+                                                            onClick={() => toggleExpandVariant(v.id)}
+                                                            className="h-9 sm:h-8 w-9 sm:w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer shrink-0 border border-border/50 sm:border-0"
+                                                            title={isExpanded ? "Replier" : "Détails & Photos"}
                                                         >
-                                                            <EyeOff className="w-3.5 h-3.5" />
-                                                            <span className="hidden sm:inline">Brouillon</span>
+                                                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                                         </Button>
-                                                    )}
-
-                                                    {/* Chevron toggle to expand/collapse */}
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => toggleExpandVariant(v.id)}
-                                                        className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
-                                                        title={isExpanded ? "Replier" : "Détails & Photos"}
-                                                    >
-                                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                    </Button>
+                                                    </div>
                                                 </div>
                                             </div>
 

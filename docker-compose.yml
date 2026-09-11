@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   vendure:
     image: ahizan-vendure_v2
@@ -35,6 +41,7 @@ services:
           - ahizan_backend
     volumes:
       - ./backend/static/assets:/usr/src/app/static/assets
+    logging: *default-logging
 
   storefront:
     image: ahizan-storefront
@@ -57,6 +64,7 @@ services:
     networks:
       - web
       - internal
+    logging: *default-logging
 
   seller:
     image: ahizan-seller
@@ -78,6 +86,7 @@ services:
     networks:
       - web
       - internal
+    logging: *default-logging
 
   auth:
     image: ahizan-auth
@@ -99,6 +108,7 @@ services:
     networks:
       - web
       - internal
+    logging: *default-logging
 
   media:
     image: ahizan-media
@@ -117,6 +127,7 @@ services:
       - "VIRTUAL_PORT=80"
     networks:
       - web
+    logging: *default-logging
 
   db:
     image: postgis/postgis:16-3.4-alpine
@@ -132,23 +143,32 @@ services:
     networks:
       - internal
     # Pas de port mapping nécessaire, communication interne Docker uniquement
+    logging: *default-logging
 
   ai:
-    image: node:20-alpine
+    image: node:22-alpine
     container_name: ahizan_ai
     restart: unless-stopped
     ports:
       - "3005:3005"
     working_dir: /app
+    env_file: ./ahizan-ai/.env
     volumes:
       - ./ahizan-ai:/app
     command: node dist/index.js
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3005/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     labels:
       - "VIRTUAL_HOST=ai.ahizan.com"
       - "VIRTUAL_PORT=3005"
     networks:
       - web
       - internal
+    logging: *default-logging
 
 volumes:
   db_data:

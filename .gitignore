@@ -16,6 +16,10 @@ yarn-error.log*
 *.key
 *.cert
 *.crt
+# Clés API et préférences IA persistées sur disque (voir docs/roadmap-produit.md, P1-3)
+ahizan-ai/config/
+ahizan-ai/service.pid
+ahizan-ai/service.log
 
 # Dépendances
 node_modules/

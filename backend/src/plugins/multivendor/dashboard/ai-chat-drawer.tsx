@@ -1,357 +1,310 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ahizanAi, ChatMessage, ModelInfo } from './ahizan-ai-client';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ahizanAi, ChatMessage, ModelInfo, type StreamEvent } from './ahizan-ai-client';
 
+/* ---------- Rendu Markdown léger (sans dépendance externe) ---------- */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
+}
+
+function renderMarkdown(md: string): string {
+  if (!md) return '';
+  // Tableaux Markdown simples
+  const lines = md.split('\n');
+  let html = '';
+  let inTable = false;
+  let tableHeader: string[] | null = null;
+  const flushTable = () => {
+    if (!inTable || !tableHeader) return;
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0">';
+    html += '<thead><tr>' + tableHeader.map(h => `<th style="border:1px solid #334155;padding:6px;text-align:left;background:#1e293b;color:#cbd5e1">${h}</th>`).join('') + '</tr></thead>';
+    inTable = false;
+    tableHeader = null;
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      // ligne de séparation |---|---|
+      if (cells.every(c => /^[-:]+$/.test(c))) continue;
+      if (!inTable) { inTable = true; tableHeader = cells; html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin:8px 0"><thead><tr>' + cells.map(h => `<th style="border:1px solid #334155;padding:6px;text-align:left;background:#1e293b;color:#cbd5e1">${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody>'; continue; }
+      html += '<tr>' + cells.map(c => `<td style="border:1px solid #334155;padding:6px;color:#e2e8f0">${escapeHtml(c)}</td>`).join('') + '</tr>';
+      continue;
+    }
+    if (inTable) { html += '</tbody></table>'; inTable = false; tableHeader = null; }
+    if (!line.trim()) { html += '<br/>'; continue; }
+    let l = escapeHtml(line);
+    // headings
+    if (l.startsWith('### ')) { html += `<h4 style="margin:8px 0 4px;font-size:13px;color:#f1f5f9">${l.slice(4)}</h4>`; continue; }
+    if (l.startsWith('## ')) { html += `<h3 style="margin:10px 0 4px;font-size:14px;color:#f1f5f9">${l.slice(3)}</h3>`; continue; }
+    if (l.startsWith('# ')) { html += `<h2 style="margin:10px 0 4px;font-size:15px;color:#f8fafc">${l.slice(2)}</h2>`; continue; }
+    // bold / italic / code
+    l = l.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    l = l.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    l = l.replace(/`([^`]+)`/g, '<code style="background:#0f172a;padding:1px 4px;border-radius:3px;color:#38bdf8;font-size:11px">$1</code>');
+    // list items
+    if (l.startsWith('- ') || l.startsWith('* ')) { html += `<div style="padding-left:14px;color:#cbd5e1">• ${l.slice(2)}</div>`; continue; }
+    if (/^\d+\.\s/.test(l)) { html += `<div style="padding-left:14px;color:#cbd5e1">${l}</div>`; continue; }
+    html += `<p style="margin:4px 0;color:#e2e8f0;line-height:1.55">${l}</p>`;
+  }
+  if (inTable) html += '</tbody></table>';
+  return html;
+}
+
+/* ---------- Carte d'outil repliable ---------- */
+function ToolCard({ name, input, output, state }: { name: string; input?: any; output?: any; state: string }) {
+  const [open, setOpen] = useState(false);
+  const isError = state === 'error';
+  const isDone = state === 'output-available' || !!output;
+  const badge = isError ? '❌ Échec' : isDone ? '✅ Succès' : '⏳ En cours';
+  const badgeColor = isError ? '#fca5a5' : isDone ? '#86efac' : '#7dd3fc';
+  return (
+    <div style={{ margin: '6px 0', border: `1px solid ${isError ? '#7f1d1d' : '#1e293b'}`, borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
+      <button onClick={() => setOpen(!open)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: '#0f172a', border: 'none', cursor: 'pointer', color: '#cbd5e1' }}>
+        <span style={{ fontFamily: 'monospace', color: '#7dd3fc' }}>🔧 {name}</span>
+        <span style={{ fontSize: 10, color: badgeColor }}>{badge} {open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: 8, background: '#020617', borderTop: '1px solid #1e293b', fontFamily: 'monospace', fontSize: 10, maxHeight: 200, overflow: 'auto' }}>
+          {input && (<div style={{ marginBottom: 4 }}><span style={{ color: '#64748b' }}>Entrée :</span><pre style={{ color: '#e2e8f0', margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(input, null, 2)}</pre></div>)}
+          {output && (<div><span style={{ color: '#64748b' }}>Résultat :</span><pre style={{ color: '#86efac', margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(output, null, 2)}</pre></div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Section raisonnement repliable ---------- */
+function ReasoningBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(true);
+  if (!text) return null;
+  return (
+    <div style={{ margin: '6px 0', border: '1px solid #312e81', borderRadius: 8, overflow: 'hidden', fontSize: 11 }}>
+      <button onClick={() => setOpen(!open)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: '#1e1b4b', border: 'none', cursor: 'pointer', color: '#a5b4fc' }}>
+        <span>💭 Réflexion</span><span style={{ marginLeft: 'auto' }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div style={{ padding: 8, background: '#0f0a2e', color: '#c7d2fe', whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}>{text}</div>}
+    </div>
+  );
+}
+
+/* ---------- Carte d'approbation humaine ---------- */
+function ApprovalCard({ toolName, input }: { toolName: string; input: any }) {
+  return (
+    <div style={{ margin: '6px 0', border: '1px solid #b45309', borderRadius: 8, overflow: 'hidden', fontSize: 12 }}>
+      <div style={{ padding: '6px 10px', background: '#422006', color: '#fcd34d', fontWeight: 600 }}>⚠️ Confirmation requise : {toolName}</div>
+      <div style={{ padding: 8, background: '#0f172a' }}>
+        <pre style={{ color: '#e2e8f0', fontSize: 10, margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(input, null, 2)}</pre>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Composant principal : Drawer flottant ---------- */
 export function AhizanAIChatDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: 'Bonjour ! Je suis l\'assistant **Ahizan AI V2** pour le Super Admin, propulsé par Vercel AI SDK. Je réponds en streaming direct et je suis connecté à Vendure pour auditer le catalogue et les ventes. Que souhaitez-vous consulter ?'
-    }
+    { role: 'assistant', content: "Bonjour ! Je suis **Ahizan AI**, votre assistant opérationnel marketplace. Je suis connecté à Vendure pour auditer le catalogue, modérer les produits et suivre les ventes. Posez-moi une question." }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [streamingText, setStreamingText] = useState<string>('');
+  const [streamingText, setStreamingText] = useState('');
+  const [reasoning, setReasoning] = useState('');
+  const [toolCalls, setToolCalls] = useState<Record<string, { name: string; input?: any; output?: any; state: string; error?: string }>>({});
+  const [approvalPending, setApprovalPending] = useState<{ toolName: string; input: any } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   useEffect(() => {
     if (isOpen) {
       scrollToBottom();
-      ahizanAi.getModels().then(m => setModels(m)).catch(() => {});
+      if (models.length === 0) ahizanAi.getModels().then(m => { setModels(m); }).catch(() => {});
+      // Charge le modèle configuré (primaire/secondaire) pour le dashboard
+      ahizanAi.getDashboardModelConfig().then((cfg) => {
+        if (cfg.primaryModel) setSelectedModel(cfg.primaryModel);
+        else if (cfg.secondaryModel) setSelectedModel(cfg.secondaryModel);
+      }).catch(() => {});
     }
-  }, [messages, streamingText, isOpen]);
+  }, [isOpen, messages, streamingText]);
 
-  const handleSend = async (textToSend?: string) => {
-    const q = textToSend || input;
-    if (!q.trim() || isLoading) return;
-
-    const newHistory: ChatMessage[] = [...messages, { role: 'user', content: q.trim() }];
+  const handleSend = useCallback(async (textToSend?: string) => {
+    const q = (textToSend || input).trim();
+    if (!q || isLoading) return;
+    const newHistory: ChatMessage[] = [...messages, { role: 'user', content: q }];
     setMessages(newHistory);
     if (!textToSend) setInput('');
     setIsLoading(true);
     setStreamingText('');
+    setReasoning('');
+    setToolCalls({});
+    setApprovalPending(null);
 
     try {
-      let accumulated = '';
       await ahizanAi.streamChat(
         newHistory,
-        (token) => {
-          accumulated += token;
-          setStreamingText(accumulated);
+        (evt: StreamEvent) => {
+          switch (evt.type) {
+            case 'text-delta':
+              setStreamingText(prev => prev + (evt.textDelta || ''));
+              break;
+            case 'reasoning':
+              setReasoning(prev => prev + (evt.textDelta || evt.reasoning || ''));
+              break;
+            case 'tool-input-start':
+              setToolCalls(prev => ({ ...prev, [evt.toolCallId]: { name: evt.toolName, state: 'running' } }));
+              break;
+            case 'tool-input-available':
+              setToolCalls(prev => ({ ...prev, [evt.toolCallId]: { ...(prev[evt.toolCallId] || { name: evt.toolName }), name: evt.toolName, input: evt.input, state: 'running' } }));
+              break;
+            case 'tool-output-available':
+              setToolCalls(prev => ({ ...prev, [evt.toolCallId]: { ...(prev[evt.toolCallId] || {}), output: evt.output, state: 'output-available' } }));
+              break;
+            case 'tool-output-error':
+              setToolCalls(prev => ({ ...prev, [evt.toolCallId]: { ...(prev[evt.toolCallId] || {}), error: evt.errorText, state: 'error' } }));
+              break;
+          }
         },
-        selectedModel
+        selectedModel || undefined
       );
-
-      setMessages([...newHistory, { role: 'assistant', content: accumulated }]);
-      setStreamingText('');
+      setStreamingText(prev => {
+        setMessages([...newHistory, { role: 'assistant', content: prev }]);
+        return '';
+      });
     } catch (err: any) {
-      setMessages([
-        ...newHistory,
-        { role: 'assistant', content: `❌ Une erreur est survenue : ${err.message}` }
-      ]);
+      setMessages([...newHistory, { role: 'assistant', content: `❌ Erreur : ${err.message}` }]);
       setStreamingText('');
     } finally {
       setIsLoading(false);
+      setReasoning('');
+      setToolCalls({});
     }
-  };
+  }, [input, isLoading, messages, selectedModel]);
 
   const quickPrompts = [
-    { label: '📊 Ventes & CA', query: 'Quel est le chiffre d\'affaires et le nombre total de ventes ?' },
-    { label: '⏳ En attente', query: 'Combien de produits sont actuellement en attente d\'approbation ?' },
-    { label: '👥 Vendeurs actifs', query: 'Quels sont les vendeurs enregistrés et leur statut ?' },
-    { label: '🔍 Doublons récents', query: 'Y a-t-il des produits potentiellement en doublon ?' },
+    { label: '📊 Ventes & CA', query: "Quel est le chiffre d'affaires et le nombre total de ventes ?" },
+    { label: '⏳ En attente', query: 'Combien de produits sont en attente d\'approbation ?' },
+    { label: '👥 Vendeurs', query: 'Quels sont les vendeurs enregistrés et leur statut ?' },
+    { label: '🔍 Doublons', query: 'Y a-t-il des produits potentiellement en doublon ?' },
   ];
+
+  const toolCallList = Object.entries(toolCalls);
 
   return (
     <>
-      {/* Floating Trigger Button */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
           style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 99999,
+            position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999,
             background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-            color: '#ffffff',
-            border: '2px solid #38bdf8',
-            borderRadius: '9999px',
-            padding: '12px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 0 15px rgba(56, 189, 248, 0.3)',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 700,
-            transition: 'all 0.2s ease',
+            color: '#fff', border: '2px solid #38bdf8', borderRadius: '9999px',
+            padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.4), 0 0 15px rgba(56,189,248,0.3)',
+            cursor: 'pointer', fontSize: 14, fontWeight: 700, transition: 'all 0.2s ease',
           }}
         >
-          <span style={{ fontSize: '18px' }}>🤖</span>
-          <span>Ahizan AI V2</span>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: '#10b981',
-            boxShadow: '0 0 8px #10b981',
-            display: 'inline-block'
-          }} />
+          <span>🤖</span>
+          <span>Ahizan AI</span>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
         </button>
       )}
 
-      {/* Floating Chat Drawer */}
       {isOpen && (
         <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          width: '440px',
-          maxWidth: 'calc(100vw - 48px)',
-          height: '640px',
-          maxHeight: 'calc(100vh - 48px)',
-          background: '#0f172a',
-          color: '#f8fafc',
-          borderRadius: '20px',
-          border: '1px solid #334155',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 999999,
-          overflow: 'hidden',
-          fontFamily: 'system-ui, -apple-system, sans-serif'
+          position: 'fixed', bottom: 0, right: 0, zIndex: 99999, width: '420px', maxWidth: '100vw', height: '100dvh',
+          background: '#020617', borderLeft: '1px solid #1e293b', display: 'flex', flexDirection: 'column',
+          boxShadow: '-10px 0 40px rgba(0,0,0,0.5)', fontFamily: 'system-ui, sans-serif',
         }}>
           {/* Header */}
-          <div style={{
-            background: '#1e293b',
-            padding: '12px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: '1px solid #334155'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px'
-              }}>
-                🤖
-              </div>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#0284c7,#2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🤖</div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#f8fafc' }}>
-                  Ahizan AI V2 • Console
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    style={{
-                      background: '#0f172a',
-                      color: '#38bdf8',
-                      border: '1px solid #334155',
-                      borderRadius: '6px',
-                      padding: '2px 6px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {models.length > 0 ? (
-                      models.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} {m.available ? '●' : '(Désactivé)'}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="gemini-2.5-flash">Google Gemini 2.5 Flash</option>
-                        <option value="deepseek/deepseek-chat">DeepSeek V3</option>
-                        <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
-                      </>
-                    )}
-                  </select>
-                </div>
+                <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: 14 }}>Ahizan AI</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>Cockpit opérationnel marketplace</div>
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                fontSize: '20px',
-                cursor: 'pointer',
-                padding: '4px',
-                lineHeight: 1
-              }}
-            >
-              ✕
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
           </div>
 
-          {/* Quick Prompts */}
-          <div style={{
-            display: 'flex',
-            gap: '6px',
-            padding: '8px 12px',
-            background: '#0b1120',
-            overflowX: 'auto',
-            borderBottom: '1px solid #1e293b'
-          }}>
-            {quickPrompts.map((qp, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(qp.query)}
-                style={{
-                  background: '#1e293b',
-                  color: '#93c5fd',
-                  border: '1px solid #334155',
-                  borderRadius: '12px',
-                  padding: '4px 10px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer'
-                }}
-              >
-                {qp.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Messages Area */}
-          <div style={{
-            flex: 1,
-            padding: '14px',
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}>
-            {messages.map((m, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%'
-                }}
-              >
-                <div style={{
-                  background: m.role === 'user' ? '#2563eb' : '#1e293b',
-                  color: '#ffffff',
-                  padding: '10px 14px',
-                  borderRadius: m.role === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                  fontSize: '13px',
-                  lineHeight: '1.5',
-                  whiteSpace: 'pre-wrap',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                  border: m.role === 'assistant' ? '1px solid #334155' : 'none'
-                }}>
-                  {m.content}
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {messages.map((msg, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, background: msg.role === 'user' ? '#334155' : 'linear-gradient(135deg,#0284c7,#2563eb)', color: '#fff' }}>
+                  {msg.role === 'user' ? 'AD' : 'AI'}
+                </div>
+                <div style={{ maxWidth: '82%' }}>
+                  <div
+                    style={{ padding: '10px 12px', borderRadius: 10, fontSize: 13, lineHeight: 1.5,
+                      background: msg.role === 'user' ? '#0284c7' : '#0f172a', color: msg.role === 'user' ? '#fff' : '#e2e8f0',
+                      border: msg.role === 'user' ? 'none' : '1px solid #1e293b' }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                  />
                 </div>
               </div>
             ))}
 
-            {/* Live Streaming Message */}
+            {/* Streaming en cours */}
             {isLoading && (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignSelf: 'flex-start',
-                maxWidth: '85%'
-              }}>
-                <div style={{
-                  background: '#1e293b',
-                  color: '#ffffff',
-                  padding: '10px 14px',
-                  borderRadius: '14px 14px 14px 2px',
-                  fontSize: '13px',
-                  lineHeight: '1.5',
-                  whiteSpace: 'pre-wrap',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                  border: '1px solid #38bdf8'
-                }}>
-                  {streamingText ? (
-                    <>
-                      {streamingText}
-                      <span style={{ display: 'inline-block', width: '6px', height: '14px', background: '#38bdf8', marginLeft: '4px', verticalAlign: 'middle', animation: 'blink 1s infinite' }} />
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8' }}>
-                      <span>Recherche et inférence en cours...</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <>
+                {reasoning && <ReasoningBlock text={reasoning} />}
+                {toolCallList.length > 0 && toolCallList.map(([id, tc]) => (
+                  <ToolCard key={id} name={tc.name} input={tc.input} output={tc.output} state={tc.state} />
+                ))}
+                {streamingText && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: 'linear-gradient(135deg,#0284c7,#2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>AI</div>
+                    <div style={{ maxWidth: '82%', padding: '10px 12px', borderRadius: 10, background: '#0f172a', border: '1px solid #1e293b', color: '#e2e8f0', fontSize: 13, lineHeight: 1.5 }}
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingText) }} />
+                  </div>
+                )}
+                {!streamingText && !reasoning && toolCallList.length === 0 && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#64748b', fontSize: 12 }}>
+                    <span style={{ width: 14, height: 14, border: '2px solid #38bdf8', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite', display: 'inline-block' }} />
+                    Connexion à la marketplace Ahizan…
+                  </div>
+                )}
+              </>
             )}
-
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div style={{
-            padding: '12px 14px',
-            background: '#1e293b',
-            borderTop: '1px solid #334155',
-            display: 'flex',
-            gap: '8px'
-          }}>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Posez une question sur le catalogue, les ventes..."
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                background: '#0f172a',
-                border: '1px solid #334155',
-                borderRadius: '10px',
-                padding: '10px 14px',
-                color: '#ffffff',
-                fontSize: '13px',
-                outline: 'none'
-              }}
-            />
-            <button
-              onClick={() => handleSend()}
-              disabled={isLoading || !input.trim()}
-              style={{
-                background: isLoading || !input.trim() ? '#475569' : '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '0 16px',
-                fontWeight: 700,
-                fontSize: '13px',
-                cursor: isLoading || !input.trim() ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s ease'
-              }}
-            >
-              {isLoading ? '...' : 'Envoyer'}
-            </button>
+          {/* Quick prompts */}
+          {messages.length <= 1 && !isLoading && (
+            <div style={{ padding: '0 16px 8px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {quickPrompts.map(p => (
+                <button key={p.label} onClick={() => handleSend(p.query)} style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 16, color: '#cbd5e1', fontSize: 11, cursor: 'pointer' }}>{p.label}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <div style={{ padding: 12, borderTop: '1px solid #1e293b', background: '#0f172a' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: 8 }}>
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="Posez votre question à Horizon AI…"
+                rows={1}
+                style={{ flex: 1, background: 'transparent', color: '#e2e8f0', border: 'none', outline: 'none', resize: 'none', fontSize: 13, fontFamily: 'inherit', maxHeight: 100 }}
+              />
+              <button
+                onClick={() => isLoading ? null : handleSend()}
+                disabled={isLoading || !input.trim()}
+                style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: isLoading ? '#475569' : '#0284c7', color: '#fff', cursor: isLoading ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >↑</button>
+            </div>
+            <div style={{ textAlign: 'center', fontSize: 10, color: '#475569', marginTop: 6 }}>
+              Ahizan AI • Assistant opérationnel
+            </div>
           </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
     </>

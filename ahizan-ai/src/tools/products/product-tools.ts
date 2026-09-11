@@ -6,7 +6,7 @@ import { RequestContext } from '../types';
 export function createProductTools(client: AhizanClient, getContext?: () => RequestContext | undefined) {
   const getProductDetails = tool({
     description: 'Récupère toutes les informations détaillées d\'un produit (nom, description, vendeur, variantes, prix, score FQS, statut d\'approbation).',
-    parameters: z.object({
+    inputSchema: z.object({
       productId: z.string().describe('ID unique du produit dans Ahizan (ex: "421")'),
     }),
     execute: async ({ productId }) => {
@@ -67,7 +67,7 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
 
   const searchOfficialCatalog = tool({
     description: 'Recherche des fiches produits officielles déjà validées dans le catalogue central Ahizan.',
-    parameters: z.object({
+    inputSchema: z.object({
       term: z.string().optional().describe('Terme de recherche (nom du produit, marque, mot-clé, etc.)'),
       take: z.number().optional().describe('Nombre maximum de résultats (défaut 10)'),
     }),
@@ -106,7 +106,7 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
 
   const findPotentialDuplicates = tool({
     description: 'Analyse et détecte les doublons potentiels dans le catalogue officiel pour un produit donné.',
-    parameters: z.object({
+    inputSchema: z.object({
       query: z.string().describe('Nom ou mots-clés du produit à comparer'),
       brand: z.string().optional().describe('Marque supposée du produit'),
       excludeId: z.string().optional().describe('ID du produit courant à exclure de la recherche'),
@@ -178,7 +178,7 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
 
   const getPendingApprovals = tool({
     description: 'Récupère la liste des produits vendeurs actuellement en attente d\'approbation par le Super Admin.',
-    parameters: z.object({
+    inputSchema: z.object({
       take: z.number().optional().describe('Nombre maximum d\'articles à retourner (défaut 20)'),
     }),
     execute: async ({ take = 20 }) => {

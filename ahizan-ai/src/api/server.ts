@@ -400,19 +400,31 @@ export class AhizanAIServer {
           const messages = conversationStore.getMessages(ctx.userId!, convId);
           return this.sendJson(res, 200, {
             conversation: conv,
-            messages: messages.map(m => ({
-              id: m.id,
-              role: m.role,
-              content: m.content,
-              parts: m.parts ? JSON.parse(m.parts) : undefined,
-              createdAt: m.createdAt,
-            })),
+            messages: messages.map(m => {
+              let parsedParts: any = undefined;
+              if (m.parts) {
+                try { parsedParts = JSON.parse(m.parts); } catch {}
+              }
+              if (!parsedParts || !Array.isArray(parsedParts) || parsedParts.length === 0) {
+                parsedParts = [{ type: 'text', text: m.content || '' }];
+              }
+              return {
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                parts: parsedParts,
+                createdAt: m.createdAt,
+              };
+            }),
           });
         }
 
         if (req.method === 'POST') {
           // Créer ou mettre à jour une conversation
           const conv = conversationStore.createConversation(ctx.userId!, convId, body.title);
+          if (Array.isArray(body.messages) && body.messages.length > 0) {
+            conversationStore.syncMessages(ctx.userId!, convId, body.title, body.messages);
+          }
           return this.sendJson(res, 200, { conversation: conv });
         }
 
@@ -426,6 +438,17 @@ export class AhizanAIServer {
           conversationStore.deleteConversation(ctx.userId!, convId);
           return this.sendJson(res, 200, { success: true });
         }
+      }
+
+      // Synchroniser tous les messages d'une conversation (atomique, sans doublons)
+      const syncMatch = pathname.match(/^\/api\/conversations\/([^/]+)\/sync$/);
+      if (syncMatch && req.method === 'POST') {
+        const body = await this.parseBody(req);
+        const ctx = await this.authenticate(req, res, body);
+        if (!ctx) return;
+        const convId = syncMatch[1];
+        conversationStore.syncMessages(ctx.userId!, convId, body.title, body.messages);
+        return this.sendJson(res, 200, { success: true });
       }
 
       // Ajouter un message à une conversation

@@ -8,6 +8,8 @@
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  toolCalls?: Array<{ name: string; input?: any; output?: any; state: string; error?: string }>;
+  reasoning?: string;
 }
 
 export interface ModelInfo {
@@ -117,9 +119,10 @@ class AhizanAIClient {
 
     if (!res.ok || !res.body) {
       const fallback = await this.chat(messages, modelId);
-      onEvent({ type: 'text-delta', textDelta: fallback.text });
+      const text = fallback.text || '';
+      onEvent({ type: 'text-delta', delta: text, textDelta: text });
       onEvent({ type: 'finish' });
-      return fallback.text;
+      return text;
     }
 
     const reader = res.body.getReader();
@@ -132,7 +135,10 @@ class AhizanAIClient {
       try {
         const evt = JSON.parse(dataStr);
         onEvent(evt);
-        if (evt.type === 'text-delta' && evt.textDelta) fullText += evt.textDelta;
+        if (evt.type === 'text-delta') {
+          const delta = evt.delta ?? evt.textDelta ?? '';
+          if (delta) fullText += delta;
+        }
       } catch { /* ligne partielle ou non-JSON */ }
     };
 
@@ -168,6 +174,32 @@ class AhizanAIClient {
     return this.post<any>('/config/dashboard-model', config);
   }
 
+  async getConversations(): Promise<ConversationItem[]> {
+    try {
+      const data = await this.get<{ conversations?: ConversationItem[] }>('/conversations');
+      return data.conversations || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getConversation(id: string): Promise<{ conversation: any; messages: any[] }> {
+    return this.get<{ conversation: any; messages: any[] }>(`/conversations/${id}`);
+  }
+
+  async syncConversation(id: string, title: string, messages: any[]): Promise<any> {
+    return this.post<any>(`/conversations/${id}/sync`, { title, messages });
+  }
+
+  async deleteConversation(id: string): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/conversations/${id}`, {
+      method: 'DELETE',
+      headers: { ...authHeaders() },
+    });
+    if (!res.ok) throw new Error(`Erreur suppression [${res.status}]`);
+    return await res.json();
+  }
+
   readonly products = {
     analyze: async (productId: string): Promise<ProductApprovalAnalysis> =>
       this.post<ProductApprovalAnalysis>('/products/analyze', { productId }),
@@ -178,19 +210,33 @@ class AhizanAIClient {
   };
 }
 
+export interface ConversationItem {
+  id: string;
+  title: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 export type StreamEvent =
   | { type: 'start' }
   | { type: 'start-step' }
   | { type: 'finish-step' }
   | { type: 'finish'; finishReason?: string }
-  | { type: 'text-delta'; textDelta: string }
-  | { type: 'reasoning'; textDelta?: string; reasoning?: string }
+  | { type: 'text-start'; id?: string }
+  | { type: 'text-delta'; delta?: string; textDelta?: string; id?: string }
+  | { type: 'text-end'; id?: string }
+  | { type: 'reasoning-start'; id?: string }
+  | { type: 'reasoning-delta'; delta?: string; id?: string }
+  | { type: 'reasoning-end'; id?: string }
+  | { type: 'reasoning'; textDelta?: string; reasoning?: string; delta?: string }
   | { type: 'tool-input-start'; toolCallId: string; toolName: string }
-  | { type: 'tool-input-delta'; toolCallId: string; inputTextDelta: string }
+  | { type: 'tool-input-delta'; toolCallId: string; inputTextDelta?: string; delta?: string }
   | { type: 'tool-input-available'; toolCallId: string; toolName: string; input: any }
+  | { type: 'tool-input-error'; toolCallId: string; toolName: string; input?: any; errorText?: string }
   | { type: 'tool-output-available'; toolCallId: string; output: any }
   | { type: 'tool-output-error'; toolCallId: string; errorText?: string }
-  | { type: 'error'; error?: string }
+  | { type: 'tool-approval-request'; approvalId: string; toolCallId: string; toolName?: string; input?: any }
+  | { type: 'error'; error?: string; errorText?: string }
   | { type: string; [key: string]: any };
 
 export const ahizanAi = new AhizanAIClient();

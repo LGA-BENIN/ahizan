@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Res, HttpStatus, All } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Req, Res, HttpStatus, All } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
 const AI_SERVICE_HOSTS = [
@@ -227,6 +227,71 @@ export class AhizanAIProxyController {
         } catch (err: any) {
             return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
                 error: err.message || 'Duplicate detection failed'
+            });
+        }
+    }
+
+    @Get('conversations')
+    async getConversations(@Req() req: Request, @Res() res: Response) {
+        try {
+            const authToken = extractAuthToken(req);
+            const { status, json } = await forwardToAIService('/api/conversations', 'GET', undefined, authToken);
+            return res.status(status).json(json);
+        } catch (err: any) {
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+                error: err.message || 'Conversations unavailable'
+            });
+        }
+    }
+
+    @Get('conversations/:id')
+    async getConversationById(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+        try {
+            const authToken = extractAuthToken(req);
+            const { status, json } = await forwardToAIService(`/api/conversations/${id}`, 'GET', undefined, authToken);
+            return res.status(status).json(json);
+        } catch (err: any) {
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+                error: err.message || 'Conversation unavailable'
+            });
+        }
+    }
+
+    @Post('conversations/:id/sync')
+    async syncConversation(@Param('id') id: string, @Body() payload: any, @Req() req: Request, @Res() res: Response) {
+        try {
+            const authToken = extractAuthToken(req);
+            const { status, json } = await forwardToAIService(`/api/conversations/${id}/sync`, 'POST', payload, authToken);
+            return res.status(status).json(json);
+        } catch (err: any) {
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+                error: err.message || 'Sync failed'
+            });
+        }
+    }
+
+    @Delete('conversations/:id')
+    async deleteConversation(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+        try {
+            const authToken = extractAuthToken(req);
+            const { status, json } = await forwardToAIService(`/api/conversations/${id}`, 'DELETE', undefined, authToken);
+            return res.status(status).json(json);
+        } catch (err: any) {
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+                error: err.message || 'Delete failed'
+            });
+        }
+    }
+
+    @Put('conversations/:id')
+    async updateConversationTitle(@Param('id') id: string, @Body() payload: any, @Req() req: Request, @Res() res: Response) {
+        try {
+            const authToken = extractAuthToken(req);
+            const { status, json } = await forwardToAIService(`/api/conversations/${id}`, 'PUT', payload, authToken);
+            return res.status(status).json(json);
+        } catch (err: any) {
+            return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+                error: err.message || 'Update failed'
             });
         }
     }

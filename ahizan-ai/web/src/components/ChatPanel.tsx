@@ -38,7 +38,7 @@ interface ChatPanelProps {
   authSession: AuthSession;
   selectedModel: string;
   temperature: number;
-  onMessagesChange: (messages: UIMessage[]) => void;
+  onMessagesChange: (messages: UIMessage[], isReady: boolean) => void;
   onTitleFromFirstMessage: (text: string) => void;
   onUnauthorized: () => void;
 }
@@ -211,7 +211,7 @@ export function ChatPanel({
 
   // P2-1 : useChat gère nativement le streaming, les tool-calls structurés, les erreurs
   // et le "stop" propre, en remplacement du parseur SSE manuel précédent.
-  const { messages, sendMessage, status, stop, error, clearError, addToolApprovalResponse, regenerate } = useChat({
+  const { messages, setMessages, sendMessage, status, stop, error, clearError, addToolApprovalResponse, regenerate } = useChat({
     id: sessionId,
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -231,8 +231,14 @@ export function ChatPanel({
   const isGenerating = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
-    onMessagesChange(messages);
-  }, [messages]);
+    if (initialMessages && initialMessages.length > 0 && messages.length === 0) {
+      setMessages(initialMessages);
+    }
+  }, [initialMessages]);
+
+  useEffect(() => {
+    onMessagesChange(messages, status === 'ready');
+  }, [messages, status]);
 
   useEffect(() => {
     if (textareaRef.current) {

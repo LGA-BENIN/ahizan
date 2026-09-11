@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { UIMessage } from 'ai';
 import { type ModelOption } from './components/ai-elements';
 import { SettingsModal } from './components/SettingsModal';
@@ -25,9 +25,10 @@ interface Session {
 }
 
 function defaultSession(): Session {
+  const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   return {
-    id: `session_${Date.now()}`,
-    title: 'Cockpit Opérationnel',
+    id,
+    title: 'Nouvelle discussion',
     messages: [
       {
         id: `m_welcome_${Date.now()}`,
@@ -52,7 +53,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [showModelPickerDropdown, setShowModelPickerDropdown] = useState<boolean>(false);
-  // P4-2 : indicateur de santé réel, branché sur /api/health (plus de valeur codée en dur)
+  // P4-2 : indicateur de santé réel, branché sur /api/health
   const [gatewayHealthy, setGatewayHealthy] = useState<boolean | null>(null);
 
   const sessionsStorageKey = authSession ? `ahizan_ai_sessions_${authSession.identifier}` : null;
@@ -67,7 +68,31 @@ export function App() {
   });
   const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id);
 
-  // P2-3 : sauvegarde locale (cache) + synchronisation serveur
+  // Fonction pour charger les messages d'une conversation depuis le serveur
+  const loadSessionMessages = useCallback((id: string) => {
+    if (!authSession) return;
+    const headers = authHeaders(authSession);
+    fetch(`/api/conversations/${id}`, { headers })
+      .then(r => {
+        if (r.status === 401) { handleUnauthorized(); return null; }
+        return r.ok ? r.json() : null;
+      })
+      .then(data => {
+        if (data?.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+          const loadedMsgs: UIMessage[] = data.messages.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            parts: m.parts || [{ type: 'text', text: m.content || '' }],
+          }));
+          setSessions(prev =>
+            prev.map(s => (s.id === id ? { ...s, messages: loadedMsgs } : s))
+          );
+        }
+      })
+      .catch(() => {});
+  }, [authSession]);
+
+  // P2-3 : sauvegarde locale (cache)
   useEffect(() => {
     if (sessionsStorageKey) {
       localStorage.setItem(sessionsStorageKey, JSON.stringify(sessions));
@@ -78,24 +103,45 @@ export function App() {
   useEffect(() => {
     if (!authSession) return;
     const headers = authHeaders(authSession);
-    // Charge les conversations server-side
+    // Charge les conversations server-side (uniquement celles qui contiennent des messages)
     fetch('/api/conversations', { headers })
       .then(r => {
         if (r.status === 401) { handleUnauthorized(); return null; }
         return r.ok ? r.json() : null;
       })
-      .then(data => {
+      .then(async data => {
         if (data?.conversations?.length > 0) {
-          const serverSessions: Session[] = data.conversations.map((c: any) => ({
+          const firstId = data.conversations[0].id;
+          let firstMsgs: UIMessage[] = [];
+          try {
+            const res = await fetch(`/api/conversations/${firstId}`, { headers });
+            if (res.ok) {
+              const d = await res.json();
+              if (d?.messages && Array.isArray(d.messages)) {
+                firstMsgs = d.messages.map((m: any) => ({
+                  id: m.id,
+                  role: m.role,
+                  parts: m.parts || [{ type: 'text', text: m.content || '' }],
+                }));
+              }
+            }
+          } catch {}
+
+          const serverSessions: Session[] = data.conversations.map((c: any, idx: number) => ({
             id: c.id,
             title: c.title,
-            messages: [], // chargé à la demande quand on ouvre la conversation
+            messages: idx === 0 ? firstMsgs : [],
           }));
           setSessions(serverSessions);
-          setActiveSessionId(serverSessions[0].id);
+          setActiveSessionId(firstId);
+        } else {
+          const fresh = defaultSession();
+          setSessions([fresh]);
+          setActiveSessionId(fresh.id);
         }
       })
       .catch(() => {});
+
     // Charge le modèle sélectionné server-side
     fetch('/api/user/model', { headers })
       .then(r => {
@@ -109,7 +155,7 @@ export function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authSession?.identifier]);
 
-  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0] || defaultSession();
 
   const handleUnauthorized = () => {
     clearSession();
@@ -162,17 +208,17 @@ export function App() {
   }
 
   const handleCreateNewSession = () => {
+    // Si la session active est déjà une discussion neuve sans message utilisateur, on reste dessus
+    const activeHasUserMsg = activeSession.messages && activeSession.messages.some(m => m.role === 'user');
+    if (!activeHasUserMsg) {
+      setIsSidebarOpen(false);
+      return;
+    }
     const newSession = defaultSession();
-    newSession.title = 'Nouvelle discussion';
-    setSessions([newSession, ...sessions]);
+    // Conserver la session active et les autres sessions existantes, en ajoutant la nouvelle en tête
+    setSessions(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
     setActiveSessionId(newSession.id);
     setIsSidebarOpen(false);
-    // P2-3 : crée la conversation côté serveur
-    fetch('/api/conversations/' + newSession.id, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders(authSession) },
-      body: JSON.stringify({ title: newSession.title }),
-    }).catch(() => {});
   };
 
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {
@@ -184,18 +230,48 @@ export function App() {
       setActiveSessionId(fresh.id);
     } else {
       setSessions(filtered);
-      if (activeSessionId === id) setActiveSessionId(filtered[0].id);
+      if (activeSessionId === id) {
+        const nextActive = filtered[0];
+        setActiveSessionId(nextActive.id);
+        handleSelectSession(nextActive.id);
+      }
     }
-    // P2-3 : supprime côté serveur
-    fetch('/api/conversations/' + id, {
-      method: 'DELETE',
-      headers: authHeaders(authSession),
-    }).catch(() => {});
+    // Supprime côté serveur
+    if (authSession) {
+      fetch('/api/conversations/' + id, {
+        method: 'DELETE',
+        headers: authHeaders(authSession),
+      }).catch(() => {});
+    }
   };
 
   const handleSelectSession = (id: string) => {
-    setActiveSessionId(id);
     setIsSidebarOpen(false);
+    const target = sessions.find(s => s.id === id);
+    if (!target || !target.messages || target.messages.length === 0) {
+      if (authSession) {
+        fetch(`/api/conversations/${id}`, { headers: authHeaders(authSession) })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (data?.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+              const loadedMsgs: UIMessage[] = data.messages.map((m: any) => ({
+                id: m.id,
+                role: m.role,
+                parts: m.parts || [{ type: 'text', text: m.content || '' }],
+              }));
+              setSessions(prev =>
+                prev.map(s => (s.id === id ? { ...s, messages: loadedMsgs } : s))
+              );
+            }
+            setActiveSessionId(id);
+          })
+          .catch(() => {
+            setActiveSessionId(id);
+          });
+        return;
+      }
+    }
+    setActiveSessionId(id);
   };
 
   const selectedModelObj = models.find(m => m.id === selectedModel);
@@ -444,19 +520,45 @@ export function App() {
               body: JSON.stringify({ title }),
             }).catch(() => {});
           }}
-          onMessagesChange={messages => {
+          onMessagesChange={(messages, isReady) => {
             setSessions(prev => prev.map(s => (s.id === activeSession.id ? { ...s, messages } : s)));
-            // P2-3 : sauvegarde le dernier message côté serveur (debounced naturellement par React)
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg && (lastMsg.role === 'user' || lastMsg.role === 'assistant')) {
-              fetch('/api/conversations/' + activeSession.id + '/messages', {
+            const hasUserMsg = messages.some(m => m.role === 'user');
+            if (isReady && hasUserMsg && authSession) {
+              fetch('/api/conversations/' + activeSession.id + '/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders(authSession) },
                 body: JSON.stringify({
-                  role: lastMsg.role,
-                  content: (lastMsg.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join(''),
-                  parts: lastMsg.parts,
+                  title: activeSession.title,
+                  messages: messages.map(m => ({
+                    id: m.id,
+                    role: m.role,
+                    content: (m.parts || []).filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join(''),
+                    parts: m.parts,
+                  })),
                 }),
+              }).then(() => {
+                // Rafraîchit la liste des conversations pour avoir les bons titres et sessions
+                fetch('/api/conversations', { headers: authHeaders(authSession) })
+                  .then(r => r.ok ? r.json() : null)
+                  .then(data => {
+                    if (data?.conversations?.length > 0) {
+                      setSessions(prev => {
+                        const existingMap = new Map(prev.map(s => [s.id, s]));
+                        const list: Session[] = data.conversations.map((c: any) => ({
+                          id: c.id,
+                          title: c.title,
+                          messages: existingMap.get(c.id)?.messages || [],
+                        }));
+                        const serverIds = new Set(data.conversations.map((c: any) => c.id));
+                        for (const s of prev) {
+                          if (!serverIds.has(s.id)) {
+                            list.unshift(s);
+                          }
+                        }
+                        return list;
+                      });
+                    }
+                  }).catch(() => {});
               }).catch(() => {});
             }
           }}

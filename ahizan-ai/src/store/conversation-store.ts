@@ -72,9 +72,15 @@ class ConversationStore {
   // --- Conversations ---
 
   listConversations(userId: string): StoredConversation[] {
-    const rows = this.db.prepare(
-      'SELECT id, user_id, title, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC'
-    ).all(userId) as any[];
+    const rows = this.db.prepare(`
+      SELECT c.id, c.user_id, c.title, c.created_at, c.updated_at
+      FROM conversations c
+      INNER JOIN messages m ON m.conversation_id = c.id
+      WHERE c.user_id = ?
+      GROUP BY c.id
+      HAVING COUNT(m.id) > 0
+      ORDER BY c.updated_at DESC
+    `).all(userId) as any[];
     return rows.map(r => ({
       id: r.id, userId: r.user_id, title: r.title,
       createdAt: r.created_at, updatedAt: r.updated_at,
@@ -137,6 +143,40 @@ class ConversationStore {
     this.db.prepare(
       'INSERT INTO messages (id, conversation_id, role, content, parts, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(id, convId, role, content, parts ? JSON.stringify(parts) : null, Date.now());
+  }
+
+  /**
+   * Remplace ou met à jour la liste complète des messages d'une discussion de manière atomique.
+   * Évite les doublons et les messages partiels créés pendant le streaming.
+   */
+  syncMessages(userId: string, convId: string, title?: string, messagesList?: Array<{ id?: string; role: string; content?: string; parts?: any }>): void {
+    if (!messagesList || messagesList.length === 0) return;
+    const conv = this.getConversation(userId, convId);
+    if (!conv) {
+      this.createConversation(userId, convId, title || 'Discussion');
+    } else if (title && title !== conv.title) {
+      this.updateConversationTitle(userId, convId, title);
+    }
+
+    const now = Date.now();
+    this.db.prepare('DELETE FROM messages WHERE conversation_id = ?').run(convId);
+
+    const insertStmt = this.db.prepare(
+      'INSERT INTO messages (id, conversation_id, role, content, parts, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+
+    let idx = 0;
+    for (const msg of messagesList) {
+      const msgContent = msg.content || '';
+      const msgParts = msg.parts;
+      // Ne pas insérer de message totalement vide
+      if (!msgContent && (!msgParts || (Array.isArray(msgParts) && msgParts.length === 0))) {
+        continue;
+      }
+      const msgId = msg.id || `${convId}_${now}_${idx++}`;
+      insertStmt.run(msgId, convId, msg.role, msgContent, msgParts ? JSON.stringify(msgParts) : null, now + idx);
+    }
+    this.touchConversation(userId, convId);
   }
 
   // --- User settings (modèle sélectionné) ---

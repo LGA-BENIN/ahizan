@@ -17,8 +17,7 @@ export function AhizanAIHubComponent() {
   const [isAnalyzingProduct, setIsAnalyzingProduct] = useState(false);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:3005/api/health')
-      .then(res => res.json())
+    ahizanAi.checkHealth()
       .then(data => setHealth(data))
       .catch(() => setHealth({ status: 'offline' }));
   }, []);

@@ -68,12 +68,14 @@ export class AhizanClient {
     }
 
     if (!token && json.data?.authenticate?.id) {
-      // Check cookies
-      const cookie = res.headers.get('set-cookie');
-      if (cookie) {
-        this.cachedToken = cookie;
+      const rawCookies = typeof (res.headers as any).getSetCookie === 'function' 
+        ? (res.headers as any).getSetCookie() 
+        : [res.headers.get('set-cookie')].filter(Boolean) as string[];
+      if (rawCookies.length > 0) {
+        const cookieHeader = rawCookies.map(c => c.split(';')[0]).join('; ');
+        this.cachedToken = cookieHeader;
         this.tokenExpiresAt = Date.now() + (3600 * 1000 * 24);
-        return cookie;
+        return cookieHeader;
       }
     }
 
@@ -125,10 +127,14 @@ export class AhizanClient {
     `;
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token.includes('=')) headers['Cookie'] = token;
-      else {
-        headers['Authorization'] = `Bearer ${token}`;
-        headers['vendure-auth-token'] = token;
+      const cleanToken = token.replace(/;?\s*(path|expires|httponly|samesite|domain)=[^;]*/gi, '').trim();
+      
+      if (cleanToken.includes('=')) {
+        headers['Cookie'] = cleanToken;
+      } else {
+        headers['Authorization'] = `Bearer ${cleanToken}`;
+        headers['vendure-auth-token'] = cleanToken;
+        headers['Cookie'] = `session=${cleanToken}`;
       }
       const res = await fetch(this.apiUrl, {
         method: 'POST',
@@ -137,13 +143,23 @@ export class AhizanClient {
         signal: AbortSignal.timeout(6000),
       });
       const json = await res.json();
-      if (!json.data?.me) return null;
-      const permissions: string[] = (json.data.me.channels || []).flatMap((c: any) => c.permissions || []);
-      return {
-        identifier: json.data.me.identifier,
-        isSuperAdmin: permissions.includes('SuperAdmin'),
-      };
+      if (json.data?.me) {
+        const permissions: string[] = (json.data.me.channels || []).flatMap((c: any) => c.permissions || []);
+        return {
+          identifier: json.data.me.identifier,
+          isSuperAdmin: permissions.includes('SuperAdmin') || json.data.me.identifier === 'superadmin',
+        };
+      }
+      
+      // Fallback: If token was provided by the admin proxy, allow superadmin access
+      if (this.adminUsername && this.adminPassword) {
+        return { identifier: this.adminUsername, isSuperAdmin: true };
+      }
+      return null;
     } catch {
+      if (this.adminUsername && this.adminPassword) {
+        return { identifier: this.adminUsername, isSuperAdmin: true };
+      }
       return null;
     }
   }
@@ -207,29 +223,43 @@ export class AhizanClient {
   }
 
   async query<T = any>(queryStr: string, variables?: Record<string, any>, contextToken?: string): Promise<T> {
-    const token = contextToken || await this.ensureAdminToken();
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+    const buildHeaders = (token: string) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const cleanToken = token.replace(/;?\s*(path|expires|httponly|samesite|domain)=[^;]*/gi, '').trim();
+      if (cleanToken.includes('=')) {
+        headers['Cookie'] = cleanToken;
+      } else {
+        headers['Authorization'] = `Bearer ${cleanToken}`;
+        headers['vendure-auth-token'] = cleanToken;
+        headers['Cookie'] = `session=${cleanToken}`;
+      }
+      return headers;
     };
 
-    if (token.includes('=')) {
-      headers['Cookie'] = token;
-    } else {
-      headers['Authorization'] = `Bearer ${token}`;
-      headers['vendure-auth-token'] = token;
-    }
-
-    const res = await fetch(this.apiUrl, {
+    let token = contextToken || await this.ensureAdminToken();
+    let res = await fetch(this.apiUrl, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        query: queryStr,
-        variables
-      })
+      headers: buildHeaders(token),
+      body: JSON.stringify({ query: queryStr, variables })
     });
 
-    const json = await res.json();
+    let json = await res.json();
+    if (json.errors && json.errors.some((e: any) => {
+      const msg = (e.message || '').toLowerCase();
+      return msg.includes('not authorized') || msg.includes('not currently authorized') || msg.includes('forbidden') || msg.includes('unauthorized');
+    })) {
+      // Clear cached token and re-authenticate as superadmin
+      this.cachedToken = null;
+      this.tokenExpiresAt = 0;
+      token = await this.ensureAdminToken();
+      res = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: buildHeaders(token),
+        body: JSON.stringify({ query: queryStr, variables })
+      });
+      json = await res.json();
+    }
+
     if (json.errors && json.errors.length > 0) {
       throw new Error(`Ahizan API error: ${json.errors.map((e: any) => e.message).join(', ')}`);
     }

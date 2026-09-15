@@ -240,3 +240,50 @@ export const CREATE_VENDOR = `
     }
 `;
 
+export const ADMIN_SYNC_PRODUCT_VARIANT_NAMES = `
+    mutation AdminSyncProductVariantNames($productId: ID!) {
+        adminSyncProductVariantNames(productId: $productId)
+    }
+`;
+
+export const GET_CMS_COLLECTIONS_TREE = `
+    query GetCmsCollectionsTree {
+        cmsCollectionsTree {
+            id
+            name
+            slug
+            children {
+                id
+                name
+                slug
+                children {
+                    id
+                    name
+                    slug
+                }
+            }
+        }
+    }
+`;
+
+export const GET_FACETS = `
+    query GetFacets($options: FacetListOptions) {
+        facets(options: $options) {
+            items {
+                id
+                name
+                code
+                values {
+                    id
+                    name
+                    code
+                }
+            }
+            totalItems
+        }
+    }
+`;
+
+
+
+

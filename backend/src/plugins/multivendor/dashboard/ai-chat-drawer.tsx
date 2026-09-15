@@ -1,14 +1,40 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ahizanAi, ChatMessage, ModelInfo, ConversationItem, type StreamEvent } from './ahizan-ai-client';
 
+class DrawerErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error?: string }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error: error?.message || 'Erreur du copilote' };
+  }
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('[AhizanAIChatDrawer] Caught error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 99999, background: '#1e293b', color: '#fca5a5', padding: '10px 16px', borderRadius: 8, border: '1px solid #7f1d1d', fontSize: 12 }}>
+          ⚠️ Ahizan AI indisponible ({this.state.error})
+          <button type="button" onClick={() => this.setState({ hasError: false })} style={{ marginLeft: 8, background: '#334155', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 6px', cursor: 'pointer' }}>Réessayer</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /* ---------- Rendu Markdown léger (sans dépendance externe) ---------- */
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function renderMarkdown(md: string): string {
   if (!md) return '';
-  const lines = md.split('\n');
+  const text = typeof md === 'string' ? md : String(md || '');
+  const lines = text.split('\n');
   let html = '';
   let inTable = false;
   let tableHeader: string[] | null = null;
@@ -158,7 +184,7 @@ function createSessionId(): string {
 }
 
 /* ---------- Composant principal : Drawer flottant avec Gestion Multi-Discussions ---------- */
-export function AhizanAIChatDrawer() {
+function AhizanAIChatDrawerInner() {
   const [isOpen, setIsOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -663,3 +689,12 @@ export function AhizanAIChatDrawer() {
     </>
   );
 }
+
+export function AhizanAIChatDrawer() {
+  return (
+    <DrawerErrorBoundary>
+      <AhizanAIChatDrawerInner />
+    </DrawerErrorBoundary>
+  );
+}
+

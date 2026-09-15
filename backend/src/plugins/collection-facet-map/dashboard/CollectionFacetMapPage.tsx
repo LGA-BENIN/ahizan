@@ -7,6 +7,10 @@ import {
     GET_ALL_FACETS,
     GET_SELLER_DASHBOARD_CONFIG,
     UPDATE_SELLER_DASHBOARD_CONFIG,
+    GET_COLLECTION_OPTION_GROUP_MAPPINGS,
+    SET_COLLECTION_ALLOWED_OPTION_GROUPS,
+    SET_COLLECTION_ALLOWED_OPTION_GROUPS_BULK,
+    GET_ALL_OPTION_GROUPS,
 } from './queries';
 
 async function fetchGraphQL(query: string, variables?: any) {
@@ -26,6 +30,7 @@ async function fetchGraphQL(query: string, variables?: any) {
 
 export function CollectionFacetMapPage() {
     const queryClient = useQueryClient();
+    const [activeTab, setActiveTab] = useState<'optionGroups' | 'facets'>('optionGroups');
     const [saving, setSaving] = useState<string | null>(null);
     const [togglingWallet, setTogglingWallet] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -52,6 +57,7 @@ export function CollectionFacetMapPage() {
         }
     };
 
+    // Facet mappings query
     const { data: mappingsData, isLoading: loadingMappings } = useQuery({
         queryKey: ['collectionFacetMappings'],
         queryFn: () => fetchGraphQL(GET_COLLECTION_FACET_MAPPINGS),
@@ -62,9 +68,27 @@ export function CollectionFacetMapPage() {
         queryFn: () => fetchGraphQL(GET_ALL_FACETS),
     });
 
+    // Option group mappings query
+    const { data: optionMappingsData, isLoading: loadingOptionMappings } = useQuery({
+        queryKey: ['collectionOptionGroupMappings'],
+        queryFn: () => fetchGraphQL(GET_COLLECTION_OPTION_GROUP_MAPPINGS),
+    });
+
+    const { data: optionGroupsData, isLoading: loadingOptionGroups } = useQuery({
+        queryKey: ['allOptionGroups'],
+        queryFn: () => fetchGraphQL(GET_ALL_OPTION_GROUPS),
+    });
+
     const mappings = mappingsData?.collectionFacetMappings || [];
     const allFacets = facetsData?.allMappingFacets || [];
-    const loading = loadingMappings || loadingFacets;
+
+    const optionMappings = optionMappingsData?.collectionOptionGroupMappings || [];
+    const allOptionGroups = optionGroupsData?.allMappingOptionGroups || [];
+
+    const loading = activeTab === 'facets' 
+        ? (loadingMappings || loadingFacets) 
+        : (loadingOptionMappings || loadingOptionGroups);
+
 
     // Helper functions
     const findMappingById = (tree: any[], id: string): any => {
@@ -115,9 +139,27 @@ export function CollectionFacetMapPage() {
             });
     };
 
-    const sortedMappings = sortTree(mappings);
-    const filteredMappings = filterTree(sortedMappings, searchTerm);
-    const flatFilteredMappings = flattenMappings(filteredMappings);
+    const toggleOptionGroup = async (collectionId: string, optionGroupId: string) => {
+        const mapping = findMappingById(optionMappings, collectionId);
+        if (!mapping) return;
+
+        const ownIds: string[] = (mapping.ownOptionGroupIds || []).map((id: any) => String(id));
+        const groupIdStr = String(optionGroupId);
+
+        const newOwnIds = ownIds.includes(groupIdStr)
+            ? ownIds.filter((id: string) => id !== groupIdStr)
+            : [...ownIds, groupIdStr];
+
+        setSaving(collectionId);
+        try {
+            await fetchGraphQL(SET_COLLECTION_ALLOWED_OPTION_GROUPS, { collectionId, optionGroupIds: newOwnIds });
+            queryClient.invalidateQueries({ queryKey: ['collectionOptionGroupMappings'] });
+        } catch (err) {
+            console.error('Error saving option group mapping:', err);
+        } finally {
+            setSaving(null);
+        }
+    };
 
     const toggleFacet = async (collectionId: string, facetId: string) => {
         const mapping = findMappingById(mappings, collectionId);
@@ -126,7 +168,6 @@ export function CollectionFacetMapPage() {
         const ownIds: string[] = (mapping.ownFacetIds || []).map((id: any) => String(id));
         const facetIdStr = String(facetId);
 
-        // Only toggle own facets (not inherited ones)
         const newOwnIds = ownIds.includes(facetIdStr)
             ? ownIds.filter((id: string) => id !== facetIdStr)
             : [...ownIds, facetIdStr];
@@ -136,7 +177,7 @@ export function CollectionFacetMapPage() {
             await fetchGraphQL(SET_COLLECTION_ALLOWED_FACETS, { collectionId, facetIds: newOwnIds });
             queryClient.invalidateQueries({ queryKey: ['collectionFacetMappings'] });
         } catch (err) {
-            console.error('Error saving:', err);
+            console.error('Error saving facet mapping:', err);
         } finally {
             setSaving(null);
         }
@@ -164,21 +205,32 @@ export function CollectionFacetMapPage() {
         return ids;
     };
 
-    const applyToSubcollections = async (collectionId: string, facetIds: string[]) => {
-        const mapping = findMappingById(mappings, collectionId);
+    const applyToSubcollections = async (collectionId: string, itemIds: string[]) => {
+        const currentMappings = activeTab === 'optionGroups' ? optionMappings : mappings;
+        const mapping = findMappingById(currentMappings, collectionId);
         if (!mapping) return;
 
         const descendantIds = getAllDescendantIds(mapping);
         setBulkSaving(true);
         try {
-            await fetchGraphQL(SET_COLLECTION_ALLOWED_FACETS_BULK, { collectionIds: descendantIds, facetIds });
-            queryClient.invalidateQueries({ queryKey: ['collectionFacetMappings'] });
+            if (activeTab === 'optionGroups') {
+                await fetchGraphQL(SET_COLLECTION_ALLOWED_OPTION_GROUPS_BULK, { collectionIds: descendantIds, optionGroupIds: itemIds });
+                queryClient.invalidateQueries({ queryKey: ['collectionOptionGroupMappings'] });
+            } else {
+                await fetchGraphQL(SET_COLLECTION_ALLOWED_FACETS_BULK, { collectionIds: descendantIds, facetIds: itemIds });
+                queryClient.invalidateQueries({ queryKey: ['collectionFacetMappings'] });
+            }
         } catch (err) {
             console.error('Error saving bulk:', err);
         } finally {
             setBulkSaving(false);
         }
     };
+
+    const currentMappings = activeTab === 'optionGroups' ? optionMappings : mappings;
+    const sortedMappings = sortTree(currentMappings);
+    const filteredMappings = filterTree(sortedMappings, searchTerm);
+    const flatFilteredMappings = flattenMappings(filteredMappings);
 
     if (loading) {
         return (
@@ -190,21 +242,85 @@ export function CollectionFacetMapPage() {
 
     return (
         <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-                Facettes par collection
-            </h1>
-            <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>
-                Choisissez les facettes visibles pour les vendeurs dans chaque collection. Les sous-facettes (valeurs) seront proposées en dropdown dans le formulaire vendeur.
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div>
+                    <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                        Configuration du Catalogue par Collection
+                    </h1>
+                    <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0 0' }}>
+                        Définissez avec précision les <strong>Groupes d'Options (Déclinaisons)</strong> et les <strong>Facettes</strong> autorisées pour chaque rayon.
+                    </p>
+                </div>
+            </div>
 
+            {/* TAB SELECTOR */}
+            <div style={{ display: 'flex', gap: 10, margin: '20px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: 12 }}>
+                <button
+                    onClick={() => { setActiveTab('optionGroups'); setActiveCollectionId(null); }}
+                    style={{
+                        padding: '10px 18px',
+                        borderRadius: 10,
+                        border: 'none',
+                        background: activeTab === 'optionGroups' ? '#4f46e5' : '#f1f5f9',
+                        color: activeTab === 'optionGroups' ? '#ffffff' : '#475569',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    <span>🔀</span>
+                    <span>Groupes d'Options (Déclinaisons Vendeur)</span>
+                </button>
+                <button
+                    onClick={() => { setActiveTab('facets'); setActiveCollectionId(null); }}
+                    style={{
+                        padding: '10px 18px',
+                        borderRadius: 10,
+                        border: 'none',
+                        background: activeTab === 'facets' ? '#4f46e5' : '#f1f5f9',
+                        color: activeTab === 'facets' ? '#ffffff' : '#475569',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    <span>🎛️</span>
+                    <span>Facettes de Filtrage (Filtres Storefront)</span>
+                </button>
+            </div>
 
+            {/* Banner Guide */}
+            <div style={{
+                background: activeTab === 'optionGroups' ? '#eef2ff' : '#f0fdf4',
+                border: activeTab === 'optionGroups' ? '1px solid #c7d2fe' : '1px solid #bbf7d0',
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginBottom: 20,
+                fontSize: 12,
+                color: activeTab === 'optionGroups' ? '#3730a3' : '#166534',
+                lineHeight: 1.5,
+            }}>
+                {activeTab === 'optionGroups' ? (
+                    <span>
+                        💡 <strong>Guide Déclinaisons :</strong> Cochez ici les caractéristiques autorisées pour les vendeurs dans ce rayon (ex: <em>Couleur & Stockage</em> pour Téléphonie, <em>Taille & Couleur</em> pour Vêtements). Les vendeurs ne verront <strong>QUE</strong> ces options lors de la création d'un produit.
+                    </span>
+                ) : (
+                    <span>
+                        💡 <strong>Guide Facettes :</strong> Cochez les critères de filtrage de recherche visibles par les acheteurs sur le Storefront pour cette catégorie.
+                    </span>
+                )}
+            </div>
 
             {/* Search Bar */}
-            <div
-                style={{
-                    marginBottom: 24,
-                }}
-            >
+            <div style={{ marginBottom: 24 }}>
                 <input
                     type="text"
                     placeholder="Rechercher une collection..."
@@ -236,13 +352,13 @@ export function CollectionFacetMapPage() {
                 )}
             </div>
 
-            {mappings.length === 0 && (
+            {currentMappings.length === 0 && (
                 <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', marginTop: 40 }}>
                     Aucune collection trouvée. Créez d'abord des collections dans le catalogue.
                 </p>
             )}
 
-            {filteredMappings.length === 0 && mappings.length > 0 && (
+            {filteredMappings.length === 0 && currentMappings.length > 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
                     <p style={{ fontSize: 14, marginBottom: 8 }}>
                         Aucune collection ne correspond à votre recherche.
@@ -268,23 +384,34 @@ export function CollectionFacetMapPage() {
                     <CollectionCard
                         key={mapping.collectionId}
                         mapping={mapping}
-                        allFacets={allFacets}
+                        activeTab={activeTab}
+                        allItems={activeTab === 'optionGroups' ? allOptionGroups : allFacets}
                         saving={saving}
                         bulkSaving={bulkSaving}
                         expandedCollections={expandedCollections}
                         level={0}
-                        onToggleFacet={toggleFacet}
+                        onToggleItem={activeTab === 'optionGroups' ? toggleOptionGroup : toggleFacet}
                         onToggleExpand={toggleExpand}
                         onApplyToSubcollections={applyToSubcollections}
-                        onOpenFacetsModal={setActiveCollectionId}
+                        onOpenModal={setActiveCollectionId}
                     />
                 ))}
             </div>
 
-            {/* Facets Modal */}
+            {/* Modal for Facets or OptionGroups */}
             {(() => {
-                const activeMapping = activeCollectionId ? findMappingById(mappings, activeCollectionId) : null;
+                const activeMapping = activeCollectionId ? findMappingById(currentMappings, activeCollectionId) : null;
                 if (!activeMapping) return null;
+
+                const isOptionTab = activeTab === 'optionGroups';
+                const itemsList = isOptionTab ? allOptionGroups : allFacets;
+
+                const ownSet = new Set(
+                    (isOptionTab ? activeMapping.ownOptionGroupIds : activeMapping.ownFacetIds || []).map((id: any) => String(id))
+                );
+                const inheritedSet = new Set(
+                    (isOptionTab ? activeMapping.inheritedOptionGroupIds : activeMapping.inheritedFacetIds || []).map((id: any) => String(id))
+                );
 
                 return (
                     <div
@@ -294,7 +421,7 @@ export function CollectionFacetMapPage() {
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                            backgroundColor: 'rgba(0, 0, 0, 0.45)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -328,10 +455,12 @@ export function CollectionFacetMapPage() {
                             >
                                 <div>
                                     <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                                        Facettes pour : {activeMapping.collectionName}
+                                        {isOptionTab ? "Groupes d'Options" : "Facettes"} pour : {activeMapping.collectionName}
                                     </h3>
                                     <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0 0' }}>
-                                        Cochez les facettes propres à cette collection. Les facettes héritées s'affichent avec une bordure bleue.
+                                        {isOptionTab
+                                            ? "Cochez les groupes d'options autorisés pour les vendeurs dans ce rayon."
+                                            : "Cochez les facettes propres à cette collection."}
                                     </p>
                                 </div>
                                 <button
@@ -344,9 +473,6 @@ export function CollectionFacetMapPage() {
                                         color: '#64748b',
                                         cursor: 'pointer',
                                         padding: 4,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
                                     }}
                                 >
                                     ✕
@@ -362,17 +488,15 @@ export function CollectionFacetMapPage() {
                                         gap: 12,
                                     }}
                                 >
-                                    {allFacets.map((facet: any) => {
-                                        const ownSet = new Set((activeMapping.ownFacetIds || []).map((id: any) => String(id)));
-                                        const inheritedSet = new Set((activeMapping.inheritedFacetIds || []).map((id: any) => String(id)));
-                                        const isOwn = ownSet.has(String(facet.id));
-                                        const isInherited = inheritedSet.has(String(facet.id));
+                                    {itemsList.map((item: any) => {
+                                        const isOwn = ownSet.has(String(item.id));
+                                        const isInherited = inheritedSet.has(String(item.id));
                                         const isChecked = isOwn || isInherited;
                                         const isSavingThis = saving === activeMapping.collectionId;
 
                                         return (
                                             <label
-                                                key={facet.id}
+                                                key={item.id}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -380,14 +504,14 @@ export function CollectionFacetMapPage() {
                                                     padding: '10px 12px',
                                                     borderRadius: 8,
                                                     border: isOwn
-                                                        ? '2px solid #3b82f6'
+                                                        ? '2px solid #4f46e5'
                                                         : isInherited
-                                                        ? '2px solid #93c5fd'
+                                                        ? '2px solid #a5b4fc'
                                                         : '1px solid #e2e8f0',
                                                     background: isOwn
-                                                        ? '#eff6ff'
+                                                        ? '#eef2ff'
                                                         : isInherited
-                                                        ? '#f0f7ff'
+                                                        ? '#f5f7ff'
                                                         : '#fff',
                                                     cursor: isInherited ? 'default' : isSavingThis ? 'wait' : 'pointer',
                                                     opacity: isSavingThis && !isInherited ? 0.7 : 1,
@@ -399,23 +523,32 @@ export function CollectionFacetMapPage() {
                                                     type="checkbox"
                                                     checked={isChecked}
                                                     disabled={isInherited || !!isSavingThis}
-                                                    onChange={() =>
-                                                        toggleFacet(activeMapping.collectionId, facet.id)
-                                                    }
-                                                    style={{ accentColor: isInherited ? '#93c5fd' : '#3b82f6', width: 14, height: 14 }}
+                                                    onChange={() => {
+                                                        if (isOptionTab) {
+                                                            toggleOptionGroup(activeMapping.collectionId, item.id);
+                                                        } else {
+                                                            toggleFacet(activeMapping.collectionId, item.id);
+                                                        }
+                                                    }}
+                                                    style={{ accentColor: isInherited ? '#a5b4fc' : '#4f46e5', width: 14, height: 14 }}
                                                 />
                                                 <div style={{ flex: 1 }}>
-                                                    <span style={{ fontSize: 12, fontWeight: 600, color: isInherited ? '#64748b' : '#0f172a' }}>
-                                                        {facet.name}
+                                                    <span style={{ fontSize: 12, fontWeight: 700, color: isInherited ? '#64748b' : '#0f172a' }}>
+                                                        {item.name}
                                                     </span>
                                                     {isInherited && (
-                                                        <span style={{ fontSize: 9, color: '#3b82f6', marginLeft: 5, fontWeight: 500 }}>
+                                                        <span style={{ fontSize: 9, color: '#4f46e5', marginLeft: 5, fontWeight: 600 }}>
                                                             héritée
                                                         </span>
                                                     )}
-                                                    {isChecked && facet.values?.length > 0 && (
+                                                    {item.optionsCount !== undefined && (
                                                         <span style={{ fontSize: 10, color: '#64748b', marginLeft: 5 }}>
-                                                            ({facet.values.length})
+                                                            ({item.optionsCount} options)
+                                                        </span>
+                                                    )}
+                                                    {item.values?.length > 0 && (
+                                                        <span style={{ fontSize: 10, color: '#64748b', marginLeft: 5 }}>
+                                                            ({item.values.length})
                                                         </span>
                                                     )}
                                                 </div>
@@ -440,12 +573,12 @@ export function CollectionFacetMapPage() {
                                 <button
                                     onClick={() => setActiveCollectionId(null)}
                                     style={{
-                                        padding: '8px 16px',
-                                        backgroundColor: '#3b82f6',
+                                        padding: '8px 18px',
+                                        backgroundColor: '#4f46e5',
                                         color: '#fff',
                                         border: 'none',
                                         borderRadius: 8,
-                                        fontWeight: 600,
+                                        fontWeight: 700,
                                         fontSize: 13,
                                         cursor: 'pointer',
                                     }}
@@ -463,38 +596,36 @@ export function CollectionFacetMapPage() {
 
 function CollectionCard({
     mapping,
-    allFacets,
+    activeTab,
+    allItems,
     saving,
     bulkSaving,
     expandedCollections,
     level,
-    onToggleFacet,
+    onToggleItem,
     onToggleExpand,
     onApplyToSubcollections,
-    onOpenFacetsModal,
+    onOpenModal,
 }: any) {
+    const isOptionTab = activeTab === 'optionGroups';
     const expanded = expandedCollections.has(mapping.collectionId);
-    const isSavingThis = saving === mapping.collectionId;
-    const ownSet = new Set(
-        (mapping.ownFacetIds || []).map((id: any) => String(id))
-    );
-    const inheritedSet = new Set(
-        (mapping.inheritedFacetIds || []).map((id: any) => String(id))
-    );
-    const totalSet = new Set(
-        (mapping.allowedFacetIds || []).map((id: any) => String(id))
-    );
     const hasChildren = mapping.children && mapping.children.length > 0;
+
+    const ownSet = new Set((isOptionTab ? mapping.ownOptionGroupIds : mapping.ownFacetIds || []).map((id: any) => String(id)));
+    const inheritedSet = new Set((isOptionTab ? mapping.inheritedOptionGroupIds : mapping.inheritedFacetIds || []).map((id: any) => String(id)));
+    const totalSet = new Set([...Array.from(ownSet), ...Array.from(inheritedSet)]);
+
+    const isSavingThis = saving === mapping.collectionId;
 
     return (
         <div
             style={{
-                border: '1px solid #e5e7eb',
+                marginLeft: level * 20,
+                border: '1px solid #e2e8f0',
                 borderRadius: 12,
                 overflow: 'hidden',
                 background: '#fff',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                marginLeft: level * 20,
             }}
         >
             {/* Header */}
@@ -504,7 +635,7 @@ function CollectionCard({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '14px 18px',
-                    background: totalSet.size > 0 ? '#f0f7ff' : '#fafafa',
+                    background: totalSet.size > 0 ? (isOptionTab ? '#f5f7ff' : '#f0fdf4') : '#fafafa',
                     borderBottom: '1px solid #e5e7eb',
                 }}
             >
@@ -517,9 +648,6 @@ function CollectionCard({
                                 border: 'none',
                                 cursor: 'pointer',
                                 padding: 4,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
                                 color: '#6b7280',
                             }}
                         >
@@ -533,33 +661,33 @@ function CollectionCard({
                             width: 32,
                             height: 32,
                             borderRadius: 8,
-                            background: totalSet.size > 0 ? '#dbeafe' : '#f3f4f6',
+                            background: totalSet.size > 0 ? (isOptionTab ? '#e0e7ff' : '#dcfce7') : '#f3f4f6',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: 14,
                             fontWeight: 700,
-                            color: totalSet.size > 0 ? '#1e40af' : '#6b7280',
+                            color: totalSet.size > 0 ? (isOptionTab ? '#4338ca' : '#15803d') : '#6b7280',
                         }}
                     >
                         {mapping.collectionName.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
                             {mapping.collectionName}
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                             <span
                                 style={{
                                     fontSize: 10,
-                                    background: totalSet.size > 0 ? '#3b82f6' : '#e5e7eb',
+                                    background: totalSet.size > 0 ? (isOptionTab ? '#4f46e5' : '#16a34a') : '#e5e7eb',
                                     color: totalSet.size > 0 ? '#fff' : '#9ca3af',
                                     padding: '2px 8px',
                                     borderRadius: 99,
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                 }}
                             >
-                                {totalSet.size} facette{totalSet.size !== 1 ? 's' : ''}
+                                {totalSet.size} {isOptionTab ? "option" : "facette"}{totalSet.size !== 1 ? 's' : ''}
                             </span>
                             {inheritedSet.size > 0 && (
                                 <span style={{ fontSize: 10, color: '#6b7280' }}>
@@ -569,35 +697,33 @@ function CollectionCard({
                         </div>
                     </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {isSavingThis && (
-                        <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 500 }}>
+                        <span style={{ fontSize: 12, color: '#4f46e5', fontWeight: 600 }}>
                             Sauvegarde...
                         </span>
                     )}
                     
-                    {/* Voir les facettes liées */}
                     <button
-                        onClick={() => onOpenFacetsModal(mapping.collectionId)}
+                        onClick={() => onOpenModal(mapping.collectionId)}
                         style={{
                             fontSize: 11,
-                            color: '#1e293b',
+                            color: '#0f172a',
                             background: '#f1f5f9',
                             border: '1px solid #cbd5e1',
-                            padding: '6px 12px',
-                            borderRadius: 6,
+                            padding: '6px 14px',
+                            borderRadius: 8,
                             cursor: 'pointer',
-                            fontWeight: 600,
+                            fontWeight: 700,
                         }}
                     >
-                        Voir les facettes liées
+                        {isOptionTab ? "Configurer les Options" : "Voir les Facettes"}
                     </button>
 
-                    {/* Appliquer à toutes (sous-collections) */}
                     {hasChildren && (
                         <button
                             onClick={() => {
-                                const confirmed = window.confirm("Êtes-vous sûr de vouloir appliquer ces modifications ?");
+                                const confirmed = window.confirm("Appliquer ces paramètres à toutes les sous-collections ?");
                                 if (confirmed) {
                                     onApplyToSubcollections(mapping.collectionId, Array.from(ownSet));
                                 }
@@ -605,16 +731,16 @@ function CollectionCard({
                             disabled={bulkSaving}
                             style={{
                                 fontSize: 11,
-                                color: '#3b82f6',
-                                background: '#eff6ff',
-                                border: '1px solid #bfdbfe',
+                                color: '#4f46e5',
+                                background: '#eef2ff',
+                                border: '1px solid #c7d2fe',
                                 padding: '6px 12px',
-                                borderRadius: 6,
+                                borderRadius: 8,
                                 cursor: bulkSaving ? 'wait' : 'pointer',
-                                fontWeight: 600,
+                                fontWeight: 700,
                             }}
                         >
-                            {bulkSaving ? 'Application...' : 'Appliquer à toutes'}
+                            {bulkSaving ? 'Application...' : 'Appliquer aux sous-catégories'}
                         </button>
                     )}
                 </div>
@@ -622,20 +748,21 @@ function CollectionCard({
 
             {/* Children */}
             {expanded && hasChildren && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '14px 14px 14px 0' }}>
                     {mapping.children.map((child: any) => (
                         <CollectionCard
                             key={child.collectionId}
                             mapping={child}
-                            allFacets={allFacets}
+                            activeTab={activeTab}
+                            allItems={allItems}
                             saving={saving}
                             bulkSaving={bulkSaving}
                             expandedCollections={expandedCollections}
                             level={level + 1}
-                            onToggleFacet={onToggleFacet}
+                            onToggleItem={onToggleItem}
                             onToggleExpand={onToggleExpand}
                             onApplyToSubcollections={onApplyToSubcollections}
-                            onOpenFacetsModal={onOpenFacetsModal}
+                            onOpenModal={onOpenModal}
                         />
                     ))}
                 </div>

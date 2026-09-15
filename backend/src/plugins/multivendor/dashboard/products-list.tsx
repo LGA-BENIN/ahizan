@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GET_COLLECTIONS } from './queries';
-import { ProductValidationCockpit } from './product-validation-cockpit';
+import { GET_COLLECTIONS, ADMIN_SYNC_PRODUCT_VARIANT_NAMES } from './queries';
+import { AIProductAssistantModal } from './ai-product-assistant-modal';
 import { AhizanAIChatDrawer } from './ai-chat-drawer';
 
 // --- Interfaces ---
@@ -40,16 +40,18 @@ export interface VariantItem {
     currencyCode?: string;
     stockOnHand?: number;
     stockLevel?: string;
+    featuredAsset?: { id?: string; preview: string };
     customFields?: {
         onPromotion?: boolean;
         promotionalPrice?: number;
         compareAtPrice?: number;
+        offerStatus?: string;
     };
     options?: Array<{
         id: string;
         code: string;
         name?: string;
-        group?: { name: string };
+        group?: { id?: string; name: string; code?: string };
     }>;
     sellerOffers?: SellerOfferItem[];
 }
@@ -137,10 +139,26 @@ const GET_MARKETPLACE_PRODUCTS = `
                 }
                 variants {
                     id
+                    name
                     sku
                     price
                     currencyCode
                     stockLevel
+                    stockOnHand
+                    featuredAsset {
+                        id
+                        preview
+                    }
+                    options {
+                        id
+                        name
+                        code
+                        group {
+                            id
+                            name
+                            code
+                        }
+                    }
                     customFields {
                         onPromotion
                         promotionalPrice
@@ -357,6 +375,36 @@ const GET_SELLER_OFFERS_FOR_PRODUCT = `
                 id
                 name
                 sku
+                options {
+                    id
+                    name
+                    code
+                    group {
+                        id
+                        name
+                        code
+                    }
+                }
+            }
+        }
+    }
+`;
+
+const ADMIN_CONFIGURE_VARIANT_OPTIONS = `
+    mutation AdminConfigureVariantOptions($variantId: ID!, $options: [VariantOptionConfigInput!]!) {
+        adminConfigureVariantOptions(variantId: $variantId, options: $options) {
+            id
+            name
+            sku
+            options {
+                id
+                name
+                code
+                group {
+                    id
+                    name
+                    code
+                }
             }
         }
     }
@@ -387,6 +435,9 @@ const ADMIN_REVIEW_PRODUCT = `
         $collectionIds: [ID!]
         $facetValueIds: [ID!]
         $approveVendorOffer: Boolean
+        $optionGroups: [OptionGroupInput!]
+        $variantsMatrix: [AdminVariantMatrixInput!]
+        $selectedImages: [AdminReviewProductImageInput!]
     ) {
         adminReviewProduct(
             id: $id
@@ -402,6 +453,9 @@ const ADMIN_REVIEW_PRODUCT = `
             collectionIds: $collectionIds
             facetValueIds: $facetValueIds
             approveVendorOffer: $approveVendorOffer
+            optionGroups: $optionGroups
+            variantsMatrix: $variantsMatrix
+            selectedImages: $selectedImages
         ) {
             id
             enabled
@@ -654,7 +708,8 @@ export function ProductListComponent() {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
     const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
-    const [aiCockpitProductId, setAiCockpitProductId] = useState<string | null>(null);
+    const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+    const [aiAssistantProductId, setAiAssistantProductId] = useState<string | null>(null);
 
     // Modal state for Approval Review
     const [reviewProduct, setReviewProduct] = useState<MarketplaceProduct | null>(null);
@@ -667,6 +722,16 @@ export function ProductListComponent() {
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
     const [selectedDeclinationForDetails, setSelectedDeclinationForDetails] = useState<any | null>(null);
 
+    // Option Groups & Values Manager for Variants
+    const [editingVariantOptions, setEditingVariantOptions] = useState<{
+        variantId: string;
+        variantName?: string;
+        productName?: string;
+        productId?: string;
+        options: Array<{ groupName: string; valueName: string }>;
+    } | null>(null);
+    const [isSavingVariantOptions, setIsSavingVariantOptions] = useState(false);
+
     // Form state for creating/promoting to Official Product inside Review Modal
     const [officialTitle, setOfficialTitle] = useState('');
     const [officialSlug, setOfficialSlug] = useState('');
@@ -677,6 +742,12 @@ export function ProductListComponent() {
     const [officialCollectionIds, setOfficialCollectionIds] = useState<string[]>([]);
     const [officialFacetValueIds, setOfficialFacetValueIds] = useState<string[]>([]);
     const [approveVendorOfferCheckbox, setApproveVendorOfferCheckbox] = useState(true);
+    const [reviewAssets, setReviewAssets] = useState<any[]>([]);
+    const [reviewFeaturedAssetId, setReviewFeaturedAssetId] = useState<string | null>(null);
+    const [selectedOfficialAiImages, setSelectedOfficialAiImages] = useState<any[]>([]);
+    const [appliedAiOptionGroups, setAppliedAiOptionGroups] = useState<any[]>([]);
+    const [appliedAiVariantsMatrix, setAppliedAiVariantsMatrix] = useState<any[]>([]);
+    const [cropTargetContext, setCropTargetContext] = useState<'edit' | 'review'>('edit');
 
     // Modal state for Editing Ahizan Product
     const [editingProduct, setEditingProduct] = useState<MarketplaceProduct | null>(null);
@@ -1052,6 +1123,11 @@ export function ProductListComponent() {
         setOfficialFacetValueIds((product.facetValues || []).map((f: any) => f.id));
         setApproveVendorOfferCheckbox(true);
 
+        const initialAssets = product.assets || (product.featuredAsset ? [product.featuredAsset] : []);
+        setReviewAssets(initialAssets);
+        setReviewFeaturedAssetId(product.featuredAsset?.id || initialAssets[0]?.id || null);
+        setSelectedOfficialAiImages([]);
+
         try {
             // Fetch live seller offers and official products concurrently
             const [offersData, officialProdsData] = await Promise.all([
@@ -1073,6 +1149,131 @@ export function ProductListComponent() {
             console.error('Error prefetching offers or official products:', err);
         } finally {
             setIsLoadingRegraftSearch(false);
+        }
+    };
+
+    const handleApplyAiSuggestions = async (data: {
+        title: string;
+        shortDescription: string;
+        description: string;
+        seoTitle: string;
+        seoDescription: string;
+        collectionId?: string;
+        facetValueIds?: string[];
+        selectedImages: any[];
+        specs: any[];
+        optionGroups?: any[];
+        selectedVariants?: any[];
+        isSpamRejection?: boolean;
+        rejectionReason?: string;
+        targetProductIdToRegraft?: string;
+    }) => {
+        const currentProdId = aiAssistantProductId || reviewProduct?.id;
+        if (!currentProdId) {
+            alert("Erreur: Identifiant du produit introuvable.");
+            return;
+        }
+
+        setIsSubmittingReview(true);
+        try {
+            // Case 1: Spam / non-compliant rejection
+            if (data.isSpamRejection) {
+                const reason = data.rejectionReason || 'Soumission non conforme aux critères du catalogue officiel Ahizan.';
+                await fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
+                    id: currentProdId,
+                    status: 'rejected',
+                    rejectionReason: reason,
+                    convertToOfficialCatalog: false,
+                });
+
+                await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                setIsAiAssistantOpen(false);
+                setAiAssistantProductId(null);
+                setReviewProduct(null);
+                setCreatedOfficialProduct(null);
+                alert(`🚫 Produit #${currentProdId} rejeté. Le motif a été notifié au vendeur.`);
+                return;
+            }
+
+            // Case 2: Direct Re-greffing to an existing official catalog product
+            if (data.targetProductIdToRegraft) {
+                const targetProd = regraftSearchResults.find((p: any) => String(p.id) === String(data.targetProductIdToRegraft)) || { id: data.targetProductIdToRegraft };
+                const currentProd = reviewProduct || (productsData?.products?.items || []).find((p: any) => String(p.id) === String(currentProdId));
+                const variantIds = (currentProd?.variants || []).map((v: any) => String(v.id)).filter(Boolean);
+
+                if (variantIds.length > 0) {
+                    for (const varId of variantIds) {
+                        await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                            variantId: varId,
+                            targetProductId: String(targetProd.id),
+                            approveOffer: true,
+                        });
+                    }
+                } else {
+                    await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                        variantId: currentProdId,
+                        targetProductId: String(targetProd.id),
+                        approveOffer: true,
+                    }).catch(() => null);
+                }
+
+                await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                setIsAiAssistantOpen(false);
+                setAiAssistantProductId(null);
+                setReviewProduct(null);
+                setCreatedOfficialProduct(null);
+                alert(`🔗 L'offre du vendeur a été raccordée avec succès à la fiche officielle #${targetProd.id} !`);
+                return;
+            }
+
+            // Case 3: Official Catalog Validation & Direct Save (Persist Master + Option Groups + Variants Matrix at once)
+            const cleanTitle = (data.title || '').trim();
+            if (!cleanTitle) {
+                alert("Erreur: Le nom du produit officiel ne peut pas être vide.");
+                return;
+            }
+
+            const cleanSlug = cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const targetCollectionIds = data.collectionId ? [data.collectionId] : (officialCollectionIds.length > 0 ? officialCollectionIds : undefined);
+
+            const formattedImages = (data.selectedImages && data.selectedImages.length > 0)
+                ? data.selectedImages.map((img: any) => ({
+                    url: img.url || img.previewUrl,
+                    isPrimary: !!img.isPrimary,
+                    label: img.label || '',
+                }))
+                : undefined;
+
+            await fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
+                id: currentProdId,
+                status: 'approved',
+                convertToOfficialCatalog: true,
+                name: cleanTitle,
+                slug: cleanSlug || undefined,
+                shortDescription: data.shortDescription?.trim() || undefined,
+                description: data.description?.trim() || undefined,
+                collectionIds: targetCollectionIds,
+                facetValueIds: data.facetValueIds && data.facetValueIds.length > 0 ? data.facetValueIds : undefined,
+                approveVendorOffer: false, // Seller offer is preserved in pending status for separate moderation
+                selectedImages: formattedImages,
+            });
+
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+
+            // Close all modals immediately (No legacy modal redirection)
+            setIsAiAssistantOpen(false);
+            setAiAssistantProductId(null);
+            setReviewProduct(null);
+            setCreatedOfficialProduct(null);
+            setReviewStep(1);
+
+            alert(`💾 Succès ! La fiche officielle "${cleanTitle}" a été normalisée et enregistrée avec succès au catalogue.`);
+        } catch (err: any) {
+            console.error('[handleApplyAiSuggestions] Error saving to database:', err);
+            alert(`❌ Erreur lors de l'enregistrement en base de données : ${err.message || err}`);
+            throw err;
+        } finally {
+            setIsSubmittingReview(false);
         }
     };
 
@@ -1122,11 +1323,18 @@ export function ProductListComponent() {
             }
 
             for (const varId of variantIds) {
-                await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
-                    variantId: varId,
-                    targetProductId: targetProduct.id,
-                    approveOffer: false, // We will moderate in Step 2!
-                });
+                if (selectedTargetVariantId) {
+                    await fetchGraphQL(MERGE_VARIANT_INTO_TARGET_VARIANT, {
+                        sourceVariantId: varId,
+                        targetVariantId: selectedTargetVariantId,
+                    });
+                } else {
+                    await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                        variantId: varId,
+                        targetProductId: targetProduct.id,
+                        approveOffer: false, // We will moderate in Step 2!
+                    });
+                }
             }
 
             setCreatedOfficialProduct(targetProduct);
@@ -1138,6 +1346,7 @@ export function ProductListComponent() {
             }
 
             await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            setSelectedTargetVariantId(null);
             setReviewStep(2);
         } catch (err: any) {
             console.error('Error reassigning variant:', err);
@@ -1190,6 +1399,8 @@ export function ProductListComponent() {
                     collectionIds: officialCollectionIds.length > 0 ? officialCollectionIds : undefined,
                     facetValueIds: officialFacetValueIds.length > 0 ? officialFacetValueIds : undefined,
                     approveVendorOffer: false, // Moderated precisely in Step 2!
+                    optionGroups: appliedAiOptionGroups.length > 0 ? appliedAiOptionGroups : undefined,
+                    variantsMatrix: appliedAiVariantsMatrix.length > 0 ? appliedAiVariantsMatrix : undefined,
                 });
 
                 const createdProd = res?.adminReviewProduct;
@@ -1322,6 +1533,15 @@ export function ProductListComponent() {
     const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files: File[] = Array.prototype.slice.call(e.target.files || []);
         if (files.length === 0) return;
+        setCropTargetContext('edit');
+        processAdminCropQueue(files);
+        e.target.value = '';
+    };
+
+    const handleReviewAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files: File[] = Array.prototype.slice.call(e.target.files || []);
+        if (files.length === 0) return;
+        setCropTargetContext('review');
         processAdminCropQueue(files);
         e.target.value = '';
     };
@@ -1332,13 +1552,23 @@ export function ProductListComponent() {
         try {
             const asset = await uploadAssetFile(finalFile);
             if (asset?.id) {
-                setEditAssets(prev => {
-                    const next = [...prev, asset];
-                    if (!editFeaturedAssetId && next.length > 0) {
-                        setEditFeaturedAssetId(next[0].id);
-                    }
-                    return next;
-                });
+                if (cropTargetContext === 'review') {
+                    setReviewAssets(prev => {
+                        const next = [...prev, asset];
+                        if (!reviewFeaturedAssetId && next.length > 0) {
+                            setReviewFeaturedAssetId(next[0].id);
+                        }
+                        return next;
+                    });
+                } else {
+                    setEditAssets(prev => {
+                        const next = [...prev, asset];
+                        if (!editFeaturedAssetId && next.length > 0) {
+                            setEditFeaturedAssetId(next[0].id);
+                        }
+                        return next;
+                    });
+                }
             }
         } catch (err: any) {
             console.error('Asset upload error:', err);
@@ -1374,6 +1604,20 @@ export function ProductListComponent() {
             const filtered = prev.filter(a => a.id !== assetId);
             if (editFeaturedAssetId === assetId) {
                 setEditFeaturedAssetId(filtered.length > 0 ? filtered[0].id : null);
+            }
+            return filtered;
+        });
+    };
+
+    const handleSetReviewFeaturedAsset = (assetId: string) => {
+        setReviewFeaturedAssetId(assetId);
+    };
+
+    const handleRemoveReviewAsset = (assetId: string) => {
+        setReviewAssets(prev => {
+            const filtered = prev.filter(a => a.id !== assetId);
+            if (reviewFeaturedAssetId === assetId) {
+                setReviewFeaturedAssetId(filtered.length > 0 ? filtered[0].id : null);
             }
             return filtered;
         });
@@ -1551,6 +1795,43 @@ export function ProductListComponent() {
             alert('Erreur lors de la création de la fiche : ' + err.message);
         } finally {
             setIsSubmittingRegraft(false);
+        }
+    };
+
+    // Handler for SuperAdmin Option Groups & Values Configuration on a Variant
+    const handleSaveVariantOptions = async (
+        variantId: string,
+        options: Array<{ groupName: string; valueName: string }>,
+        productId?: string
+    ) => {
+        setIsSavingVariantOptions(true);
+        try {
+            const validOptions = options
+                .map(o => ({ groupName: o.groupName.trim(), valueName: o.valueName.trim() }))
+                .filter(o => o.groupName.length > 0 && o.valueName.length > 0);
+
+            await fetchGraphQL(ADMIN_CONFIGURE_VARIANT_OPTIONS, {
+                variantId,
+                options: validOptions
+            });
+
+            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            if (productId) {
+                const freshOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId });
+                if (freshOffers?.sellerOffersForProduct) {
+                    setOffersMap(prev => ({ ...prev, [productId]: freshOffers.sellerOffersForProduct }));
+                }
+            }
+            setEditingVariantOptions(null);
+            if (selectedDeclinationForDetails) {
+                setSelectedDeclinationForDetails(null);
+            }
+            alert('Groupes d\'options et attributs de la variante enregistrés avec succès !');
+        } catch (err: any) {
+            console.error('Error configuring variant options:', err);
+            alert(`Erreur configuration options : ${err.message}`);
+        } finally {
+            setIsSavingVariantOptions(false);
         }
     };
 
@@ -1995,26 +2276,14 @@ export function ProductListComponent() {
                                                                 </button>
                                                             </div>
                                                         ) : (
-                                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
                                                                 <button
-                                                                    onClick={() => handleOpenReview(product)}
-                                                                    style={{
-                                                                        padding: '7px 12px',
-                                                                        borderRadius: '8px',
-                                                                        background: '#0f172a',
-                                                                        color: '#ffffff',
-                                                                        border: 'none',
-                                                                        fontSize: '12px',
-                                                                        fontWeight: 700,
-                                                                        cursor: 'pointer',
+                                                                    onClick={() => {
+                                                                        setAiAssistantProductId(product.id);
+                                                                        setIsAiAssistantOpen(true);
                                                                     }}
-                                                                >
-                                                                    Examiner
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setAiCockpitProductId(product.id)}
                                                                     style={{
-                                                                        padding: '7px 12px',
+                                                                        padding: '8px 14px',
                                                                         borderRadius: '8px',
                                                                         background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
                                                                         color: '#ffffff',
@@ -2024,13 +2293,29 @@ export function ProductListComponent() {
                                                                         cursor: 'pointer',
                                                                         display: 'flex',
                                                                         alignItems: 'center',
-                                                                        gap: '4px',
+                                                                        gap: '5px',
                                                                         boxShadow: '0 2px 6px rgba(99, 102, 241, 0.3)',
                                                                         transition: 'transform 0.15s ease'
                                                                     }}
-                                                                    title="Ouvrir le Cockpit IA pour validation assistée & détection de doublons"
+                                                                    title="Auditer et normaliser avec le Copilote Ahizan AI"
                                                                 >
-                                                                    <span>✨</span> Cockpit IA
+                                                                    <span>✨</span> Ahizan AI
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleOpenReview(product)}
+                                                                    style={{
+                                                                        padding: '8px 16px',
+                                                                        borderRadius: '8px',
+                                                                        background: '#0f172a',
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                        transition: 'background 0.15s ease'
+                                                                    }}
+                                                                >
+                                                                    Examiner
                                                                 </button>
                                                             </div>
                                                         )}
@@ -2045,13 +2330,47 @@ export function ProductListComponent() {
                                                                 
                                                                 {/* 1. SELLER OFFERS BREAKDOWN WITH MODERATION & COMMENTS */}
                                                                 <div>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                                                                         <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                             <span>🏪</span> Offres des Vendeurs Greffées sur ce Produit ({offersMap[product.id]?.length || 0})
                                                                         </div>
-                                                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
-                                                                            Consultez les détails des offres, validez-les ou envoyez des remarques de correction aux vendeurs.
-                                                                        </span>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={async () => {
+                                                                                    try {
+                                                                                        await fetchGraphQL(ADMIN_SYNC_PRODUCT_VARIANT_NAMES, { productId: product.id });
+                                                                                        const freshOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: product.id });
+                                                                                        if (freshOffers?.sellerOffersForProduct) {
+                                                                                            setOffersMap(prev => ({ ...prev, [product.id]: freshOffers.sellerOffersForProduct }));
+                                                                                        }
+                                                                                        await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                                                                                        alert(`✨ Les noms des variantes et offres du produit #${product.id} ont été harmonisés avec succès !`);
+                                                                                    } catch (e: any) {
+                                                                                        alert(`Erreur harmonisation : ${e.message}`);
+                                                                                    }
+                                                                                }}
+                                                                                style={{
+                                                                                    padding: '4px 10px',
+                                                                                    borderRadius: '6px',
+                                                                                    border: '1px solid #cbd5e1',
+                                                                                    background: '#ffffff',
+                                                                                    color: '#475569',
+                                                                                    fontSize: '11px',
+                                                                                    fontWeight: 700,
+                                                                                    cursor: 'pointer',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px'
+                                                                                }}
+                                                                                title="Harmonise automatiquement tous les intitulés des variantes pour porter le nom officiel du produit"
+                                                                            >
+                                                                                <span>🧹</span> Harmoniser Noms Déclinaisons
+                                                                            </button>
+                                                                            <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                                Consultez les détails des offres, validez-les ou envoyez des remarques de correction aux vendeurs.
+                                                                            </span>
+                                                                        </div>
                                                                     </div>
 
                                                                     {loadingOffersProductId === product.id ? (
@@ -2099,7 +2418,30 @@ export function ProductListComponent() {
                                                                                                             • {offer.productVariant?.name || 'Déclinaison'}
                                                                                                         </span>
                                                                                                     </div>
-                                                                                                    <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px' }}>
+
+                                                                                                    {/* Badges d'options (Couleur, Taille, Volume...) */}
+                                                                                                    {offer.productVariant?.options && offer.productVariant.options.length > 0 && (
+                                                                                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                                                                                            {offer.productVariant.options.map((opt: any, oIdx: number) => (
+                                                                                                                <span
+                                                                                                                    key={oIdx}
+                                                                                                                    style={{
+                                                                                                                        background: '#eff6ff',
+                                                                                                                        border: '1px solid #bfdbfe',
+                                                                                                                        color: '#1e40af',
+                                                                                                                        fontSize: '10px',
+                                                                                                                        fontWeight: 700,
+                                                                                                                        padding: '1px 6px',
+                                                                                                                        borderRadius: '5px'
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    {opt.group?.name || 'Option'}: <strong>{opt.name || opt.code}</strong>
+                                                                                                                </span>
+                                                                                                            ))}
+                                                                                                        </div>
+                                                                                                    )}
+
+                                                                                                    <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
                                                                                                         <span>SKU: <strong style={{ color: '#334155' }}>{offer.sku || offer.productVariant?.sku || 'N/A'}</strong></span>
                                                                                                         <span>Stock: <strong style={{ color: offer.stock > 0 ? '#16a34a' : '#dc2626' }}>{offer.stock} unité(s)</strong></span>
                                                                                                         <span>Livraison: <strong style={{ color: '#334155' }}>{offer.deliveryTimeValue} {offer.deliveryTimeUnit === 'HOURS' ? 'Heures' : 'Jours'}</strong></span>
@@ -2189,6 +2531,31 @@ export function ProductListComponent() {
                                                                                                     <button
                                                                                                         type="button"
                                                                                                         onClick={() => {
+                                                                                                            const variantId = offer.productVariant?.id;
+                                                                                                            if (!variantId) {
+                                                                                                                alert('Variante non trouvée pour cette offre.');
+                                                                                                                return;
+                                                                                                            }
+                                                                                                            const initialOpts = (offer.productVariant?.options || []).map((o: any) => ({
+                                                                                                                groupName: o.group?.name || 'Option',
+                                                                                                                valueName: o.name || o.code
+                                                                                                            }));
+                                                                                                            setEditingVariantOptions({
+                                                                                                                variantId,
+                                                                                                                variantName: offer.productVariant?.name || offer.sku,
+                                                                                                                productName: product.name,
+                                                                                                                productId: product.id,
+                                                                                                                options: initialOpts.length > 0 ? initialOpts : [{ groupName: 'Couleur', valueName: '' }]
+                                                                                                            });
+                                                                                                        }}
+                                                                                                        style={{ padding: '6px 10px', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                                                        title="Modifier les options & attributs (Couleur, Taille, Volume...) de cette variante"
+                                                                                                    >
+                                                                                                        <span>🎨</span> Options
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => {
                                                                                                             setCommentingOfferId(isCommenting ? null : offer.id);
                                                                                                             setOfferCommentInput(offer.rejectionReason || '');
                                                                                                         }}
@@ -2256,25 +2623,107 @@ export function ProductListComponent() {
 
                                                                 {/* 2. BASE VARIANTS OVERVIEW */}
                                                                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                                                                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '6px' }}>
-                                                                        🧬 Déclinaisons de la Fiche Centrale Ahizan ({product.variants?.length || 0})
+                                                                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
+                                                                        🧬 Déclinaisons / Variantes du Produit ({product.variants?.length || 0})
                                                                     </div>
-                                                                    <div style={{ display: 'grid', gap: '6px' }}>
-                                                                        {product.variants?.map((v, vIdx) => (
-                                                                            <div key={v.id || vIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9', fontSize: '11px' }}>
-                                                                                <div>
-                                                                                    <span style={{ color: '#334155', fontWeight: 700 }}>#{vIdx + 1} {v.name || product.name}</span>
-                                                                                    <span style={{ fontFamily: 'monospace', color: '#94a3b8', marginLeft: '8px' }}>SKU: {v.sku || 'N/A'}</span>
-                                                                                </div>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleOpenRegraftModal(v, product)}
-                                                                                    style={{ padding: '4px 8px', borderRadius: '6px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe', fontSize: '10px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                                                    <div style={{ display: 'grid', gap: '8px' }}>
+                                                                        {product.variants?.map((v, vIdx) => {
+                                                                            const vPrice = v.price ? Math.round(v.price) : null;
+                                                                            const initialOpts = (v.options || []).map((o: any) => ({
+                                                                                groupName: o.group?.name || 'Option',
+                                                                                valueName: o.name || o.code
+                                                                            }));
+
+                                                                            return (
+                                                                                <div 
+                                                                                    key={v.id || vIdx} 
+                                                                                    style={{ 
+                                                                                        display: 'flex', 
+                                                                                        alignItems: 'center', 
+                                                                                        justifyContent: 'space-between', 
+                                                                                        padding: '10px 14px', 
+                                                                                        background: '#f8fafc', 
+                                                                                        borderRadius: '8px', 
+                                                                                        border: '1px solid #e2e8f0', 
+                                                                                        fontSize: '12px',
+                                                                                        flexWrap: 'wrap',
+                                                                                        gap: '10px'
+                                                                                    }}
                                                                                 >
-                                                                                    🔗 Raccorder ailleurs
-                                                                                </button>
-                                                                            </div>
-                                                                        ))}
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                                        {v.featuredAsset?.preview ? (
+                                                                                            <img 
+                                                                                                src={v.featuredAsset.preview} 
+                                                                                                alt="" 
+                                                                                                style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #cbd5e1' }} 
+                                                                                            />
+                                                                                        ) : (
+                                                                                            <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
+                                                                                                #{vIdx + 1}
+                                                                                            </div>
+                                                                                        )}
+                                                                                        <div>
+                                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                                                                <span style={{ color: '#0f172a', fontWeight: 800 }}>{v.name || product.name}</span>
+                                                                                                {v.options && v.options.length > 0 && (
+                                                                                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                                                                        {v.options.map((opt: any, oIdx: number) => (
+                                                                                                            <span
+                                                                                                                key={oIdx}
+                                                                                                                style={{
+                                                                                                                    background: '#e0e7ff',
+                                                                                                                    color: '#3730a3',
+                                                                                                                    border: '1px solid #c7d2fe',
+                                                                                                                    padding: '1px 6px',
+                                                                                                                    borderRadius: '4px',
+                                                                                                                    fontSize: '10px',
+                                                                                                                    fontWeight: 700
+                                                                                                                }}
+                                                                                                            >
+                                                                                                                {opt.group?.name || 'Option'}: <strong>{opt.name || opt.code}</strong>
+                                                                                                            </span>
+                                                                                                        ))}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                                                                                <span>SKU: <strong style={{ color: '#334155', fontFamily: 'monospace' }}>{v.sku || 'N/A'}</strong></span>
+                                                                                                <span>Prix base: <strong style={{ color: vPrice ? '#166534' : '#64748b' }}>{vPrice ? `${vPrice.toLocaleString('fr-FR')} FCFA` : 'Sur offre'}</strong></span>
+                                                                                                {v.stockOnHand !== undefined && (
+                                                                                                    <span>Stock: <strong style={{ color: v.stockOnHand > 0 ? '#16a34a' : '#dc2626' }}>{v.stockOnHand} unité(s)</strong></span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                setEditingVariantOptions({
+                                                                                                    variantId: v.id,
+                                                                                                    variantName: v.name || product.name,
+                                                                                                    productName: product.name,
+                                                                                                    productId: product.id,
+                                                                                                    options: initialOpts.length > 0 ? initialOpts : [{ groupName: 'Couleur', valueName: '' }]
+                                                                                                });
+                                                                                            }}
+                                                                                            style={{ padding: '5px 10px', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                                            title="Modifier les options & attributs de cette variante"
+                                                                                        >
+                                                                                            <span>🎨</span> Options
+                                                                                        </button>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => handleOpenRegraftModal(v, product)}
+                                                                                            style={{ padding: '5px 10px', borderRadius: '6px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                                                                        >
+                                                                                            🔗 Raccorder ailleurs
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -2367,13 +2816,40 @@ export function ProductListComponent() {
                                         Proposition soumise par : <strong style={{ color: '#0284c7' }}>{reviewProduct.customFields?.vendor?.name || 'Vendeur Marchand'}</strong>
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setReviewProduct(null)}
-                                    style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '15px', fontWeight: 800, color: '#64748b' }}
-                                >
-                                    ✕
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setAiAssistantProductId(reviewProduct.id);
+                                            setIsAiAssistantOpen(true);
+                                        }}
+                                        style={{
+                                            padding: '8px 16px',
+                                            borderRadius: '10px',
+                                            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                                            color: '#ffffff',
+                                            border: 'none',
+                                            fontSize: '13px',
+                                            fontWeight: 800,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            boxShadow: '0 4px 10px rgba(99, 102, 241, 0.35)',
+                                            transition: 'transform 0.15s ease'
+                                        }}
+                                        title="Ouvrir le copilote Ahizan AI pour auditer et générer la fiche officielle avec photos HD"
+                                    >
+                                        <span>✨</span> Utiliser Ahizan AI
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReviewProduct(null)}
+                                        style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '15px', fontWeight: 800, color: '#64748b' }}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Stepper Navigation */}
@@ -2615,6 +3091,120 @@ export function ProductListComponent() {
                                                 </div>
                                             </div>
                                         )}
+                                        {/* Section 4: Visuels & Packshots Officiels */}
+                                        <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', display: 'grid', gap: '14px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span>🖼️</span> Visuels &amp; Packshots Officiels ({reviewAssets.length})
+                                                </div>
+                                                <label style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: '8px',
+                                                    background: '#eff6ff',
+                                                    color: '#2563eb',
+                                                    fontSize: '11px',
+                                                    fontWeight: 800,
+                                                    cursor: 'pointer',
+                                                    border: '1px solid #bfdbfe',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                }}>
+                                                    <span>➕</span> Téléverser &amp; Rogner Photos
+                                                    <input
+                                                        type="file"
+                                                        multiple
+                                                        accept="image/*"
+                                                        onChange={handleReviewAssetUpload}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                </label>
+                                            </div>
+
+                                            {reviewAssets.length > 0 ? (
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
+                                                    {reviewAssets.map((asset, idx) => {
+                                                        const isFeatured = (reviewFeaturedAssetId === asset.id) || (idx === 0 && !reviewFeaturedAssetId);
+                                                        const imgSrc = asset.preview || asset.sourceUrl || asset.url;
+                                                        return (
+                                                            <div
+                                                                key={asset.id || idx}
+                                                                style={{
+                                                                    border: isFeatured ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                                                                    borderRadius: '12px',
+                                                                    padding: '8px',
+                                                                    background: '#ffffff',
+                                                                    position: 'relative',
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    alignItems: 'center',
+                                                                    boxShadow: isFeatured ? '0 4px 10px rgba(37, 99, 235, 0.15)' : 'none'
+                                                                }}
+                                                            >
+                                                                <div style={{ width: '100%', height: '100px', background: '#f8fafc', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '6px' }}>
+                                                                    <img src={imgSrc} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                                                                </div>
+
+                                                                {isFeatured && (
+                                                                    <span style={{ position: 'absolute', top: '4px', left: '4px', background: '#2563eb', color: '#ffffff', fontSize: '9px', fontWeight: 800, padding: '2px 5px', borderRadius: '4px' }}>
+                                                                        Principale
+                                                                    </span>
+                                                                )}
+
+                                                                <div style={{ display: 'flex', gap: '4px', width: '100%', justifyContent: 'center', marginTop: '4px' }}>
+                                                                    {!isFeatured && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleSetReviewFeaturedAsset(asset.id)}
+                                                                            title="Définir comme photo principale"
+                                                                            style={{ padding: '3px 6px', fontSize: '10px', borderRadius: '6px', background: '#f1f5f9', border: '1px solid #cbd5e1', cursor: 'pointer', color: '#334155' }}
+                                                                        >
+                                                                            ⭐
+                                                                        </button>
+                                                                    )}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (imgSrc) {
+                                                                                fetch(imgSrc)
+                                                                                    .then(r => r.blob())
+                                                                                    .then(blob => {
+                                                                                        const file = new File([blob], `reframe-${idx}.jpg`, { type: 'image/jpeg' });
+                                                                                        setCropTargetContext('review');
+                                                                                        setAdminCropState({
+                                                                                            queue: [file],
+                                                                                            currentIndex: 0,
+                                                                                            currentSrc: imgSrc,
+                                                                                            currentFile: file,
+                                                                                        });
+                                                                                    })
+                                                                                    .catch(() => alert('Impossible de charger cette image pour le recadrage.'));
+                                                                            }
+                                                                        }}
+                                                                        title="Recadrer / Centrer sur fond blanc"
+                                                                        style={{ padding: '3px 6px', fontSize: '10px', borderRadius: '6px', background: '#f1f5f9', border: '1px solid #cbd5e1', cursor: 'pointer', color: '#334155' }}
+                                                                    >
+                                                                        ✂️ Rogner
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveReviewAsset(asset.id)}
+                                                                        title="Supprimer cette photo"
+                                                                        style={{ padding: '3px 6px', fontSize: '10px', borderRadius: '6px', background: '#fee2e2', border: '1px solid #fca5a5', cursor: 'pointer', color: '#b91c1c' }}
+                                                                    >
+                                                                        ✕
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div style={{ padding: '20px', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '12px' }}>
+                                                    Aucun visuel associé. Téléversez des photos ou utilisez l'assistant <strong>✨ Ahizan AI</strong> pour insérer des packshots HD officiels.
+                                                </div>
+                                            )}
+                                        </div>
 
                                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                                             <button
@@ -2703,6 +3293,74 @@ export function ProductListComponent() {
                                             </div>
                                         )}
 
+                                        {/* Target Variant Selection in Step 1 */}
+                                        {selectedTargetProduct && selectedTargetProduct.id !== reviewProduct?.id && (
+                                            <div style={{ padding: '14px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px' }}>
+                                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>
+                                                    🎯 Mode d'assignation sous "{selectedTargetProduct.name}" :
+                                                </div>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: !selectedTargetVariantId ? '#eff6ff' : '#ffffff', border: !selectedTargetVariantId ? '2px solid #2563eb' : '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', marginBottom: '6px' }}>
+                                                    <input
+                                                        type="radio"
+                                                        name="step1RegraftTargetMode"
+                                                        checked={!selectedTargetVariantId}
+                                                        onChange={() => setSelectedTargetVariantId(null)}
+                                                    />
+                                                    <div>
+                                                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                                                            Transférer comme nouvelle déclinaison sous "{selectedTargetProduct.name}"
+                                                        </div>
+                                                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                            Conserve cette variante comme choix distinct dans la fiche produit.
+                                                        </div>
+                                                    </div>
+                                                </label>
+
+                                                {selectedTargetProduct.variants && selectedTargetProduct.variants.length > 0 && (
+                                                    <div style={{ marginTop: '8px' }}>
+                                                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', marginBottom: '4px' }}>
+                                                            Ou fusionner directement avec une variante existante (Anti-doublon) :
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '140px', overflowY: 'auto' }}>
+                                                            {selectedTargetProduct.variants.map((v: any) => {
+                                                                const isThisVar = selectedTargetVariantId === v.id;
+                                                                return (
+                                                                    <label
+                                                                        key={v.id}
+                                                                        style={{
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'space-between',
+                                                                            padding: '6px 10px',
+                                                                            background: isThisVar ? '#f0fdf4' : '#ffffff',
+                                                                            border: isThisVar ? '2px solid #16a34a' : '1px solid #e2e8f0',
+                                                                            borderRadius: '6px',
+                                                                            cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                            <input
+                                                                                type="radio"
+                                                                                name="step1RegraftTargetMode"
+                                                                                checked={isThisVar}
+                                                                                onChange={() => setSelectedTargetVariantId(v.id)}
+                                                                            />
+                                                                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{v.name}</span>
+                                                                        </div>
+                                                                        {isThisVar && (
+                                                                            <span style={{ fontSize: '10px', fontWeight: 800, color: '#16a34a', background: '#dcfce7', padding: '1px 6px', borderRadius: '4px' }}>
+                                                                                ✓ Fusion Ciblée
+                                                                            </span>
+                                                                        )}
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                                             <button
                                                 type="button"
@@ -2733,12 +3391,12 @@ export function ProductListComponent() {
                                                     style={{
                                                         padding: '12px 26px', borderRadius: '10px', border: 'none', fontSize: '13px', fontWeight: 800,
                                                         cursor: selectedTargetProduct ? 'pointer' : 'not-allowed',
-                                                        background: selectedTargetProduct ? '#0284c7' : '#94a3b8',
+                                                        background: selectedTargetProduct ? (selectedTargetVariantId ? '#16a34a' : '#0284c7') : '#94a3b8',
                                                         color: '#ffffff',
                                                         boxShadow: selectedTargetProduct ? '0 4px 12px rgba(2,132,199,0.25)' : 'none',
                                                     }}
                                                 >
-                                                    {isSubmittingReview ? 'Raccordement...' : 'Raccorder & Passer aux Déclinaisons ➔'}
+                                                    {isSubmittingReview ? 'Raccordement...' : (selectedTargetVariantId ? '🔗 Fusionner l\'Offre & Continuer ➔' : 'Raccorder & Passer aux Déclinaisons ➔')}
                                                 </button>
                                             )}
                                         </div>
@@ -3739,10 +4397,41 @@ export function ProductListComponent() {
                         <div style={{ display: 'grid', gap: '16px' }}>
                             {/* Nom & Options */}
                             <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Libellé Déclinaison</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Libellé Déclinaison</div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const variantId = selectedDeclinationForDetails.productVariant?.id || selectedDeclinationForDetails.productVariantId || selectedDeclinationForDetails.id;
+                                            const opts = (selectedDeclinationForDetails.productVariant?.options || []).map((o: any) => ({
+                                                groupName: o.group?.name || 'Option',
+                                                valueName: o.name || o.code
+                                            }));
+                                            setEditingVariantOptions({
+                                                variantId,
+                                                variantName: selectedDeclinationForDetails.name || selectedDeclinationForDetails.productVariant?.name,
+                                                productName: selectedDeclinationForDetails.product?.name,
+                                                productId: selectedDeclinationForDetails.product?.id,
+                                                options: opts.length > 0 ? opts : [{ groupName: 'Couleur', valueName: '' }]
+                                            });
+                                        }}
+                                        style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    >
+                                        <span>🎨</span> Modifier Options
+                                    </button>
+                                </div>
                                 <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>
                                     {selectedDeclinationForDetails.name || selectedDeclinationForDetails.productVariant?.name || 'Déclinaison Standard'}
                                 </div>
+                                {selectedDeclinationForDetails.productVariant?.options && selectedDeclinationForDetails.productVariant.options.length > 0 && (
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                                        {selectedDeclinationForDetails.productVariant.options.map((opt: any, oIdx: number) => (
+                                            <span key={oIdx} style={{ background: '#ffffff', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, color: '#0f172a' }}>
+                                                {opt.group?.name || 'Option'}: <strong style={{ color: '#0284c7' }}>{opt.name || opt.code}</strong>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Vendeur & Boutique */}
@@ -3841,6 +4530,187 @@ export function ProductListComponent() {
                 </div>
             )}
 
+            {/* Superadmin Interactive Option Groups & Options Configuration Modal */}
+            {editingVariantOptions && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110000, padding: '20px', backdropFilter: 'blur(6px)' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '18px', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', border: '1px solid #e2e8f0', padding: '24px' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '20px' }}>🎨</span>
+                                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                                        Gestionnaire d'Option Groups & Attributs
+                                    </h3>
+                                </div>
+                                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                                    Modifiez ou attribuez de nouveaux groupes d'options (ex: changer Couleur: Rouge en Couleur: Noir, ou remplacer par Taille: XL et Volume: 5L).
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEditingVariantOptions(null)}
+                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', color: '#64748b' }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div style={{ marginBottom: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                                ⚡ Suggestions de groupes courants :
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {['Couleur', 'Taille', 'Volume', 'Capacité', 'Pointure', 'Matière', 'Poids', 'Format'].map(grp => (
+                                    <button
+                                        key={grp}
+                                        type="button"
+                                        onClick={() => {
+                                            setEditingVariantOptions(prev => {
+                                                if (!prev) return prev;
+                                                const exists = prev.options.some(o => o.groupName.toLowerCase() === grp.toLowerCase());
+                                                if (exists) return prev;
+                                                return {
+                                                    ...prev,
+                                                    options: [...prev.options, { groupName: grp, valueName: '' }]
+                                                };
+                                            });
+                                        }}
+                                        style={{ padding: '4px 9px', borderRadius: '6px', background: '#ffffff', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 700, color: '#0284c7', cursor: 'pointer' }}
+                                    >
+                                        + {grp}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Option Rows */}
+                        <div style={{ display: 'grid', gap: '10px', marginBottom: '18px' }}>
+                            {editingVariantOptions.options.length === 0 ? (
+                                <div style={{ padding: '16px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '12px', color: '#64748b' }}>
+                                    Aucun attribut d'option défini. Cliquez sur "+ Ajouter une option" ci-dessous.
+                                </div>
+                            ) : (
+                                editingVariantOptions.options.map((opt, idx) => (
+                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                        <div style={{ flex: '1 1 45%' }}>
+                                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
+                                                Groupe d'option
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ex: Couleur, Taille, Volume..."
+                                                value={opt.groupName}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setEditingVariantOptions(prev => {
+                                                        if (!prev) return prev;
+                                                        const nextOpts = [...prev.options];
+                                                        nextOpts[idx] = { ...nextOpts[idx], groupName: val };
+                                                        return { ...prev, options: nextOpts };
+                                                    });
+                                                }}
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, color: '#0f172a', boxSizing: 'border-box' }}
+                                            />
+                                        </div>
+
+                                        <div style={{ flex: '1 1 45%' }}>
+                                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
+                                                Valeur de l'option
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ex: Noir, XL, 5L, 128 Go..."
+                                                value={opt.valueName}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setEditingVariantOptions(prev => {
+                                                        if (!prev) return prev;
+                                                        const nextOpts = [...prev.options];
+                                                        nextOpts[idx] = { ...nextOpts[idx], valueName: val };
+                                                        return { ...prev, options: nextOpts };
+                                                    });
+                                                }}
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', color: '#0f172a', boxSizing: 'border-box' }}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'flex-end', paddingTop: '16px' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEditingVariantOptions(prev => {
+                                                        if (!prev) return prev;
+                                                        const nextOpts = prev.options.filter((_, i) => i !== idx);
+                                                        return { ...prev, options: nextOpts };
+                                                    });
+                                                }}
+                                                style={{ background: '#fee2e2', border: 'none', color: '#dc2626', width: '32px', height: '32px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}
+                                                title="Supprimer cette option"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Add option button */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingVariantOptions(prev => {
+                                    if (!prev) return prev;
+                                    return {
+                                        ...prev,
+                                        options: [...prev.options, { groupName: '', valueName: '' }]
+                                    };
+                                });
+                            }}
+                            style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px dashed #3b82f6', background: '#eff6ff', color: '#1d4ed8', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '18px' }}
+                        >
+                            ➕ Ajouter une Option (ex: Volume, Taille...)
+                        </button>
+
+                        {/* Preview */}
+                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 14px', marginBottom: '20px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>
+                                Aperçu du libellé de la déclinaison :
+                            </div>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
+                                {editingVariantOptions.productName || 'Produit'} – {editingVariantOptions.options.map(o => o.valueName.trim()).filter(Boolean).join(' / ') || 'Standard'}
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setEditingVariantOptions(null)}
+                                style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isSavingVariantOptions}
+                                onClick={() => handleSaveVariantOptions(
+                                    editingVariantOptions.variantId,
+                                    editingVariantOptions.options,
+                                    editingVariantOptions.productId
+                                )}
+                                style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: isSavingVariantOptions ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                <span>{isSavingVariantOptions ? '⏳' : '💾'}</span>
+                                <span>{isSavingVariantOptions ? 'Enregistrement...' : 'Enregistrer les Options & Attributs'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Superadmin Interactive Image Cropper Modal */}
             {adminCropState && (
                 <AdminImageCropModal
@@ -3852,18 +4722,16 @@ export function ProductListComponent() {
                 />
             )}
 
-            {/* Ahizan AI Product Validation Cockpit Modal */}
-            <ProductValidationCockpit
-                productId={aiCockpitProductId}
-                isOpen={!!aiCockpitProductId}
-                onClose={() => setAiCockpitProductId(null)}
-                onRefresh={() => {
-                    queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            {/* Ahizan AI Product Copilot Assistant Modal */}
+            <AIProductAssistantModal
+                productId={aiAssistantProductId}
+                isOpen={isAiAssistantOpen}
+                onClose={() => {
+                    setIsAiAssistantOpen(false);
+                    setAiAssistantProductId(null);
                 }}
+                onApplySuggestions={handleApplyAiSuggestions}
             />
-
-            {/* Global Floating Ahizan AI Assistant */}
-            <AhizanAIChatDrawer />
 
         </div>
     );

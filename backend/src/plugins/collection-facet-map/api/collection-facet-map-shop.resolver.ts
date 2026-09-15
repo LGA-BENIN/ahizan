@@ -123,6 +123,86 @@ export class CollectionFacetMapShopResolver {
     }
 
     /**
+     * Get allowed option groups for a specific collection (public shop-api)
+     */
+    @Query()
+    @Allow(Permission.Public)
+    async collectionAllowedOptionGroups(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { collectionId: ID },
+    ): Promise<any | null> {
+        const collectionRepo = this.connection.getRepository(ctx, Collection);
+
+        const coll = await collectionRepo.findOne({
+            where: { id: args.collectionId as any },
+            relations: ['translations', 'parent'],
+        });
+
+        if (!coll) return null;
+
+        const allCollections = await collectionRepo.find({
+            relations: ['translations', 'parent'],
+        });
+        const collMap = new Map<string, any>();
+        for (const c of allCollections) {
+            collMap.set(String(c.id), c);
+        }
+
+        const resolveInheritedOptionGroupIds = (c: any, visited = new Set<string>()): string[] => {
+            if (!c || visited.has(String(c.id))) return [];
+            visited.add(String(c.id));
+            const ownIds: string[] = (c as any).customFields?.allowedOptionGroupIds || [];
+            const parentColl = c.parent;
+            if (parentColl && parentColl.id) {
+                const parentFull = collMap.get(String(parentColl.id));
+                if (parentFull) {
+                    const parentIds = resolveInheritedOptionGroupIds(parentFull, visited);
+                    return [...new Set([...parentIds, ...ownIds])];
+                }
+            }
+            return ownIds;
+        };
+
+        const ownOptionGroupIds: string[] = (coll as any).customFields?.allowedOptionGroupIds || [];
+        const inheritedOptionGroupIds = resolveInheritedOptionGroupIds(coll);
+
+        const repo = this.connection.getRepository(ctx, 'ProductOptionGroup' as any);
+        const allGroups = await repo.find({
+            relations: ['translations', 'options'],
+        });
+
+        const lang = ctx.languageCode || 'fr';
+        const allOptionGroups = allGroups.map((g: any) => {
+            const frTrans = (g.translations || []).find((t: any) => t.languageCode === lang || t.languageCode === 'fr') || g.translations?.[0];
+            const name = frTrans?.name || g.code || `group-${g.id}`;
+            const validOptions = (g.options || []).filter((o: any) => o.deletedAt === null);
+            return {
+                id: String(g.id),
+                code: g.code,
+                name,
+                optionsCount: validOptions.length,
+            };
+        });
+
+        const allowedOptionGroups = allOptionGroups.filter((g: any) => inheritedOptionGroupIds.includes(String(g.id)));
+
+        const getName = (c: any): string => {
+            const trans = c.translations || [];
+            const frTrans = trans.find((t: any) => t.languageCode === 'fr' || t.languageCode === LanguageCode.fr) || trans[0];
+            return frTrans?.name || c.name || c.slug || '';
+        };
+
+        return {
+            collectionId: String(coll.id),
+            collectionName: getName(coll),
+            allowedOptionGroupIds: inheritedOptionGroupIds,
+            ownOptionGroupIds,
+            inheritedOptionGroupIds: inheritedOptionGroupIds.filter(id => !ownOptionGroupIds.includes(id)),
+            allowedOptionGroups,
+        };
+    }
+
+    /**
      * Get seller dashboard config (public, for seller frontend)
      */
     @Query()
@@ -131,3 +211,4 @@ export class CollectionFacetMapShopResolver {
         return readSellerConfig();
     }
 }
+

@@ -47,6 +47,24 @@ export interface AISettings {
 export const PRESET_MODELS_CATALOG: AIModelDefinition[] = [
   // --- Google Gemini (Google API Direct) ---
   {
+    id: 'gemini-2.5-flash',
+    name: 'Google Gemini 2.5 Flash',
+    provider: 'google',
+    description: 'Ultra-rapide, performant et économique pour la modération, analyse de produits et le dialogue réactif',
+    category: 'gemma_google',
+    enabled: true,
+    isCustom: false,
+  },
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Google Gemini 2.5 Pro',
+    provider: 'google',
+    description: 'Raisonnement complexe et audit approfondi, haute intelligence multimodale',
+    category: 'gemma_google',
+    enabled: true,
+    isCustom: false,
+  },
+  {
     id: 'gemini-3.8-flash',
     name: 'Google Gemini 3.8 Flash',
     provider: 'google',
@@ -68,7 +86,7 @@ export const PRESET_MODELS_CATALOG: AIModelDefinition[] = [
     id: 'gemini-3.5-flash-lite',
     name: 'Google Gemini 3.5 Flash-Lite',
     provider: 'google',
-    description: 'Option sous-agent économique et à faible latence pour l\'automatisation à haut volume',
+    description: 'Modèle ultra-léger et rapide',
     category: 'gemma_google',
     enabled: true,
     isCustom: false,
@@ -78,15 +96,6 @@ export const PRESET_MODELS_CATALOG: AIModelDefinition[] = [
     name: 'Google Gemini 3.1 Pro (Preview)',
     provider: 'google',
     description: 'Raisonnement complexe et audit approfondi, dernière génération Pro',
-    category: 'gemma_google',
-    enabled: true,
-    isCustom: false,
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Google Gemini 2.5 Flash',
-    provider: 'google',
-    description: 'Ultra-rapide et économique pour la modération et le dialogue réactif',
     category: 'gemma_google',
     enabled: true,
     isCustom: false,
@@ -262,7 +271,7 @@ export class ConfigStore {
         },
       },
       models: Array.from(modelMap.values()),
-      activeModel: saved.activeModel || process.env.AHIZAN_AI_MODEL || 'gemini-3.8-flash',
+      activeModel: saved.activeModel || process.env.AHIZAN_AI_MODEL || 'gemini-2.5-flash',
       defaultTemperature: saved.defaultTemperature ?? 0.2,
     };
   }

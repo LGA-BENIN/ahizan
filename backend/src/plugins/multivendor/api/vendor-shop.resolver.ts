@@ -88,15 +88,56 @@ export class VendorShopResolver {
 
     /**
      * Returns all ProductOptionGroups with their options for the seller variant configurator.
+     * If collectionId is provided, filters to only allowed option groups configured for that category.
      */
     @Query()
     async getGlobalOptionGroups(
-        @Ctx() ctx: RequestContext
+        @Ctx() ctx: RequestContext,
+        @Args('collectionId') collectionId?: string,
     ): Promise<any[]> {
         const repo = this.connection.getRepository(ctx, 'ProductOptionGroup' as any);
         const allGroups = await repo.find({
             relations: ['translations', 'options', 'options.translations'],
         });
+
+        let allowedGroupIds: string[] | null = null;
+        if (collectionId) {
+            try {
+                const collectionRepo = this.connection.getRepository(ctx, 'Collection' as any);
+                const allCollections = await collectionRepo.find({
+                    relations: ['parent'],
+                });
+                const collMap = new Map<string, any>();
+                for (const c of allCollections) {
+                    collMap.set(String(c.id), c);
+                }
+
+                const resolveInheritedOptionGroupIds = (c: any, visited = new Set<string>()): string[] => {
+                    if (!c || visited.has(String(c.id))) return [];
+                    visited.add(String(c.id));
+                    const ownIds: string[] = (c as any).customFields?.allowedOptionGroupIds || [];
+                    if (ownIds && ownIds.length > 0) return ownIds;
+                    const parentColl = c.parent;
+                    if (parentColl && parentColl.id) {
+                        const parentFull = collMap.get(String(parentColl.id));
+                        if (parentFull) {
+                            return resolveInheritedOptionGroupIds(parentFull, visited);
+                        }
+                    }
+                    return [];
+                };
+
+                const targetColl = collMap.get(String(collectionId));
+                if (targetColl) {
+                    const inherited = resolveInheritedOptionGroupIds(targetColl);
+                    if (inherited && inherited.length > 0) {
+                        allowedGroupIds = inherited;
+                    }
+                }
+            } catch (e) {
+                // Ignore and return all if resolution fails
+            }
+        }
 
         const lang = ctx.languageCode || 'fr';
 
@@ -188,7 +229,11 @@ export class VendorShopResolver {
         };
 
         // Filter out soft-deleted groups and test/temporary groups
-        const groups = allGroups.filter((g: any) => g.deletedAt === null && !g.code.startsWith('auto-') && !g.code.startsWith('temp-'));
+        let groups = allGroups.filter((g: any) => g.deletedAt === null && !g.code.startsWith('auto-') && !g.code.startsWith('temp-'));
+
+        if (allowedGroupIds && allowedGroupIds.length > 0) {
+            groups = groups.filter((g: any) => allowedGroupIds!.includes(String(g.id)));
+        }
 
         const isNoisyCompositeOption = (name: string, groupCode: string): boolean => {
             const lower = name.toLowerCase().trim();
@@ -895,6 +940,37 @@ export class VendorShopResolver {
 
         const [items, totalItems] = await qb.getManyAndCount();
         return { items, totalItems };
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async officialProductDetail(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string
+    ): Promise<Product | null> {
+        return this.connection.getRepository(ctx, Product)
+            .createQueryBuilder('product')
+            .leftJoinAndSelect('product.translations', 'translations')
+            .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
+            .leftJoinAndSelect('product.assets', 'assets')
+            .leftJoinAndSelect('product.facetValues', 'facetValues')
+            .leftJoinAndSelect('facetValues.translations', 'facetValueTranslations')
+            .leftJoinAndSelect('product.optionGroups', 'optionGroups')
+            .leftJoinAndSelect('optionGroups.translations', 'optionGroupTranslations')
+            .leftJoinAndSelect('optionGroups.options', 'options')
+            .leftJoinAndSelect('options.translations', 'optionTranslations')
+            .leftJoinAndSelect('product.variants', 'variants', 'variants.deletedAt IS NULL')
+            .leftJoinAndSelect('variants.translations', 'variantTranslations')
+            .leftJoinAndSelect('variants.options', 'variantOptions')
+            .leftJoinAndSelect('variantOptions.translations', 'variantOptionTranslations')
+            .leftJoinAndSelect('variantOptions.group', 'variantOptionGroup')
+            .leftJoinAndSelect('variantOptionGroup.translations', 'variantOptionGroupTranslations')
+            .leftJoinAndSelect('variants.featuredAsset', 'variantFeaturedAsset')
+            .leftJoinAndSelect('variants.assets', 'variantAssets')
+            .leftJoinAndSelect('variants.productVariantPrices', 'prices')
+            .where('product.id = :id', { id })
+            .andWhere('product.deletedAt IS NULL')
+            .getOne();
     }
 
     /**
@@ -2664,9 +2740,14 @@ export class ProductShopResolver {
                 }
             }
 
-            const isOwner = String((product.customFields as any)?.vendorId || (product.customFields as any)?.vendor?.id || (product as any)?.customFieldsVendorid || '') === String((vendor as any).id);
+            const rawVendorId = (product.customFields as any)?.vendorId || (product.customFields as any)?.vendor?.id || (product as any)?.customFieldsVendorid || '';
+            const isOwner = Boolean(rawVendorId && String(rawVendorId) === String((vendor as any).id));
+            const isOfficial = !rawVendorId;
 
-            const filteredVariants = isOwner 
+            // If the vendor owns the product OR if it is an official catalog product (mutualized),
+            // return all variants so the vendor can see all declinations and graft offers.
+            // Only for products owned by other specific vendors do we restrict to variants where this vendor has an offer.
+            const filteredVariants = (isOwner || isOfficial)
                 ? (allVariants || [])
                 : (allVariants || []).filter(v => offerMap.has(String(v.id)));
 

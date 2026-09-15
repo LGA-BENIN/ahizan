@@ -58,8 +58,11 @@ export class SellerOfferService {
             .leftJoinAndSelect('variant.translations', 'translations')
             .leftJoinAndSelect('variant.options', 'options')
             .leftJoinAndSelect('options.translations', 'optionTranslations')
+            .leftJoinAndSelect('options.group', 'optionGroup')
+            .leftJoinAndSelect('optionGroup.translations', 'optionGroupTranslations')
             .leftJoinAndSelect('variant.product', 'product')
-            .where('variant.productId = :productId OR product.id = :productId', { productId: String(productId) })
+            .where('offer.productVariantId IN (SELECT id FROM product_variant WHERE "productId" = :productId)', { productId: Number(productId) })
+            .orderBy('offer.createdAt', 'ASC')
             .getMany();
     }
 
@@ -175,7 +178,16 @@ export class SellerOfferService {
                 [numVariantId]
             );
             const hasApprovedOffers = parseInt(approvedOffersCount[0]?.count || '0', 10) > 0;
-            const offerStatus = hasApprovedOffers ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
+            const prodRes = await pvRepo.query(
+                `SELECT p.id, p."customFieldsVendorid", p."customFieldsApprovalstatus" 
+                 FROM product p 
+                 INNER JOIN product_variant pv ON pv."productId" = p.id 
+                 WHERE pv.id = $1`,
+                [numVariantId]
+            );
+            const isOfficialOrApproved = prodRes[0]?.customFieldsVendorid == null || prodRes[0]?.customFieldsApprovalstatus === 'approved';
+            const shouldBeEnabled = hasApprovedOffers || isOfficialOrApproved;
+            const offerStatus = (hasApprovedOffers || isOfficialOrApproved) ? 'APPROVED' : (savedOffer.status === 'rejected' ? 'REJECTED' : 'PENDING');
 
             await pvRepo.query(
                 `UPDATE product_variant SET 
@@ -184,7 +196,7 @@ export class SellerOfferService {
                     "customFieldsRejectionreason" = CASE WHEN $1 = true THEN NULL ELSE $3 END, 
                     "updatedAt" = NOW() 
                  WHERE id = $4`,
-                [hasApprovedOffers, offerStatus, savedOffer.rejectionReason, numVariantId]
+                [shouldBeEnabled, offerStatus, savedOffer.rejectionReason, numVariantId]
             );
             try {
                 await pvRepo.query(

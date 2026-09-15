@@ -1949,6 +1949,214 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     /**
+     * Superadmin configures/replaces option groups and values for a specific ProductVariant dynamically.
+     */
+    async adminConfigureVariantOptions(
+        ctx: RequestContext,
+        variantId: string,
+        options: Array<{ groupName: string; valueName: string }>
+    ): Promise<ProductVariant> {
+        const variant = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: variantId },
+            relations: ['product', 'options', 'options.group']
+        });
+        if (!variant) {
+            throw new Error(`Déclinaison #${variantId} introuvable.`);
+        }
+
+        const resolvedOptionIds: string[] = [];
+
+        for (const optConfig of options || []) {
+            if (!optConfig.groupName?.trim() || !optConfig.valueName?.trim()) continue;
+            const gName = optConfig.groupName.trim();
+            const vName = optConfig.valueName.trim();
+            const gCode = gName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const vCode = `${gCode}-${vName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+
+            // 1. Find or create ProductOptionGroup
+            let groupId: string;
+            const exGroup = await this.connection.rawConnection.query(
+                `SELECT id FROM product_option_group WHERE code = $1 LIMIT 1`,
+                [gCode]
+            );
+            if (exGroup.length > 0) {
+                groupId = exGroup[0].id.toString();
+            } else {
+                const insertedGroup = await this.connection.rawConnection.query(
+                    `INSERT INTO product_option_group (code, "createdAt", "updatedAt") VALUES ($1, NOW(), NOW()) RETURNING id`,
+                    [gCode]
+                );
+                groupId = insertedGroup[0].id.toString();
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_option_group_translation ("baseId", "languageCode", name, "createdAt", "updatedAt") VALUES ($1, 'fr', $2, NOW(), NOW())`,
+                    [groupId, gName]
+                );
+            }
+
+            // Ensure Option Group is linked to Default Channel 1
+            await this.connection.rawConnection.query(
+                `INSERT INTO product_option_group_channels_channel ("productOptionGroupId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                [groupId]
+            );
+
+            // Ensure Option Group is linked to Product
+            if (variant.productId) {
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_option_groups_product_option_group ("productId", "productOptionGroupId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                    [variant.productId, groupId]
+                );
+            }
+
+            // 2. Find or create ProductOption
+            let optionId: string;
+            const exOpt = await this.connection.rawConnection.query(
+                `SELECT id FROM product_option WHERE "groupId" = $1 AND code = $2 LIMIT 1`,
+                [groupId, vCode]
+            );
+            if (exOpt.length > 0) {
+                optionId = exOpt[0].id.toString();
+            } else {
+                const insertedOpt = await this.connection.rawConnection.query(
+                    `INSERT INTO product_option ("groupId", code, "createdAt", "updatedAt") VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
+                    [groupId, vCode]
+                );
+                optionId = insertedOpt[0].id.toString();
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_option_translation ("baseId", "languageCode", name, "createdAt", "updatedAt") VALUES ($1, 'fr', $2, NOW(), NOW())`,
+                    [optionId, vName]
+                );
+            }
+
+            // Ensure Option is linked to Channel 1
+            await this.connection.rawConnection.query(
+                `INSERT INTO product_option_channels_channel ("productOptionId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                [optionId]
+            );
+
+            resolvedOptionIds.push(optionId);
+        }
+
+        // Delegate to adminUpdateVariantOptions with resolved option IDs
+        const res = await this.adminUpdateVariantOptions(ctx, variantId, resolvedOptionIds);
+        if (variant.productId) {
+            await this.synchronizeAllVariantNamesForProduct(ctx, String(variant.productId));
+        }
+        return res;
+    }
+
+    /**
+     * Crée une nouvelle déclinaison officielle directement rattachée au produit maître (fiche centrale).
+     * Les options spécifiées sont configurées automatiquement (groupes & valeurs créés si besoin).
+     */
+    async createOfficialVariant(
+        ctx: RequestContext,
+        input: {
+            productId: string;
+            name?: string;
+            sku?: string;
+            price?: number;
+            options?: Array<{ groupName: string; valueName: string }>;
+            featuredAssetId?: string;
+        }
+    ): Promise<ProductVariant> {
+        const product = await this.connection.getRepository(ctx, Product).findOne({
+            where: { id: input.productId },
+            relations: ['translations', 'featuredAsset']
+        });
+        if (!product) {
+            throw new Error(`Produit #${input.productId} introuvable.`);
+        }
+
+        const prodName = product.translations?.[0]?.name || 'Produit';
+        const optNames = (input.options || []).map(o => o.valueName).filter(Boolean);
+        const variantName = input.name || (optNames.length > 0 ? `${prodName} - ${optNames.join(' / ')}` : prodName);
+        const sku = input.sku || `AHZ-${prodName.substring(0, 6).toUpperCase().replace(/[^A-Z0-9]/g, '')}-${optNames.map(v => v.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, '')).join('-')}-${Date.now().toString(36).toUpperCase()}`;
+
+        const createdVariants = await this.productVariantService.create(ctx, [{
+            productId: input.productId,
+            sku,
+            price: input.price ? Math.round(input.price * 100) : 0,
+            stockOnHand: 0,
+            featuredAssetId: input.featuredAssetId,
+            translations: [{
+                languageCode: ctx.languageCode,
+                name: variantName,
+            }],
+        }]);
+
+        const variant = createdVariants[0];
+        if (!variant) {
+            throw new Error(`Échec de la création de la déclinaison pour le produit #${input.productId}`);
+        }
+
+        if (input.options && input.options.length > 0) {
+            await this.adminConfigureVariantOptions(ctx, String(variant.id), input.options);
+        }
+
+        const fresh = await this.connection.getRepository(ctx, ProductVariant).findOne({
+            where: { id: variant.id },
+            relations: ['product', 'options', 'options.group', 'featuredAsset', 'assets']
+        });
+        return fresh || variant;
+    }
+
+    /**
+     * Synchronise et harmonise intelligemment les noms de toutes les déclinaisons rattachées à un produit maître.
+     * Si une déclinaison portait un ancien préfixe erroné (ex: 'nokia a touche' au lieu de 'Apple iPhone 8'),
+     * son nom est immédiatement recalculé : `${prodName} – ${options}`.
+     */
+    async synchronizeAllVariantNamesForProduct(ctx: RequestContext, productId: string): Promise<boolean> {
+        try {
+            const prodTranslation = await this.connection.rawConnection.query(
+                `SELECT name FROM product_translation WHERE "baseId" = $1 AND "languageCode" = 'fr' LIMIT 1`,
+                [productId]
+            );
+            const prodName = (prodTranslation[0]?.name || '').trim() || 'Produit';
+
+            const variants = await this.connection.rawConnection.query(
+                `SELECT id, sku FROM product_variant WHERE "productId" = $1`,
+                [productId]
+            );
+
+            for (const v of variants) {
+                const optionNamesRes = await this.connection.rawConnection.query(
+                    `SELECT pot.name 
+                     FROM product_variant_options_product_option pvo
+                     JOIN product_option_translation pot ON pot."baseId" = pvo."productOptionId" AND pot."languageCode" = 'fr'
+                     WHERE pvo."productVariantId" = $1`,
+                    [v.id]
+                );
+                const optionNames = optionNamesRes.map((r: any) => r.name).filter(Boolean);
+                
+                let newVariantName = prodName;
+                if (optionNames.length > 0) {
+                    newVariantName = `${prodName} – ${optionNames.join(' - ')}`;
+                } else {
+                    const currentVarTrans = await this.connection.rawConnection.query(
+                        `SELECT name FROM product_variant_translation WHERE "baseId" = $1 AND "languageCode" = 'fr' LIMIT 1`,
+                        [v.id]
+                    );
+                    const currName = currentVarTrans[0]?.name || '';
+                    const dashSplit = currName.split(/\s*[-–—]\s*/);
+                    if (dashSplit.length > 1) {
+                        const trailingOptions = dashSplit.slice(1).join(' - ');
+                        newVariantName = `${prodName} – ${trailingOptions}`;
+                    }
+                }
+
+                await this.connection.rawConnection.query(
+                    `UPDATE product_variant_translation SET name = $1 WHERE "baseId" = $2 AND "languageCode" = 'fr'`,
+                    [newVariantName, v.id]
+                );
+            }
+            return true;
+        } catch (err) {
+            console.error('[synchronizeAllVariantNamesForProduct] Error:', err);
+            return false;
+        }
+    }
+
+    /**
      * Superadmin reassigns a specific line to a new product & new vendor with custom price.
      */
     async reassignOrderLineToProduct(

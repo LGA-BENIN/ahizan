@@ -261,7 +261,7 @@ export class ModelGateway {
       return this.openRouterClient(cleanOpenRouterId);
     }
     if (this.googleClient) {
-      return this.googleClient('gemini-3.8-flash');
+      return this.googleClient('gemini-2.5-flash');
     }
     if (this.openaiClient) {
       return this.openaiClient('gpt-4o-mini');

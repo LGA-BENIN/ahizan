@@ -328,9 +328,6 @@ export function AhizanAIHubComponent() {
           </div>
         </div>
       </div>
-
-      {/* Persistent global floating drawer */}
-      <AhizanAIChatDrawer />
     </div>
   );
 }

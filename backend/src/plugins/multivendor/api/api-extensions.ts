@@ -646,8 +646,8 @@ export const shopApiExtensions = `
         myVendorWalletStats: VendorWalletStats!
 
 
-        # Global option groups (for variant configurator in seller portal)
-        getGlobalOptionGroups: [GlobalOptionGroup!]!
+        # Global option groups (for variant configurator in seller portal, filtered by collection if provided)
+        getGlobalOptionGroups(collectionId: ID): [GlobalOptionGroup!]!
 
         # Email role checking (public — no auth required)
         checkEmailRoles(email: String!): EmailRolesResult!
@@ -675,6 +675,7 @@ export const shopApiExtensions = `
         sellerOffersForProduct(productId: ID!): [SellerOffer!]!
         mySellerOffers: [SellerOffer!]!
         searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
+        officialProductDetail(id: ID!): Product
         vendorSettlements(vendorId: ID!): [Settlement!]!
         vendorAvailableBalance(vendorId: ID!): VendorBalanceResult!
     }
@@ -761,10 +762,46 @@ export const adminApiExtensions = `
         sellerOffersForVariants(variantIds: [ID!]!): [SellerOffer!]!
         sellerOffersForProduct(productId: ID!): [SellerOffer!]!
         mySellerOffers: [SellerOffer!]!
-        getGlobalOptionGroups: [GlobalOptionGroup!]!
+        getGlobalOptionGroups(collectionId: ID): [GlobalOptionGroup!]!
         searchOfficialProducts(term: String, take: Int, skip: Int): ProductList!
+        officialProductDetail(id: ID!): Product
         vendorSettlements(vendorId: ID!): [Settlement!]!
         vendorAvailableBalance(vendorId: ID!): VendorBalanceResult!
+    }
+
+    input OptionGroupInput {
+        name: String!
+        values: [String!]!
+    }
+
+    input AdminVariantMatrixInput {
+        name: String!
+        optionValues: [String!]
+        isCurrentSellerVariant: Boolean
+        suggestedSku: String
+        suggestedPriceFcfa: Float
+        stockOnHand: Int
+        colorHex: String
+    }
+
+    input AdminReviewProductImageInput {
+        url: String!
+        isPrimary: Boolean
+        label: String
+    }
+
+    input VariantOptionConfigInput {
+        groupName: String!
+        valueName: String!
+    }
+
+    input CreateOfficialVariantInput {
+        productId: ID!
+        name: String
+        sku: String
+        price: Float
+        options: [VariantOptionConfigInput!]
+        featuredAssetId: ID
     }
 
     extend type Mutation {
@@ -832,12 +869,18 @@ export const adminApiExtensions = `
             collectionIds: [ID!]
             facetValueIds: [ID!]
             approveVendorOffer: Boolean
+            optionGroups: [OptionGroupInput!]
+            variantsMatrix: [AdminVariantMatrixInput!]
+            selectedImages: [AdminReviewProductImageInput!]
         ): Product!
         adminReviewSellerOffer(id: ID!, status: String!, rejectionReason: String): SellerOffer!
         reassignVariantToProduct(variantId: ID!, targetProductId: ID!, approveOffer: Boolean): ProductVariant!
         reassignOfferToTargetVariant(sourceOfferId: ID!, targetVariantId: ID!, deleteSourceVariantIfEmpty: Boolean): SellerOffer!
         mergeVariantIntoTargetVariant(sourceVariantId: ID!, targetVariantId: ID!): ProductVariant!
         adminUpdateVariantOptions(variantId: ID!, optionIds: [ID!]!): ProductVariant!
+        adminConfigureVariantOptions(variantId: ID!, options: [VariantOptionConfigInput!]!): ProductVariant!
+        adminSyncProductVariantNames(productId: ID!): Boolean!
+        createOfficialVariant(input: CreateOfficialVariantInput!): ProductVariant!
         createOfficialProductFromVariant(
             variantId: ID!
             name: String!

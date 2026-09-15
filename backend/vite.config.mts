@@ -41,25 +41,23 @@ export default defineConfig({
     },
     plugins: [
         vendureDashboardPlugin({
-            // The vendureDashboardPlugin will scan your configuration in order
-            // to find any plugins which have dashboard extensions, as well as
-            // to introspect the GraphQL schema based on any API extensions
-            // and custom fields that are configured.
             vendureConfigPath: pathToFileURL('./src/vendure-config-dashboard.ts'),
-            // En local => http://127.0.0.1:3000
-            // En Docker/Production => https://administrator.ahizan.com:443
             api: { host: apiHost, port: apiPort },
-            // When you start the Vite server, your Admin API schema will
-            // be introspected and the types will be generated in this location.
-            // These types can be used in your dashboard extensions to provide
-            // type safety when writing queries and mutations.
             gqlOutputPath: './src/gql',
         }),
     ],
     resolve: {
+        // Ensures only ONE copy of React is bundled — prevents the
+        // "Cannot read properties of null (reading 'useState')" error
+        // that occurs when extension components resolve a different React instance
+        // than the one used by Vendure Dashboard core.
+        dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
         alias: {
-            // This allows all plugins to reference a shared set of
-            // GraphQL types.
+            // Force all dashboard extension components to use the SAME React
+            // instance as Vendure Dashboard core.
+            'react': resolve(__dirname, 'node_modules/react'),
+            'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+            // Shared GraphQL types for all plugins.
             '@/gql': resolve(__dirname, './src/gql/graphql.ts'),
         },
     },

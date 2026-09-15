@@ -14,8 +14,6 @@ import { EmployeeRolesManagementComponent } from './employee-roles-management';
 import { AhizanAIHubComponent } from './ai-hub';
 import { AhizanAIChatDrawer } from './ai-chat-drawer';
 
-// P4 : Ahizan AI flottant sur TOUTES les pages du dashboard (y compris natives
-// Vendure) via un customProvider monté à la racine de l'application.
 function AhizanAIProvider({ children }: { children: React.ReactNode }) {
     return (
         <>

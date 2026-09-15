@@ -28,14 +28,109 @@ export interface ChatResponse {
   finishReason?: string;
 }
 
+export interface SuggestedOfficialImage {
+  id: string;
+  url: string;
+  previewUrl: string;
+  label: string;
+  isPrimary: boolean;
+  source: string;
+  variantOptionValue?: string;
+  imageType?: 'MAIN_WHITE_BG' | 'BACK' | 'PERSPECTIVE' | 'PACKAGING' | 'LIFESTYLE' | 'VARIANT_COLOR' | 'OTHER';
+}
+
+export interface TechnicalSpec {
+  key: string;
+  value: string;
+  facetKey?: string;
+}
+
+export interface OptionGroupSuggestion {
+  name: string;
+  values: string[];
+}
+
+export interface VariantSuggestion {
+  name: string;
+  optionValues: Record<string, string>;
+  isCurrentSellerVariant: boolean;
+  suggestedSku?: string;
+  suggestedPriceFcfa?: number;
+  colorHex?: string;
+}
+
+export interface VisualOcrInsights {
+  detectedBrand?: string;
+  detectedModel?: string;
+  readOcrText?: string;
+  detectedColor?: string;
+  detectedCondition?: string;
+  imageQualityRating?: 'EXCELLENT' | 'GOOD' | 'BLURRY_OR_POOR' | 'NO_IMAGE';
+}
+
+export interface ProposedOfficialProduct {
+  isValidSubmission: boolean;
+  rejectionCategory?: 'NONE' | 'NONSENSE_SPAM' | 'POOR_IMAGE' | 'PROHIBITED' | 'INSUFFICIENT_DATA';
+  rejectionSuggestedMessage?: string;
+  name: string;
+  brand: string;
+  model: string;
+  shortDescription: string;
+  description?: string;
+  seoTitle: string;
+  seoDescription: string;
+  categoryName?: string;
+  collectionId?: string;
+  visualOcrInsights?: VisualOcrInsights;
+  truthScore: number;
+  truthLevel: 'HIGH' | 'MEDIUM' | 'LOW' | 'SUSPICIOUS';
+  truthRationale: string;
+  optionGroups?: OptionGroupSuggestion[];
+  variantsMatrix?: VariantSuggestion[];
+  technicalSpecs?: TechnicalSpec[];
+  suggestedOfficialImages: SuggestedOfficialImage[];
+}
+
+export interface DetectedContradiction {
+  field: string;
+  sellerValue: string;
+  visualValue: string;
+  explanation: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface HypothesisProposal {
+  id: 'VISUAL_TRUTH' | 'SELLER_CLAIM' | 'RAW' | 'CUSTOM';
+  label: string;
+  description: string;
+  confidence: number;
+  product: ProposedOfficialProduct;
+}
+
 export interface ProductApprovalAnalysis {
   productId: string;
   recommendation: 'APPROVE_OFFICIAL' | 'REGRAFT_EXISTING' | 'REQUEST_INFORMATION' | 'REJECT';
   confidence: number;
   decisionRationale: string;
-  duplicateMatch: any;
-  proposedOfficialProduct: any;
-  qualityScore: any;
+  detectedContradictions?: DetectedContradiction[];
+  hypotheses?: HypothesisProposal[];
+  proposals?: Record<string, ProposedOfficialProduct>;
+  duplicateMatch: {
+    found: boolean;
+    confidence: number;
+    targetProductId?: string;
+    targetProductName?: string;
+    similarityScore?: number;
+    reason?: string;
+  };
+  proposedOfficialProduct: ProposedOfficialProduct;
+  qualityScore: {
+    score: number;
+    ratingLabel: string;
+    canPublish: boolean;
+    missingElements: string[];
+    strengths: string[];
+  };
   usedDataSources: string[];
 }
 
@@ -53,7 +148,6 @@ function getVendureToken(): string | undefined {
 
 function authHeaders(): Record<string, string> {
   const token = getVendureToken();
-  // Vendure v3 envoie le token via Authorization: Bearer, on fait de même.
   return token ? { Authorization: `Bearer ${token}`, 'vendure-auth-token': token } : {};
 }
 
@@ -65,6 +159,7 @@ class AhizanAIClient {
     const res = await fetch(`${this.baseUrl}${cleanEndpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      credentials: 'include',
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -79,6 +174,7 @@ class AhizanAIClient {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const res = await fetch(`${this.baseUrl}${cleanEndpoint}`, {
       headers: { ...authHeaders() },
+      credentials: 'include',
     });
     if (!res.ok) throw new Error(`Erreur AI [${res.status}]`);
     return await res.json();
@@ -90,104 +186,39 @@ class AhizanAIClient {
 
   async getModels(): Promise<ModelInfo[]> {
     try {
-      const data = await this.get<{ models?: ModelInfo[] }>('/models');
-      return data.models || [];
-    } catch {
-      return [{ id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash', provider: 'google', description: 'Recommandé', available: true }];
-    }
-  }
-
-  async chat(messages: ChatMessage[], modelId?: string): Promise<ChatResponse> {
-    return this.post<ChatResponse>('/chat', { messages, modelId, stream: false });
-  }
-
-  /**
-   * Streaming via UI Message Stream protocol (AI SDK v6).
-   * Appelle onEvent avec chaque événement structuré (text-delta, tool-*, etc.).
-   * Retourne le texte complet accumulé.
-   */
-  async streamChat(
-    messages: ChatMessage[],
-    onEvent: (event: StreamEvent) => void,
-    modelId?: string
-  ): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/chat/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...authHeaders() },
-      body: JSON.stringify({ messages, modelId, stream: true }),
-    });
-
-    if (!res.ok || !res.body) {
-      const fallback = await this.chat(messages, modelId);
-      const text = fallback.text || '';
-      onEvent({ type: 'text-delta', delta: text, textDelta: text });
-      onEvent({ type: 'finish' });
-      return text;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let fullText = '';
-
-    const handleEvent = (dataStr: string) => {
-      if (!dataStr || dataStr === '[DONE]') return;
-      try {
-        const evt = JSON.parse(dataStr);
-        onEvent(evt);
-        if (evt.type === 'text-delta') {
-          const delta = evt.delta ?? evt.textDelta ?? '';
-          if (delta) fullText += delta;
-        }
-      } catch { /* ligne partielle ou non-JSON */ }
-    };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      // Les événements SSE sont séparés par \n\n
-      let idx;
-      while ((idx = buffer.indexOf('\n\n')) >= 0) {
-        const block = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        for (const line of block.split('\n')) {
-          if (line.startsWith('data:')) handleEvent(line.slice(5).trim());
-        }
-      }
-    }
-    // Traiter le reste du buffer
-    if (buffer.trim()) {
-      for (const line of buffer.split('\n')) {
-        if (line.startsWith('data:')) handleEvent(line.slice(5).trim());
-      }
-    }
-    onEvent({ type: 'finish' });
-    return fullText;
-  }
-
-  async getDashboardModelConfig(): Promise<{ primaryModel?: string; secondaryModel?: string }> {
-    try { return await this.get<any>('/config/dashboard-model'); } catch { return {}; }
-  }
-
-  async setDashboardModelConfig(config: { primaryModel?: string; secondaryModel?: string }): Promise<any> {
-    return this.post<any>('/config/dashboard-model', config);
-  }
-
-  async getConversations(): Promise<ConversationItem[]> {
-    try {
-      const data = await this.get<{ conversations?: ConversationItem[] }>('/conversations');
-      return data.conversations || [];
+      const res = await this.get<{ models: ModelInfo[] }>('/models');
+      return res.models || [];
     } catch {
       return [];
     }
   }
 
-  async getConversation(id: string): Promise<{ conversation: any; messages: any[] }> {
-    return this.get<{ conversation: any; messages: any[] }>(`/conversations/${id}`);
+  async getDashboardModelConfig(): Promise<{ primaryModel?: string; secondaryModel?: string }> {
+    try {
+      return await this.get<{ primaryModel?: string; secondaryModel?: string }>('/config/dashboard-model');
+    } catch {
+      return {};
+    }
   }
 
-  async syncConversation(id: string, title: string, messages: any[]): Promise<any> {
+  async listConversations(): Promise<ConversationItem[]> {
+    try {
+      const res = await this.get<{ conversations: ConversationItem[] }>('/conversations');
+      return res.conversations || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getConversations(): Promise<ConversationItem[]> {
+    return this.listConversations();
+  }
+
+  async getConversation(id: string): Promise<{ conversation: ConversationItem; messages: any[] }> {
+    return this.get<{ conversation: ConversationItem; messages: any[] }>(`/conversations/${id}`);
+  }
+
+  async syncConversation(id: string, title?: string, messages?: any[]): Promise<any> {
     return this.post<any>(`/conversations/${id}/sync`, { title, messages });
   }
 
@@ -195,19 +226,146 @@ class AhizanAIClient {
     const res = await fetch(`${this.baseUrl}/conversations/${id}`, {
       method: 'DELETE',
       headers: { ...authHeaders() },
+      credentials: 'include',
     });
     if (!res.ok) throw new Error(`Erreur suppression [${res.status}]`);
     return await res.json();
   }
 
+  async chat(messages: ChatMessage[], modelId?: string): Promise<ChatResponse> {
+    return this.post<ChatResponse>('/chat', { messages, modelId });
+  }
+
+  async streamChat(
+    messages: ChatMessage[],
+    onEvent: (event: StreamEvent) => void,
+    modelId?: string
+  ): Promise<string> {
+    const res = await fetch(`${this.baseUrl}/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        ...authHeaders(),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ messages, modelId, stream: true }),
+    });
+
+    if (!res.ok) {
+      let errMsg = `Erreur AI [${res.status}]`;
+      try {
+        const json = await res.json();
+        if (json.error) errMsg = json.error;
+      } catch {}
+      throw new Error(errMsg);
+    }
+
+    if (!res.body) {
+      throw new Error('Flux de réponse non disponible.');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = '';
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(':')) continue;
+
+          let dataStr = trimmed;
+          if (trimmed.startsWith('data:')) {
+            dataStr = trimmed.replace(/^data:\s*/, '');
+          }
+
+          if (dataStr === '[DONE]') {
+            onEvent({ type: 'finish' });
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.type) {
+              if (parsed.type === 'text-delta' || parsed.type === '0') {
+                const delta = parsed.delta ?? parsed.textDelta ?? (typeof parsed === 'string' ? parsed : '');
+                accumulatedText += delta;
+              }
+              onEvent(parsed);
+            } else if (typeof parsed === 'string') {
+              accumulatedText += parsed;
+              onEvent({ type: 'text-delta', delta: parsed });
+            } else if (parsed.text) {
+              accumulatedText += parsed.text;
+              onEvent({ type: 'text-delta', delta: parsed.text });
+            }
+          } catch {
+            // Raw text delta fallback
+            if (dataStr) {
+              accumulatedText += dataStr;
+              onEvent({ type: 'text-delta', delta: dataStr });
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return accumulatedText;
+  }
+
   readonly products = {
-    analyze: async (productId: string): Promise<ProductApprovalAnalysis> =>
-      this.post<ProductApprovalAnalysis>('/products/analyze', { productId }),
-    suggestOfficial: async (productId: string): Promise<any> =>
-      this.post<any>('/products/suggest-official', { productId }),
+    analyze: async (
+      productId: string,
+      options?: { forcedMode?: 'VISUAL_TRUTH' | 'SELLER_CLAIM' | 'RAW' | 'CUSTOM'; customQuery?: string }
+    ): Promise<ProductApprovalAnalysis> =>
+      this.post<ProductApprovalAnalysis>('/products/analyze', { productId, ...options }),
+    suggestOfficial: async (
+      productId: string,
+      options?: { forcedMode?: string; customQuery?: string }
+    ): Promise<any> =>
+      this.post<any>('/products/suggest-official', { productId, ...options }),
     detectDuplicates: async (productId: string): Promise<any> =>
       this.post<any>('/products/detect-duplicates', { productId }),
+    regenerateField: async (
+      productId: string, 
+      field: 'title' | 'description' | 'seo' | 'images' | 'specs' | 'variants', 
+      currentProposal: any
+    ): Promise<Partial<ProposedOfficialProduct>> =>
+      this.post<Partial<ProposedOfficialProduct>>('/products/regenerate-field', { productId, field, currentProposal }),
   };
+
+  async analyzeProductApproval(
+    productId: string,
+    options?: { forcedMode?: 'VISUAL_TRUTH' | 'SELLER_CLAIM' | 'RAW' | 'CUSTOM'; customQuery?: string }
+  ): Promise<ProductApprovalAnalysis> {
+    return this.products.analyze(productId, options);
+  }
+
+  async reanalyzeHypothesis(
+    productId: string,
+    hypId: 'VISUAL_TRUTH' | 'SELLER_CLAIM' | 'RAW' | 'CUSTOM'
+  ): Promise<ProductApprovalAnalysis> {
+    return this.products.analyze(productId, { forcedMode: hypId });
+  }
+
+  async regenerateField(
+    productId: string,
+    field: 'title' | 'description' | 'seo' | 'images' | 'specs' | 'variants',
+    currentProposal: any
+  ): Promise<Partial<ProposedOfficialProduct>> {
+    return this.products.regenerateField(productId, field, currentProposal);
+  }
 }
 
 export interface ConversationItem {

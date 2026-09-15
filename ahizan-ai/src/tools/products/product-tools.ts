@@ -25,8 +25,6 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
             customFields {
               approvalStatus
               rejectionReason
-              fqsScore
-              aiNormalized
               shortDescription
               vendor {
                 id
@@ -36,6 +34,7 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
             }
             variants {
               id
+              name
               sku
               price
               stockOnHand
@@ -43,9 +42,7 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
                 onPromotion
                 promotionalPrice
                 compareAtPrice
-                condition
-                vendorSku
-                ean
+                offerStatus
               }
             }
             collections {
@@ -98,8 +95,36 @@ export function createProductTools(client: AhizanClient, getContext?: () => Requ
       try {
         const data = await client.query(query, { term, take }, context?.authToken);
         return data?.searchOfficialProducts || { totalItems: 0, items: [] };
-      } catch (err: any) {
-        return { totalItems: 0, items: [], error: err.message };
+      } catch {
+        return { totalItems: 0, items: [] };
+      }
+    },
+  });
+
+  const listCollections = tool({
+    description: 'Liste les collections et catégories de catalogue disponibles sur Ahizan Marketplace pour catégoriser un produit.',
+    inputSchema: z.object({
+      take: z.number().optional().describe('Nombre maximum de collections à retourner (défaut 100)'),
+    }),
+    execute: async ({ take = 100 }) => {
+      const context = getContext?.();
+      const query = `
+        query GetCollectionsList($take: Int) {
+          collections(options: { take: $take }) {
+            items {
+              id
+              name
+              slug
+              parent { id name }
+            }
+          }
+        }
+      `;
+      try {
+        const data = await client.query(query, { take }, context?.authToken);
+        return data?.collections?.items || [];
+      } catch {
+        return [];
       }
     },
   });

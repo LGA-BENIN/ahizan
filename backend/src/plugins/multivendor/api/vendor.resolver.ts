@@ -431,8 +431,9 @@ export class VendorAdminResolver {
         private sellerOfferService: SellerOfferService,
         private notificationsService: NotificationsService,
         private smsService: BrevoSmsService,
+        private assetService: AssetService,
     ) {
-        console.log('VendorAdminResolver initialized with ProductService and GeoService');
+        console.log('VendorAdminResolver initialized with ProductService, GeoService and AssetService');
     }
 
     @ResolveField()
@@ -1047,6 +1048,14 @@ export class VendorAdminResolver {
             }
         }
 
+        if (name !== undefined) {
+            try {
+                await this.vendorService.synchronizeAllVariantNamesForProduct(ctx, id);
+            } catch (syncNameErr: any) {
+                console.error('[adminUpdateProduct] Error synchronizing variant names:', syncNameErr?.message || syncNameErr);
+            }
+        }
+
         const finalProduct = await this.productService.findOne(ctx, id) as Product;
         this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
         return finalProduct;
@@ -1105,43 +1114,86 @@ export class VendorAdminResolver {
         @Args('collectionIds') collectionIds?: string[],
         @Args('facetValueIds') facetValueIds?: string[],
         @Args('approveVendorOffer') approveVendorOffer?: boolean,
+        @Args('optionGroups') optionGroups?: Array<{ name: string; values: string[] }>,
+        @Args('variantsMatrix') variantsMatrix?: Array<{ name: string; optionValues?: string[]; isCurrentSellerVariant?: boolean; suggestedSku?: string; suggestedPriceFcfa?: number; stockOnHand?: number; colorHex?: string }>,
+        @Args('selectedImages') selectedImages?: Array<{ url: string; isPrimary?: boolean; label?: string }>,
     ): Promise<Product> {
-        const product = await this.productService.findOne(ctx, id, ['variants', 'customFields.vendor', 'translations']);
-        if (!product) throw new Error('Product not found');
+        // Ensure any active variants attached to this product are restored (un-deleted)
+        await this.connection.rawConnection.query(
+            `UPDATE product_variant SET "deletedAt" = NULL WHERE "productId" = $1 AND "deletedAt" IS NOT NULL`,
+            [id]
+        );
 
-        const creatorVendor = (product.customFields as any)?.vendor;
-        const isOfferApproved = approveVendorOffer !== false;
+        const product = await this.productService.findOne(ctx, id, ['variants', 'customFields.vendor', 'translations']);
+        if (!product) {
+            throw new Error(`Product with id ${id} not found`);
+        }
+        let creatorVendor = (product.customFields as any)?.vendor;
+        if (!creatorVendor) {
+            // Fallback: check if there is an existing seller_offer with a vendor attached to this product's variants
+            const existingOfferVendor = await this.connection.rawConnection.query(
+                `SELECT v.id, v.name FROM seller_offer so
+                 INNER JOIN product_variant pv ON so."productVariantId" = pv.id
+                 INNER JOIN vendor v ON so."vendorId" = v.id
+                 WHERE pv."productId" = $1
+                 ORDER BY so.id DESC LIMIT 1`,
+                [id]
+            );
+            if (existingOfferVendor && existingOfferVendor.length > 0) {
+                creatorVendor = existingOfferVendor[0];
+            }
+        }
+
+        const isOfferApproved = approveVendorOffer === true;
         const offerStatus = isOfferApproved ? 'approved' : 'pending';
 
         // Synchronize variants enabled state & offerStatus based on approved offers
-        for (const v of product.variants || []) {
+        const allCurrentVars = await this.connection.rawConnection.query(
+            `SELECT id FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL`,
+            [id]
+        );
+        for (const v of allCurrentVars) {
             const approvedOffersRes = await this.connection.rawConnection.query(
                 `SELECT COUNT(*) as count FROM seller_offer WHERE "productVariantId" = $1 AND status = 'approved'`,
                 [v.id]
             );
             const hasApprovedOffers = isOfferApproved || parseInt(approvedOffersRes[0]?.count || '0', 10) > 0;
+            const shouldEnable = status === 'approved' || status === 'published' || convertToOfficialCatalog === true;
             await this.connection.rawConnection.query(
                 `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "updatedAt" = NOW() WHERE id = $3`,
-                [hasApprovedOffers, hasApprovedOffers ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), v.id]
+                [shouldEnable, (hasApprovedOffers || shouldEnable) ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), v.id]
             );
         }
 
-        // Ensure SellerOffer records exist and are activated for creatorVendor upon approval
+        // Ensure SellerOffer records exist for creatorVendor
         if (creatorVendor && (status === 'approved' || status === 'published' || convertToOfficialCatalog)) {
             const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
             for (const v of product.variants || []) {
+                // Fetch real price & stock from database
+                const priceRow = await this.connection.rawConnection.query(
+                    `SELECT price FROM product_variant_price WHERE "variantId" = $1 AND "currencyCode" = 'XOF' ORDER BY id DESC LIMIT 1`,
+                    [v.id]
+                );
+                const stockRow = await this.connection.rawConnection.query(
+                    `SELECT "stockOnHand" FROM stock_level WHERE "productVariantId" = $1 LIMIT 1`,
+                    [v.id]
+                );
+                const realPrice = priceRow[0]?.price || 0;
+                const realStock = stockRow[0]?.stockOnHand || 5;
+
                 let existingOffer = await sellerOfferRepo.findOne({
                     where: {
                         vendor: { id: creatorVendor.id },
                         productVariant: { id: v.id },
                     },
                 });
+
                 if (!existingOffer) {
                     existingOffer = sellerOfferRepo.create({
                         vendor: creatorVendor,
                         productVariant: v,
-                        price: v.price || 0,
-                        stock: ((v as any).stockOnHand || (v as any).stockLevel || 5),
+                        price: realPrice,
+                        stock: realStock,
                         sku: v.sku || null,
                         status: offerStatus,
                         rejectionReason: null,
@@ -1153,9 +1205,11 @@ export class VendorAdminResolver {
                 } else {
                     existingOffer.status = offerStatus;
                     if (isOfferApproved) existingOffer.rejectionReason = null;
-                    if (!existingOffer.price && v.price) existingOffer.price = v.price;
-                    if (!existingOffer.stock && ((v as any).stockOnHand || (v as any).stockLevel)) {
-                        existingOffer.stock = (v as any).stockOnHand || (v as any).stockLevel || 5;
+                    if (!existingOffer.price || existingOffer.price === 0) {
+                        existingOffer.price = realPrice;
+                    }
+                    if (!existingOffer.stock || existingOffer.stock === 0) {
+                        existingOffer.stock = realStock;
                     }
                     await sellerOfferRepo.save(existingOffer);
                 }
@@ -1177,6 +1231,127 @@ export class VendorAdminResolver {
                     console.error('[adminReviewProduct] Global sync error:', syncErr?.message);
                 }
             }, 3000);
+        }
+
+        // Only when explicitly approving vendor offers, ensure seller offers are marked approved
+        if (isOfferApproved && (status === 'approved' || status === 'published' || convertToOfficialCatalog)) {
+            await this.connection.rawConnection.query(
+                `UPDATE seller_offer SET status = 'approved', "rejectionReason" = NULL, "updatedAt" = NOW()
+                 WHERE "productVariantId" IN (SELECT id FROM product_variant WHERE "productId" = $1)
+                 AND status = 'pending'`,
+                [id]
+            );
+
+            // Repair any 0-price offers from product_variant_price
+            await this.connection.rawConnection.query(
+                `UPDATE seller_offer so
+                 SET price = pvp.price, "updatedAt" = NOW()
+                 FROM product_variant_price pvp
+                 WHERE so."productVariantId" = pvp."variantId"
+                 AND so."productVariantId" IN (SELECT id FROM product_variant WHERE "productId" = $1)
+                 AND (so.price = 0 OR so.price IS NULL)
+                 AND pvp.price > 0`,
+                [id]
+            );
+        }
+
+        // Process and persist selected images into Vendure Assets table and links
+        let resolvedPrimaryAssetId: string | null = null;
+        if (selectedImages && selectedImages.length > 0) {
+            try {
+                for (let idx = 0; idx < selectedImages.length; idx++) {
+                    const imgItem = selectedImages[idx];
+                    if (!imgItem || !imgItem.url) continue;
+                    const targetUrl = imgItem.url.trim();
+                    if (!targetUrl) continue;
+
+                    let assetId: string | null = null;
+
+                    // 1. Check if it's already an existing Asset ID
+                    if (/^\d+$/.test(targetUrl)) {
+                        const ex = await this.connection.rawConnection.query(`SELECT id FROM asset WHERE id = $1 LIMIT 1`, [parseInt(targetUrl, 10)]);
+                        if (ex.length > 0) assetId = ex[0].id.toString();
+                    } else if (targetUrl.startsWith('/assets/') || targetUrl.includes('/assets/preview/') || targetUrl.includes('/assets/source/')) {
+                        const cleanPath = targetUrl.startsWith('http') ? targetUrl.replace(/^https?:\/\/[^/]+/, '') : targetUrl;
+                        const ex = await this.connection.rawConnection.query(`SELECT id FROM asset WHERE preview = $1 OR source = $1 LIMIT 1`, [cleanPath]);
+                        if (ex.length > 0) assetId = ex[0].id.toString();
+                    }
+
+                    // 2. If it's a remote URL (HTTP/HTTPS), download and create Vendure Asset
+                    if (!assetId && (targetUrl.startsWith('http://') || targetUrl.startsWith('https://'))) {
+                        try {
+                            console.log(`[adminReviewProduct] Ingesting official image asset from ${targetUrl}...`);
+                            const fetchRes = await fetch(targetUrl, {
+                                headers: { 'User-Agent': 'Mozilla/5.0 AhizanBot/1.0' },
+                                signal: AbortSignal.timeout(12000),
+                            });
+                            if (fetchRes.ok) {
+                                const arrayBuffer = await fetchRes.arrayBuffer();
+                                const buffer = Buffer.from(arrayBuffer);
+                                let fileName = targetUrl.split('/').pop()?.split('?')[0] || `product-${id}-${idx + 1}.jpg`;
+                                if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(fileName)) {
+                                    fileName = `${fileName}.jpg`;
+                                }
+                                const contentType = fetchRes.headers.get('content-type') || 'image/jpeg';
+                                const { Readable } = require('stream');
+                                const file = {
+                                    filename: fileName,
+                                    mimetype: contentType,
+                                    buffer,
+                                    createReadStream: () => Readable.from(buffer),
+                                } as any;
+
+                                const createdAsset = await this.assetService.create(ctx, {
+                                    file,
+                                    tags: ['official-catalog', 'ai-packshot'],
+                                });
+
+                                if (createdAsset && !(createdAsset as any).errorCode && (createdAsset as any).id) {
+                                    assetId = (createdAsset as any).id.toString();
+                                    console.log(`[adminReviewProduct] Ingested Asset #${assetId} for Product #${id}`);
+                                } else {
+                                    console.error(`[adminReviewProduct] Asset creation failed:`, (createdAsset as any)?.message);
+                                }
+                            } else {
+                                console.warn(`[adminReviewProduct] Failed to fetch image: HTTP ${fetchRes.status}`);
+                            }
+                        } catch (dlErr: any) {
+                            console.error(`[adminReviewProduct] Error downloading image ${targetUrl}:`, dlErr?.message || dlErr);
+                        }
+                    }
+
+                    if (assetId) {
+                        // Link Asset to Default Channel 1
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO asset_channels_channel ("assetId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                            [assetId]
+                        );
+                        // Link Asset to Product in product_asset
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO product_asset ("productId", "assetId", position, "createdAt", "updatedAt")
+                             VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT DO NOTHING`,
+                            [id, assetId, idx]
+                        );
+
+                        if (imgItem.isPrimary || idx === 0 || !resolvedPrimaryAssetId) {
+                            resolvedPrimaryAssetId = assetId;
+                        }
+                    }
+                }
+
+                if (resolvedPrimaryAssetId) {
+                    await this.connection.rawConnection.query(
+                        `UPDATE product SET "featuredAssetId" = $1 WHERE id = $2`,
+                        [resolvedPrimaryAssetId, id]
+                    );
+                    await this.connection.rawConnection.query(
+                        `UPDATE product_variant SET "featuredAssetId" = $1 WHERE "productId" = $2 AND ("featuredAssetId" IS NULL OR "featuredAssetId" = 0)`,
+                        [resolvedPrimaryAssetId, id]
+                    );
+                }
+            } catch (imgSyncErr: any) {
+                console.error('[adminReviewProduct] Error ingesting product images:', imgSyncErr?.message || imgSyncErr);
+            }
         }
 
         const updateData: any = {
@@ -1220,9 +1395,410 @@ export class VendorAdminResolver {
             await this.connection.rawConnection.query('UPDATE product_variant SET "customFieldsEan" = $1 WHERE "productId" = $2', [ean, id]);
         }
 
-        if (collectionIds && collectionIds.length > 0 && product.variants && product.variants.length > 0) {
-            const variantIds = product.variants.map(v => String(v.id));
-            await this.addVariantsToCollections(ctx, variantIds, collectionIds).catch(() => null);
+        // Persist Option Groups and Product Variants Matrix if provided
+        if ((optionGroups && optionGroups.length > 0) || (variantsMatrix && variantsMatrix.length > 0)) {
+            try {
+                const optionGroupMap = new Map<string, string>(); // groupName.toLowerCase() -> groupId
+                const optionValueMap = new Map<string, string>(); // `${groupName}:${valName}`.toLowerCase() -> optionId
+
+                for (const og of optionGroups || []) {
+                    if (!og.name || !og.name.trim()) continue;
+                    const gName = og.name.trim();
+                    const gCode = gName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+                    let groupId: string | null = null;
+                    const existingG = await this.connection.rawConnection.query(
+                        `SELECT id FROM product_option_group WHERE code = $1 LIMIT 1`,
+                        [gCode]
+                    );
+                    if (existingG.length > 0) {
+                        groupId = existingG[0].id.toString();
+                    } else {
+                        const insertedG = await this.connection.rawConnection.query(
+                            `INSERT INTO product_option_group (code, "createdAt", "updatedAt") VALUES ($1, NOW(), NOW()) RETURNING id`,
+                            [gCode]
+                        );
+                        groupId = insertedG[0].id.toString();
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO product_option_group_translation ("baseId", "languageCode", name, "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW())`,
+                            [groupId, ctx.languageCode || 'fr', gName]
+                        );
+                    }
+
+                    if (groupId) {
+                        optionGroupMap.set(gName.toLowerCase(), groupId);
+                        // Link option group to Default Channel (Channel 1)
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO product_option_group_channels_channel ("productOptionGroupId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                            [groupId]
+                        );
+                        // Link option group to Product
+                        await this.connection.rawConnection.query(
+                            `INSERT INTO product_option_groups_product_option_group ("productId", "productOptionGroupId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                            [id, groupId]
+                        );
+
+                        // Process option values
+                        for (const val of og.values || []) {
+                            if (!val || !val.trim()) continue;
+                            const vName = val.trim();
+                            const vCode = `${gCode}-${vName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+
+                            let optId: string | null = null;
+                            const existingOpt = await this.connection.rawConnection.query(
+                                `SELECT id FROM product_option WHERE "groupId" = $1 AND code = $2 LIMIT 1`,
+                                [groupId, vCode]
+                            );
+                            if (existingOpt.length > 0) {
+                                optId = existingOpt[0].id.toString();
+                            } else {
+                                const insertedOpt = await this.connection.rawConnection.query(
+                                    `INSERT INTO product_option ("groupId", code, "createdAt", "updatedAt") VALUES ($1, $2, NOW(), NOW()) RETURNING id`,
+                                    [groupId, vCode]
+                                );
+                                optId = insertedOpt[0].id.toString();
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_option_translation ("baseId", "languageCode", name, "createdAt", "updatedAt") VALUES ($1, $2, $3, NOW(), NOW())`,
+                                    [optId, ctx.languageCode || 'fr', vName]
+                                );
+                            }
+
+                            if (optId) {
+                                optionValueMap.set(`${gName}:${vName}`.toLowerCase(), optId);
+                                optionValueMap.set(vName.toLowerCase(), optId);
+                                // Link option to Channel 1
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_option_channels_channel ("productOptionId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                                    [optId]
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Process Variants Matrix
+                const existingVariants = await this.connection.rawConnection.query(
+                    `SELECT id, sku, enabled FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL ORDER BY id ASC`,
+                    [id]
+                );
+                const primaryVariant = existingVariants[0];
+
+                let primaryPrice = 0;
+                if (primaryVariant) {
+                    const priceRes = await this.connection.rawConnection.query(
+                        `SELECT price FROM product_variant_price WHERE "variantId" = $1 ORDER BY id DESC LIMIT 1`,
+                        [primaryVariant.id]
+                    );
+                    primaryPrice = priceRes[0]?.price || 0;
+                }
+
+                for (let i = 0; i < (variantsMatrix || []).length; i++) {
+                    const vMat = variantsMatrix![i];
+                    const isSellerCurrent = vMat.isCurrentSellerVariant || (i === 0 && !variantsMatrix?.some(v => v.isCurrentSellerVariant));
+                    const sku = vMat.suggestedSku || `AHZ-${id}-${i + 1}`;
+                    const price = (vMat.suggestedPriceFcfa && vMat.suggestedPriceFcfa > 0) ? vMat.suggestedPriceFcfa : primaryPrice;
+                    const stock = vMat.stockOnHand || 5;
+
+                    // Collect option IDs for this variant with fuzzy + database fallback
+                    const targetOptionIds: string[] = [];
+                    for (const rawVal of vMat.optionValues || []) {
+                        if (!rawVal) continue;
+                        const valStr = String(rawVal).trim();
+                        const cleanVal = valStr.replace(/^[^:]+:\s*/, '').trim();
+
+                        let optId = optionValueMap.get(cleanVal.toLowerCase()) || optionValueMap.get(valStr.toLowerCase());
+
+                        if (!optId) {
+                            const dbOpt = await this.connection.rawConnection.query(
+                                `SELECT po.id FROM product_option po
+                                 JOIN product_option_translation pot ON pot."baseId" = po.id
+                                 WHERE LOWER(pot.name) = LOWER($1) OR LOWER(po.code) = LOWER($2)
+                                 LIMIT 1`,
+                                [cleanVal, cleanVal.toLowerCase().replace(/[^a-z0-9]+/g, '-')]
+                            );
+                            if (dbOpt.length > 0 && dbOpt[0].id) {
+                                const resolvedId = dbOpt[0].id.toString();
+                                optId = resolvedId;
+                                optionValueMap.set(cleanVal.toLowerCase(), resolvedId);
+                            }
+                        }
+
+                        if (optId && !targetOptionIds.includes(optId)) {
+                            targetOptionIds.push(optId);
+
+                            // Ensure option group is linked to product and Channel 1
+                            const grpRes = await this.connection.rawConnection.query(
+                                `SELECT "groupId" FROM product_option WHERE id = $1`,
+                                [optId]
+                            );
+                            if (grpRes.length > 0) {
+                                const grpId = grpRes[0].groupId;
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_option_groups_product_option_group ("productId", "productOptionGroupId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                    [id, grpId]
+                                );
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_option_group_channels_channel ("productOptionGroupId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                                    [grpId]
+                                );
+                            }
+                        }
+                    }
+
+                    if (isSellerCurrent && primaryVariant) {
+                        // Update primary variant
+                        await this.connection.rawConnection.query(
+                            `UPDATE product_variant SET sku = COALESCE($1, sku), enabled = true, "updatedAt" = NOW() WHERE id = $2`,
+                            [sku, primaryVariant.id]
+                        );
+
+                        if (price && price > 0) {
+                            const exPrice = await this.connection.rawConnection.query(
+                                `SELECT id FROM product_variant_price WHERE "variantId" = $1 LIMIT 1`,
+                                [primaryVariant.id]
+                            );
+                            if (exPrice.length > 0) {
+                                await this.connection.rawConnection.query(
+                                    `UPDATE product_variant_price SET price = $1, "currencyCode" = 'XOF', "updatedAt" = NOW() WHERE id = $2`,
+                                    [price, exPrice[0].id]
+                                );
+                            } else {
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_variant_price ("variantId", "channelId", "currencyCode", price, "createdAt", "updatedAt")
+                                     VALUES ($1, '1', 'XOF', $2, NOW(), NOW())`,
+                                    [primaryVariant.id, price]
+                                );
+                            }
+
+                            // Keep existing seller offers synced with non-zero price
+                            await this.connection.rawConnection.query(
+                                `UPDATE seller_offer SET price = $1, "updatedAt" = NOW() WHERE "productVariantId" = $2 AND (price = 0 OR price IS NULL)`,
+                                [price, primaryVariant.id]
+                            );
+                        }
+
+                        // Update translation
+                        await this.connection.rawConnection.query(
+                            `UPDATE product_variant_translation SET name = $1 WHERE "baseId" = $2 AND "languageCode" = $3`,
+                            [vMat.name || `${name || 'Produit'} – Standard`, primaryVariant.id, ctx.languageCode || 'fr']
+                        );
+                        // Link options
+                        for (const optId of targetOptionIds) {
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO product_variant_options_product_option ("productVariantId", "productOptionId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [primaryVariant.id, optId]
+                            );
+                        }
+
+                        if (resolvedPrimaryAssetId) {
+                            await this.connection.rawConnection.query(
+                                `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2 AND ("featuredAssetId" IS NULL OR "featuredAssetId" = 0)`,
+                                [resolvedPrimaryAssetId, primaryVariant.id]
+                            );
+                        }
+
+                        if (creatorVendor) {
+                            try {
+                                const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
+                                let existingOffer = await sellerOfferRepo.findOne({
+                                    where: {
+                                        vendor: { id: creatorVendor.id },
+                                        productVariant: { id: primaryVariant.id },
+                                    },
+                                });
+                                if (!existingOffer) {
+                                    existingOffer = sellerOfferRepo.create({
+                                        vendor: creatorVendor,
+                                        productVariant: primaryVariant,
+                                        price: price || primaryPrice || 0,
+                                        stock: stock || 5,
+                                        sku: sku || primaryVariant.sku || null,
+                                        status: offerStatus,
+                                        rejectionReason: null,
+                                        condition: ProductCondition.NEW,
+                                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                                        deliveryTimeValue: 2,
+                                    });
+                                    await sellerOfferRepo.save(existingOffer);
+                                } else {
+                                    if (price && price > 0) existingOffer.price = price;
+                                    if (stock && stock > 0) existingOffer.stock = stock;
+                                    existingOffer.status = offerStatus;
+                                    if (isOfferApproved) existingOffer.rejectionReason = null;
+                                    await sellerOfferRepo.save(existingOffer);
+                                }
+                            } catch (soErr: any) {
+                                console.error('[adminReviewProduct] Error updating seller offer for primary variant:', soErr?.message);
+                            }
+                        }
+                    } else {
+                        // Check if sister variant already exists
+                        const existingSister = await this.connection.rawConnection.query(
+                            `SELECT id FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL AND (sku = $2 OR id IN (
+                                SELECT "baseId" FROM product_variant_translation WHERE name = $3
+                            )) LIMIT 1`,
+                            [id, sku, vMat.name]
+                        );
+
+                        let sisterVariantId: string;
+                        if (existingSister.length > 0) {
+                            sisterVariantId = existingSister[0].id.toString();
+                            await this.connection.rawConnection.query(
+                                `UPDATE product_variant SET sku = $1, enabled = true, "updatedAt" = NOW() WHERE id = $2`,
+                                [sku, sisterVariantId]
+                            );
+                            if (price && price > 0) {
+                                const exPrice = await this.connection.rawConnection.query(
+                                    `SELECT id FROM product_variant_price WHERE "variantId" = $1 LIMIT 1`,
+                                    [sisterVariantId]
+                                );
+                                if (exPrice.length > 0) {
+                                    await this.connection.rawConnection.query(
+                                        `UPDATE product_variant_price SET price = $1, "currencyCode" = 'XOF', "updatedAt" = NOW() WHERE id = $2`,
+                                        [price, exPrice[0].id]
+                                    );
+                                } else {
+                                    await this.connection.rawConnection.query(
+                                        `INSERT INTO product_variant_price ("variantId", "channelId", "currencyCode", price, "createdAt", "updatedAt")
+                                         VALUES ($1, '1', 'XOF', $2, NOW(), NOW())`,
+                                        [sisterVariantId, price]
+                                    );
+                                }
+                            }
+                        } else {
+                            // Resolve tax category dynamically
+                            const taxCatRes = await this.connection.rawConnection.query(`SELECT id FROM tax_category LIMIT 1`);
+                            const taxCatId = taxCatRes[0]?.id || 1;
+
+                            // Create new official sister variant
+                            const insertedVar = await this.connection.rawConnection.query(
+                                `INSERT INTO product_variant ("productId", sku, enabled, "taxCategoryId", "customFieldsOfferstatus", "trackInventory", "createdAt", "updatedAt")
+                                 VALUES ($1, $2, true, $3, 'PENDING', 'INHERIT', NOW(), NOW()) RETURNING id`,
+                                [id, sku, taxCatId]
+                            );
+                            sisterVariantId = insertedVar[0].id.toString();
+
+                            // Upsert translation
+                            const lang = ctx.languageCode || 'fr';
+                            const transName = vMat.name || `${name || 'Produit'} – Variante`;
+                            const exTrans = await this.connection.rawConnection.query(
+                                `SELECT id FROM product_variant_translation WHERE "baseId" = $1 AND "languageCode" = $2 LIMIT 1`,
+                                [sisterVariantId, lang]
+                            );
+                            if (exTrans.length > 0) {
+                                await this.connection.rawConnection.query(
+                                    `UPDATE product_variant_translation SET name = $1, "updatedAt" = NOW() WHERE id = $2`,
+                                    [transName, exTrans[0].id]
+                                );
+                            } else {
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_variant_translation ("baseId", "languageCode", name, "createdAt", "updatedAt")
+                                     VALUES ($1, $2, $3, NOW(), NOW())`,
+                                    [sisterVariantId, lang, transName]
+                                );
+                            }
+
+                            // Channel 1 assignment
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($1, '1') ON CONFLICT DO NOTHING`,
+                                [sisterVariantId]
+                            );
+                            if (creatorVendor?.channelId) {
+                                await this.connection.rawConnection.query(
+                                    `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                    [sisterVariantId, creatorVendor.channelId.toString()]
+                                );
+                            }
+
+                            // Price record
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO product_variant_price ("variantId", "channelId", "currencyCode", price, "createdAt", "updatedAt")
+                                 VALUES ($1, '1', 'XOF', $2, NOW(), NOW())`,
+                                [sisterVariantId, price || 0]
+                            );
+
+                            // Stock level record
+                            const stockLocationRes = await this.connection.rawConnection.query(`SELECT id FROM stock_location LIMIT 1`);
+                            const stockLocId = stockLocationRes[0]?.id || 1;
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO stock_level ("productVariantId", "stockLocationId", "stockOnHand", "stockAllocated", "createdAt", "updatedAt")
+                                 VALUES ($1, $2, $3, 0, NOW(), NOW()) ON CONFLICT DO NOTHING`,
+                                [sisterVariantId, stockLocId, stock]
+                            );
+
+                            // Inherit collections from existing primary variant
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO collection_product_variants_product_variant ("collectionId", "productVariantId")
+                                 SELECT DISTINCT "collectionId", $1 FROM collection_product_variants_product_variant WHERE "productVariantId" = $2
+                                 ON CONFLICT DO NOTHING`,
+                                [sisterVariantId, primaryVariant?.id || sisterVariantId]
+                            );
+
+                            console.log(`[adminReviewProduct] Created sister variant #${sisterVariantId} (${transName}) for product #${id}`);
+                        }
+
+                        // Link options to sister variant
+                        for (const optId of targetOptionIds) {
+                            await this.connection.rawConnection.query(
+                                `INSERT INTO product_variant_options_product_option ("productVariantId", "productOptionId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                                [sisterVariantId, optId]
+                            );
+                        }
+
+                        if (resolvedPrimaryAssetId) {
+                            await this.connection.rawConnection.query(
+                                `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2 AND ("featuredAssetId" IS NULL OR "featuredAssetId" = 0)`,
+                                [resolvedPrimaryAssetId, sisterVariantId]
+                            );
+                        }
+
+                        if (creatorVendor && vMat.isCurrentSellerVariant) {
+                            try {
+                                const sellerOfferRepo = this.connection.getRepository(ctx, SellerOffer);
+                                let existingOffer = await sellerOfferRepo.findOne({
+                                    where: {
+                                        vendor: { id: creatorVendor.id },
+                                        productVariant: { id: sisterVariantId },
+                                    },
+                                });
+                                if (!existingOffer) {
+                                    existingOffer = sellerOfferRepo.create({
+                                        vendor: creatorVendor,
+                                        productVariant: { id: sisterVariantId } as any,
+                                        price: price || primaryPrice || 0,
+                                        stock: stock || 5,
+                                        sku: sku || null,
+                                        status: offerStatus,
+                                        rejectionReason: null,
+                                        condition: ProductCondition.NEW,
+                                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                                        deliveryTimeValue: 2,
+                                    });
+                                    await sellerOfferRepo.save(existingOffer);
+                                } else {
+                                    if (price && price > 0) existingOffer.price = price;
+                                    if (stock && stock > 0) existingOffer.stock = stock;
+                                    existingOffer.status = offerStatus;
+                                    if (isOfferApproved) existingOffer.rejectionReason = null;
+                                    await sellerOfferRepo.save(existingOffer);
+                                }
+                            } catch (soErr: any) {
+                                console.error('[adminReviewProduct] Error updating seller offer for sister variant:', soErr?.message);
+                            }
+                        }
+                    }
+                }
+            } catch (varMatrixErr: any) {
+                console.error('[adminReviewProduct] Error persisting option groups and variants matrix:', varMatrixErr);
+            }
+        }
+
+        if (collectionIds && collectionIds.length > 0) {
+            const allVariants = await this.connection.rawConnection.query(`SELECT id FROM product_variant WHERE "productId" = $1`, [id]);
+            const variantIds = allVariants.map((v: any) => String(v.id));
+            if (variantIds.length > 0) {
+                await this.addVariantsToCollections(ctx, variantIds, collectionIds).catch(() => null);
+            }
         }
 
         if (status === 'approved' || convertToOfficialCatalog) {
@@ -1236,17 +1812,19 @@ export class VendorAdminResolver {
                     [id, defaultChannelId]
                 );
 
-                for (const v of product.variants || []) {
-                    await this.connection.rawConnection.query(
-                        `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [v.id, defaultChannelId]
-                    );
-                }
+                // Assign ALL variants of this product to Default Channel 1
+                await this.connection.rawConnection.query(
+                    `INSERT INTO product_variant_channels_channel ("productVariantId", "channelId")
+                     SELECT id, $2 FROM product_variant WHERE "productId" = $1
+                     ON CONFLICT DO NOTHING`,
+                    [id, defaultChannelId]
+                );
 
-                if (product.featuredAsset?.id) {
+                if (resolvedPrimaryAssetId || product.featuredAsset?.id) {
+                    const featId = resolvedPrimaryAssetId || product.featuredAsset?.id;
                     await this.connection.rawConnection.query(
                         `INSERT INTO asset_channels_channel ("assetId", "channelId") VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-                        [product.featuredAsset.id, defaultChannelId]
+                        [featId, defaultChannelId]
                     );
                 }
             } catch (chanErr) {
@@ -1329,6 +1907,13 @@ export class VendorAdminResolver {
             }
         }
 
+        // Synchronize all variant names under this product to match the canonical product name + options
+        try {
+            await this.vendorService.synchronizeAllVariantNamesForProduct(ctx, id);
+        } catch (syncNameErr: any) {
+            console.error('[adminReviewProduct] Error synchronizing variant names:', syncNameErr?.message || syncNameErr);
+        }
+
         const finalProduct = await this.productService.findOne(ctx, id) as Product;
         this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'updated', { id }));
         return finalProduct;
@@ -1408,13 +1993,23 @@ export class VendorAdminResolver {
             );
             const hasApprovedOffers = parseInt(approvedOffersCount[0]?.count || '0', 10) > 0;
 
+            const parentProdId = offer.productVariant.product?.id || (await this.connection.rawConnection.query(`SELECT "productId" FROM product_variant WHERE id = $1`, [offer.productVariant.id]))?.[0]?.productId;
+            let isOfficialOrApproved = false;
+            if (parentProdId) {
+                const prodInfo = await this.connection.rawConnection.query(
+                    `SELECT "customFieldsVendorid", "customFieldsApprovalstatus" FROM product WHERE id = $1`,
+                    [parentProdId]
+                );
+                isOfficialOrApproved = prodInfo[0]?.customFieldsVendorid == null || prodInfo[0]?.customFieldsApprovalstatus === 'approved';
+            }
+            const shouldVariantBeEnabled = hasApprovedOffers || isOfficialOrApproved;
+
             await this.connection.rawConnection.query(
                 `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "customFieldsRejectionreason" = $3, "updatedAt" = NOW() WHERE id = $4`,
-                [hasApprovedOffers, status === 'approved' ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.rejectionReason, offer.productVariant.id]
+                [shouldVariantBeEnabled, (hasApprovedOffers || isOfficialOrApproved) ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.rejectionReason, offer.productVariant.id]
             );
 
-            // Recompute parent Product enabled state: product is enabled if and only if it has at least 1 approved variant
-            const parentProdId = offer.productVariant.product?.id || (await this.connection.rawConnection.query(`SELECT "productId" FROM product_variant WHERE id = $1`, [offer.productVariant.id]))?.[0]?.productId;
+            // Recompute parent Product enabled state: product is enabled if and only if it has at least 1 approved variant or is official
             if (parentProdId) {
                 // Inherit parent product's collection associations for this variant
                 try {
@@ -1610,6 +2205,42 @@ export class VendorAdminResolver {
         @Args('optionIds') optionIds: string[],
     ): Promise<ProductVariant> {
         return this.vendorService.adminUpdateVariantOptions(ctx, variantId, optionIds);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async adminConfigureVariantOptions(
+        @Ctx() ctx: RequestContext,
+        @Args('variantId') variantId: string,
+        @Args('options') options: Array<{ groupName: string; valueName: string }>,
+    ): Promise<ProductVariant> {
+        return this.vendorService.adminConfigureVariantOptions(ctx, variantId, options);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async adminSyncProductVariantNames(
+        @Ctx() ctx: RequestContext,
+        @Args('productId') productId: string,
+    ): Promise<boolean> {
+        await this.vendorService.synchronizeAllVariantNamesForProduct(ctx, productId);
+        return true;
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async createOfficialVariant(
+        @Ctx() ctx: RequestContext,
+        @Args('input') input: {
+            productId: string;
+            name?: string;
+            sku?: string;
+            price?: number;
+            options?: Array<{ groupName: string; valueName: string }>;
+            featuredAssetId?: string;
+        },
+    ): Promise<ProductVariant> {
+        return this.vendorService.createOfficialVariant(ctx, input);
     }
 
     @Mutation()

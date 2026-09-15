@@ -159,6 +159,7 @@ export const config: any = {
         ],
         Collection: [
             { name: 'allowedFacetIds', type: 'string', list: true, nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'IDs des facettes autorisées pour cette collection' }] },
+            { name: 'allowedOptionGroupIds', type: 'string', list: true, nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'IDs des groupes doptions autorisés pour cette collection' }] },
         ],
     },
     plugins: [

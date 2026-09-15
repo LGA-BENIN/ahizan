@@ -38,6 +38,7 @@ export const config: VendureConfig = {
     customFields: {
         Collection: [
             { name: 'allowedFacetIds', type: 'string', list: true, nullable: true, public: true },
+            { name: 'allowedOptionGroupIds', type: 'string', list: true, nullable: true, public: true },
         ],
     },
     dbConnectionOptions: {

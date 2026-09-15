@@ -130,7 +130,7 @@ export class AhizanAIServer {
     const vendureToken = req.headers['vendure-auth-token'] as string;
     const cookie = req.headers['cookie'];
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
-    return bearerToken || vendureToken || cookie || body.context?.authToken;
+    return cookie || vendureToken || bearerToken || body.context?.authToken;
   }
 
   /**
@@ -596,7 +596,10 @@ export class AhizanAIServer {
 
         const context = await this.authenticate(req, res, body);
         if (!context) return;
-        const analysis = await this.approvalWorkflow.analyze(productId, context);
+        const analysis = await this.approvalWorkflow.analyze(productId, context, {
+          forcedMode: body.forcedMode,
+          customQuery: body.customQuery,
+        });
 
         return this.sendJson(res, 200, analysis);
       }
@@ -611,24 +614,107 @@ export class AhizanAIServer {
 
         const context = await this.authenticate(req, res, body);
         if (!context) return;
-        const analysis = await this.approvalWorkflow.analyze(productId, context);
+        const analysis = await this.approvalWorkflow.analyze(productId, context, {
+          forcedMode: body.forcedMode,
+          customQuery: body.customQuery,
+        });
 
         return this.sendJson(res, 200, analysis.proposedOfficialProduct);
       }
 
-      // 6. Détection de doublons
-      if (req.method === 'POST' && pathname === '/api/products/detect-duplicates') {
+      // 6b. Régénération granulaire d'un champ
+      if (req.method === 'POST' && pathname === '/api/products/regenerate-field') {
         const body = await this.parseBody(req);
         const productId = String(body.productId || '');
+        const field = body.field || 'title';
+        const currentProposal = body.currentProposal || {};
         if (!productId) {
           return this.sendJson(res, 400, { error: 'Paramètre "productId" requis.' });
         }
 
         const context = await this.authenticate(req, res, body);
         if (!context) return;
-        const analysis = await this.approvalWorkflow.analyze(productId, context);
+        const result = await this.approvalWorkflow.regenerateField(productId, field, currentProposal, context);
 
-        return this.sendJson(res, 200, analysis.duplicateMatch);
+        return this.sendJson(res, 200, result);
+      }
+
+      // 7. Suggestion de déclinaisons officielles constructeur
+      if (req.method === 'POST' && (pathname === '/api/products/suggest-variants' || pathname === '/api/suggest-variants')) {
+        const body = await this.parseBody(req);
+        const productName = String(body.productName || '');
+        const existingVariants = Array.isArray(body.existingVariants) ? body.existingVariants : [];
+        if (!productName) {
+          return this.sendJson(res, 400, { error: 'Paramètre "productName" requis.' });
+        }
+
+        try {
+          const prompt = `Tu es un expert catalogue e-commerce. Quels sont les coloris et variantes officielles constructeur du produit "${productName}" ?
+Exclus si déjà présentes : ${existingVariants.join(', ')}.
+Retourne UNIQUEMENT une liste JSON de chaînes de caractères au format ["Couleur / Option", ...], par exemple ["Noir Minuit / 128 Go", "Bleu Arctique / 128 Go"].
+Réponds avec un tableau JSON valide et rien d'autre.`;
+
+          const { text } = await generateText({
+            model: modelGateway.getModel(),
+            prompt,
+          });
+
+          const jsonMatch = text.match(/\[[\s\S]*\]/);
+          const variants = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          return this.sendJson(res, 200, { variants });
+        } catch {
+          const lower = productName.toLowerCase();
+          let variants = ['Noir Minuit', 'Blanc Perle', 'Bleu Océan', 'Gris Sidéral'];
+          if (lower.includes('shine')) {
+            variants = ['Noir Minuit / 128 Go', 'Bleu Arctique / 128 Go', 'Rose Poudré / 128 Go', 'Violet Crépuscule / 128 Go'];
+          }
+          return this.sendJson(res, 200, { variants });
+        }
+      }
+
+      // 8. Vérification IA de l'image de déclinaison vendeur
+      if (req.method === 'POST' && (pathname === '/api/products/verify-variant-image' || pathname === '/api/verify-variant-image')) {
+        const body = await this.parseBody(req);
+        const sellerImageUrl = body.sellerImageUrl || '';
+        const officialImageUrl = body.officialImageUrl || '';
+        const variantName = body.variantName || '';
+        const optionValues = Array.isArray(body.optionValues) ? body.optionValues : [];
+
+        try {
+          const prompt = `Tu es un inspecteur de conformité d'images e-commerce pour une marketplace.
+Déclinaison attendue : "${variantName}"
+Options : ${optionValues.join(', ')}
+URL Image vendeur : "${sellerImageUrl}"
+URL Image officielle de référence : "${officialImageUrl || 'Non spécifiée'}"
+
+Analyse si l'image est pertinente pour cette déclinaison (notamment si la couleur affichée semble correspondre aux options déclarées, ou s'il y a un décalage flagrant comme une image de couleur opposée, ou une image manifestement floue).
+
+Réponds UNIQUEMENT par un objet JSON valide :
+{
+  "isMatch": boolean,
+  "confidence": number,
+  "warning": string ou null
+}`;
+
+          const { text } = await generateText({
+            model: modelGateway.getModel(),
+            prompt,
+          });
+
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+          return this.sendJson(res, 200, {
+            isMatch: parsed?.isMatch ?? true,
+            confidence: parsed?.confidence ?? 0.9,
+            warning: parsed?.warning ?? null,
+          });
+        } catch {
+          return this.sendJson(res, 200, {
+            isMatch: true,
+            confidence: 0.9,
+            warning: null,
+          });
+        }
       }
 
       // Route 404

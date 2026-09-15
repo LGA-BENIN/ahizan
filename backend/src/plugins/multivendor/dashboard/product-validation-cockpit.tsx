@@ -116,8 +116,22 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
         rejectionReason: '',
     });
 
-    // --- Variants Control Matrix ---
+    // --- Variants Control Matrix (legacy / single-variant mode) ---
     const [variants, setVariants] = useState<ProductVariantRow[]>([]);
+
+    // --- Official Variants + Seller Offers (Phase 1 & 3) ---
+    const [officialVariants, setOfficialVariants] = useState<any[]>([]);
+    const [sellerOffersByVariant, setSellerOffersByVariant] = useState<Record<string, any[]>>({});
+    const [isLoadingOfficialVariants, setIsLoadingOfficialVariants] = useState(false);
+
+    // --- AI Image Verification (per offer, Admin-only) ---
+    const [imageAiResults, setImageAiResults] = useState<Record<string, { status: 'loading' | 'ok' | 'warn' | 'error'; message: string }>>({});
+
+    // --- New Official Variant Form ---
+    const [showAddVariantForm, setShowAddVariantForm] = useState(false);
+    const [newVariantOptions, setNewVariantOptions] = useState<Record<string, string>>({});
+    const [isCreatingVariant, setIsCreatingVariant] = useState(false);
+    const [isSuggestingVariants, setIsSuggestingVariants] = useState(false);
 
     // --- Audit Log History ---
     const [auditLogs, setAuditLogs] = useState<Array<{ timestamp: string; user: string; role: string; action: string; details: string }>>([]);
@@ -333,8 +347,258 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
             }
         };
 
+        // Load official variants and seller offers grouped by variant
+        const loadOfficialVariantsAndOffers = async () => {
+            if (!productId) return;
+            setIsLoadingOfficialVariants(true);
+            try {
+                // 1. Load official variants of this product
+                const varRes = await fetch('/admin-api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        query: `
+                            query GetProductVariantsWithOffers($id: ID!) {
+                                product(id: $id) {
+                                    id
+                                    name
+                                    optionGroups {
+                                        id name
+                                        options { id name code }
+                                    }
+                                    variants {
+                                        id name sku price enabled stockOnHand
+                                        featuredAsset { id preview }
+                                        options {
+                                            id name code
+                                            group { id name }
+                                        }
+                                    }
+                                }
+                            }
+                        `,
+                        variables: { id: productId }
+                    })
+                });
+                const varJson = await varRes.json();
+                const varData = varJson.data?.product;
+                if (varData?.variants) {
+                    setOfficialVariants(varData.variants);
+                }
+
+                // 2. Load seller offers (pending variants) for this product
+                // Seller offers are pending product variants submitted by sellers — they are
+                // products with approvalStatus 'pending' and the same base product reference.
+                // We use the customFields.vendor to identify seller offers.
+                const offersRes = await fetch('/admin-api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        query: `
+                            query GetSellerOffersForProduct($id: ID!) {
+                                product(id: $id) {
+                                    id
+                                    variants {
+                                        id name sku price enabled stockOnHand
+                                        featuredAsset { id preview }
+                                        assets { id preview }
+                                        options {
+                                            id name code
+                                            group { id name }
+                                        }
+                                        customFields { onPromotion promotionalPrice }
+                                        channels { id code }
+                                    }
+                                }
+                            }
+                        `,
+                        variables: { id: productId }
+                    })
+                });
+                const offersJson = await offersRes.json();
+                const allVariants = offersJson.data?.product?.variants || [];
+
+                // Distinguish official channel (id=1) vs seller offers (other channels)
+                const offersByVariant: Record<string, any[]> = {};
+                for (const v of allVariants) {
+                    const isSellerOffer = v.channels?.some((c: any) => String(c.id) !== '1');
+                    if (isSellerOffer) {
+                        // Match this offer to the closest official variant by options
+                        const optionNames = (v.options || []).map((o: any) => o.name?.toLowerCase());
+                        const matchedOfficialVariant = varData?.variants?.find((ov: any) => {
+                            const ovOptionNames = (ov.options || []).map((o: any) => o.name?.toLowerCase());
+                            return optionNames.length > 0 && optionNames.every((n: string) => ovOptionNames.includes(n));
+                        });
+                        const key = matchedOfficialVariant?.id || 'unmatched';
+                        if (!offersByVariant[key]) offersByVariant[key] = [];
+                        offersByVariant[key].push(v);
+                    }
+                }
+                setSellerOffersByVariant(offersByVariant);
+
+                // 3. Trigger AI image verification for each seller offer that has an image
+                for (const variantId of Object.keys(offersByVariant)) {
+                    for (const offer of offersByVariant[variantId]) {
+                        const offerImg = offer.featuredAsset?.preview || offer.assets?.[0]?.preview;
+                        if (offerImg) {
+                            const offerKey = `offer-${offer.id}`;
+                            setImageAiResults(prev => ({ ...prev, [offerKey]: { status: 'loading', message: "L'IA analyse l'image..." } }));
+                            const officialVariant = varData?.variants?.find((ov: any) => ov.id === variantId);
+                            const officialImg = officialVariant?.featuredAsset?.preview || null;
+                            const optionNames = (offer.options || []).map((o: any) => o.name).filter(Boolean);
+                            // Call the AI image verification endpoint
+                            try {
+                                const aiRes = await fetch('/ahizan-ai-api/verify-variant-image', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    credentials: 'include',
+                                    body: JSON.stringify({
+                                        sellerImageUrl: offerImg,
+                                        officialImageUrl: officialImg,
+                                        variantName: offer.name,
+                                        optionValues: optionNames
+                                    })
+                                });
+                                if (aiRes.ok) {
+                                    const aiData = await aiRes.json();
+                                    setImageAiResults(prev => ({
+                                        ...prev,
+                                        [offerKey]: {
+                                            status: aiData.isMatch ? 'ok' : (aiData.warning?.toLowerCase().includes('flou') ? 'warn' : 'error'),
+                                            message: aiData.warning || (aiData.isMatch
+                                                ? `✅ Image conforme (${Math.round((aiData.confidence || 0.9) * 100)}% de confiance)`
+                                                : `⚠️ Problème détecté`)
+                                        }
+                                    }));
+                                } else {
+                                    setImageAiResults(prev => ({ ...prev, [offerKey]: { status: 'ok', message: '✅ Analyse IA non disponible' } }));
+                                }
+                            } catch {
+                                setImageAiResults(prev => ({ ...prev, [offerKey]: { status: 'ok', message: '✅ Analyse IA non disponible' } }));
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[Cockpit] Error loading official variants/offers:', err);
+            } finally {
+                setIsLoadingOfficialVariants(false);
+            }
+        };
+
         loadProductDetails();
+        loadOfficialVariantsAndOffers();
     }, [productId]);
+
+    // AI: Suggest official variants using existing AI client
+    const handleSuggestOfficialVariants = async () => {
+        if (!productData) return;
+        setIsSuggestingVariants(true);
+        try {
+            const res = await fetch('/ahizan-ai-api/suggest-variants', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ productName: productData.name, existingVariants: officialVariants.map((v: any) => v.name) })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                alert(`💡 Déclinaisons suggérées par l'IA :\n\n${(data.variants || []).join('\n')}\n\nUtilisez le formulaire ci-dessous pour les créer une par une.`);
+            } else {
+                // Fallback: show a generic suggestion
+                alert(`💡 Suggestions IA pour "${productData.name}" :\n\nConsultez le site officiel du fabricant pour les déclinaisons disponibles, puis créez-les avec le bouton [+ Ajouter].`);
+            }
+        } catch {
+            alert(`💡 Pour "${productData?.name}", consultez le site officiel du fabricant pour les déclinaisons disponibles.`);
+        } finally {
+            setIsSuggestingVariants(false);
+        }
+    };
+
+    // Create a new official variant from the admin form
+    const handleCreateOfficialVariant = async () => {
+        if (!productId) return;
+        const optionsPayload = Object.entries(newVariantOptions)
+            .filter(([_, v]) => Boolean(v && (v as string).trim()))
+            .map(([k, v]) => ({ groupName: k === 'label' ? 'Option' : k, valueName: (v as string).trim() }));
+
+        if (optionsPayload.length === 0) {
+            alert('Veuillez renseigner au moins une option pour la déclinaison.');
+            return;
+        }
+        setIsCreatingVariant(true);
+        try {
+            const res = await fetch('/admin-api', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    query: `
+                        mutation CreateOfficialVariant($input: CreateOfficialVariantInput!) {
+                            createOfficialVariant(input: $input) {
+                                id
+                                name
+                                sku
+                                price
+                                stockOnHand
+                                featuredAsset { id preview }
+                                options { id name code group { id name code } }
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            productId,
+                            options: optionsPayload
+                        }
+                    }
+                })
+            });
+            const json = await res.json();
+            if (json.data?.createOfficialVariant) {
+                const created = json.data.createOfficialVariant;
+                setOfficialVariants(prev => [...prev, created]);
+                setNewVariantOptions({});
+                setShowAddVariantForm(false);
+                setAuditLogs(prev => (prev ? [{ timestamp: new Date().toLocaleString('fr-FR'), user: 'Opérateur Catalogue', role: 'OPERATOR', action: 'CRÉATION_DÉCLINAISON_OFFICIELLE', details: `Déclinaison officielle "${created.name}" créée avec SKU: ${created.sku}` }, ...prev] : []));
+                alert(`✅ Déclinaison officielle "${created.name}" créée avec succès !`);
+            } else {
+                alert('Erreur lors de la création de la déclinaison : ' + JSON.stringify(json.errors));
+            }
+        } catch (err: any) {
+            alert('Erreur : ' + err.message);
+        } finally {
+            setIsCreatingVariant(false);
+        }
+    };
+
+    // Send a correction comment to the vendor
+    const handleCommentToVendor = async (offerId: string, offerName: string) => {
+        const message = prompt(`Envoyer un commentaire de correction au vendeur pour l'offre "${offerName}" :\n\n(Ce message sera visible par le vendeur dans son tableau de bord)`);
+        if (!message) return;
+        try {
+            await fetch('/admin-api', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    query: `
+                        mutation UpdateProductVariant($input: [UpdateProductVariantInput!]!) {
+                            updateProductVariants(input: $input) { id }
+                        }
+                    `,
+                    variables: {
+                        input: [{ id: offerId, customFields: { rejectionReason: message } }]
+                    }
+                })
+            });
+            alert(`✅ Commentaire envoyé au vendeur : "${message}"`);
+        } catch {
+            alert('Erreur lors de l\'envoi du commentaire.');
+        }
+    };
 
     // --- Weighted Quality Score Engine (0–100%) ---
     const qualityScoreMetrics = useMemo(() => {
@@ -934,75 +1198,255 @@ export function ProductValidationCockpit({ productId, isOpen, onClose, onRefresh
 
                     </div>
 
-                    {/* ── 5. VARIANT CONTROL MATRIX ── */}
+                    {/* ── 5. OFFICIAL VARIANTS + SELLER OFFERS — UNIFIED VIEW (Phase 1 & 3) ── */}
                     <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
-                        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                            🔀 Matrice de Contrôle des Déclinaisons ({variants.length})
-                        </h3>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
-                                <thead>
-                                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>
-                                        <th style={{ padding: '10px', width: '60px', textAlign: 'center' }}>Actif</th>
-                                        <th style={{ padding: '10px' }}>Variante / Combinaison</th>
-                                        <th style={{ padding: '10px' }}>SKU Ahizan / Vendeur</th>
-                                        <th style={{ padding: '10px', width: '140px' }}>Prix Offre (FCFA)</th>
-                                        <th style={{ padding: '10px', width: '100px' }}>Stock</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {variants.map((v) => (
-                                        <tr key={v.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                            <td style={{ padding: '10px', textAlign: 'center' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={v.enabled}
-                                                    onChange={(e) => {
-                                                        const checked = e.target.checked;
-                                                        setVariants(prev => prev.map(item => item.id === v.id ? { ...item, enabled: checked } : item));
-                                                    }}
-                                                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                                                />
-                                            </td>
-                                            <td style={{ padding: '10px', fontWeight: 700, color: '#0f172a' }}>{v.name}</td>
-                                            <td style={{ padding: '10px' }}>
-                                                <input
-                                                    type="text"
-                                                    value={v.sku}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setVariants(prev => prev.map(item => item.id === v.id ? { ...item, sku: val } : item));
-                                                    }}
-                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontSize: '11px' }}
-                                                />
-                                            </td>
-                                            <td style={{ padding: '10px' }}>
-                                                <input
-                                                    type="number"
-                                                    value={v.price}
-                                                    onChange={(e) => {
-                                                        const val = Number(e.target.value);
-                                                        setVariants(prev => prev.map(item => item.id === v.id ? { ...item, price: val } : item));
-                                                    }}
-                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 800 }}
-                                                />
-                                            </td>
-                                            <td style={{ padding: '10px' }}>
-                                                <input
-                                                    type="number"
-                                                    value={v.stock}
-                                                    onChange={(e) => {
-                                                        const val = Number(e.target.value);
-                                                        setVariants(prev => prev.map(item => item.id === v.id ? { ...item, stock: val } : item));
-                                                    }}
-                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: 800 }}
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <div>
+                                <h3 style={{ margin: '0 0 2px 0', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                                    🔀 Déclinaisons Officielles ({officialVariants.length})
+                                </h3>
+                                <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                                    Les déclinaisons sans offres vendeurs restent dans le catalogue comme "Non disponible actuellement".
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={handleSuggestOfficialVariants}
+                                    disabled={isSuggestingVariants}
+                                    style={{ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd', padding: '8px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                >
+                                    {isSuggestingVariants ? '⏳ IA...' : '🤖 IA : Suggérer les déclinaisons'}
+                                </button>
+                                <button
+                                    onClick={() => setShowAddVariantForm(v => !v)}
+                                    style={{ background: '#166534', color: '#ffffff', border: 'none', padding: '8px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                >
+                                    + Ajouter une déclinaison
+                                </button>
+                            </div>
                         </div>
+
+                        {/* Add Variant Form */}
+                        {showAddVariantForm && (
+                            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+                                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 800, color: '#166534' }}>➕ Nouvelle Déclinaison Officielle</h4>
+                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                                    {(productData?.optionGroups || officialVariants[0]?.options?.map((o: any) => ({ id: o.group?.id, name: o.group?.name }))?.filter((g: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === g.id) === i) || []).map((group: any) => (
+                                        <div key={group.id || group.name}>
+                                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#166534', display: 'block', marginBottom: '4px' }}>{group.name}</label>
+                                            <input
+                                                type="text"
+                                                placeholder={`ex: Bleu Arctique`}
+                                                value={newVariantOptions[group.name] || ''}
+                                                onChange={(e) => setNewVariantOptions(prev => ({ ...prev, [group.name]: e.target.value }))}
+                                                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '12px', width: '160px' }}
+                                            />
+                                        </div>
+                                    ))}
+                                    {/* Generic field if no option groups defined */}
+                                    {(!productData?.optionGroups || productData.optionGroups.length === 0) && (
+                                        <div>
+                                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#166534', display: 'block', marginBottom: '4px' }}>Libellé de la déclinaison</label>
+                                            <input
+                                                type="text"
+                                                placeholder={`ex: Bleu Arctique 128 Go`}
+                                                value={newVariantOptions['label'] || ''}
+                                                onChange={(e) => setNewVariantOptions({ label: e.target.value })}
+                                                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #86efac', fontSize: '12px', width: '220px' }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={handleCreateOfficialVariant}
+                                        disabled={isCreatingVariant}
+                                        style={{ background: '#166534', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
+                                    >
+                                        {isCreatingVariant ? '⏳ Création...' : '✅ Créer la déclinaison'}
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowAddVariantForm(false); setNewVariantOptions({}); }}
+                                        style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '8px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                    >
+                                        Annuler
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Official Variant Cards with nested Seller Offers */}
+                        {isLoadingOfficialVariants ? (
+                            <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '13px' }}>⏳ Chargement des déclinaisons...</div>
+                        ) : officialVariants.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '20px', background: '#fef9c3', borderRadius: '10px', fontSize: '13px', color: '#854d0e' }}>
+                                ⚠️ Aucune déclinaison officielle créée pour ce produit. Utilisez les boutons ci-dessus pour en ajouter.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {officialVariants.map((ov: any) => {
+                                    const offers = sellerOffersByVariant[ov.id] || [];
+                                    const optionsLabel = (ov.options || []).map((o: any) => o.name).filter(Boolean).join(' / ');
+                                    return (
+                                        <div key={ov.id} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                                            {/* Official Variant Header */}
+                                            <div style={{ background: '#f8fafc', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: offers.length > 0 ? '1px solid #e2e8f0' : 'none' }}>
+                                                {ov.featuredAsset?.preview ? (
+                                                    <img src={ov.featuredAsset.preview} alt={ov.name} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #cbd5e1', flexShrink: 0 }} />
+                                                ) : (
+                                                    <div style={{ width: '48px', height: '48px', background: '#e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', flexShrink: 0 }}>📷</div>
+                                                )}
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>{ov.name || optionsLabel || `Déclinaison #${ov.id}`}</div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                                        SKU: <span style={{ fontFamily: 'monospace' }}>{ov.sku}</span>
+                                                        {optionsLabel && <span style={{ marginLeft: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>{optionsLabel}</span>}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: offers.length > 0 ? '#dcfce7' : '#f1f5f9', color: offers.length > 0 ? '#166534' : '#64748b' }}>
+                                                        🛒 {offers.length} offre{offers.length !== 1 ? 's' : ''} vendeur{offers.length !== 1 ? 's' : ''}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Seller Offers for this official variant */}
+                                            {offers.length > 0 ? (
+                                                <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                    {offers.map((offer: any) => {
+                                                        const offerKey = `offer-${offer.id}`;
+                                                        const aiResult = imageAiResults[offerKey];
+                                                        const offerImgs = [offer.featuredAsset?.preview, ...(offer.assets || []).map((a: any) => a.preview)].filter(Boolean);
+                                                        const vendorChannel = offer.channels?.find((c: any) => String(c.id) !== '1');
+
+                                                        return (
+                                                            <div key={offer.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                                                                {/* Vendor image + AI result */}
+                                                                <div style={{ flexShrink: 0 }}>
+                                                                    {offerImgs.length > 0 ? (
+                                                                        <div style={{ position: 'relative' }}>
+                                                                            <img src={offerImgs[0]} alt="offer" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                                                                            {aiResult && (
+                                                                                <div style={{
+                                                                                    position: 'absolute', bottom: -6, right: -6,
+                                                                                    width: '20px', height: '20px', borderRadius: '50%',
+                                                                                    background: aiResult.status === 'ok' ? '#22c55e' : aiResult.status === 'warn' ? '#f59e0b' : aiResult.status === 'error' ? '#ef4444' : '#94a3b8',
+                                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                                    fontSize: '10px', border: '2px solid white'
+                                                                                }}>
+                                                                                    {aiResult.status === 'ok' ? '✓' : aiResult.status === 'loading' ? '⏳' : '!'}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div style={{ width: '56px', height: '56px', background: '#fef9c3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#854d0e', textAlign: 'center', border: '1px solid #fde68a' }}>Pas d'image</div>
+                                                                    )}
+                                                                </div>
+
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                                                                        <div>
+                                                                            <span style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>{(offer.price / 100).toLocaleString('fr-FR')} FCFA</span>
+                                                                            <span style={{ marginLeft: '8px', fontSize: '11px', color: '#64748b' }}>Stock: {offer.stockOnHand}</span>
+                                                                            {vendorChannel && (
+                                                                                <span style={{ marginLeft: '8px', fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                                                                    {vendorChannel.code}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* AI Diagnostic */}
+                                                                    {aiResult && (
+                                                                        <div style={{
+                                                                            marginBottom: '6px', padding: '5px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                                                                            background: aiResult.status === 'ok' ? '#f0fdf4' : aiResult.status === 'warn' ? '#fffbeb' : aiResult.status === 'error' ? '#fef2f2' : '#f8fafc',
+                                                                            border: `1px solid ${aiResult.status === 'ok' ? '#bbf7d0' : aiResult.status === 'warn' ? '#fde68a' : aiResult.status === 'error' ? '#fca5a5' : '#e2e8f0'}`,
+                                                                            color: aiResult.status === 'ok' ? '#166534' : aiResult.status === 'warn' ? '#92400e' : aiResult.status === 'error' ? '#991b1b' : '#475569'
+                                                                        }}>
+                                                                            🤖 IA : {aiResult.message}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Action Buttons */}
+                                                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                                        <button
+                                                                            onClick={() => handleExecuteDecision('APPROVED')}
+                                                                            style={{ background: '#166534', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}
+                                                                        >
+                                                                            ✅ Valider
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleExecuteDecision('SUSPENDED')}
+                                                                            style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5', padding: '5px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}
+                                                                        >
+                                                                            ✕ Rejeter
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleCommentToVendor(offer.id, offer.name)}
+                                                                            style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', padding: '5px 10px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}
+                                                                        >
+                                                                            💬 Commenter au vendeur
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div style={{ padding: '10px 16px', fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                    Aucune offre vendeur pour cette déclinaison.
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Unmatched Seller Offers (submitted before official variants were created or with non-standard options) */}
+                        {sellerOffersByVariant['unmatched'] && sellerOffersByVariant['unmatched'].length > 0 && (
+                            <div style={{ marginTop: '16px', border: '1px solid #f59e0b', borderRadius: '12px', background: '#fffbeb', padding: '16px' }}>
+                                <h4 style={{ margin: '0 0 6px 0', fontSize: '13px', fontWeight: 800, color: '#92400e' }}>
+                                    ⚠️ Offres vendeurs en attente de rattachement ({sellerOffersByVariant['unmatched'].length})
+                                </h4>
+                                <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#b45309' }}>
+                                    Ces offres ont été soumises par des vendeurs avec des options qui ne correspondent pas exactement aux déclinaisons officielles actuelles. Vous pouvez créer la déclinaison officielle correspondante ci-dessus.
+                                </p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {sellerOffersByVariant['unmatched'].map((offer: any) => (
+                                        <div key={offer.id} style={{ background: '#ffffff', border: '1px solid #fde68a', borderRadius: '8px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>{offer.name}</div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                                                    Prix: <span style={{ fontWeight: 700, color: '#0f172a' }}>{(offer.price / 100).toLocaleString('fr-FR')} FCFA</span> | Stock: {offer.stockOnHand}
+                                                    {offer.options && offer.options.length > 0 && (
+                                                        <span style={{ marginLeft: '8px', color: '#b45309', fontWeight: 600 }}>
+                                                            [Options: {offer.options.map((o: any) => `${o.group?.name || 'Opt'}: ${o.name}`).join(' + ')}]
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <button
+                                                    onClick={() => handleExecuteDecision('APPROVED')}
+                                                    style={{ background: '#166534', color: '#ffffff', border: 'none', padding: '4px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}
+                                                >
+                                                    ✅ Valider
+                                                </button>
+                                                <button
+                                                    onClick={() => handleCommentToVendor(offer.id, offer.name)}
+                                                    style={{ background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}
+                                                >
+                                                    💬 Commenter
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* ── 6. AUDIT LOG HISTORY ── */}

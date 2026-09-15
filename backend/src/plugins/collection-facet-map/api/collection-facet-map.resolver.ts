@@ -337,6 +337,284 @@ export class CollectionFacetMapAdminResolver {
     }
 
     /**
+     * Get all option groups with summary for mapping (admin only)
+     */
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async allMappingOptionGroups(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const repo = this.connection.getRepository(ctx, 'ProductOptionGroup' as any);
+        const groups = await repo.find({
+            relations: ['translations', 'options'],
+        });
+
+        const lang = ctx.languageCode || 'fr';
+
+        return groups.map((g: any) => {
+            const frTrans = (g.translations || []).find((t: any) => t.languageCode === lang || t.languageCode === 'fr') || g.translations?.[0];
+            const name = frTrans?.name || g.code || `group-${g.id}`;
+            const validOptions = (g.options || []).filter((o: any) => o.deletedAt === null);
+            return {
+                id: String(g.id),
+                code: g.code,
+                name,
+                optionsCount: validOptions.length,
+            };
+        });
+    }
+
+    /**
+     * Get all collection→option group mappings (admin only)
+     */
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async collectionOptionGroupMappings(@Ctx() ctx: RequestContext): Promise<any[]> {
+        const collectionRepo = this.connection.getRepository(ctx, Collection);
+        const collections = await collectionRepo.find({
+            relations: ['translations', 'parent'],
+        });
+
+        const allOptionGroups = await this.allMappingOptionGroups(ctx);
+
+        const getName = (coll: any): string => {
+            if (coll.name) return coll.name;
+            const trans = coll.translations || [];
+            const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
+            return frTrans?.name || coll.slug || '';
+        };
+
+        const collMap = new Map<string, any>();
+        for (const c of collections) {
+            collMap.set(String(c.id), c);
+        }
+
+        const childrenMap = new Map<string, string[]>();
+        for (const c of collections) {
+            if (c.parent && c.parent.id) {
+                const pId = String(c.parent.id);
+                const list = childrenMap.get(pId) || [];
+                list.push(String(c.id));
+                childrenMap.set(pId, list);
+            }
+        }
+
+        const resolveInheritedOptionGroupIds = (cId: string): string[] => {
+            const c = collMap.get(cId);
+            if (!c) return [];
+            let ownIds: string[] = [];
+            try {
+                ownIds = c.customFields?.allowedOptionGroupIds || [];
+            } catch (e) {
+                ownIds = [];
+            }
+            const childrenIds = childrenMap.get(cId) || [];
+            if (childrenIds.length === 0) {
+                return ownIds;
+            }
+            const childGroupSets = childrenIds.map(childId => new Set(resolveInheritedOptionGroupIds(childId)));
+            const intersectionIds = childGroupSets.reduce((acc, currentSet) => {
+                return new Set(Array.from(acc).filter(id => currentSet.has(id)));
+            }, childGroupSets[0] || new Set<string>());
+
+            return [...new Set([...ownIds, ...Array.from(intersectionIds)])];
+        };
+
+        const filtered = collections.filter((c: any) => {
+            const name = getName(c);
+            return name && name !== '__root_collection__' && !name.startsWith('_root_');
+        });
+
+        const filteredIds = new Set(filtered.map((c: any) => String(c.id)));
+
+        const getEffectiveParentId = (c: any): string | null => {
+            if (c.parent && filteredIds.has(String(c.parent.id))) {
+                return String(c.parent.id);
+            }
+            return null;
+        };
+
+        const buildTree = (parentId: string | null = null): any[] => {
+            return filtered
+                .filter((c: any) => getEffectiveParentId(c) === parentId)
+                .map((coll: any) => {
+                    let ownOptionGroupIds: string[] = [];
+                    try {
+                        ownOptionGroupIds = (coll as any).customFields?.allowedOptionGroupIds || [];
+                    } catch (e) {
+                        ownOptionGroupIds = [];
+                    }
+                    
+                    const inheritedOptionGroupIds = resolveInheritedOptionGroupIds(String(coll.id));
+                    const allowedOptionGroups = allOptionGroups.filter((g: any) => inheritedOptionGroupIds.includes(String(g.id)));
+                    
+                    return {
+                        collectionId: String(coll.id),
+                        collectionName: getName(coll),
+                        allowedOptionGroupIds: inheritedOptionGroupIds,
+                        ownOptionGroupIds,
+                        inheritedOptionGroupIds: inheritedOptionGroupIds.filter(id => !ownOptionGroupIds.includes(id)),
+                        allowedOptionGroups,
+                        children: buildTree(String(coll.id)),
+                        hasChildren: filtered.some((c: any) => getEffectiveParentId(c) === String(coll.id)),
+                    };
+                });
+        };
+
+        return buildTree();
+    }
+
+    /**
+     * Get allowed option groups for a specific collection (admin-api)
+     */
+    @Query()
+    @Allow(Permission.SuperAdmin)
+    async collectionAllowedOptionGroups(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { collectionId: ID },
+    ): Promise<any | null> {
+        return this.getCollectionAllowedOptionGroups(ctx, String(args.collectionId));
+    }
+
+    /**
+     * Set allowed option groups for a collection (admin only)
+     */
+    @Mutation()
+    @Allow(Permission.SuperAdmin)
+    async setCollectionAllowedOptionGroups(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { collectionId: ID; optionGroupIds: [ID] },
+    ): Promise<any> {
+        const collectionId = String(args.collectionId);
+        const optionGroupIds = args.optionGroupIds.map(String);
+        const collectionRepo = this.connection.getRepository(ctx, Collection);
+
+        await collectionRepo.update(collectionId as any, {
+            customFields: {
+                allowedOptionGroupIds: optionGroupIds,
+            },
+        } as any);
+
+        return this.getCollectionAllowedOptionGroups(ctx, collectionId);
+    }
+
+    /**
+     * Set allowed option groups for multiple collections (bulk operation)
+     */
+    @Mutation()
+    @Allow(Permission.SuperAdmin)
+    async setCollectionAllowedOptionGroupsBulk(
+        @Ctx() ctx: RequestContext,
+        @Args() args: { collectionIds: [ID]; optionGroupIds: [ID] },
+    ): Promise<any[]> {
+        const collectionIds = args.collectionIds.map(String);
+        const optionGroupIds = args.optionGroupIds.map(String);
+        const collectionRepo = this.connection.getRepository(ctx, Collection);
+
+        for (const collectionId of collectionIds) {
+            await collectionRepo.update(collectionId as any, {
+                customFields: {
+                    allowedOptionGroupIds: optionGroupIds,
+                },
+            } as any);
+        }
+
+        const results = [];
+        for (const collectionId of collectionIds) {
+            const result = await this.getCollectionAllowedOptionGroups(ctx, collectionId);
+            if (result) results.push(result);
+        }
+        return results;
+    }
+
+    private async getCollectionAllowedOptionGroups(ctx: RequestContext, collectionId: string): Promise<any | null> {
+        const collectionRepo = this.connection.getRepository(ctx, Collection);
+
+        const coll = await collectionRepo.findOne({
+            where: { id: collectionId as any },
+            relations: ['translations', 'parent'],
+        });
+
+        if (!coll) return null;
+
+        const allCollections = await collectionRepo.find({
+            relations: ['translations', 'parent'],
+        });
+        const collMap = new Map<string, any>();
+        for (const c of allCollections) {
+            collMap.set(String(c.id), c);
+        }
+
+        const childrenMap = new Map<string, string[]>();
+        for (const c of allCollections) {
+            if (c.parent && c.parent.id) {
+                const pId = String(c.parent.id);
+                const list = childrenMap.get(pId) || [];
+                list.push(String(c.id));
+                childrenMap.set(pId, list);
+            }
+        }
+
+        const resolveInheritedOptionGroupIds = (cId: string): string[] => {
+            const c = collMap.get(cId);
+            if (!c) return [];
+            let ownIds: string[] = [];
+            try {
+                ownIds = c.customFields?.allowedOptionGroupIds || [];
+            } catch (e) {
+                ownIds = [];
+            }
+            const childrenIds = childrenMap.get(cId) || [];
+            if (childrenIds.length === 0) {
+                return ownIds;
+            }
+            const childGroupSets = childrenIds.map(childId => new Set(resolveInheritedOptionGroupIds(childId)));
+            const intersectionIds = childGroupSets.reduce((acc, currentSet) => {
+                return new Set(Array.from(acc).filter(id => currentSet.has(id)));
+            }, childGroupSets[0] || new Set<string>());
+
+            return [...new Set([...ownIds, ...Array.from(intersectionIds)])];
+        };
+
+        const ownOptionGroupIds: string[] = (coll as any).customFields?.allowedOptionGroupIds || [];
+        const inheritedOptionGroupIds = resolveInheritedOptionGroupIds(String(coll.id));
+
+        const allOptionGroups = await this.allMappingOptionGroups(ctx);
+        const allowedOptionGroups = allOptionGroups.filter((g: any) => inheritedOptionGroupIds.includes(String(g.id)));
+
+        const getName = (c: any): string => {
+            if (c.name) return c.name;
+            const trans = c.translations || [];
+            const frTrans = trans.find((t: any) => t.languageCode === 'fr') || trans[0];
+            return frTrans?.name || c.slug || '';
+        };
+
+        const children = allCollections.filter((c: any) => {
+            const collParentId = c.parent ? String(c.parent.id) : null;
+            return collParentId === String(coll.id);
+        }).map((child: any) => {
+            const childOwnIds: string[] = (child as any).customFields?.allowedOptionGroupIds || [];
+            const childInheritedIds = resolveInheritedOptionGroupIds(String(child.id));
+            return {
+                collectionId: String(child.id),
+                collectionName: getName(child),
+                allowedOptionGroupIds: childInheritedIds,
+                ownOptionGroupIds: childOwnIds,
+                inheritedOptionGroupIds: childInheritedIds.filter(id => !childOwnIds.includes(id)),
+            };
+        });
+
+        return {
+            collectionId: String(coll.id),
+            collectionName: getName(coll),
+            allowedOptionGroupIds: inheritedOptionGroupIds,
+            ownOptionGroupIds,
+            inheritedOptionGroupIds: inheritedOptionGroupIds.filter(id => !ownOptionGroupIds.includes(id)),
+            allowedOptionGroups,
+            children,
+            hasChildren: children.length > 0,
+        };
+    }
+
+    /**
      * Get seller dashboard config (admin-api)
      */
     @Query()

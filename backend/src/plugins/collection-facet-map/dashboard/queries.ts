@@ -118,3 +118,99 @@ export const UPDATE_SELLER_DASHBOARD_CONFIG = `
         }
     }
 `;
+
+export const GET_COLLECTION_OPTION_GROUP_MAPPINGS = `
+    query GetCollectionOptionGroupMappings {
+        collectionOptionGroupMappings {
+            collectionId
+            collectionName
+            allowedOptionGroupIds
+            ownOptionGroupIds
+            inheritedOptionGroupIds
+            allowedOptionGroups {
+                id
+                code
+                name
+                optionsCount
+            }
+            children {
+                collectionId
+                collectionName
+                allowedOptionGroupIds
+                ownOptionGroupIds
+                inheritedOptionGroupIds
+                allowedOptionGroups {
+                    id
+                    code
+                    name
+                    optionsCount
+                }
+                children {
+                    collectionId
+                    collectionName
+                    allowedOptionGroupIds
+                    ownOptionGroupIds
+                    inheritedOptionGroupIds
+                }
+                hasChildren
+            }
+            hasChildren
+        }
+    }
+`;
+
+export const SET_COLLECTION_ALLOWED_OPTION_GROUPS = `
+    mutation SetCollectionAllowedOptionGroups($collectionId: ID!, $optionGroupIds: [ID!]!) {
+        setCollectionAllowedOptionGroups(collectionId: $collectionId, optionGroupIds: $optionGroupIds) {
+            collectionId
+            collectionName
+            allowedOptionGroupIds
+            ownOptionGroupIds
+            inheritedOptionGroupIds
+            allowedOptionGroups {
+                id
+                code
+                name
+                optionsCount
+            }
+            children {
+                collectionId
+                collectionName
+                allowedOptionGroupIds
+                ownOptionGroupIds
+                inheritedOptionGroupIds
+            }
+            hasChildren
+        }
+    }
+`;
+
+export const SET_COLLECTION_ALLOWED_OPTION_GROUPS_BULK = `
+    mutation SetCollectionAllowedOptionGroupsBulk($collectionIds: [ID!]!, $optionGroupIds: [ID!]!) {
+        setCollectionAllowedOptionGroupsBulk(collectionIds: $collectionIds, optionGroupIds: $optionGroupIds) {
+            collectionId
+            collectionName
+            allowedOptionGroupIds
+            ownOptionGroupIds
+            inheritedOptionGroupIds
+            allowedOptionGroups {
+                id
+                code
+                name
+                optionsCount
+            }
+        }
+    }
+`;
+
+export const GET_ALL_OPTION_GROUPS = `
+    query GetAllOptionGroups {
+        allMappingOptionGroups {
+            id
+            code
+            name
+            optionsCount
+        }
+    }
+`;
+

@@ -6,11 +6,18 @@ import { revalidatePath, revalidateTag, updateTag } from 'next/cache';
 import { setAuthToken } from '@/lib/auth';
 import { ensureAddingItems } from '@/app/(storefront)/checkout/actions';
 
-export async function addToCart(variantId: string, quantity: number = 1, vendorId?: string) {
+export async function addToCart(variantId: string, quantity: number = 1, vendorId?: string, sellerOfferId?: string) {
   try {
     await ensureAddingItems();
-    const customFields = vendorId ? { assignedVendorId: vendorId } : undefined;
-    const result = await mutate(AddToCartMutation, { variantId, quantity, customFields }, { useAuthToken: true });
+    const customFields: any = {};
+    if (vendorId) {
+      customFields.assignedVendorId = String(vendorId);
+    }
+    if (sellerOfferId) {
+      customFields.sellerOfferId = String(sellerOfferId);
+    }
+    const inputCustomFields = Object.keys(customFields).length > 0 ? customFields : undefined;
+    const result = await mutate(AddToCartMutation, { variantId, quantity, customFields: inputCustomFields }, { useAuthToken: true });
 
     if (result.token) {
       await setAuthToken(result.token);

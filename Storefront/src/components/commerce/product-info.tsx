@@ -351,7 +351,8 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
 
         startTransition(async () => {
             const assignedVendorId = selectedVendorId || activeOffer?.vendor?.id || product.customFields?.vendor?.id || undefined;
-            const result = await addToCart(selectedVariant.id, quantity, assignedVendorId);
+            const sellerOfferId = activeOffer?.id || undefined;
+            const result = await addToCart(selectedVariant.id, quantity, assignedVendorId, sellerOfferId);
 
             if (result.success) {
                 setIsAdded(true);

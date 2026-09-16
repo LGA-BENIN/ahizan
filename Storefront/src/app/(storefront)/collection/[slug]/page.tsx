@@ -18,6 +18,13 @@ import { priceFromSubunit } from '@/lib/format';
 import { expandProductsWithSellerOffers } from '@/lib/vendure/seller-offers';
 import React from 'react';
 
+function isRootCollection(col?: { slug?: string | null; name?: string | null } | null): boolean {
+    if (!col) return true;
+    const s = (col.slug || '').toLowerCase();
+    const n = (col.name || '').toLowerCase();
+    return s.includes('_root_collection_') || s.includes('__root_collection__') || s.startsWith('_root') || n.includes('_root_collection_') || n.includes('__root_collection__') || n.startsWith('_root');
+}
+
 async function getCollectionMetadata(slug: string) {
     return query(GetCollectionProductsQuery, {
         slug,
@@ -104,7 +111,7 @@ function CategoryHeader({ config, collection, totalItems, fallbackCollectionImag
                     <nav className="flex text-xs md:text-sm mb-4 whitespace-nowrap overflow-x-auto pb-2 scrollbar-hide" style={{ color: bannerImage ? 'rgba(255,255,255,0.8)' : 'var(--muted-foreground)' }}>
                         <Link href="/" className="hover:text-primary font-medium shrink-0">Accueil</Link>
                         <span className="mx-2 shrink-0">/</span>
-                        {collection.parent && collection.parent.name !== '__root_collection__' && (
+                        {collection.parent && !isRootCollection(collection.parent) && (
                             <>
                                 <Link href={`/collection/${collection.parent.slug}`} className="hover:text-primary font-medium shrink-0">
                                     {collection.parent.name}
@@ -417,7 +424,7 @@ export default async function CollectionPage({ params, searchParams }: any) {
                     <nav className="flex text-xs md:text-sm text-gray-500 mb-4 whitespace-nowrap overflow-x-auto pb-2 scrollbar-hide">
                         <Link href="/" className="hover:text-red-600 font-medium shrink-0">Accueil</Link>
                         <span className="mx-2 shrink-0">/</span>
-                        {collection.parent && collection.parent.name !== '__root_collection__' && (
+                        {collection.parent && !isRootCollection(collection.parent) && (
                             <>
                                 <Link href={`/collection/${collection.parent.slug}`} className="hover:text-red-600 font-medium shrink-0">
                                     {collection.parent.name}

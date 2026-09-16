@@ -126,6 +126,13 @@ function buildProductJsonLd(product: any) {
     return JSON.stringify(jsonLd);
 }
 
+function isRootCollection(col: any): boolean {
+    if (!col) return true;
+    const name = (col.name || '').toLowerCase().trim();
+    const slug = (col.slug || '').toLowerCase().trim();
+    return !name || name.includes('root_collection') || name.startsWith('_root') || slug.includes('root_collection') || slug.startsWith('_root');
+}
+
 function buildBreadcrumbJsonLd(product: any) {
     const items: any[] = [
         {
@@ -136,8 +143,9 @@ function buildBreadcrumbJsonLd(product: any) {
         },
     ];
 
-    if (product.collections && product.collections.length > 0) {
-        product.collections.forEach((col: any, idx: number) => {
+    const validCollections = (product.collections || []).filter((col: any) => !isRootCollection(col));
+    if (validCollections.length > 0) {
+        validCollections.forEach((col: any, idx: number) => {
             items.push({
                 '@type': 'ListItem',
                 position: idx + 2,
@@ -349,31 +357,35 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                     dangerouslySetInnerHTML={{ __html: buildBreadcrumbJsonLd(product) }}
                 />
                 {/* Breadcrumb Navigation */}
-                {product.collections && product.collections.length > 0 && (
-                    <div className="bg-gray-50 border-b border-gray-200">
-                        <div className="container mx-auto px-4 md:px-6 lg:px-8 py-2">
-                            <nav className="flex items-center gap-1.5 text-xs md:text-sm overflow-x-auto">
-                                <Link href="/" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
-                                    Accueil
-                                </Link>
-                                <span className="text-gray-400">/</span>
-                                {product.collections.map((collection: any, index: any) => (
-                                    <React.Fragment key={collection.id}>
-                                        <Link 
-                                            href={`/collection/${collection.slug}`}
-                                            className="text-gray-600 hover:text-gray-900 whitespace-nowrap"
-                                        >
-                                            {collection.name}
-                                        </Link>
-                                        {index < product.collections.length - 1 && (
-                                            <span className="text-gray-400">/</span>
-                                        )}
-                                    </React.Fragment>
-                                ))}
-                            </nav>
+                {(() => {
+                    const validCollections = (product.collections || []).filter((col: any) => !isRootCollection(col));
+                    if (validCollections.length === 0) return null;
+                    return (
+                        <div className="bg-gray-50 border-b border-gray-200">
+                            <div className="container mx-auto px-4 md:px-6 lg:px-8 py-2">
+                                <nav className="flex items-center gap-1.5 text-xs md:text-sm overflow-x-auto">
+                                    <Link href="/" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
+                                        Accueil
+                                    </Link>
+                                    <span className="text-gray-400">/</span>
+                                    {validCollections.map((collection: any, index: number) => (
+                                        <React.Fragment key={collection.id}>
+                                            <Link 
+                                                href={`/collection/${collection.slug}`}
+                                                className="text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                                            >
+                                                {collection.name}
+                                            </Link>
+                                            {index < validCollections.length - 1 && (
+                                                <span className="text-gray-400">/</span>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </nav>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 <div className="space-y-4">
                     {activeSections.map((section, idx) => {
@@ -437,31 +449,35 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
     // Fallback to default hardcoded layout
     return (
         <>
-            {product.collections && product.collections.length > 0 && (
-                <div className="bg-gray-50 border-b border-gray-200">
-                    <div className="container mx-auto px-4 md:px-6 lg:px-8 py-2">
-                        <nav className="flex items-center gap-1.5 text-xs md:text-sm overflow-x-auto">
-                            <Link href="/" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
-                                Accueil
-                            </Link>
-                            <span className="text-gray-400">/</span>
-                            {product.collections.map((collection: any, index: any) => (
-                                <React.Fragment key={collection.id}>
-                                    <Link 
-                                        href={`/collection/${collection.slug}`}
-                                        className="text-gray-600 hover:text-gray-900 whitespace-nowrap"
-                                    >
-                                        {collection.name}
-                                    </Link>
-                                    {index < product.collections.length - 1 && (
-                                        <span className="text-gray-400">/</span>
-                                    )}
-                                </React.Fragment>
-                            ))}
-                        </nav>
+            {(() => {
+                const validCollections = (product.collections || []).filter((col: any) => !isRootCollection(col));
+                if (validCollections.length === 0) return null;
+                return (
+                    <div className="bg-gray-50 border-b border-gray-200">
+                        <div className="container mx-auto px-4 md:px-6 lg:px-8 py-2">
+                            <nav className="flex items-center gap-1.5 text-xs md:text-sm overflow-x-auto">
+                                <Link href="/" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
+                                    Accueil
+                                </Link>
+                                <span className="text-gray-400">/</span>
+                                {validCollections.map((collection: any, index: number) => (
+                                    <React.Fragment key={collection.id}>
+                                        <Link 
+                                            href={`/collection/${collection.slug}`}
+                                            className="text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                                        >
+                                            {collection.name}
+                                        </Link>
+                                        {index < validCollections.length - 1 && (
+                                            <span className="text-gray-400">/</span>
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </nav>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 mt-6 md:mt-8" id="cms-penultimate-section">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">

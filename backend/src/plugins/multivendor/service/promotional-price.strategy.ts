@@ -22,13 +22,40 @@ export class PromotionalOrderItemPriceCalculationStrategy implements OrderItemPr
         productVariant: ProductVariant,
         orderLineCustomFields: any,
     ): Promise<PriceCalculationResult> {
-        // Find assigned vendor from custom fields (can be relation object or ID)
-        const assignedVendor = orderLineCustomFields?.assignedVendor || orderLineCustomFields?.assignedVendorId;
-        
+        let vendorId: any = undefined;
+
+        if (orderLineCustomFields) {
+            const rawVendor = orderLineCustomFields.assignedVendor;
+            if (rawVendor) {
+                vendorId = typeof rawVendor === 'object' ? rawVendor.id : rawVendor;
+            }
+            if (!vendorId && orderLineCustomFields.assignedVendorId) {
+                vendorId = orderLineCustomFields.assignedVendorId;
+            }
+            if (!vendorId && (orderLineCustomFields as any).customFieldsAssignedvendorid) {
+                vendorId = (orderLineCustomFields as any).customFieldsAssignedvendorid;
+            }
+        }
+
+        const sellerOfferId = orderLineCustomFields?.sellerOfferId;
         let price = productVariant.price;
 
-        if (assignedVendor) {
-            const vendorId = typeof assignedVendor === 'object' ? assignedVendor.id : assignedVendor;
+        // 1. If a specific SellerOffer ID is assigned to the line
+        if (sellerOfferId) {
+            const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+                where: { id: sellerOfferId }
+            });
+            if (offer) {
+                price = offer.onPromotion && offer.promotionalPrice ? Number(offer.promotionalPrice) : Number(offer.price);
+                return {
+                    price: Number(price),
+                    priceIncludesTax: false,
+                };
+            }
+        }
+
+        // 2. If an assigned Vendor ID is specified on the line
+        if (vendorId) {
             const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
                 where: {
                     vendor: { id: vendorId },
@@ -37,22 +64,26 @@ export class PromotionalOrderItemPriceCalculationStrategy implements OrderItemPr
             });
             if (offer) {
                 price = offer.onPromotion && offer.promotionalPrice ? Number(offer.promotionalPrice) : Number(offer.price);
-            }
-        } else {
-            // Find lowest seller offer for this variant if no vendor pre-assigned
-            const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
-                where: {
-                    productVariant: { id: productVariant.id }
-                },
-                order: { price: 'ASC' }
-            });
-            if (offer) {
-                price = offer.onPromotion && offer.promotionalPrice ? Number(offer.promotionalPrice) : Number(offer.price);
+                return {
+                    price: Number(price),
+                    priceIncludesTax: false,
+                };
             }
         }
 
+        // 3. Fallback: Find lowest seller offer for this variant if no seller was explicitly chosen
+        const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+            where: {
+                productVariant: { id: productVariant.id }
+            },
+            order: { price: 'ASC' }
+        });
+        if (offer) {
+            price = offer.onPromotion && offer.promotionalPrice ? Number(offer.promotionalPrice) : Number(offer.price);
+        }
+
         return {
-            price,
+            price: Number(price),
             priceIncludesTax: false,
         };
     }

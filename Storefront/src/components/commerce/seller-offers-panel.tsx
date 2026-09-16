@@ -65,7 +65,7 @@ export function SellerOffersPanel({ offers, quantity = 1 }: SellerOffersPanelPro
 
     const handleAddToCart = (offer: Offer) => {
         startTransition(async () => {
-            const result = await addToCart(offer.productVariant.id, quantity, offer.vendor.id);
+            const result = await addToCart(offer.productVariant.id, quantity, offer.vendor.id, offer.id);
             if (result.success) {
                 toast.success('Ajouté au panier !');
                 setAddedOfferId(offer.id);

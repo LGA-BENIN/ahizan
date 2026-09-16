@@ -13,6 +13,7 @@ import {
     EventBus,
 } from '@vendure/core';
 import { Vendor } from '../entities/vendor.entity';
+import { SellerOffer } from '../entities/seller-offer.entity';
 import { VendorService } from './vendor.service';
 import { SellerOfferService } from './seller-offer.service';
 
@@ -67,9 +68,23 @@ export class AhizanOrderSellerStrategy implements OrderSellerStrategy {
      */
     async setOrderLineSellerChannel(ctx: RequestContext, orderLine: OrderLine): Promise<Channel | undefined> {
         let vendor = (orderLine.customFields as any)?.assignedVendor;
+        let vendorId = (orderLine.customFields as any)?.assignedVendorId 
+            || (vendor && typeof vendor === 'object' ? vendor.id : vendor)
+            || (orderLine.customFields as any)?.customFieldsAssignedvendorid;
+        const sellerOfferId = (orderLine.customFields as any)?.sellerOfferId;
         const variantId = orderLine.productVariant?.id?.toString();
 
-        if (!vendor && variantId) {
+        if (!vendorId && sellerOfferId) {
+            const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+                where: { id: sellerOfferId },
+                relations: ['vendor'],
+            });
+            if (offer?.vendor) {
+                vendorId = offer.vendor.id;
+            }
+        }
+
+        if (!vendorId && variantId) {
             try {
                 // Find best offer using sellerOfferService
                 const offers = await this.sellerOfferService.getOffersForVariant(ctx, variantId);
@@ -89,16 +104,16 @@ export class AhizanOrderSellerStrategy implements OrderSellerStrategy {
                         (orderLine as any).customFields = {};
                     }
                     (orderLine.customFields as any).assignedVendor = bestOffer.vendor;
-                    vendor = bestOffer.vendor;
+                    vendorId = (bestOffer.vendor as any)?.id;
                 }
             } catch (err) {
                 console.error('[AhizanOrderSellerStrategy] Error assigning vendor to order line:', err);
             }
         }
 
-        if (vendor && (vendor as any).id) {
+        if (vendorId) {
             const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
-                where: { id: (vendor as any).id },
+                where: { id: vendorId },
                 relations: ['channel'],
             });
             if (vendorEntity?.channel) {
@@ -133,11 +148,24 @@ export class AhizanOrderSellerStrategy implements OrderSellerStrategy {
             
             if (!channelId) {
                 const assignedVendor = (line.customFields as any)?.assignedVendor;
-                if (assignedVendor && (assignedVendor as any).channel?.id) {
-                    channelId = (assignedVendor as any).channel.id.toString();
-                } else if (assignedVendor && (assignedVendor as any).id) {
+                let vendorId = (line.customFields as any)?.assignedVendorId 
+                    || (assignedVendor && typeof assignedVendor === 'object' ? assignedVendor.id : assignedVendor)
+                    || (line.customFields as any)?.customFieldsAssignedvendorid;
+                const sellerOfferId = (line.customFields as any)?.sellerOfferId;
+
+                if (!vendorId && sellerOfferId) {
+                    const offer = await this.connection.getRepository(ctx, SellerOffer).findOne({
+                        where: { id: sellerOfferId },
+                        relations: ['vendor'],
+                    });
+                    if (offer?.vendor) {
+                        vendorId = offer.vendor.id;
+                    }
+                }
+
+                if (vendorId) {
                     const vendorEntity = await this.connection.getRepository(ctx, Vendor).findOne({
-                        where: { id: (assignedVendor as any).id },
+                        where: { id: vendorId },
                         relations: ['channel'],
                     });
                     if (vendorEntity?.channel?.id) {

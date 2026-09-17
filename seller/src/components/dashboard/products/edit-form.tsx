@@ -421,7 +421,6 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             if (res.success) {
                 if (product.customFields) {
                     product.customFields.rejectionReason = null;
-                    product.customFields.approvalStatus = 'pending';
                 }
                 setVariantOffers(prev => prev.map(v => ({ ...v, rejectionReason: null })));
                 toast.success('Vos offres ont été mises à jour avec succès !');

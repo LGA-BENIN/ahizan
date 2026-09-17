@@ -97,6 +97,27 @@ const GET_DELIVERED_ORDERS = `
                         featuredAsset {
                             preview
                         }
+                        product {
+                            id
+                            name
+                            customFields {
+                                vendor {
+                                    id
+                                    name
+                                    email
+                                    phoneNumber
+                                }
+                            }
+                        }
+                    }
+                    customFields {
+                        sellerStatus
+                        assignedVendor {
+                            id
+                            name
+                            email
+                            phoneNumber
+                        }
                     }
                 }
                 customFields {
@@ -116,6 +137,19 @@ const GET_DELIVERED_ORDERS = `
                 }
             }
             totalItems
+        }
+    }
+`;
+
+const GET_VENDORS_MINIMAL = `
+    query GetVendorsMinimal {
+        vendors(options: { take: 250 }) {
+            items {
+                id
+                name
+                email
+                phoneNumber
+            }
         }
     }
 `;
@@ -266,6 +300,116 @@ export function PaymentManagementComponent() {
         queryFn: () => fetchGraphQL(GET_WITHDRAWALS),
     });
 
+    const { data: vendorsData } = useQuery({
+        queryKey: ['vendorsListForPayment'],
+        queryFn: () => fetchGraphQL(GET_VENDORS_MINIMAL),
+    });
+
+    const vendorsMap = useMemo(() => {
+        const map = new Map<string, any>();
+        for (const v of vendorsData?.vendors?.items || []) {
+            map.set(String(v.id), v);
+        }
+        return map;
+    }, [vendorsData]);
+
+    const getOrderVendorSubOrders = (order: any) => {
+        const subOrdersMap = new Map<string, {
+            vendor: any;
+            lines: any[];
+            subTotal: number;
+            commissionAmount: number;
+            netAmount: number;
+            paymentStatus: 'PENDING' | 'RETIRABLE' | 'PAID';
+            isPaid: boolean;
+        }>();
+
+        let vStatusesMap: Record<string, any> = {};
+        try {
+            if (order.customFields?.vendorStatuses) {
+                vStatusesMap = typeof order.customFields.vendorStatuses === 'string'
+                    ? JSON.parse(order.customFields.vendorStatuses)
+                    : order.customFields.vendorStatuses;
+            }
+        } catch (e) {}
+
+        const rate = order.customFields?.commissionRate !== undefined && order.customFields?.commissionRate !== null
+            ? Number(order.customFields.commissionRate)
+            : 10;
+
+        const lines = (order.lines || []).filter((l: any) => (l.customFields?.sellerStatus || 'pending') !== 'reassigned_to_other');
+
+        for (const line of lines) {
+            const v = line.customFields?.assignedVendor 
+                   || line.productVariant?.product?.customFields?.vendor
+                   || (order.customFields?.vendor?.id ? order.customFields.vendor : null);
+
+            const vendorId = v?.id ? String(v.id) : null;
+            const resolvedVendor = (vendorId && vendorsMap.get(vendorId)) || v || (order.customFields?.vendor?.name ? order.customFields.vendor : null);
+            const resolvedId = vendorId || (resolvedVendor?.id ? String(resolvedVendor.id) : 'default');
+            const resolvedName = resolvedVendor?.name || (resolvedId === 'default' ? 'Boutique Principale (Ahizan)' : `Vendeur #${resolvedId}`);
+
+            const linePrice = line.linePriceWithTax || (line.unitPriceWithTax * line.quantity) || 0;
+            const lineComm = Math.round((linePrice * rate) / 100);
+            const lineNet = Math.max(0, linePrice - lineComm);
+
+            const vStatus = vStatusesMap[resolvedId];
+            const paymentStatus = vStatus?.paymentStatus || order.customFields?.paymentStatus || 'PENDING';
+            const isPaid = vStatus?.isPaid || order.customFields?.isVendorPaid || false;
+
+            if (!subOrdersMap.has(resolvedId)) {
+                subOrdersMap.set(resolvedId, {
+                    vendor: { ...(resolvedVendor || {}), id: resolvedId, name: resolvedName },
+                    lines: [line],
+                    subTotal: linePrice,
+                    commissionAmount: lineComm,
+                    netAmount: lineNet,
+                    paymentStatus,
+                    isPaid,
+                });
+            } else {
+                const existing = subOrdersMap.get(resolvedId)!;
+                existing.lines.push(line);
+                existing.subTotal += linePrice;
+                existing.commissionAmount += lineComm;
+                existing.netAmount += lineNet;
+            }
+        }
+
+        // Include any vendor from vendorStatuses if not yet present
+        for (const [vId, st] of Object.entries(vStatusesMap)) {
+            if (!subOrdersMap.has(vId) && vId !== 'default') {
+                const resolved = vendorsMap.get(vId) || { id: vId, name: `Vendeur #${vId}` };
+                subOrdersMap.set(vId, {
+                    vendor: resolved,
+                    lines: [],
+                    subTotal: 0,
+                    commissionAmount: 0,
+                    netAmount: 0,
+                    paymentStatus: (st as any)?.paymentStatus || 'PENDING',
+                    isPaid: (st as any)?.isPaid || false,
+                });
+            }
+        }
+
+        if (subOrdersMap.size === 0) {
+            const v = order.customFields?.vendor || { id: 'default', name: 'Boutique Principale' };
+            const total = order.totalWithTax || 0;
+            const comm = order.customFields?.commissionAmount || Math.round((total * rate) / 100);
+            subOrdersMap.set(String(v.id || 'default'), {
+                vendor: v,
+                lines: lines,
+                subTotal: total,
+                commissionAmount: comm,
+                netAmount: total - comm,
+                paymentStatus: order.customFields?.paymentStatus || 'PENDING',
+                isPaid: order.customFields?.isVendorPaid || false,
+            });
+        }
+
+        return Array.from(subOrdersMap.values());
+    };
+
     // Load Settings into states
     useEffect(() => {
         if (settingsData?.platformSettings) {
@@ -354,18 +498,28 @@ export function PaymentManagementComponent() {
     const filteredOrders = useMemo(() => {
         return deliveredOrders.filter((order: any) => {
             const status = order.customFields?.paymentStatus || 'PENDING';
-            if (orderFilter !== 'ALL' && status !== orderFilter) return false;
+            const subOrders = getOrderVendorSubOrders(order);
+
+            if (orderFilter !== 'ALL') {
+                const hasMatchingStatus = subOrders.some((so: any) => so.paymentStatus === orderFilter) || status === orderFilter;
+                if (!hasMatchingStatus) return false;
+            }
 
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
+                const vendorMatch = subOrders.some((so: any) => 
+                    so.vendor?.name?.toLowerCase().includes(term) ||
+                    so.vendor?.email?.toLowerCase().includes(term)
+                );
                 return (
                     order.code?.toLowerCase().includes(term) ||
-                    `${order.customer?.firstName} ${order.customer?.lastName}`.toLowerCase().includes(term)
+                    `${order.customer?.firstName} ${order.customer?.lastName}`.toLowerCase().includes(term) ||
+                    vendorMatch
                 );
             }
             return true;
         });
-    }, [deliveredOrders, orderFilter, searchTerm]);
+    }, [deliveredOrders, orderFilter, searchTerm, vendorsMap]);
 
     // Profit statistic calculation (Sum of commissions of all delivered orders)
     const platformProfit = useMemo(() => {
@@ -617,8 +771,9 @@ export function PaymentManagementComponent() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredOrders.length > 0 ? (
+                                       {filteredOrders.length > 0 ? (
                                         filteredOrders.map((order: any) => {
+                                            const subOrders = getOrderVendorSubOrders(order);
                                             const status = order.customFields?.paymentStatus || 'PENDING';
                                             const total = order.totalWithTax || 0;
                                             const commission = order.customFields?.commissionAmount || 0;
@@ -637,8 +792,28 @@ export function PaymentManagementComponent() {
                                                             </div>
                                                         ) : <span style={{ color: '#94a3b8' }}>Client invité</span>}
                                                     </td>
-                                                    <td style={{ padding: '14px 16px', fontWeight: 600, fontSize: '13px' }}>
-                                                        {order.customFields?.vendor?.name || 'Inconnu'}
+                                                    <td style={{ padding: '14px 16px' }}>
+                                                        {subOrders.length === 1 ? (
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>
+                                                                    {subOrders[0].vendor?.name || 'Inconnu'}
+                                                                </div>
+                                                                {subOrders[0].vendor?.email && (
+                                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>{subOrders[0].vendor.email}</div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                {subOrders.map((so: any, idx: number) => (
+                                                                    <div key={idx} style={{ fontSize: '12px', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{so.vendor?.name || `Vendeur #${so.vendor?.id}`}</div>
+                                                                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                            Net: <span style={{ color: '#16a34a', fontWeight: 700 }}>{formatPrice(so.netAmount, order.currencyCode)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td style={{ padding: '14px 16px', fontWeight: 700, fontSize: '13px' }}>
                                                         {formatPrice(total, order.currencyCode)}
@@ -653,81 +828,113 @@ export function PaymentManagementComponent() {
                                                         {formatPrice(net, order.currencyCode)}
                                                     </td>
                                                     <td style={{ padding: '14px 16px' }}>
-                                                        <span style={{
-                                                            display: 'inline-flex',
-                                                            alignItems: 'center',
-                                                            gap: '6px',
-                                                            padding: '4px 10px',
-                                                            borderRadius: '12px',
-                                                            fontSize: '12px',
-                                                            fontWeight: 700,
-                                                            background: status === 'PAID' ? '#dcfce7' : status === 'RETIRABLE' ? '#fef3c7' : '#fee2e2',
-                                                            color: status === 'PAID' ? '#15803d' : status === 'RETIRABLE' ? '#b45309' : '#b91c1c'
-                                                        }}>
-                                                            {status === 'PAID' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                                                            {status === 'PAID' ? 'Déjà Payée' : status === 'RETIRABLE' ? 'Retirable' : 'Attente validation'}
-                                                        </span>
+                                                        {subOrders.length === 1 ? (
+                                                            <span style={{
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px',
+                                                                padding: '4px 10px',
+                                                                borderRadius: '12px',
+                                                                fontSize: '12px',
+                                                                fontWeight: 700,
+                                                                background: subOrders[0].paymentStatus === 'PAID' ? '#dcfce7' : subOrders[0].paymentStatus === 'RETIRABLE' ? '#fef3c7' : '#fee2e2',
+                                                                color: subOrders[0].paymentStatus === 'PAID' ? '#15803d' : subOrders[0].paymentStatus === 'RETIRABLE' ? '#b45309' : '#b91c1c'
+                                                            }}>
+                                                                {subOrders[0].paymentStatus === 'PAID' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                                                                {subOrders[0].paymentStatus === 'PAID' ? 'Déjà Payée' : subOrders[0].paymentStatus === 'RETIRABLE' ? 'Retirable' : 'Attente validation'}
+                                                            </span>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                {subOrders.map((so: any, idx: number) => {
+                                                                    const soStatus = so.paymentStatus || 'PENDING';
+                                                                    return (
+                                                                        <span key={idx} style={{
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: '4px',
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: '8px',
+                                                                            fontSize: '11px',
+                                                                            fontWeight: 700,
+                                                                            background: soStatus === 'PAID' ? '#dcfce7' : soStatus === 'RETIRABLE' ? '#fef3c7' : '#fee2e2',
+                                                                            color: soStatus === 'PAID' ? '#15803d' : soStatus === 'RETIRABLE' ? '#b45309' : '#b91c1c'
+                                                                        }}>
+                                                                            {soStatus === 'PAID' ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                                                                            {so.vendor?.name?.substring(0, 10)}: {soStatus === 'PAID' ? 'Payé' : soStatus === 'RETIRABLE' ? 'Retirable' : 'En attente'}
+                                                                        </span>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                                            <button
-                                                                onClick={() => setSelectedOrder(order)}
-                                                                style={{
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '6px',
-                                                                    padding: '6px 12px',
-                                                                    borderRadius: '8px',
-                                                                    border: '1px solid #cbd5e1',
-                                                                    background: 'white',
-                                                                    color: '#334155',
-                                                                    fontSize: '12px',
-                                                                    fontWeight: 700,
-                                                                    cursor: 'pointer'
-                                                                }}
-                                                            >
-                                                                <Eye size={14} /> Voir infos
-                                                            </button>
-
-                                                            <button
-                                                                onClick={() => setOrderToDelete(order)}
-                                                                style={{
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '6px',
-                                                                    padding: '6px 12px',
-                                                                    borderRadius: '8px',
-                                                                    border: '1px solid #fee2e2',
-                                                                    background: '#fee2e2',
-                                                                    color: '#dc2626',
-                                                                    fontSize: '12px',
-                                                                    fontWeight: 700,
-                                                                    cursor: 'pointer'
-                                                                }}
-                                                            >
-                                                                🗑️ Supprimer
-                                                            </button>
-                                                            
-                                                            {status === 'PENDING' && (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                                                            <div style={{ display: 'flex', gap: '6px' }}>
                                                                 <button
-                                                                    onClick={() => setConfirmModalOrder(order)}
+                                                                    onClick={() => setSelectedOrder(order)}
                                                                     style={{
                                                                         display: 'inline-flex',
                                                                         alignItems: 'center',
-                                                                        gap: '6px',
-                                                                        padding: '6px 14px',
+                                                                        gap: '4px',
+                                                                        padding: '6px 10px',
                                                                         borderRadius: '8px',
-                                                                        border: 'none',
-                                                                        background: '#eab308',
-                                                                        color: 'black',
+                                                                        border: '1px solid #cbd5e1',
+                                                                        background: 'white',
+                                                                        color: '#334155',
                                                                         fontSize: '12px',
-                                                                        fontWeight: 800,
+                                                                        fontWeight: 700,
                                                                         cursor: 'pointer'
                                                                     }}
                                                                 >
-                                                                    🔓 Argent libérer
+                                                                    <Eye size={14} /> Voir infos
                                                                 </button>
-                                                            )}
+
+                                                                <button
+                                                                    onClick={() => setOrderToDelete(order)}
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        padding: '6px 10px',
+                                                                        borderRadius: '8px',
+                                                                        border: '1px solid #fee2e2',
+                                                                        background: '#fee2e2',
+                                                                        color: '#dc2626',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                >
+                                                                    🗑️
+                                                                </button>
+                                                            </div>
+
+                                                            {subOrders.map((so: any, idx: number) => {
+                                                                if (so.paymentStatus === 'PENDING') {
+                                                                    return (
+                                                                        <button
+                                                                            key={idx}
+                                                                            onClick={() => setConfirmModalOrder({ order, vendor: so.vendor, netAmount: so.netAmount })}
+                                                                            style={{
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '4px',
+                                                                                padding: '5px 10px',
+                                                                                borderRadius: '6px',
+                                                                                border: 'none',
+                                                                                background: '#eab308',
+                                                                                color: 'black',
+                                                                                fontSize: '11px',
+                                                                                fontWeight: 800,
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                        >
+                                                                            🔓 Libérer {subOrders.length > 1 ? `(${so.vendor?.name?.substring(0, 12)})` : "l'argent"}
+                                                                        </button>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -882,6 +1089,8 @@ export function PaymentManagementComponent() {
                             <tbody>
                                 {deliveredOrders.length > 0 ? (
                                     deliveredOrders.map((order: any) => {
+                                        const subOrders = getOrderVendorSubOrders(order);
+                                        const vendorDisplay = subOrders.map((so: any) => so.vendor?.name).filter(Boolean).join(', ') || 'Inconnu';
                                         const commission = order.customFields?.commissionAmount || 0;
                                         const status = order.customFields?.paymentStatus || 'PENDING';
                                         return (
@@ -893,7 +1102,7 @@ export function PaymentManagementComponent() {
                                                     {formatDate(order.createdAt)}
                                                 </td>
                                                 <td style={{ padding: '14px 16px', fontWeight: 600, fontSize: '13px' }}>
-                                                    {order.customFields?.vendor?.name || 'Inconnu'}
+                                                    {vendorDisplay}
                                                 </td>
                                                 <td style={{ padding: '14px 16px', fontWeight: 700 }}>
                                                     {formatPrice(order.totalWithTax, order.currencyCode)}
@@ -1030,40 +1239,53 @@ export function PaymentManagementComponent() {
             )}
 
             {/* CONFIRM PAYOUT MUTATION MODAL */}
-            {confirmModalOrder && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#f59e0b' }}>
-                            <ShieldCheck size={28} />
-                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>Libérer l'argent</h3>
-                        </div>
-                        <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.5, marginBottom: '24px' }}>
-                            Êtes-vous sûr de vouloir libérer le paiement pour la commande <strong>#{confirmModalOrder.code}</strong> ? 
-                            Cela rendra le montant net retirable par le vendeur.
-                            <br />
-                            <span style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', display: 'block' }}>
-                                Total Net Vendeur : <strong>{formatPrice((confirmModalOrder.totalWithTax || 0) - (confirmModalOrder.customFields?.commissionAmount || 0), confirmModalOrder.currencyCode)}</strong>
-                            </span>
-                        </p>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button
-                                onClick={() => setConfirmModalOrder(null)}
-                                disabled={orderPaymentMutation.isPending}
-                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                onClick={() => orderPaymentMutation.mutate({ orderId: confirmModalOrder.id, isPaid: true })}
-                                disabled={orderPaymentMutation.isPending}
-                                style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#f59e0b', color: 'black', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                            >
-                                {orderPaymentMutation.isPending ? 'Action...' : 'Oui, libérer les fonds'}
-                            </button>
+            {confirmModalOrder && (() => {
+                const targetOrder = confirmModalOrder.order || confirmModalOrder;
+                const targetVendor = confirmModalOrder.vendor;
+                const targetNetAmount = confirmModalOrder.netAmount !== undefined
+                    ? confirmModalOrder.netAmount
+                    : (targetOrder.totalWithTax || 0) - (targetOrder.customFields?.commissionAmount || 0);
+
+                return (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                        <div style={{ background: 'white', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#f59e0b' }}>
+                                <ShieldCheck size={28} />
+                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>Libérer l'argent</h3>
+                            </div>
+                            <p style={{ fontSize: '14px', color: '#475569', lineHeight: 1.5, marginBottom: '24px' }}>
+                                Êtes-vous sûr de vouloir libérer le paiement pour la commande <strong>#{targetOrder.code}</strong>
+                                {targetVendor?.name ? <span> pour le vendeur <strong>{targetVendor.name}</strong></span> : ''} ? 
+                                Cela rendra le montant net retirable par le vendeur.
+                                <br />
+                                <span style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', display: 'block' }}>
+                                    Total Net {targetVendor?.name ? `(${targetVendor.name})` : 'Vendeur'} : <strong>{formatPrice(targetNetAmount, targetOrder.currencyCode)}</strong>
+                                </span>
+                            </p>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    onClick={() => setConfirmModalOrder(null)}
+                                    disabled={orderPaymentMutation.isPending}
+                                    style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', color: '#475569', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    onClick={() => orderPaymentMutation.mutate({ 
+                                        orderId: targetOrder.id, 
+                                        isPaid: true,
+                                        vendorId: targetVendor?.id && targetVendor.id !== 'default' ? String(targetVendor.id) : undefined
+                                    })}
+                                    disabled={orderPaymentMutation.isPending}
+                                    style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', background: '#f59e0b', color: 'black', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                                >
+                                    {orderPaymentMutation.isPending ? 'Action...' : 'Oui, libérer les fonds'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* CONFIRM ORDER DELETION MODAL */}
             {orderToDelete && (
@@ -1139,91 +1361,117 @@ export function PaymentManagementComponent() {
             )}
 
             {/* DETAIL MODAL */}
-            {selectedOrder && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                    <div style={{ background: 'white', borderRadius: '20px', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                        
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
-                            <div>
-                                <h2 style={{ fontSize: '20px', fontWeight: 900, margin: 0, fontFamily: 'monospace' }}>Détails Commande #{selectedOrder.code}</h2>
-                                <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>Livrée le {formatDate(selectedOrder.updatedAt)}</p>
-                            </div>
-                            <button onClick={() => setSelectedOrder(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer' }}>
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        {/* Order lines */}
-                        <div style={{ marginBottom: '20px' }}>
-                            <h4 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '10px' }}>Articles commandés</h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {selectedOrder.lines?.map((line: any) => (
-                                    <div key={line.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 700, fontSize: '13px' }}>{line.productVariant?.name}</div>
-                                            <div style={{ fontSize: '11px', color: '#64748b' }}>Quantité: {line.quantity} × {formatPrice(line.linePriceWithTax / line.quantity, selectedOrder.currencyCode)}</div>
-                                        </div>
-                                        <div style={{ fontWeight: 800, fontSize: '13px' }}>
-                                            {formatPrice(line.linePriceWithTax, selectedOrder.currencyCode)}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Customer & Delivery Info */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                            <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                <h4 style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', margin: '0 0 6px' }}>Client</h4>
-                                <div style={{ fontWeight: 700, fontSize: '13px' }}>{selectedOrder.customer?.firstName} {selectedOrder.customer?.lastName}</div>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedOrder.customer?.emailAddress}</div>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedOrder.customer?.phoneNumber || 'Pas de numéro'}</div>
-                            </div>
-                            <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                <h4 style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', margin: '0 0 6px' }}>Vendeur</h4>
-                                <div style={{ fontWeight: 700, fontSize: '13px' }}>{selectedOrder.customFields?.vendor?.name || 'Inconnu'}</div>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedOrder.customFields?.vendor?.email}</div>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedOrder.customFields?.vendor?.phoneNumber || 'Pas de numéro'}</div>
-                            </div>
-                        </div>
-
-                        {/* Financial breakdown */}
-                        <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: '12px', marginBottom: '24px', display: 'grid', gap: '8px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                <span>Total Commande :</span>
-                                <span style={{ fontWeight: 700 }}>{formatPrice(selectedOrder.totalWithTax, selectedOrder.currencyCode)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#dc2626' }}>
-                                <span>Commission Plateforme ({selectedOrder.customFields?.commissionRate || 0}%) :</span>
-                                <span style={{ fontWeight: 700 }}>- {formatPrice(selectedOrder.customFields?.commissionAmount || 0, selectedOrder.currencyCode)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#16a34a', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', fontWeight: 900 }}>
-                                <span>Part Net Vendeur :</span>
-                                <span>{formatPrice((selectedOrder.totalWithTax || 0) - (selectedOrder.customFields?.commissionAmount || 0), selectedOrder.currencyCode)}</span>
-                            </div>
-                        </div>
-
-                        {/* Modal Footer Actions */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                            {(selectedOrder.customFields?.paymentStatus || 'PENDING') === 'PENDING' && (
-                                <button
-                                    onClick={() => {
-                                        setConfirmModalOrder(selectedOrder);
-                                        setSelectedOrder(null);
-                                    }}
-                                    style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#f59e0b', color: 'black', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                                >
-                                    🔓 Argent libérer
+            {selectedOrder && (() => {
+                const detailSubOrders = getOrderVendorSubOrders(selectedOrder);
+                return (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                        <div style={{ background: 'white', borderRadius: '20px', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '20px' }}>
+                                <div>
+                                    <h2 style={{ fontSize: '20px', fontWeight: 900, margin: 0, fontFamily: 'monospace' }}>Détails Commande #{selectedOrder.code}</h2>
+                                    <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>Livrée le {formatDate(selectedOrder.updatedAt)}</p>
+                                </div>
+                                <button onClick={() => setSelectedOrder(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', padding: '6px', cursor: 'pointer' }}>
+                                    <X size={18} />
                                 </button>
-                            )}
-                            <button onClick={() => setSelectedOrder(null)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
-                                Fermer
-                            </button>
-                        </div>
+                            </div>
 
+                            {/* Order lines */}
+                            <div style={{ marginBottom: '20px' }}>
+                                <h4 style={{ fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '10px' }}>Articles commandés</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {selectedOrder.lines?.map((line: any) => {
+                                        const lineVendor = line.customFields?.assignedVendor 
+                                            || line.productVariant?.product?.customFields?.vendor 
+                                            || selectedOrder.customFields?.vendor;
+                                        const vendorId = lineVendor?.id ? String(lineVendor.id) : null;
+                                        const resolvedName = (vendorId && vendorsMap.get(vendorId)?.name) || lineVendor?.name || 'Boutique Principale';
+                                        return (
+                                            <div key={line.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: 700, fontSize: '13px' }}>{line.productVariant?.name}</div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                        Quantité: {line.quantity} × {formatPrice(line.linePriceWithTax / line.quantity, selectedOrder.currencyCode)}
+                                                        <span style={{ marginLeft: '8px', color: '#2563eb', fontWeight: 600 }}>• Vendeur: {resolvedName}</span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ fontWeight: 800, fontSize: '13px' }}>
+                                                    {formatPrice(line.linePriceWithTax, selectedOrder.currencyCode)}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Customer & Delivery Info */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                                <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', margin: '0 0 6px' }}>Client</h4>
+                                    <div style={{ fontWeight: 700, fontSize: '13px' }}>{selectedOrder.customer?.firstName} {selectedOrder.customer?.lastName}</div>
+                                    <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedOrder.customer?.emailAddress}</div>
+                                    <div style={{ fontSize: '12px', color: '#64748b' }}>{selectedOrder.customer?.phoneNumber || 'Pas de numéro'}</div>
+                                </div>
+                                <div style={{ padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', margin: '0 0 6px' }}>Vendeur(s)</h4>
+                                    {detailSubOrders.map((so: any, idx: number) => (
+                                        <div key={idx} style={{ marginBottom: idx < detailSubOrders.length - 1 ? '8px' : 0, paddingBottom: idx < detailSubOrders.length - 1 ? '8px' : 0, borderBottom: idx < detailSubOrders.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
+                                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>{so.vendor?.name || 'Inconnu'}</div>
+                                            {so.vendor?.email && <div style={{ fontSize: '12px', color: '#64748b' }}>{so.vendor.email}</div>}
+                                            {so.vendor?.phoneNumber && <div style={{ fontSize: '12px', color: '#64748b' }}>{so.vendor.phoneNumber}</div>}
+                                            <div style={{ fontSize: '11px', marginTop: '2px', fontWeight: 600, color: so.paymentStatus === 'PAID' ? '#15803d' : so.paymentStatus === 'RETIRABLE' ? '#b45309' : '#dc2626' }}>
+                                                Net: {formatPrice(so.netAmount, selectedOrder.currencyCode)} ({so.paymentStatus === 'PAID' ? 'Payé' : so.paymentStatus === 'RETIRABLE' ? 'Retirable' : 'En attente'})
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Financial breakdown */}
+                            <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: '12px', marginBottom: '24px', display: 'grid', gap: '8px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                                    <span>Total Commande :</span>
+                                    <span style={{ fontWeight: 700 }}>{formatPrice(selectedOrder.totalWithTax, selectedOrder.currencyCode)}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#dc2626' }}>
+                                    <span>Commission Plateforme ({selectedOrder.customFields?.commissionRate || 0}%) :</span>
+                                    <span style={{ fontWeight: 700 }}>- {formatPrice(selectedOrder.customFields?.commissionAmount || 0, selectedOrder.currencyCode)}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#16a34a', borderTop: '1px dashed #cbd5e1', paddingTop: '8px', fontWeight: 900 }}>
+                                    <span>Part Net Vendeur :</span>
+                                    <span>{formatPrice((selectedOrder.totalWithTax || 0) - (selectedOrder.customFields?.commissionAmount || 0), selectedOrder.currencyCode)}</span>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer Actions */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                {detailSubOrders.map((so: any, idx: number) => {
+                                    if (so.paymentStatus === 'PENDING') {
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => {
+                                                    setConfirmModalOrder({ order: selectedOrder, vendor: so.vendor, netAmount: so.netAmount });
+                                                    setSelectedOrder(null);
+                                                }}
+                                                style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#f59e0b', color: 'black', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                                            >
+                                                🔓 Libérer {detailSubOrders.length > 1 ? so.vendor?.name : "l'argent"}
+                                            </button>
+                                        );
+                                    }
+                                    return null;
+                                })}
+                                <button onClick={() => setSelectedOrder(null)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}>
+                                    Fermer
+                                </button>
+                            </div>
+
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
         </div>
     );
 }

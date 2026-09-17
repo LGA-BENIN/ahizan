@@ -1161,7 +1161,7 @@ export class VendorAdminResolver {
             const shouldEnable = status === 'approved' || status === 'published' || convertToOfficialCatalog === true;
             await this.connection.rawConnection.query(
                 `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "updatedAt" = NOW() WHERE id = $3`,
-                [shouldEnable, (hasApprovedOffers || shouldEnable) ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), v.id]
+                [shouldEnable, hasApprovedOffers ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), v.id]
             );
         }
 
@@ -1195,7 +1195,7 @@ export class VendorAdminResolver {
                         price: realPrice,
                         stock: realStock,
                         sku: v.sku || null,
-                        status: offerStatus,
+                        status: isOfferApproved ? 'approved' : 'pending',
                         rejectionReason: null,
                         condition: ProductCondition.NEW,
                         deliveryTimeUnit: DeliveryTimeUnit.DAYS,
@@ -1203,8 +1203,10 @@ export class VendorAdminResolver {
                     });
                     await sellerOfferRepo.save(existingOffer);
                 } else {
-                    existingOffer.status = offerStatus;
-                    if (isOfferApproved) existingOffer.rejectionReason = null;
+                    if (isOfferApproved) {
+                        existingOffer.status = 'approved';
+                        existingOffer.rejectionReason = null;
+                    }
                     if (!existingOffer.price || existingOffer.price === 0) {
                         existingOffer.price = realPrice;
                     }
@@ -1354,13 +1356,16 @@ export class VendorAdminResolver {
             }
         }
 
+        const safeShortDesc = shortDescription !== undefined ? shortDescription.trim().slice(0, 250) : undefined;
+        const safeRejectionReason = rejectionReason ? rejectionReason.trim().slice(0, 250) : undefined;
+
         const updateData: any = {
             id,
             enabled: status === 'approved',
             customFields: {
                 approvalStatus: status,
-                rejectionReason: status === 'rejected' ? (rejectionReason || 'Non conforme aux critères Ahizan') : null,
-                ...(shortDescription !== undefined ? { shortDescription } : {}),
+                rejectionReason: status === 'rejected' ? (safeRejectionReason || 'Non conforme aux critères Ahizan') : null,
+                ...(safeShortDesc !== undefined ? { shortDescription: safeShortDesc } : {}),
             }
         };
 
@@ -1368,10 +1373,12 @@ export class VendorAdminResolver {
             updateData.facetValueIds = facetValueIds;
         }
 
-        if ((name && name.trim()) || (description && description.trim()) || (slug && slug.trim()) || (shortDescription && shortDescription.trim())) {
+        if ((name && name.trim()) || (description && description.trim()) || (slug && slug.trim()) || (safeShortDesc && safeShortDesc.trim())) {
             const existingTranslation = product.translations?.find(t => t.languageCode === ctx.languageCode);
-            const targetName = (name && name.trim()) || existingTranslation?.name || (product as any).name || 'Produit';
-            const targetSlug = (slug && slug.trim()) || (name && name.trim() ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : (existingTranslation?.slug || (product as any).slug || 'produit'));
+            const rawName = (name && name.trim()) || existingTranslation?.name || (product as any).name || 'Produit';
+            const targetName = rawName.slice(0, 250);
+            const rawSlug = (slug && slug.trim()) || (name && name.trim() ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : (existingTranslation?.slug || (product as any).slug || 'produit'));
+            const targetSlug = rawSlug.slice(0, 250);
             const targetDescription = (description !== undefined && description !== null && description.trim() !== '') ? description : (existingTranslation?.description || (product as any).description || '');
 
             updateData.translations = [{
@@ -1381,7 +1388,7 @@ export class VendorAdminResolver {
                 slug: targetSlug,
                 description: targetDescription,
                 customFields: {
-                    ...(shortDescription !== undefined ? { shortDescription } : {}),
+                    ...(safeShortDesc !== undefined ? { shortDescription: safeShortDesc } : {}),
                 }
             }];
         }
@@ -1389,10 +1396,10 @@ export class VendorAdminResolver {
         const updated = await this.productService.update(ctx, updateData);
 
         if (officialSku) {
-            await this.connection.rawConnection.query('UPDATE product_variant SET sku = $1 WHERE "productId" = $2', [officialSku, id]);
+            await this.connection.rawConnection.query('UPDATE product_variant SET sku = $1 WHERE "productId" = $2', [officialSku.slice(0, 250), id]);
         }
         if (ean) {
-            await this.connection.rawConnection.query('UPDATE product_variant SET "customFieldsEan" = $1 WHERE "productId" = $2', [ean, id]);
+            await this.connection.rawConnection.query('UPDATE product_variant SET "customFieldsEan" = $1 WHERE "productId" = $2', [ean.slice(0, 250), id]);
         }
 
         // Persist Option Groups and Product Variants Matrix if provided
@@ -1613,7 +1620,7 @@ export class VendorAdminResolver {
                                         price: price || primaryPrice || 0,
                                         stock: stock || 5,
                                         sku: sku || primaryVariant.sku || null,
-                                        status: offerStatus,
+                                        status: isOfferApproved ? 'approved' : 'pending',
                                         rejectionReason: null,
                                         condition: ProductCondition.NEW,
                                         deliveryTimeUnit: DeliveryTimeUnit.DAYS,
@@ -1623,8 +1630,10 @@ export class VendorAdminResolver {
                                 } else {
                                     if (price && price > 0) existingOffer.price = price;
                                     if (stock && stock > 0) existingOffer.stock = stock;
-                                    existingOffer.status = offerStatus;
-                                    if (isOfferApproved) existingOffer.rejectionReason = null;
+                                    if (isOfferApproved) {
+                                        existingOffer.status = 'approved';
+                                        existingOffer.rejectionReason = null;
+                                    }
                                     await sellerOfferRepo.save(existingOffer);
                                 }
                             } catch (soErr: any) {
@@ -1768,7 +1777,7 @@ export class VendorAdminResolver {
                                         price: price || primaryPrice || 0,
                                         stock: stock || 5,
                                         sku: sku || null,
-                                        status: offerStatus,
+                                        status: isOfferApproved ? 'approved' : 'pending',
                                         rejectionReason: null,
                                         condition: ProductCondition.NEW,
                                         deliveryTimeUnit: DeliveryTimeUnit.DAYS,
@@ -1778,8 +1787,10 @@ export class VendorAdminResolver {
                                 } else {
                                     if (price && price > 0) existingOffer.price = price;
                                     if (stock && stock > 0) existingOffer.stock = stock;
-                                    existingOffer.status = offerStatus;
-                                    if (isOfferApproved) existingOffer.rejectionReason = null;
+                                    if (isOfferApproved) {
+                                        existingOffer.status = 'approved';
+                                        existingOffer.rejectionReason = null;
+                                    }
                                     await sellerOfferRepo.save(existingOffer);
                                 }
                             } catch (soErr: any) {
@@ -2006,7 +2017,7 @@ export class VendorAdminResolver {
 
             await this.connection.rawConnection.query(
                 `UPDATE product_variant SET enabled = $1, "customFieldsOfferstatus" = $2, "customFieldsRejectionreason" = $3, "updatedAt" = NOW() WHERE id = $4`,
-                [shouldVariantBeEnabled, (hasApprovedOffers || isOfficialOrApproved) ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : 'PENDING'), offer.rejectionReason, offer.productVariant.id]
+                [shouldVariantBeEnabled, hasApprovedOffers ? 'APPROVED' : (status === 'rejected' ? 'REJECTED' : (status === 'correction_requested' ? 'CORRECTION_REQUESTED' : 'PENDING')), offer.rejectionReason, offer.productVariant.id]
             );
 
             // Recompute parent Product enabled state: product is enabled if and only if it has at least 1 approved variant or is official

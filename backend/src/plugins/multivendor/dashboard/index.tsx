@@ -1,5 +1,6 @@
 import { defineDashboardExtension } from '@vendure/dashboard';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { VendorListComponent } from './vendors-list';
 import { VendorDetailComponent } from './vendor-detail';
 import { ProductListComponent } from './products-list';
@@ -12,29 +13,31 @@ import { VendorSelector } from './vendor-selector';
 import { SuivreDiscussionsComponent } from './suivre-discussions';
 import { EmployeeRolesManagementComponent } from './employee-roles-management';
 import { AhizanAIHubComponent } from './ai-hub';
-import { AhizanAIChatDrawer } from './ai-chat-drawer';
 
-function AhizanAIProvider({ children }: { children: React.ReactNode }) {
-    return (
-        <>
-            {children}
-            <AhizanAIChatDrawer />
-        </>
-    );
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            refetchOnWindowFocus: false,
+            retry: 1,
+        },
+    },
+});
+
+function withQueryClient<P extends object>(Component: React.ComponentType<P>): React.FC<P> {
+    return function WrappedComponent(props: P) {
+        return (
+            <QueryClientProvider client={queryClient}>
+                <Component {...props} />
+            </QueryClientProvider>
+        );
+    };
 }
 
 export default defineDashboardExtension({
-    customProviders: [
-        {
-            id: 'ahizan-ai-drawer',
-            component: AhizanAIProvider,
-            location: 'app',
-        },
-    ],
     routes: [
         {
             path: 'ahizan-ai',
-            component: AhizanAIHubComponent,
+            component: withQueryClient(AhizanAIHubComponent),
             navMenuItem: {
                 id: 'ahizan-ai',
                 title: '✨ Ahizan AI (Hub)',
@@ -44,11 +47,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/ahizan-ai',
-            component: AhizanAIHubComponent,
+            component: withQueryClient(AhizanAIHubComponent),
         },
         {
             path: 'gestion-paiement',
-            component: PaymentManagementComponent,
+            component: withQueryClient(PaymentManagementComponent),
             navMenuItem: {
                 id: 'gestion-paiement',
                 title: 'Commissions & Règlements',
@@ -58,11 +61,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/gestion-paiement',
-            component: PaymentManagementComponent,
+            component: withQueryClient(PaymentManagementComponent),
         },
         {
             path: 'vendors',
-            component: VendorListComponent,
+            component: withQueryClient(VendorListComponent),
             navMenuItem: {
                 id: 'vendors',
                 title: 'Vendeurs',
@@ -72,19 +75,19 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/vendors',
-            component: VendorListComponent,
+            component: withQueryClient(VendorListComponent),
         },
         {
             path: 'vendors/:id',
-            component: VendorDetailComponent,
+            component: withQueryClient(VendorDetailComponent),
         },
         {
             path: 'extensions/vendors/:id',
-            component: VendorDetailComponent,
+            component: withQueryClient(VendorDetailComponent),
         },
         {
             path: 'vendor-orders',
-            component: OrdersListComponent,
+            component: withQueryClient(OrdersListComponent),
             navMenuItem: {
                 id: 'vendor-orders-list',
                 title: 'Ventes des Vendeurs',
@@ -94,15 +97,15 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/vendor-orders',
-            component: OrdersListComponent,
+            component: withQueryClient(OrdersListComponent),
         },
         {
             path: 'orders',
-            component: OrdersListComponent,
+            component: withQueryClient(OrdersListComponent),
         },
         {
             path: 'settings',
-            component: PlatformSettingsComponent,
+            component: withQueryClient(PlatformSettingsComponent),
             navMenuItem: {
                 id: 'platform-settings',
                 title: 'Paramètres',
@@ -112,11 +115,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/settings',
-            component: PlatformSettingsComponent,
+            component: withQueryClient(PlatformSettingsComponent),
         },
         {
             path: 'order-statuses',
-            component: OrderStatusesComponent,
+            component: withQueryClient(OrderStatusesComponent),
             navMenuItem: {
                 id: 'order-statuses',
                 title: 'Configuration des Statuts',
@@ -126,11 +129,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/order-statuses',
-            component: OrderStatusesComponent,
+            component: withQueryClient(OrderStatusesComponent),
         },
         {
             path: 'delivery-zones',
-            component: DeliveryZonesComponent,
+            component: withQueryClient(DeliveryZonesComponent),
             navMenuItem: {
                 id: 'delivery-zones',
                 title: 'Zones de livraison',
@@ -140,11 +143,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/delivery-zones',
-            component: DeliveryZonesComponent,
+            component: withQueryClient(DeliveryZonesComponent),
         },
         {
             path: 'marketplace-products',
-            component: ProductListComponent,
+            component: withQueryClient(ProductListComponent),
             navMenuItem: {
                 id: 'marketplace-products-list',
                 title: 'Produits Marketplace',
@@ -154,11 +157,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/marketplace-products',
-            component: ProductListComponent,
+            component: withQueryClient(ProductListComponent),
         },
         {
             path: 'suivre-discussions',
-            component: SuivreDiscussionsComponent,
+            component: withQueryClient(SuivreDiscussionsComponent),
             navMenuItem: {
                 id: 'suivre-discussions',
                 title: 'Suivre les discussions',
@@ -168,11 +171,11 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/suivre-discussions',
-            component: SuivreDiscussionsComponent,
+            component: withQueryClient(SuivreDiscussionsComponent),
         },
         {
             path: 'roles-employees',
-            component: EmployeeRolesManagementComponent,
+            component: withQueryClient(EmployeeRolesManagementComponent),
             navMenuItem: {
                 id: 'roles-employees',
                 title: 'Rôles & Employés',
@@ -182,7 +185,7 @@ export default defineDashboardExtension({
         },
         {
             path: 'extensions/roles-employees',
-            component: EmployeeRolesManagementComponent,
+            component: withQueryClient(EmployeeRolesManagementComponent),
         },
     ],
     navSections: [

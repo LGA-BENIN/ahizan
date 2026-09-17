@@ -735,9 +735,33 @@ export function AIProductAssistantModal({
         selectedImages,
         specs: proposal.technicalSpecs || [],
         facetValueIds: Array.from(selectedFacetValueIds),
-        isSpamRejection: !proposal.isValidSubmission,
-        rejectionReason: proposal.rejectionSuggestedMessage,
+        isSpamRejection: false, // SuperAdmin validated and normalized the product -> always approve!
+        rejectionReason: undefined,
         targetProductIdToRegraft: (overrideRegraft && analysis?.duplicateMatch?.found) ? analysis.duplicateMatch.targetProductId : undefined,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!proposal) return;
+    const reason = prompt("Motif de refus du produit à notifier au vendeur :", proposal.rejectionSuggestedMessage || "Produit non conforme aux critères du catalogue officiel.");
+    if (reason === null) return; // User canceled
+    setIsSaving(true);
+    try {
+      await onApplySuggestions({
+        title: proposal.name,
+        shortDescription: proposal.shortDescription,
+        description: proposal.description || '',
+        seoTitle: proposal.seoTitle,
+        seoDescription: proposal.seoDescription,
+        collectionId: selectedCollectionIds[0] || proposal.collectionId,
+        selectedImages: [],
+        specs: [],
+        facetValueIds: [],
+        isSpamRejection: true,
+        rejectionReason: reason.trim() || 'Non conforme',
       });
     } finally {
       setIsSaving(false);
@@ -1776,6 +1800,24 @@ export function AIProductAssistantModal({
 
             {proposal && (
               <>
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={isSaving}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    border: '1px solid #fecaca',
+                    background: '#fee2e2',
+                    color: '#991b1b',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: isSaving ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Rejeter ce produit et notifier le vendeur du motif de refus"
+                >
+                  🚫 Rejeter
+                </button>
                 {/* 1. Bouton Re-greffage (Uniquement si doublon détecté, action secondaire claire) */}
                 {analysis?.duplicateMatch?.found && (
                   <button

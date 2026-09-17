@@ -29,19 +29,10 @@ export default async function WalletPage() {
         o.customFields?.sellerStatus !== 'reassigned_to_other'
     );
 
-    const totalSales = typeof stats?.netEarnings === 'number' && stats?.netEarnings > 0 ? stats.netEarnings : activeOrders.reduce((sum: number, o: any) => {
-        if (o.state === 'Cancelled' || o.state === 'ArrangingPayment' || o.state === 'AddingItems') return sum;
-        const total = o.totalWithTax || 0;
-        const commission = o.customFields?.commissionAmount || 0;
-        return sum + Math.max(0, total - commission);
-    }, 0);
-
-    const withdrawnAmount = stats?.totalWithdrawn !== undefined ? stats.totalWithdrawn : withdrawals
-        .filter((w: any) => w.status === 'APPROVED')
-        .reduce((sum: number, w: any) => sum + w.amount, 0);
-
-    const availableBalance = stats?.availableBalance !== undefined ? stats.availableBalance : 0;
-    const pendingBalance = stats?.pendingBalance !== undefined ? stats.pendingBalance : 0;
+    const totalSales = typeof stats?.netEarnings === 'number' ? stats.netEarnings : 0;
+    const withdrawnAmount = typeof stats?.totalWithdrawn === 'number' ? stats.totalWithdrawn : 0;
+    const availableBalance = typeof stats?.availableBalance === 'number' ? stats.availableBalance : 0;
+    const pendingBalance = typeof stats?.pendingBalance === 'number' ? stats.pendingBalance : 0;
 
     return (
         <WalletClientContent

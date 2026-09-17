@@ -16,6 +16,7 @@ export const GetMyVendorOrdersQuery = graphql(`
                     adminStatus
                     paymentStatus
                     commissionAmount
+                    commissionRate
                 }
                 customer {
                     firstName

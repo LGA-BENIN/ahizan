@@ -37,7 +37,7 @@ export class LogisticsHubService {
         vendorId: string
     ): Promise<DeliveryMission> {
         const order = await this.connection.getEntityOrThrow(ctx, Order, orderId, {
-            relations: ['lines', 'shippingAddress']
+            relations: ['lines']
         });
         const vendor = await this.connection.getEntityOrThrow(ctx, Vendor, vendorId);
 
@@ -134,8 +134,7 @@ export class LogisticsHubService {
     ): Promise<{ mission: DeliveryMission; otpCode: string }> {
         const orderRepo = this.connection.getRepository(ctx, Order);
         const order = await orderRepo.findOne({
-            where: { id: orderId },
-            relations: ['shippingAddress']
+            where: { id: orderId }
         });
 
         if (!order) {

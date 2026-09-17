@@ -471,13 +471,13 @@ export async function requestVendorWithdrawal(amount: number) {
     if (!token) return false;
     try {
         const result = await query(
-            `mutation RequestWithdrawal($amount: Int!) {
-                requestWithdrawal(amount: $amount)
+            `mutation RequestVendorWithdrawal($amount: Int!) {
+                requestVendorWithdrawal(amount: $amount)
             }`,
             { amount },
             { token, useAuthToken: true }
         );
-        return (result.data as any)?.requestWithdrawal || false;
+        return (result.data as any)?.requestVendorWithdrawal || false;
     } catch (e) {
         console.error('[requestVendorWithdrawal] Error requesting withdrawal:', e);
         return false;

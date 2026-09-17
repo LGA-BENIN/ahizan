@@ -50,13 +50,25 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
     ).length;
     const remainingActiveLinesCount = totalLinesCount - cancelledOrRefusedLinesCount;
 
-    // Check if any vendor has refused / reassigning pending customer decision
-    const cancelledVendorGroups = vendorGroups.filter(group => {
-        const vId = String(group.vendor?.id || 'default');
-        const vStat = vendorStatusesMap[vId]?.sellerStatus || 'pending';
-        const hasRefusedLine = group.lines.some(l => l.customFields?.sellerStatus === 'refused' || l.customFields?.sellerStatus === 'reassigning');
-        return vStat === 'refused' || vStat === 'reassigning' || hasRefusedLine;
-    });
+    // Active refused lines that actually need customer resolution (only if quantity > 0)
+    const activeRefusedLines = (order.lines || []).filter((l: any) =>
+        (l.customFields?.sellerStatus === 'refused' || l.customFields?.sellerStatus === 'reassigning') &&
+        (Number(l.quantity) > 0)
+    );
+
+    const isDelivered = order.state === 'Delivered' || 
+                        order.customFields?.adminStatus === 'delivered' || 
+                        order.customFields?.adminstatus === 'delivered';
+    const isCancelled = order.state === 'Cancelled' || 
+                        order.customFields?.adminStatus === 'cancelled' || 
+                        order.customFields?.adminstatus === 'cancelled';
+    const isShippedOrDelivered = isDelivered || 
+                                 order.state === 'Shipped' || 
+                                 order.customFields?.adminStatus === 'shipped' || 
+                                 order.customFields?.deliveryMissionStatus === 'OUT_FOR_DELIVERY';
+
+    // Show banner ONLY when there are active refused lines with quantity > 0 AND the order is not yet shipped, delivered or cancelled
+    const showRefusalBanner = activeRefusedLines.length > 0 && !isCancelled && !isShippedOrDelivered;
 
     const handleContinueWithoutReassigned = async (lineId?: string) => {
         const targetId = lineId || 'all';
@@ -76,6 +88,10 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
     };
 
     const handleCancelOrder = async () => {
+        if (isDelivered) {
+            setErrorMsg("Une commande déjà livrée ne peut plus être annulée.");
+            return;
+        }
         if (!confirm('Êtes-vous sûr de vouloir annuler la totalité de cette commande ?')) return;
         setLoadingVendorId('cancel');
         setErrorMsg(null);
@@ -92,14 +108,10 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
         }
     };
 
-    const reassignedLines = (order.lines || []).filter((l: any) =>
-        l.customFields?.sellerStatus === 'refused' || l.customFields?.sellerStatus === 'reassigning'
-    );
-
     return (
         <div className="space-y-6">
-            {/* Banner if vendor cancellation occurs */}
-            {cancelledVendorGroups.length > 0 && order.state !== 'Cancelled' && (
+            {/* Banner if vendor cancellation occurs and customer action is required */}
+            {showRefusalBanner && (
                 <Card className="border-2 border-amber-400 bg-amber-50/50 shadow-md">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base text-amber-900 flex items-center gap-2">
@@ -124,28 +136,30 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
                                 size="sm"
                                 variant="default"
                                 disabled={loadingVendorId !== null}
-                                onClick={() => handleContinueWithoutReassigned(reassignedLines.length === 1 ? reassignedLines[0].id : undefined)}
+                                onClick={() => handleContinueWithoutReassigned(activeRefusedLines.length === 1 ? activeRefusedLines[0].id : undefined)}
                                 className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow"
                             >
-                                {loadingVendorId === 'all' || (reassignedLines.length === 1 && loadingVendorId === reassignedLines[0].id) ? (
+                                {loadingVendorId === 'all' || (activeRefusedLines.length === 1 && loadingVendorId === activeRefusedLines[0].id) ? (
                                     <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
                                 ) : (
                                     <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                                 )}
-                                {reassignedLines.length > 1 ? 'Continuer la commande sans les produits refusés' : 'Continuer la commande sans ce produit'}
+                                {activeRefusedLines.length > 1 ? 'Continuer la commande sans les produits refusés' : 'Continuer la commande sans ce produit'}
                             </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={loadingVendorId !== null}
-                                onClick={handleCancelOrder}
-                                className="border-rose-300 text-rose-700 hover:bg-rose-100 font-bold text-xs"
-                            >
-                                {loadingVendorId === 'cancel' ? (
-                                    <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                                ) : null}
-                                Annuler la commande
-                            </Button>
+                            {!isDelivered && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={loadingVendorId !== null}
+                                    onClick={handleCancelOrder}
+                                    className="border-rose-300 text-rose-700 hover:bg-rose-100 font-bold text-xs"
+                                >
+                                    {loadingVendorId === 'cancel' ? (
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                    ) : null}
+                                    Annuler la commande
+                                </Button>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -239,7 +253,7 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
                                                             Annulé par le client
                                                         </span>
                                                     )}
-                                                    {(line.customFields?.sellerStatus === 'refused' || line.customFields?.sellerStatus === 'reassigning') && order.state !== 'Cancelled' && (
+                                                    {(line.customFields?.sellerStatus === 'refused' || line.customFields?.sellerStatus === 'reassigning') && Number(line.quantity) > 0 && !isCancelled && !isShippedOrDelivered && (
                                                         <Button
                                                             size="sm"
                                                             disabled={loadingVendorId !== null}

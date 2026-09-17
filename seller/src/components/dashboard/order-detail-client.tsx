@@ -15,7 +15,8 @@ import {
     Check, 
     X,
     Printer,
-    Boxes
+    Boxes,
+    HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -37,15 +38,16 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
     // Calculate line counts and statuses for active seller lines
     const activeSellerLines = lines.filter((l: any) => (l.customFields?.sellerStatus || 'pending') !== 'reassigned_to_other');
     const pendingLines = activeSellerLines.filter((l: any) => (l.customFields?.sellerStatus || 'pending') === 'pending');
+    const confirmedLines = activeSellerLines.filter((l: any) => {
+        const s = l.customFields?.sellerStatus || 'pending';
+        return s === 'confirmed' || s === 'approved';
+    });
     const hasRejectedLines = activeSellerLines.some((l: any) => {
         const s = l.customFields?.sellerStatus || 'pending';
         return s === 'refused' || s === 'reassigning';
     });
     const hasPendingLines = pendingLines.length > 0;
-    const allLinesConfirmed = activeSellerLines.length > 0 && activeSellerLines.every((l: any) => {
-        const s = l.customFields?.sellerStatus || 'pending';
-        return s === 'confirmed' || s === 'approved';
-    });
+    const canMarkReady = confirmedLines.length > 0 && pendingLines.length === 0;
     const isReadyForPickup = order.customFields?.sellerStatus === 'ready_for_pickup';
     
     // Validate All button is shown only if there are pending lines and NO rejected lines
@@ -134,74 +136,89 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         }
     };
 
-    const subTotal = order.subTotalWithTax || order.subTotal || 0;
-    const shipping = order.shippingWithTax || order.shipping || 0;
-    const total = subTotal + shipping;
+    // Calculate vendor-specific subtotal from active lines
+    const sellerSubTotal = lines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || (l.unitPriceWithTax * l.quantity) || 0), 0);
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 print:m-0 print:p-0">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 print:m-0 print:p-0">
             {/* Header */}
-            <div>
-                <Link href="/dashboard/orders" className="flex items-center gap-2 text-brand-navy hover:underline mb-4 text-xs font-bold uppercase tracking-widest print:hidden">
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    Retour aux commandes
-                </Link>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" asChild className="rounded-full print:hidden">
+                        <Link href="/dashboard/orders">
+                            <ArrowLeft className="w-5 h-5" />
+                        </Link>
+                    </Button>
                     <div>
-                        <h1 className="text-3xl font-serif font-black tracking-tight text-foreground">Commande #{order.code}</h1>
-                        <div className="flex items-center gap-3 mt-3">
-                            <span className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full border ${getStatusColor(order.state)}`}>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-serif font-black text-brand-navy">
+                                Commande #{order.code}
+                            </h1>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(order.state)}`}>
                                 {getStatusLabel(order.state)}
                             </span>
-                            <span className="text-[11px] text-muted-foreground font-bold flex items-center gap-1.5 uppercase">
-                                <Clock className="w-3.5 h-3.5 text-brand-navy" />
-                                {new Date(order.createdAt).toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </span>
                         </div>
+                        <p className="text-xs text-muted-foreground font-bold mt-1 flex items-center gap-1.5 uppercase">
+                            <Clock className="w-3.5 h-3.5 text-brand-navy" />
+                            Passée le {new Date(order.createdAt).toLocaleDateString('fr-FR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}
+                        </p>
                     </div>
+                </div>
 
-                    {/* Header Actions */}
-                    <div className="flex flex-wrap items-center gap-3 print:hidden">
+                <div className="flex items-center gap-2 print:hidden">
+                    <Button variant="outline" size="sm" onClick={handlePrintPackingSlip} className="font-bold gap-2">
+                        <Printer className="w-4 h-4" /> Imprimer le bordereau
+                    </Button>
+                    {showValidateAll && !isShippedOrDelivered && (
                         <Button 
-                            onClick={handlePrintPackingSlip}
-                            variant="outline"
-                            className="rounded-xl font-bold uppercase text-xs tracking-wider h-11 px-4 flex items-center gap-2 border-border"
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleValidateAll}
+                            disabled={loading}
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold gap-2"
                         >
-                            <Printer className="w-4 h-4" />
-                            Bon de livraison
+                            <Check className="w-4 h-4" /> Tout valider ({pendingLines.length})
                         </Button>
-
-                        {allLinesConfirmed && !isShippedOrDelivered && (
-                            <Button 
-                                onClick={handleMarkReadyForPickup}
-                                disabled={loading || isReadyForPickup}
-                                className="bg-brand-navy hover:bg-brand-navy/90 text-white rounded-xl font-bold uppercase text-xs tracking-wider h-11 px-5 flex items-center gap-2 shadow-lg shadow-brand-navy/20"
-                            >
-                                <Boxes className="w-4 h-4" />
-                                {isReadyForPickup ? 'Colis Prêt pour Ramassage' : '📦 Colis prêt pour ramassage Ahizan'}
-                            </Button>
-                        )}
-
-                        {showValidateAll && (
-                            <Button 
-                                onClick={handleValidateAll}
-                                disabled={loading}
-                                className="bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold uppercase text-xs tracking-wider h-11 px-5 flex items-center gap-2"
-                            >
-                                <Check className="w-4 h-4" />
-                                {loading ? 'Validation...' : 'Valider & Préparer Tout'}
-                            </Button>
-                        )}
-                        {!showValidateAll && hasPendingLines && (
-                            <div className="flex items-center gap-1.5 text-xs text-amber-600 font-bold bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                <AlertCircle className="w-4 h-4 shrink-0" />
-                                <span>Action "Valider Tout" bloquée : certains articles ont été refusés</span>
-                            </div>
-                        )}
-                    </div>
+                    )}
+                    {canMarkReady && !isReadyForPickup && !isShippedOrDelivered && (
+                        <Button 
+                            variant="default" 
+                            size="sm" 
+                            onClick={handleMarkReadyForPickup}
+                            disabled={loading}
+                            className="bg-brand-navy hover:bg-brand-navy/90 text-white font-bold gap-2"
+                        >
+                            <Boxes className="w-4 h-4" /> Colis prêt pour ramassage ({confirmedLines.length} article{confirmedLines.length > 1 ? 's' : ''})
+                        </Button>
+                    )}
+                    {isReadyForPickup && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-4 h-4 animate-spin text-amber-600" /> Prêt pour ramassage
+                        </span>
+                    )}
                 </div>
             </div>
 
+            {/* Rejection Alert Banner if any lines are rejected/reassigning */}
+            {hasRejectedLines && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-800 print:hidden">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600" />
+                    <div className="text-sm">
+                        <p className="font-bold">Articles en cours de réassignation</p>
+                        <p className="text-xs text-amber-700 mt-0.5">
+                            Certains articles de cette commande ont été refusés. Les équipes d'Ahizan les réassignent actuellement à d'autres vendeurs. Vos articles validés restent confirmés.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Grid Layout for Customer and Payment Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Customer Info */}
                 <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
@@ -210,19 +227,15 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                         Client
                     </h2>
                     {order.customer ? (
-                        <div className="space-y-3">
-                            <p className="font-black text-lg text-foreground tracking-tight">
-                                {order.customer.firstName} {order.customer.lastName}
-                            </p>
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium text-muted-foreground underline decoration-brand-navy/20">{order.customer.emailAddress}</p>
-                                {order.customer.phoneNumber && (
-                                    <p className="text-sm font-bold text-foreground">{order.customer.phoneNumber}</p>
-                                )}
-                            </div>
+                        <div className="space-y-1 text-sm">
+                            <p className="font-black text-foreground">{order.customer.firstName} {order.customer.lastName}</p>
+                            <p className="text-muted-foreground text-xs">{order.customer.emailAddress}</p>
+                            {order.customer.phoneNumber && (
+                                <p className="text-xs font-bold text-brand-navy mt-2">{order.customer.phoneNumber}</p>
+                            )}
                         </div>
                     ) : (
-                        <p className="text-sm text-muted-foreground italic">Non disponible</p>
+                        <p className="text-sm text-muted-foreground italic">Client Invité</p>
                     )}
                 </div>
 
@@ -230,13 +243,11 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                 <div className="bg-card rounded-2xl border border-border p-6 shadow-sm">
                     <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-brand-navy" />
-                        Livraison
+                        Adresse de Livraison
                     </h2>
-                    {order.shippingAddress && order.shippingAddress.streetLine1 ? (
-                        <div className="space-y-1 text-sm font-medium text-foreground leading-relaxed">
-                            {order.shippingAddress.fullName && (
-                                <p className="font-black mb-1">{order.shippingAddress.fullName}</p>
-                            )}
+                    {order.shippingAddress ? (
+                        <div className="space-y-1 text-sm text-muted-foreground">
+                            <p className="font-bold text-foreground">{order.shippingAddress.fullName}</p>
                             <p>{order.shippingAddress.streetLine1}</p>
                             {order.shippingAddress.streetLine2 && (
                                 <p>{order.shippingAddress.streetLine2}</p>
@@ -262,16 +273,12 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     </h2>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <span className="text-xs font-bold text-muted-foreground uppercase">Sous-total</span>
-                            <span className="text-sm font-bold">{formatPrice(subTotal)}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <span className="text-xs font-bold text-muted-foreground uppercase">Livraison</span>
-                            <span className="text-sm font-bold">{formatPrice(shipping)}</span>
+                            <span className="text-xs font-bold text-muted-foreground uppercase">Sous-total (Mes articles)</span>
+                            <span className="text-sm font-bold">{formatPrice(sellerSubTotal)}</span>
                         </div>
                         <div className="pt-2 flex justify-between items-center">
-                            <span className="text-sm font-black text-brand-navy uppercase">Total</span>
-                            <span className="text-2xl font-serif font-black text-brand-navy underline decoration-brand-red decoration-4 transition-all">{formatPrice(total)}</span>
+                            <span className="text-sm font-black text-brand-navy uppercase">Total articles</span>
+                            <span className="text-2xl font-serif font-black text-brand-navy underline decoration-brand-red decoration-4 transition-all">{formatPrice(sellerSubTotal)}</span>
                         </div>
                     </div>
                 </div>
@@ -351,20 +358,30 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                                                         Refuser
                                                     </Button>
                                                 </div>
-                                            ) : status === 'confirmed' ? (
+                                            ) : status === 'confirmed' || status === 'approved' ? (
                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 border border-green-200 text-green-700 rounded-full text-xs font-black uppercase tracking-wider">
                                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                                     Validé
                                                 </span>
-                                            ) : status === 'reassigning' || status === 'refused' ? (
+                                            ) : status === 'reassigning' ? (
                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-xs font-black uppercase tracking-wider">
                                                     <AlertCircle className="w-3.5 h-3.5 animate-pulse" />
                                                     En réassignation
+                                                </span>
+                                            ) : status === 'refused' || status === 'rejected' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 text-red-700 rounded-full text-xs font-black uppercase tracking-wider">
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                    Refusé
                                                 </span>
                                             ) : status === 'reassigned_to_other' ? (
                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 border border-gray-200 text-gray-500 rounded-full text-xs font-black uppercase tracking-wider">
                                                     <XCircle className="w-3.5 h-3.5" />
                                                     Réassigné
+                                                </span>
+                                            ) : status === 'cancelled' || status === 'customer_cancelled' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 text-red-600 rounded-full text-xs font-black uppercase tracking-wider">
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                    Annulé
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 border border-gray-200 text-gray-500 rounded-full text-xs font-black uppercase tracking-wider">

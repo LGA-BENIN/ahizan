@@ -1159,6 +1159,7 @@ export function ProductListComponent() {
         seoTitle: string;
         seoDescription: string;
         collectionId?: string;
+        collectionIds?: string[];
         facetValueIds?: string[];
         selectedImages: any[];
         specs: any[];
@@ -1233,29 +1234,39 @@ export function ProductListComponent() {
                 return;
             }
 
-            const cleanSlug = cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            const targetCollectionIds = data.collectionId ? [data.collectionId] : (officialCollectionIds.length > 0 ? officialCollectionIds : undefined);
-
-            const formattedImages = (data.selectedImages && data.selectedImages.length > 0)
-                ? data.selectedImages.map((img: any) => ({
-                    url: img.url || img.previewUrl,
+            const safeTitle = cleanTitle.slice(0, 250);
+            const rawSlug = (data.seoTitle && data.seoTitle.trim()) 
+                ? data.seoTitle.trim() 
+                : cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const safeSlug = rawSlug.slice(0, 250);
+            const safeShortDesc = data.shortDescription?.trim() ? data.shortDescription.trim().slice(0, 250) : undefined;
+            const targetCollectionIds = (data.collectionIds && data.collectionIds.length > 0) 
+                ? data.collectionIds 
+                : (data.collectionId ? [data.collectionId] : undefined);
+            
+            const formattedImages = (data.selectedImages || []).map((img: any) => {
+                if (typeof img === 'string') {
+                    return { url: img, isPrimary: false };
+                }
+                return {
+                    url: img.url || img.preview || img.source || '',
                     isPrimary: !!img.isPrimary,
-                    label: img.label || '',
-                }))
-                : undefined;
+                    label: img.label || undefined,
+                };
+            }).filter((img: any) => !!img.url);
 
             await fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
                 id: currentProdId,
                 status: 'approved',
                 convertToOfficialCatalog: true,
-                name: cleanTitle,
-                slug: cleanSlug || undefined,
-                shortDescription: data.shortDescription?.trim() || undefined,
+                name: safeTitle,
+                slug: safeSlug || undefined,
+                shortDescription: safeShortDesc,
                 description: data.description?.trim() || undefined,
                 collectionIds: targetCollectionIds,
                 facetValueIds: data.facetValueIds && data.facetValueIds.length > 0 ? data.facetValueIds : undefined,
-                approveVendorOffer: false, // Seller offer is preserved in pending status for separate moderation
-                selectedImages: formattedImages,
+                approveVendorOffer: false, // Do not auto-approve seller offers; admin approves declinations and offers manually!
+                selectedImages: formattedImages.length > 0 ? formattedImages : undefined,
             });
 
             await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
@@ -2316,6 +2327,27 @@ export function ProductListComponent() {
                                                                     }}
                                                                 >
                                                                     Examiner
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement la proposition "${product.name}" ?`)) {
+                                                                            deleteMutation.mutate(product.id);
+                                                                        }
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '8px 14px',
+                                                                        borderRadius: '8px',
+                                                                        background: '#dc2626',
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        fontSize: '12px',
+                                                                        fontWeight: 700,
+                                                                        cursor: 'pointer',
+                                                                        transition: 'background 0.15s ease'
+                                                                    }}
+                                                                    title="Supprimer cette proposition de produit"
+                                                                >
+                                                                    Supprimer
                                                                 </button>
                                                             </div>
                                                         )}

@@ -2343,21 +2343,7 @@ export class VendorShopResolver {
         @Ctx() ctx: RequestContext,
         @Args('orderId') orderId: string
     ): Promise<boolean> {
-        try {
-            // Trigger native Vendure order cancellation state machine
-            await this.orderService.transitionToState(ctx, orderId, 'Cancelled').catch(err => {
-                console.warn('[cancelCustomerOrder] Transition warning:', err?.message || err);
-            });
-            // Update custom status fields for marketplace consistency
-            await this.connection.rawConnection.query(
-                `UPDATE "order" SET "customFieldsSellerstatus" = 'refused', "customFieldsAdminstatus" = 'cancelled' WHERE id = $1`,
-                [orderId]
-            );
-            return true;
-        } catch (e) {
-            console.error('[cancelCustomerOrder] Error cancelling order:', e);
-            return false;
-        }
+        return this.vendorService.handleCustomerOrderCancellation(ctx, orderId);
     }
 
     /**

@@ -100,16 +100,25 @@ export default function WalletClientContent({
         }
 
         const headers = ["ID Commande", "Code", "Date", "Montant Brut (FCFA)", "Commission (FCFA)", "Gain Net (FCFA)", "Statut Vendeur", "Statut Paiement"];
-        const rows = orders.map((o: any) => [
-            `"${o.id}"`,
-            `"${o.code}"`,
-            `"${new Date(o.createdAt).toLocaleDateString('fr-FR')}"`,
-            Number(o.totalWithTax || 0).toFixed(0),
-            Number(o.customFields?.commissionAmount || 0).toFixed(0),
-            Number((o.totalWithTax || 0) - (o.customFields?.commissionAmount || 0)).toFixed(0),
-            `"${o.customFields?.sellerStatus || 'pending'}"`,
-            `"${o.customFields?.paymentStatus || 'PENDING'}"`
-        ]);
+        const rows = orders.map((o: any) => {
+            const total = Number(o.totalWithTax || 0);
+            const rate = Number(o.customFields?.commissionRate ?? 10);
+            const commission = (typeof o.customFields?.commissionAmount === 'number' && o.customFields.commissionAmount < total)
+                ? Number(o.customFields.commissionAmount)
+                : Math.round((total * rate) / 100);
+            const net = Math.max(0, total - commission);
+
+            return [
+                `"${o.id}"`,
+                `"${o.code}"`,
+                `"${new Date(o.createdAt).toLocaleDateString('fr-FR')}"`,
+                total.toFixed(0),
+                commission.toFixed(0),
+                net.toFixed(0),
+                `"${o.customFields?.sellerStatus || 'pending'}"`,
+                `"${o.customFields?.paymentStatus || 'PENDING'}"`
+            ];
+        });
 
         const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
             + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
@@ -263,8 +272,11 @@ export default function WalletClientContent({
                                             {orders.map((o: any) => {
                                                 const status = o.customFields?.paymentStatus || 'PENDING';
                                                 const total = o.totalWithTax || 0;
-                                                const commission = o.customFields?.commissionAmount || 0;
-                                                const net = total - commission;
+                                                const rate = Number(o.customFields?.commissionRate ?? 10);
+                                                const commission = (typeof o.customFields?.commissionAmount === 'number' && o.customFields.commissionAmount < total)
+                                                    ? Number(o.customFields.commissionAmount)
+                                                    : Math.round((total * rate) / 100);
+                                                const net = Math.max(0, total - commission);
 
                                                 return (
                                                     <tr key={o.id} className="hover:bg-muted/20 transition-colors">
@@ -507,11 +519,7 @@ export default function WalletClientContent({
                         <div className="space-y-3">
                             <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Articles concernés</h4>
                             <div className="space-y-2">
-                                {selectedOrder.lines?.filter((line: any) => {
-                                    const lineVendorId = line.productVariant?.product?.customFields?.vendor?.id || 
-                                                         line.productVariant?.product?.vendorId;
-                                    return String(lineVendorId) === String(vendor?.id);
-                                }).map((line: any) => (
+                                {(selectedOrder.lines || []).map((line: any) => (
                                     <div key={line.id} className="flex justify-between items-center p-3 bg-muted/10 border border-border rounded-xl text-xs">
                                         <div>
                                             <p className="font-bold text-foreground">{line.productVariant?.name}</p>
@@ -524,23 +532,34 @@ export default function WalletClientContent({
                         </div>
 
                         {/* Commission Breakdown */}
-                        <div className="space-y-3">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Répartition Financière</h4>
-                            <div className="p-5 rounded-2xl bg-muted/40 border border-border space-y-3 text-xs">
-                                <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Total Articles :</span>
-                                    <span className="font-bold text-foreground">{formatPrice(selectedOrder.totalWithTax, currencyCode)}</span>
+                        {(() => {
+                            const modalTotal = selectedOrder.totalWithTax || 0;
+                            const modalRate = Number(selectedOrder.customFields?.commissionRate ?? 10);
+                            const modalComm = (typeof selectedOrder.customFields?.commissionAmount === 'number' && selectedOrder.customFields.commissionAmount < modalTotal)
+                                ? Number(selectedOrder.customFields.commissionAmount)
+                                : Math.round((modalTotal * modalRate) / 100);
+                            const modalNet = Math.max(0, modalTotal - modalComm);
+
+                            return (
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Répartition Financière</h4>
+                                    <div className="p-5 rounded-2xl bg-muted/40 border border-border space-y-3 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Total Articles :</span>
+                                            <span className="font-bold text-foreground">{formatPrice(modalTotal, currencyCode)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-red-600 font-bold">
+                                            <span>Commission Marketplace ({modalRate}%) :</span>
+                                            <span>- {formatPrice(modalComm, currencyCode)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-emerald-600 font-extrabold text-sm border-t border-dashed border-border pt-3">
+                                            <span>Votre part nette :</span>
+                                            <span className="text-base font-serif font-black">{formatPrice(modalNet, currencyCode)}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between text-red-600 font-bold">
-                                    <span>Commission Marketplace ({selectedOrder.customFields?.commissionRate || 0}%) :</span>
-                                    <span>- {formatPrice(selectedOrder.customFields?.commissionAmount || 0, currencyCode)}</span>
-                                </div>
-                                <div className="flex justify-between text-emerald-600 font-extrabold text-sm border-t border-dashed border-border pt-3">
-                                    <span>Votre part nette :</span>
-                                    <span className="text-base font-serif font-black">{formatPrice(selectedOrder.totalWithTax - (selectedOrder.customFields?.commissionAmount || 0), currencyCode)}</span>
-                                </div>
-                            </div>
-                        </div>
+                            );
+                        })()}
 
                         {/* Modal Footer */}
                         <div className="flex justify-end pt-2">

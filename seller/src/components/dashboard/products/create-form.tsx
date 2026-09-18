@@ -209,6 +209,42 @@ const DEFAULT_OPTION_GROUPS = [
     }
 ];
 
+export const CANONICAL_OPTION_GROUP_PRIORITY = [
+    'taille',
+    'pointure',
+    'taille-d-cran',
+    'ecran',
+    'dimentions',
+    'dimensions',
+    'capacite',
+    'capacit-stockage',
+    'capacit-de-stockage',
+    'volume',
+    'poids',
+    'grammage-gm',
+    'couleur',
+    'matiere',
+    'genre',
+];
+
+export function sortOptionGroupsByCanonicalOrder<T extends { code?: string; name?: string }>(groups: T[]): T[] {
+    return [...groups].sort((a, b) => {
+        const codeA = (a.code || a.name || '').toLowerCase().trim();
+        const codeB = (b.code || b.name || '').toLowerCase().trim();
+
+        const getScore = (code: string) => {
+            const idx = CANONICAL_OPTION_GROUP_PRIORITY.findIndex(k => code === k || code.startsWith(k));
+            return idx === -1 ? 999 : idx;
+        };
+
+        const scoreA = getScore(codeA);
+        const scoreB = getScore(codeB);
+
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' });
+    });
+}
+
 export default function CreateProductForm({ 
     collectionTree, 
     initialProduct,
@@ -267,7 +303,7 @@ export default function CreateProductForm({
         onPromotion: initialVariants[0]?.onPromotion || false,
         promotionalPrice: initialVariants[0]?.promotionalPrice || 0,
         deliveryTimeValue: 2,
-        deliveryTimeUnit: 'd',
+        deliveryTimeUnit: 'h',
         condition: 'NEW',
     });
 
@@ -628,7 +664,7 @@ export default function CreateProductForm({
                 const res = await query(GET_GLOBAL_OPTION_GROUPS_QUERY, {});
                 const fetched = res.data?.getGlobalOptionGroups;
                 if (Array.isArray(fetched) && fetched.length > 0) {
-                    setGlobalOptionGroups(fetched);
+                    setGlobalOptionGroups(sortOptionGroupsByCanonicalOrder(fetched));
                 }
             } catch (err) {
                 console.error('[CreateProductForm] Failed to fetch option groups:', err);
@@ -705,20 +741,21 @@ export default function CreateProductForm({
             return;
         }
 
-        // 1. Sort option groups deterministically to ensure canonical order (e.g. alphabetical by group name)
-        const activeGroupEntries = selectedStandardGroups
-            .map(groupId => {
-                const group = globalOptionGroups.find(g => g.id === groupId);
-                return {
-                    id: groupId,
-                    name: group?.name || 'Option',
-                    code: group?.code || 'option',
-                    // Deduplicate values within the group
-                    values: Array.from(new Set((groupValuesMap[groupId] || []).map(v => v.trim()).filter(Boolean)))
-                };
-            })
-            .filter(g => g.values.length > 0)
-            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+        // 1. Sort option groups by standard canonical hierarchy (Taille -> Pointure -> Capacité -> Couleur -> Matière...)
+        const activeGroupEntries = sortOptionGroupsByCanonicalOrder(
+            selectedStandardGroups
+                .map(groupId => {
+                    const group = globalOptionGroups.find(g => g.id === groupId);
+                    return {
+                        id: groupId,
+                        name: group?.name || 'Option',
+                        code: group?.code || 'option',
+                        // Deduplicate values within the group
+                        values: Array.from(new Set((groupValuesMap[groupId] || []).map(v => v.trim()).filter(Boolean)))
+                    };
+                })
+                .filter(g => g.values.length > 0)
+        );
 
         if (activeGroupEntries.length === 0) {
             setVariants([{ id: '1', name: 'Standard', sku: '', price: formData.price || 0, stock: formData.stock || 0, onPromotion: formData.onPromotion, promotionalPrice: formData.promotionalPrice || 0, enabled: true, featuredAssetId: null, assets: [] }]);
@@ -793,10 +830,6 @@ export default function CreateProductForm({
     // Validation per step
     const handleNextStep = () => {
         if (currentStep === 1) {
-            if (assets.length === 0) {
-                toast.error("Veuillez ajouter au moins une photo de votre article.");
-                return;
-            }
             setCurrentStep(2);
         } else if (currentStep === 2) {
             if (!formData.name.trim()) {
@@ -848,17 +881,19 @@ export default function CreateProductForm({
             if (formData.height) submitFormData.append('height', formData.height);
 
             const activeGroupEntries = hasMultipleVariants
-                ? selectedStandardGroups
-                    .map(groupId => {
-                        const group = globalOptionGroups.find(g => g.id === groupId);
-                        return {
-                            id: group?.id || groupId,
-                            name: group?.name || 'Option',
-                            code: group?.code || group?.name?.toLowerCase()?.replace(/[^a-z0-9]+/g, '-') || 'option',
-                            values: groupValuesMap[groupId] || []
-                        };
-                    })
-                    .filter(g => g.values.length > 0)
+                ? sortOptionGroupsByCanonicalOrder(
+                    selectedStandardGroups
+                        .map(groupId => {
+                            const group = globalOptionGroups.find(g => g.id === groupId);
+                            return {
+                                id: group?.id || groupId,
+                                name: group?.name || 'Option',
+                                code: group?.code || group?.name?.toLowerCase()?.replace(/[^a-z0-9]+/g, '-') || 'option',
+                                values: groupValuesMap[groupId] || []
+                            };
+                        })
+                        .filter(g => g.values.length > 0)
+                )
                 : [];
 
             const optionGroupsPayload = activeGroupEntries.map(g => ({
@@ -937,6 +972,14 @@ export default function CreateProductForm({
 
     // Final Submission to Super Admin for approval with Precise Declination Error Reporting
     const handleSubmit = async () => {
+        // Validate that at least one photo exists for the product before submitting
+        const hasAnyImage = assets.length > 0 || !!featuredAssetId || variants.some(v => !!v.featuredAssetId || (v.assets && v.assets.length > 0));
+        if (!hasAnyImage) {
+            toast.error("Veuillez ajouter au moins une photo de votre article avant d'enregistrer.");
+            setCurrentStep(1);
+            return;
+        }
+
         if (variants.length === 0) {
             toast.error("Veuillez configurer au moins une déclinaison.");
             return;
@@ -1079,17 +1122,19 @@ export default function CreateProductForm({
             if (formData.height) submitFormData.append('height', formData.height);
 
             const activeGroupEntries = hasMultipleVariants
-                ? selectedStandardGroups
-                    .map(groupId => {
-                        const group = globalOptionGroups.find(g => g.id === groupId);
-                        return {
-                            id: group?.id || groupId,
-                            name: group?.name || 'Option',
-                            code: group?.code || group?.name?.toLowerCase()?.replace(/[^a-z0-9]+/g, '-') || 'option',
-                            values: groupValuesMap[groupId] || []
-                        };
-                    })
-                    .filter(g => g.values.length > 0)
+                ? sortOptionGroupsByCanonicalOrder(
+                    selectedStandardGroups
+                        .map(groupId => {
+                            const group = globalOptionGroups.find(g => g.id === groupId);
+                            return {
+                                id: group?.id || groupId,
+                                name: group?.name || 'Option',
+                                code: group?.code || group?.name?.toLowerCase()?.replace(/[^a-z0-9]+/g, '-') || 'option',
+                                values: groupValuesMap[groupId] || []
+                            };
+                        })
+                        .filter(g => g.values.length > 0)
+                )
                 : [];
 
             const optionGroupsPayload = activeGroupEntries.map(g => ({
@@ -1415,7 +1460,7 @@ export default function CreateProductForm({
                         {hasMultipleVariants && (
                             <div className="space-y-4 p-4 rounded-xl bg-muted/20 border border-border animate-in fade-in duration-300">
                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                    Choisissez les caractéristiques :
+                                    Choisissez les groupes d'options :
                                 </Label>
                                 <div className="flex flex-wrap gap-2">
                                     {globalOptionGroups.map((grp) => {
@@ -1512,7 +1557,7 @@ export default function CreateProductForm({
                         </button>
 
                         {showAdvancedOptions && (
-                            <div className="p-4 mt-2 rounded-xl bg-muted/10 border border-border grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in duration-200">
+                            <div className="p-4 mt-2 rounded-xl bg-muted/10 border border-border grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-200">
                                 <div>
                                     <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">État du produit</Label>
                                     <select
@@ -1543,15 +1588,6 @@ export default function CreateProductForm({
                                             <option value="d">Jour(s)</option>
                                         </select>
                                     </div>
-                                </div>
-                                <div>
-                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">SKU Référence Vendeur</Label>
-                                    <Input
-                                        placeholder="Ex: REF-001"
-                                        value={formData.sku}
-                                        onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
-                                        className="h-9 text-xs rounded-lg mt-1"
-                                    />
                                 </div>
                             </div>
                         )}

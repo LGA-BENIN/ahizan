@@ -196,6 +196,42 @@ interface GeneratedVariantRow {
     condition: string;
 }
 
+const CANONICAL_OPTION_GROUP_PRIORITY = [
+    'taille',
+    'pointure',
+    'taille-d-cran',
+    'ecran',
+    'dimentions',
+    'dimensions',
+    'capacite',
+    'capacit-stockage',
+    'capacit-de-stockage',
+    'volume',
+    'poids',
+    'grammage-gm',
+    'couleur',
+    'matiere',
+    'genre',
+];
+
+function sortOptionGroupsByCanonicalOrder<T extends { code?: string; name?: string }>(groups: T[]): T[] {
+    return [...groups].sort((a, b) => {
+        const codeA = (a.code || a.name || '').toLowerCase().trim();
+        const codeB = (b.code || b.name || '').toLowerCase().trim();
+
+        const getScore = (code: string) => {
+            const idx = CANONICAL_OPTION_GROUP_PRIORITY.findIndex(k => code === k || code.startsWith(k));
+            return idx === -1 ? 999 : idx;
+        };
+
+        const scoreA = getScore(codeA);
+        const scoreB = getScore(codeB);
+
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' });
+    });
+}
+
 interface AffiliateProductPageProps {
     initialSelectedProduct?: any;
     initialSearchTerm?: string;
@@ -486,7 +522,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         featuredAssetId: pv.featuredAsset?.id || prod.featuredAsset?.id,
                         assetPreview: pv.featuredAsset?.preview || prod.featuredAsset?.preview,
                         deliveryTimeValue: 2,
-                        deliveryTimeUnit: 'd',
+                        deliveryTimeUnit: 'h',
                         condition: 'NEW',
                     };
                 });
@@ -582,7 +618,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             }
         }
 
-        return Array.from(groupMap.values());
+        return sortOptionGroupsByCanonicalOrder(Array.from(groupMap.values()));
     }, [globalOptionGroups, productDetails]);
 
     // Step 2 Option Groups Selection & Value Handlers
@@ -670,8 +706,8 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             }
         }
 
-        // Deterministically sort option groups alphabetically to guarantee consistent order
-        activeGroups.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+        // Deterministically sort option groups by canonical priority (Taille -> Pointure -> Capacité -> Couleur -> Matière...)
+        const sortedActiveGroups = sortOptionGroupsByCanonicalOrder(activeGroups);
 
         // If no option groups, generate 1 single standard variant offer
         if (activeGroups.length === 0) {
@@ -689,7 +725,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 featuredAssetId: productDetails?.featuredAsset?.id,
                 assetPreview: productDetails?.featuredAsset?.preview,
                 deliveryTimeValue: 2,
-                deliveryTimeUnit: 'd',
+                deliveryTimeUnit: 'h',
                 condition: bulkCondition || 'NEW',
             };
             setGeneratedVariants([singleRow]);
@@ -706,7 +742,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             }, [[]] as string[][]);
         };
 
-        const rawCombinations = cartesian(activeGroups.map(g => g.values));
+        const rawCombinations = cartesian(sortedActiveGroups.map(g => g.values));
 
         // Strict anti-permutation deduplication (e.g. Yellow + XL vs XL + Yellow)
         const seenCanonicalKeys = new Set<string>();
@@ -723,7 +759,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         const rows: GeneratedVariantRow[] = uniqueCombinations.map((combo, idx) => {
             const comboCanonicalKey = combo.map(c => c.trim().toLowerCase()).sort().join(':::');
             const optionPairs = combo.map((val, gIdx) => ({
-                groupName: activeGroups[gIdx].name,
+                groupName: sortedActiveGroups[gIdx].name,
                 optName: val,
             }));
 
@@ -758,7 +794,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 featuredAssetId: previousRow?.featuredAssetId || existingVariant?.featuredAsset?.id || undefined,
                 assetPreview: previousRow?.assetPreview || existingVariant?.featuredAsset?.preview || undefined,
                 deliveryTimeValue: previousRow?.deliveryTimeValue || 2,
-                deliveryTimeUnit: previousRow?.deliveryTimeUnit || 'd',
+                deliveryTimeUnit: previousRow?.deliveryTimeUnit || 'h',
                 condition: previousRow?.condition || bulkCondition || 'NEW',
             };
         });
@@ -891,7 +927,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             featuredAssetId: productDetails.featuredAsset?.id,
             assetPreview: productDetails.featuredAsset?.preview,
             deliveryTimeValue: 2,
-            deliveryTimeUnit: 'd',
+            deliveryTimeUnit: 'h',
             condition: bulkCondition || 'NEW',
         };
 

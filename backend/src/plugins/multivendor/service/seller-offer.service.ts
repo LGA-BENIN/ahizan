@@ -129,7 +129,7 @@ export class SellerOfferService {
                 stock: input.stock,
                 sku: input.sku || variant.sku,
                 deliveryTimeValue: input.deliveryTimeValue ?? 2,
-                deliveryTimeUnit: input.deliveryTimeUnit ?? DeliveryTimeUnit.DAYS,
+                deliveryTimeUnit: input.deliveryTimeUnit ?? DeliveryTimeUnit.HOURS,
                 condition: input.condition ?? ProductCondition.NEW,
                 onPromotion: input.onPromotion ?? false,
                 promotionalPrice: input.promotionalPrice ?? null,

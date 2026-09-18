@@ -37,7 +37,7 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const promotionalPrice = priceToSubunit(parseInt(formData.get('promotionalPrice') as string) || 0);
 
     const deliveryTimeValue = formData.get('deliveryTimeValue') ? parseInt(formData.get('deliveryTimeValue') as string) : 2;
-    const deliveryTimeUnit = (formData.get('deliveryTimeUnit') as string) || 'd';
+    const deliveryTimeUnit = (formData.get('deliveryTimeUnit') as string) || 'h';
     const condition = (formData.get('condition') as string) || 'NEW';
     const isDraft = formData.get('isDraft') === 'true';
     const approvalStatus = (formData.get('approvalStatus') as string) || (isDraft ? 'draft' : 'pending');

@@ -1902,7 +1902,7 @@ export class VendorService implements OnApplicationBootstrap {
                         status: 'approved',
                         rejectionReason: null,
                         condition: ProductCondition.NEW,
-                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                        deliveryTimeUnit: DeliveryTimeUnit.HOURS,
                         deliveryTimeValue: 2,
                     });
                     await offerRepo.save(newOffer);

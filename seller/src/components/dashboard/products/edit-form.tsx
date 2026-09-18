@@ -55,6 +55,42 @@ const GET_GLOBAL_OPTION_GROUPS_QUERY = `
   }
 `;
 
+export const CANONICAL_OPTION_GROUP_PRIORITY = [
+    'taille',
+    'pointure',
+    'taille-d-cran',
+    'ecran',
+    'dimentions',
+    'dimensions',
+    'capacite',
+    'capacit-stockage',
+    'capacit-de-stockage',
+    'volume',
+    'poids',
+    'grammage-gm',
+    'couleur',
+    'matiere',
+    'genre',
+];
+
+export function sortOptionGroupsByCanonicalOrder<T extends { code?: string; name?: string }>(groups: T[]): T[] {
+    return [...groups].sort((a, b) => {
+        const codeA = (a.code || a.name || '').toLowerCase().trim();
+        const codeB = (b.code || b.name || '').toLowerCase().trim();
+
+        const getScore = (code: string) => {
+            const idx = CANONICAL_OPTION_GROUP_PRIORITY.findIndex(k => code === k || code.startsWith(k));
+            return idx === -1 ? 999 : idx;
+        };
+
+        const scoreA = getScore(codeA);
+        const scoreB = getScore(codeB);
+
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return (a.name || '').localeCompare(b.name || '', 'fr', { sensitivity: 'base' });
+    });
+}
+
 interface EditProductFormProps {
     product: any;
     collectionTree: any[];
@@ -115,7 +151,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                 featuredAssetId: product.featuredAsset?.id,
                 featuredAssetPreview: product.featuredAsset?.preview,
                 deliveryTimeValue: 2,
-                deliveryTimeUnit: 'DAYS',
+                deliveryTimeUnit: 'HOURS',
                 condition: 'NEW',
                 enabled: true
             }];
@@ -145,7 +181,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                 featuredAssetId: v.featuredAsset?.id || product.featuredAsset?.id,
                 featuredAssetPreview: v.featuredAsset?.preview || product.featuredAsset?.preview,
                 deliveryTimeValue: (v.customFields as any)?.deliveryTimeValue || 2,
-                deliveryTimeUnit: (v.customFields as any)?.deliveryTimeUnit || 'DAYS',
+                deliveryTimeUnit: (v.customFields as any)?.deliveryTimeUnit || 'HOURS',
                 condition: (v.customFields as any)?.condition || 'NEW',
                 rejectionReason: (v.customFields as any)?.rejectionReason || null,
                 offerStatus: (v.customFields as any)?.offerStatus || null,
@@ -163,7 +199,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             try {
                 const res = await query(GET_GLOBAL_OPTION_GROUPS_QUERY, {});
                 if ((res.data as any)?.getGlobalOptionGroups) {
-                    setAvailableGroups((res.data as any).getGlobalOptionGroups);
+                    setAvailableGroups(sortOptionGroupsByCanonicalOrder((res.data as any).getGlobalOptionGroups));
                 }
             } catch (err) {
                 console.error('[EditProductForm] Failed to load option groups:', err);
@@ -297,13 +333,15 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
 
     // Generate Cartesian Matrix of Variant Offers
     const handleGenerateMatrix = () => {
-        const activeSelections = selectedGroups.map(g => {
-            const items = [
-                ...g.selectedOptions.map(o => ({ id: o.id, name: o.name, groupName: g.name })),
-                ...g.customValues.map(v => ({ id: `custom_${g.code}_${v}`, name: v, groupName: g.name }))
-            ];
-            return { groupName: g.name, items };
-        }).filter(s => s.items.length > 0);
+        const activeSelections = sortOptionGroupsByCanonicalOrder(
+            selectedGroups.map(g => {
+                const items = [
+                    ...g.selectedOptions.map(o => ({ id: o.id, name: o.name, groupName: g.name, groupCode: g.code })),
+                    ...g.customValues.map(v => ({ id: `custom_${g.code}_${v}`, name: v, groupName: g.name, groupCode: g.code }))
+                ];
+                return { groupName: g.name, code: g.code, name: g.name, items };
+            }).filter(s => s.items.length > 0)
+        );
 
         if (activeSelections.length === 0) {
             toast.error('Veuillez sélectionner au moins une valeur dans les groupes d\'options.');
@@ -338,7 +376,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                 featuredAssetId: product.featuredAsset?.id,
                 featuredAssetPreview: product.featuredAsset?.preview,
                 deliveryTimeValue: 2,
-                deliveryTimeUnit: 'DAYS',
+                deliveryTimeUnit: 'HOURS',
                 condition: 'NEW',
                 enabled: true
             };
@@ -411,7 +449,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                         promotionalPrice: v.onPromotion && v.promotionalPrice ? Math.round(v.promotionalPrice) : undefined,
                         featuredAssetId: v.featuredAssetId || undefined,
                         deliveryTimeValue: Number(v.deliveryTimeValue) || 2,
-                        deliveryTimeUnit: v.deliveryTimeUnit || 'DAYS',
+                        deliveryTimeUnit: v.deliveryTimeUnit || 'HOURS',
                         condition: v.condition || 'NEW',
                     };
                 })
@@ -1006,7 +1044,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                             className="h-8 text-xs font-bold rounded-lg"
                                         />
                                         <Select
-                                            value={variant.deliveryTimeUnit || 'DAYS'}
+                                            value={variant.deliveryTimeUnit || 'HOURS'}
                                             onValueChange={(val) => handleVariantChange(variant.id, 'deliveryTimeUnit', val)}
                                         >
                                             <SelectTrigger className="h-8 text-xs rounded-lg">

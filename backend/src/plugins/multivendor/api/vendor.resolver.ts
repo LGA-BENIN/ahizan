@@ -1198,7 +1198,7 @@ export class VendorAdminResolver {
                         status: isOfferApproved ? 'approved' : 'pending',
                         rejectionReason: null,
                         condition: ProductCondition.NEW,
-                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                        deliveryTimeUnit: DeliveryTimeUnit.HOURS,
                         deliveryTimeValue: 2,
                     });
                     await sellerOfferRepo.save(existingOffer);
@@ -1623,7 +1623,7 @@ export class VendorAdminResolver {
                                         status: isOfferApproved ? 'approved' : 'pending',
                                         rejectionReason: null,
                                         condition: ProductCondition.NEW,
-                                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                                        deliveryTimeUnit: DeliveryTimeUnit.HOURS,
                                         deliveryTimeValue: 2,
                                     });
                                     await sellerOfferRepo.save(existingOffer);
@@ -1780,7 +1780,7 @@ export class VendorAdminResolver {
                                         status: isOfferApproved ? 'approved' : 'pending',
                                         rejectionReason: null,
                                         condition: ProductCondition.NEW,
-                                        deliveryTimeUnit: DeliveryTimeUnit.DAYS,
+                                        deliveryTimeUnit: DeliveryTimeUnit.HOURS,
                                         deliveryTimeValue: 2,
                                     });
                                     await sellerOfferRepo.save(existingOffer);

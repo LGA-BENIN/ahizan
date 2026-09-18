@@ -289,14 +289,32 @@ export class VendorShopResolver {
         });
 
         // Sort by predefined standard priority order
-        const priorityOrder = ['taille', 'pointure', 'couleur', 'capacite', 'volume', 'poids', 'matiere'];
+        const priorityOrder = [
+            'taille',
+            'pointure',
+            'taille-d-cran',
+            'ecran',
+            'dimentions',
+            'dimensions',
+            'capacite',
+            'capacit-stockage',
+            'capacit-de-stockage',
+            'volume',
+            'poids',
+            'grammage-gm',
+            'couleur',
+            'matiere',
+            'genre',
+        ];
         result.sort((a, b) => {
-            const idxA = priorityOrder.indexOf(a.code.toLowerCase());
-            const idxB = priorityOrder.indexOf(b.code.toLowerCase());
+            const codeA = a.code.toLowerCase().trim();
+            const codeB = b.code.toLowerCase().trim();
+            const idxA = priorityOrder.findIndex(k => codeA === k || codeA.startsWith(k));
+            const idxB = priorityOrder.findIndex(k => codeB === k || codeB.startsWith(k));
             if (idxA !== -1 && idxB !== -1) return idxA - idxB;
             if (idxA !== -1) return -1;
             if (idxB !== -1) return 1;
-            return a.name.localeCompare(b.name);
+            return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
         });
 
         return result;

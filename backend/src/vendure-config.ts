@@ -146,7 +146,7 @@ export const config: any = {
             { name: 'offerStatus', type: 'string', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Statut de modération de l\'offre' }] },
             { name: 'rejectionReason', type: 'text', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Remarques ou corrections demandées par l\'administrateur' }] },
             { name: 'deliveryTimeValue', type: 'int', nullable: true, public: true, defaultValue: 2, description: [{ languageCode: LanguageCode.fr, value: 'Délai de livraison numérique' }] },
-            { name: 'deliveryTimeUnit', type: 'string', nullable: true, public: true, defaultValue: 'DAYS', description: [{ languageCode: LanguageCode.fr, value: 'Unité du délai de livraison' }] },
+            { name: 'deliveryTimeUnit', type: 'string', nullable: true, public: true, defaultValue: 'HOURS', description: [{ languageCode: LanguageCode.fr, value: 'Unité du délai de livraison' }] },
             { name: 'condition', type: 'string', nullable: true, public: true, defaultValue: 'NEW', description: [{ languageCode: LanguageCode.fr, value: 'État du produit' }] },
             { name: 'vendorSku', type: 'string', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'SKU propre à la boutique du vendeur' }] },
             { name: 'ean', type: 'string', nullable: true, public: true, description: [{ languageCode: LanguageCode.fr, value: 'Code EAN-13 / Code-barres international' }] },

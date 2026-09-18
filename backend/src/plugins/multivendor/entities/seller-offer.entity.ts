@@ -42,7 +42,7 @@ export class SellerOffer extends VendureEntity {
 
     @Column({
         type: 'varchar',
-        default: DeliveryTimeUnit.DAYS
+        default: DeliveryTimeUnit.HOURS
     })
     deliveryTimeUnit: DeliveryTimeUnit; // e.g. 'DAYS' or 'HOURS'
 

@@ -213,16 +213,18 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
         try {
             if (selectionMode === 'AUTOMATIC') {
-                const marketId = selectedLocation?.type === 'MARKET' ? selectedLocation.id : null;
-                const locationId = selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : null;
+                const marketId = selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : null);
+                const locationId = selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : null);
                 let items: any[] = [];
                 
                 if (selectedLocation) {
                     const localQuery = `
-                        query GetLocalProducts($marketId: ID, $locationId: ID) {
+                        query GetLocalProducts($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float) {
                             vendors(
                                 marketId: $marketId, 
                                 locationId: $locationId, 
+                                latitude: $latitude,
+                                longitude: $longitude,
                                 options: { filter: { status: { eq: "APPROVED" } } }
                             ) {
                                 items {
@@ -244,13 +246,13 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             }
                         }
                     `;
-                    const res = await fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query: localQuery, variables: { marketId, locationId } })
+                    const result = await fetchWithClientCache(shopApiUrl, localQuery, { 
+                        marketId, 
+                        locationId,
+                        latitude: selectedLocation.latitude,
+                        longitude: selectedLocation.longitude
                     });
-                    const result = await res.json();
-                    const vendorsList = result.data?.vendors?.items || [];
+                    const vendorsList = result?.vendors?.items || [];
                     items = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({
                         productId: p.id,
                         productName: p.name,
@@ -273,13 +275,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         take,
                         sort: { price: 'DESC' }
                     };
-                    const resFallback = await fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query: searchQuery, variables: { input: fallbackSearchInput } })
-                    });
-                    const resultFallback = await resFallback.json();
-                    items = resultFallback.data?.search?.items || [];
+                    const resultFallback = await fetchWithClientCache(shopApiUrl, searchQuery, { input: fallbackSearchInput });
+                    items = resultFallback?.search?.items || [];
                 }
 
                 const seen = new Set();

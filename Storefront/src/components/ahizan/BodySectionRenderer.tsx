@@ -173,8 +173,7 @@ function evaluateSectionRules(rulesJsonStr?: string, selectedLocation?: any): bo
 
         // 1. Évaluation dynamique de n'importe quelle GeoZone (GeoEngine)
         if (rules.geoZones && Array.isArray(rules.geoZones) && rules.geoZones.length > 0) {
-            const activeLocName = selectedLocation?.name || '';
-            if (!activeLocName) return true; // Si aucune localisation n'est sélectionnée, afficher par défaut
+            if (!selectedLocation) return true; // Si aucune localisation n'est sélectionnée, afficher par défaut
 
             // Helper de normalisation dynamique (supprime les accents, tirets, espaces et casse)
             const normalizeGeoStr = (str: string) => (str || '')
@@ -182,12 +181,26 @@ function evaluateSectionRules(rulesJsonStr?: string, selectedLocation?: any): bo
                 .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                 .replace(/[^A-Z0-9]/g, "");
 
-            const normActiveLoc = normalizeGeoStr(activeLocName);
+            // Collect all hierarchical identifiers and names for the user's location
+            const candidateStrings = [
+                selectedLocation.name,
+                selectedLocation.commune,
+                selectedLocation.department,
+                selectedLocation.arrondissement,
+                selectedLocation.neighborhood,
+                selectedLocation.marketName,
+                selectedLocation.slug,
+                selectedLocation.id,
+                selectedLocation.geoZoneId,
+                selectedLocation.marketId,
+            ].filter(Boolean).map(normalizeGeoStr);
+
+            if (candidateStrings.length === 0) return true;
 
             const isMatch = rules.geoZones.some((zone: string) => {
                 const normZone = normalizeGeoStr(zone);
-                if (!normZone || !normActiveLoc) return false;
-                return normActiveLoc.includes(normZone) || normZone.includes(normActiveLoc);
+                if (!normZone) return false;
+                return candidateStrings.some(cand => cand.includes(normZone) || normZone.includes(cand));
             });
 
             if (!isMatch) {

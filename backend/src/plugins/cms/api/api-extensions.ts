@@ -309,7 +309,7 @@ export const adminApiExtensions = gql`
         undoHabillage(presetId: ID!): PagePreset!
         redoHabillage(presetId: ID!): PagePreset!
         autoSaveHabillage(presetId: ID!, sectionsJson: String!): PagePreset!
-        publishHabillage(presetId: ID!, pageId: ID!): Page!
+        publishHabillage(presetId: ID!, pageId: ID!, sectionsJson: String): Page!
         deleteHabillage(id: ID!): DeletionResponse!
         # SeasonSchedule
         createSeasonSchedule(input: CreateSeasonScheduleInput!): SeasonSchedule!

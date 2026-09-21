@@ -1054,7 +1054,7 @@ export function ProductListComponent() {
                 ean: variables.ean || null,
                 collectionIds: variables.collectionIds || null,
                 facetValueIds: variables.facetValueIds || null,
-                approveVendorOffer: variables.approveVendorOffer !== undefined ? variables.approveVendorOffer : true,
+                approveVendorOffer: variables.approveVendorOffer !== undefined ? variables.approveVendorOffer : false,
             }),
         onSuccess: async (data: any, variables: any) => {
             queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
@@ -1088,11 +1088,12 @@ export function ProductListComponent() {
 
     // Quick Action Handlers
     const handleQuickApprove = (product: MarketplaceProduct) => {
-        if (confirm(`Adopter et publier "${product.name}" au catalogue officiel Ahizan (greffage automatique de l'offre vendeur) ?`)) {
+        if (confirm(`Adopter et publier "${product.name}" au catalogue officiel Ahizan (la fiche produit sera validée, les offres resteront à valider individuellement) ?`)) {
             approvalMutation.mutate({
                 id: product.id,
                 approvalStatus: 'approved',
                 convertToOfficialCatalog: true,
+                approveVendorOffer: false,
                 rejectionReason: '',
             });
         }

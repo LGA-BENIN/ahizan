@@ -111,7 +111,20 @@ export class VendorService implements OnApplicationBootstrap {
 
         let filteredItems = [...items];
         if (locationId) {
-            filteredItems = filteredItems.filter(v => v.locationId?.toString() === locationId.toString());
+            const locIdStr = locationId.toString();
+            let matchingLocationIds = new Set<string>([locIdStr]);
+            try {
+                const childZones = await this.connection.rawConnection.query(
+                    `SELECT id FROM geo_zone WHERE "parentId" = $1 OR id = $1`,
+                    [Number(locationId)]
+                );
+                if (childZones && Array.isArray(childZones)) {
+                    childZones.forEach((z: any) => matchingLocationIds.add(z.id.toString()));
+                }
+            } catch (e) {
+                // Keep base locationId on query fallback
+            }
+            filteredItems = filteredItems.filter(v => v.locationId && matchingLocationIds.has(v.locationId.toString()));
         }
         if (marketId) {
             filteredItems = filteredItems.filter(v => 

@@ -9,6 +9,12 @@ import { PageSection } from '../entities/section.entity';
 import { PagePreset } from '../entities/page-preset.entity';
 import { SiteSeason } from '../entities/site-season.entity';
 
+let shopCollectionsTreeCache: { data: any[]; expiresAt: number } | null = null;
+
+export function invalidateCollectionsTreeCache() {
+    shopCollectionsTreeCache = null;
+}
+
 @Resolver()
 export class CMSAdminResolver {
     constructor(
@@ -423,9 +429,9 @@ export class CMSAdminResolver {
     }
 
     @Mutation()
-    @Transaction()
-    async publishHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID }): Promise<Page> {
-        return this.cmsService.publishHabillage(ctx, args.presetId, args.pageId);
+    @Allow(Permission.UpdateSettings)
+    async publishHabillage(@Ctx() ctx: RequestContext, @Args() args: { presetId: ID, pageId: ID, sectionsJson?: string }): Promise<Page> {
+        return this.cmsService.publishHabillage(ctx, args.presetId, args.pageId, args.sectionsJson);
     }
 
     @Mutation()
@@ -525,6 +531,10 @@ export class CMSShopResolver {
     @Query()
     @Allow(Permission.Public)
     async cmsCollectionsTree(@Ctx() ctx: RequestContext): Promise<any[]> {
+        if (shopCollectionsTreeCache && shopCollectionsTreeCache.expiresAt > Date.now()) {
+            return shopCollectionsTreeCache.data;
+        }
+
         try {
             // Use TransactionalConnection directly (same pattern as CMSService and bootstrap diagnostic)
             const connection = (this.cmsService as any).connection;
@@ -532,7 +542,6 @@ export class CMSShopResolver {
             const collections = await connection.getRepository(ctx, CollectionEntity).find({
                 relations: ['featuredAsset', 'parent', 'translations'],
             });
-            console.log(`[cmsCollectionsTree shop] Found ${collections.length} collections`);
 
             const getName = (coll: any): string => {
                 // Vendure v3: name/slug are on translations, not directly on the entity
@@ -572,7 +581,7 @@ export class CMSShopResolver {
                 };
             };
             const result = topLevel.map(buildNode);
-            console.log(`[cmsCollectionsTree shop] Returning ${result.length} top-level nodes`);
+            shopCollectionsTreeCache = { data: result, expiresAt: Date.now() + 2 * 60 * 1000 };
             return result;
         } catch (error) {
             return [];

@@ -11,6 +11,13 @@ export interface LocationData {
     latitude: number;
     longitude: number;
     type: 'MARKET' | 'NEIGHBORHOOD' | 'COMMUNE' | 'GPS';
+    commune?: string;
+    department?: string;
+    arrondissement?: string;
+    neighborhood?: string;
+    marketId?: string;
+    marketName?: string;
+    geoZoneId?: string;
 }
 
 interface LocationContextType {
@@ -189,10 +196,17 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             if (loc) {
                 return {
                     id: loc.geoId || String(loc.geoZoneId || 'gps_raw'),
-                    name: loc.displayName || loc.neighborhood || 'Cotonou',
+                    name: loc.displayName || loc.neighborhood || loc.commune || 'Cotonou',
                     latitude: loc.latitude,
                     longitude: loc.longitude,
-                    type: loc.marketId ? 'MARKET' : 'NEIGHBORHOOD'
+                    type: loc.marketId ? 'MARKET' : (loc.commune && !loc.neighborhood ? 'COMMUNE' : 'NEIGHBORHOOD'),
+                    commune: loc.commune,
+                    department: loc.department,
+                    arrondissement: loc.arrondissement,
+                    neighborhood: loc.neighborhood,
+                    marketId: loc.marketId ? String(loc.marketId) : undefined,
+                    marketName: loc.marketName,
+                    geoZoneId: loc.geoZoneId ? String(loc.geoZoneId) : undefined
                 };
             }
         } catch (err) {

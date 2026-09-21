@@ -122,6 +122,19 @@ export class SellerOfferService {
         }
 
         if (!offer) {
+            let defaultStatus = 'approved';
+            try {
+                const prodRes = await this.connection.rawConnection.query(
+                    `SELECT p.id, p."customFieldsVendorid", p."customFieldsApprovalstatus" 
+                     FROM product p 
+                     INNER JOIN product_variant pv ON pv."productId" = p.id 
+                     WHERE pv.id = $1`,
+                    [Number(variantId)]
+                );
+                const isOfficialOrApproved = prodRes[0]?.customFieldsVendorid == null || prodRes[0]?.customFieldsApprovalstatus === 'approved';
+                defaultStatus = isOfficialOrApproved ? 'approved' : 'pending';
+            } catch (_) {}
+
             offer = repo.create({
                 vendor,
                 productVariant: variant,
@@ -134,12 +147,11 @@ export class SellerOfferService {
                 onPromotion: input.onPromotion ?? false,
                 promotionalPrice: input.promotionalPrice ?? null,
                 featuredAssetId: input.featuredAssetId ?? null,
-                status: input.status ?? 'pending',
+                status: input.status ?? defaultStatus,
                 rejectionReason: input.rejectionReason ?? null,
             });
         } else {
-            const isAlreadyApproved = offer.status === 'approved';
-            const hasNewAsset = input.featuredAssetId !== undefined && input.featuredAssetId !== offer.featuredAssetId && input.featuredAssetId !== null;
+            const wasCorrectionRequested = offer.status === 'correction_requested' || !!offer.rejectionReason;
 
             offer.price = input.price;
             offer.stock = input.stock;
@@ -151,18 +163,20 @@ export class SellerOfferService {
             if (input.promotionalPrice !== undefined) offer.promotionalPrice = input.promotionalPrice;
             if (input.featuredAssetId !== undefined) offer.featuredAssetId = input.featuredAssetId;
             
-            // If the offer was already approved, and only commercial/pricing/stock conditions were changed (no new image), maintain approved status!
+            // If explicit status is passed (e.g. from superadmin moderation), use it.
+            // If superadmin previously requested a correction/commented on the offer, resubmitting sets it to 'pending' for re-validation.
+            // Otherwise, normal modifications of price, stock, or conditions are auto-approved immediately without requiring superadmin validation.
             if (input.status) {
                 offer.status = input.status;
-            } else if (isAlreadyApproved && !hasNewAsset) {
-                offer.status = 'approved';
-            } else {
+            } else if (wasCorrectionRequested) {
                 offer.status = 'pending';
+            } else {
+                offer.status = 'approved';
             }
 
             if (input.rejectionReason !== undefined) {
                 offer.rejectionReason = input.rejectionReason;
-            } else if (offer.status !== 'rejected') {
+            } else if (offer.status !== 'rejected' && offer.status !== 'correction_requested') {
                 offer.rejectionReason = null; // Clear previous rejection reason upon resubmission
             }
         }

@@ -711,6 +711,30 @@ export class VendorShopResolver {
                 }
 
                 if (targetVariant) {
+                    // Determine whether an offer already exists for this vendor+variant
+                    const existingOffer = await this.sellerOfferService.getOfferByVendorAndVariant(
+                        transactionalCtx,
+                        String(vendor.id),
+                        String(targetVariant.id)
+                    );
+
+                    // Determine the correct status to apply:
+                    //  - If superadmin has explicitly commented/requested correction → force 'pending' (re-validation)
+                    //  - If this is a brand-new offer on an existing Ahizan product → auto-approve immediately
+                    //  - If modifying an existing offer → pass undefined so createOrUpdateOffer's smart
+                    //    logic preserves the current status (approved stays approved)
+                    const productApprovalStatus = (product.customFields as any)?.approvalStatus;
+                    const isCorrectionRequested = productApprovalStatus === 'correction_requested' ||
+                        existingOffer?.status === 'correction_requested' ||
+                        !!existingOffer?.rejectionReason;
+
+                    let offerStatus: string;
+                    if (isCorrectionRequested) {
+                        offerStatus = 'pending'; // resubmission after superadmin comment
+                    } else {
+                        offerStatus = 'approved'; // new offer on Ahizan product or price/stock modification → auto-approve immediately
+                    }
+
                     const savedOffer = await this.sellerOfferService.createOrUpdateOffer(
                         transactionalCtx,
                         vendor,
@@ -725,7 +749,7 @@ export class VendorShopResolver {
                             deliveryTimeValue: offerInput.deliveryTimeValue,
                             deliveryTimeUnit: offerInput.deliveryTimeUnit,
                             condition: offerInput.condition,
-                            status: 'pending',
+                            status: offerStatus,
                         }
                     );
                     createdOffers.push(savedOffer);
@@ -745,25 +769,45 @@ export class VendorShopResolver {
                 this.eventBus.publish(new ProductEvent(transactionalCtx, updatedProduct, 'updated', { id: updatedProduct.id }));
 
                 const prodName = (updatedProduct as any)?.name || updatedProduct.translations?.[0]?.name || 'Produit';
-                this.notificationsService.notifySuperAdmins(ctx, {
-                    eventType: 'PRODUCT_SUBMITTED',
-                    title: 'Nouvelle proposition vendeur 🏷️',
-                    body: `Le vendeur "${vendor.name}" a soumis ${createdOffers.length} offre(s) pour le produit "${prodName}".`,
-                    actionUrl: '/admin/products',
-                    channels: ['IN_APP', 'PUSH'],
-                    data: { productId: updatedProduct.id, vendorId: vendor.id }
-                }).catch(() => null);
 
-                if (ctx.activeUserId) {
-                    this.notificationsService.notify(ctx, {
-                        userId: ctx.activeUserId.toString(),
+                // Only notify superadmins when a genuine re-validation is needed:
+                // i.e. correction_requested resubmission or a brand-new offer that was pending.
+                // Plain modifications of already-approved offers do NOT require superadmin attention.
+                const hasPendingOffers = createdOffers.some(o => o.status === 'pending');
+                if (hasPendingOffers) {
+                    this.notificationsService.notifySuperAdmins(ctx, {
                         eventType: 'PRODUCT_SUBMITTED',
-                        title: 'Offre soumise avec succès ✅',
-                        body: `Vos ${createdOffers.length} offre(s) pour le produit "${prodName}" ont été soumises pour validation.`,
-                        targetRole: 'VENDOR',
-                        actionUrl: '/dashboard/products/affiliate',
-                        channels: ['IN_APP', 'PUSH']
+                        title: 'Nouvelle proposition vendeur 🏷️',
+                        body: `Le vendeur "${vendor.name}" a soumis ${createdOffers.length} offre(s) pour le produit "${prodName}".`,
+                        actionUrl: '/admin/products',
+                        channels: ['IN_APP', 'PUSH'],
+                        data: { productId: updatedProduct.id, vendorId: vendor.id }
                     }).catch(() => null);
+
+                    if (ctx.activeUserId) {
+                        this.notificationsService.notify(ctx, {
+                            userId: ctx.activeUserId.toString(),
+                            eventType: 'PRODUCT_SUBMITTED',
+                            title: 'Offre soumise pour validation ✅',
+                            body: `Vos ${createdOffers.length} offre(s) pour le produit "${prodName}" ont été soumises pour validation.`,
+                            targetRole: 'VENDOR',
+                            actionUrl: '/dashboard/products/affiliate',
+                            channels: ['IN_APP', 'PUSH']
+                        }).catch(() => null);
+                    }
+                } else {
+                    // Modification of approved offer — just confirm to the seller silently
+                    if (ctx.activeUserId) {
+                        this.notificationsService.notify(ctx, {
+                            userId: ctx.activeUserId.toString(),
+                            eventType: 'OFFER_UPDATED',
+                            title: 'Offre mise à jour ✅',
+                            body: `Vos modifications pour le produit "${prodName}" ont été enregistrées.`,
+                            targetRole: 'VENDOR',
+                            actionUrl: '/dashboard/products',
+                            channels: ['IN_APP']
+                        }).catch(() => null);
+                    }
                 }
 
                 return createdOffers;

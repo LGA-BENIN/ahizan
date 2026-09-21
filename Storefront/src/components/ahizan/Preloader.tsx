@@ -4,10 +4,27 @@ import { getAssetUrl } from '@/lib/vendure/api-utils';
 import { LottiePreloader } from '@/components/shared/animations/LottiePreloader';
 
 export function AhizanPreloader({ config }: { config: any }) {
-    const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>('drawing');
+    const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>('hidden');
     const [isPageLoaded, setIsPageLoaded] = useState(false);
     const hasRunRef = useRef(false);
     const videoRef = useRef<HTMLVideoElement>(null);
+
+    // Initial check for session preloader: run only once per session
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const hasSeen = sessionStorage.getItem('ahizan_preloader_seen');
+            if (hasSeen === '1') {
+                setStatus('hidden');
+                hasRunRef.current = true;
+                return;
+            } else {
+                setStatus('drawing');
+            }
+        } catch (e) {
+            setStatus('hidden');
+        }
+    }, []);
 
     // 1. Détecter si la page est interactive ou complètement chargée
     useEffect(() => {
@@ -34,7 +51,7 @@ export function AhizanPreloader({ config }: { config: any }) {
     useEffect(() => {
         if (config === null) return;
 
-        // Si l'animation a déjà été complétée, on ne la relance pas
+        // Si l'animation a déjà été complétée dans la session, on ne la relance pas
         if (hasRunRef.current || status === 'hidden') {
             return;
         }
@@ -42,26 +59,26 @@ export function AhizanPreloader({ config }: { config: any }) {
         if (config?.preloader?.type === 'none') {
             setStatus('hidden');
             hasRunRef.current = true;
+            try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
             return;
         }
 
         if (config?.preloader?.type !== 'default') {
             // Pour les autres types (image, vidéo, lottie, spinner), on fait un fondu après la durée paramétrée
-            const durationMs = (config?.preloader?.duration || 2) * 1000;
+            const durationMs = Math.min((config?.preloader?.duration || 1.2) * 1000, 2000);
             const timer = setTimeout(() => {
                 setStatus('fading');
                 const hideTimer = setTimeout(() => {
                     setStatus('hidden');
                     hasRunRef.current = true;
-                }, 800);
-                // Le timeout interne n'est pas facilement nettoyable ici sans une ref, mais c'est acceptable car court.
+                    try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
+                }, 400);
             }, durationMs);
             return () => clearTimeout(timer);
         }
 
         // --- TYPE PAR DÉFAUT (Animation A-Z Premium avec logo officiel) ---
-        // Étape A : À 2.4s, l'animation de tracé A-Z initiale et la révélation à 100% sont complétées.
-        // On décide si l'on doit passer directement à la pulsation finale ou boucler en pulsation infinie.
+        // Étape A : À 900ms, l'animation initiale est complétée.
         const drawingTimer = setTimeout(() => {
             const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
             if (isReady) {
@@ -69,7 +86,7 @@ export function AhizanPreloader({ config }: { config: any }) {
             } else {
                 setStatus('looping');
             }
-        }, 2400);
+        }, 900);
 
         // Étape B : Timeout de sécurité absolu (UX Resilience)
         const safetyTimer = setTimeout(() => {
@@ -80,13 +97,13 @@ export function AhizanPreloader({ config }: { config: any }) {
                 }
                 return prev;
             });
-        }, 5500);
+        }, 2200);
 
         return () => {
             clearTimeout(drawingTimer);
             clearTimeout(safetyTimer);
         };
-    }, [config]);
+    }, [config, status]);
 
     // Étape C : Si on est en état de pulsation infinie ('looping') et que la page se charge enfin,
     // on déclenche instantanément la pulsation finale de transition.
@@ -96,20 +113,21 @@ export function AhizanPreloader({ config }: { config: any }) {
         }
     }, [status, isPageLoaded]);
 
-    // Étape C : La pulsation finale dure 600ms, après quoi on passe au fondu de sortie ('fading'),
+    // Étape C : La pulsation finale dure 300ms, après quoi on passe au fondu de sortie ('fading'),
     // puis on masque définitivement le composant du DOM ('hidden').
     useEffect(() => {
         if (status === 'pulse-final') {
             const timer = setTimeout(() => {
                 setStatus('fading');
-            }, 600);
+            }, 300);
             return () => clearTimeout(timer);
         }
         if (status === 'fading') {
             const timer = setTimeout(() => {
                 setStatus('hidden');
                 hasRunRef.current = true;
-            }, 700);
+                try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
+            }, 350);
             return () => clearTimeout(timer);
         }
     }, [status]);

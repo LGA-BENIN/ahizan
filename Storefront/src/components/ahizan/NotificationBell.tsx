@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Bell, BellDot, Check, CheckCheck, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Notification {
     id: string;
@@ -220,6 +221,8 @@ export function NotificationBell({
         return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     };
 
+    const router = useRouter();
+
     return (
         <div ref={dropdownRef} className="relative" style={style}>
             {/* Bell Button */}
@@ -285,7 +288,14 @@ export function NotificationBell({
                                     className={`flex gap-3 px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-blue-50/40' : ''}`}
                                     onClick={() => {
                                         if (!notif.isRead) markOneRead(notif.id);
-                                        if (notif.actionUrl) window.location.href = notif.actionUrl;
+                                        setIsOpen(false);
+                                        if (notif.actionUrl) {
+                                            if (notif.actionUrl.startsWith('/')) {
+                                                router.push(notif.actionUrl);
+                                            } else {
+                                                window.location.href = notif.actionUrl;
+                                            }
+                                        }
                                     }}
                                 >
                                     {/* Icon */}

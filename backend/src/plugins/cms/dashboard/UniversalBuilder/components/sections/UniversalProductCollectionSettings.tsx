@@ -8,52 +8,58 @@ interface UniversalProductCollectionSettingsProps {
 }
 
 const FETCH_COLLECTIONS = `query { cmsCollectionsTree { id name slug children { id name slug } } }`;
+const FETCH_MARKETS = `query { markets { id name slug } }`;
+const FETCH_GEO_ZONES = `query { geoZones { id name slug type } }`;
+
+const defaults = {
+    title: 'Sélection pour vous',
+    subtitle: 'Découvrez nos offres recommandées',
+    badgeText: 'Recommandation EMS',
+    experienceStrategy: 'CATALOG',
+    layout: 'carousel',
+    columns: 4,
+    limit: 8,
+    textAlign: 'left',
+    headerStyle: 'smart_cart',
+    titleColor: '#0f172a',
+    subtitleColor: '#475569',
+    badgeBgColor: '#e31837',
+    badgeTextColor: '#ffffff',
+    cardTheme: 'default',
+    // Flash Sale specific defaults
+    showCountdown: false,
+    countdownEnd: '',
+    flashCampaignTitle: 'Vente Flash Exclusive',
+    flashBadgeStyle: 'neon_timer',
+    autoHideExpired: true,
+    // Catalog specific defaults
+    mixCollectionId: '',
+    filterType: 'LATEST',
+    enableTabs: false,
+    // Local Discovery specific defaults
+    locationSource: 'AUTO',
+    marketId: '',
+    marketName: '',
+    locationId: '',
+    locationName: '',
+    requireConfirmedLocation: false,
+    mixMode: 'none',
+    radiusKm: 10,
+    // Personalization specific defaults
+    maxItemsPerVendor: 3,
+    boostCertifiedVendors: true,
+    // Badges 4 coins
+    topLeftBadge: 'vendor_name',
+    topRightBadge: 'like_button',
+    bottomLeftBadge: 'stock_status',
+    bottomRightBadge: 'cart_button',
+};
 
 export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalProductCollectionSettingsProps) => {
-    const [config, setConfig] = useState<any>({});
+    const [config, setConfig] = useState<any>(() => ({ ...defaults, ...data }));
     const [collections, setCollections] = useState<any[]>([]);
-
-    useEffect(() => {
-        const defaults = {
-            title: 'Sélection pour vous',
-            subtitle: 'Découvrez nos offres recommandées',
-            badgeText: 'Recommandation EMS',
-            experienceStrategy: 'CATALOG',
-            layout: 'carousel',
-            columns: 4,
-            limit: 8,
-            textAlign: 'left',
-            headerStyle: 'smart_cart',
-            titleColor: '#0f172a',
-            subtitleColor: '#475569',
-            badgeBgColor: '#e31837',
-            badgeTextColor: '#ffffff',
-            cardTheme: 'default',
-            // Flash Sale specific defaults
-            showCountdown: false,
-            countdownEnd: '',
-            flashCampaignTitle: 'Vente Flash Exclusive',
-            flashBadgeStyle: 'neon_timer',
-            autoHideExpired: true,
-            // Catalog specific defaults
-            mixCollectionId: '',
-            filterType: 'LATEST',
-            enableTabs: false,
-            // Local Discovery specific defaults
-            requireConfirmedLocation: true,
-            mixMode: 'none',
-            radiusKm: 10,
-            // Personalization specific defaults
-            maxItemsPerVendor: 3,
-            boostCertifiedVendors: true,
-            // Badges 4 coins
-            topLeftBadge: 'vendor_name',
-            topRightBadge: 'like_button',
-            bottomLeftBadge: 'stock_status',
-            bottomRightBadge: 'cart_button',
-        };
-        setConfig({ ...defaults, ...data });
-    }, [data]);
+    const [markets, setMarkets] = useState<any[]>([]);
+    const [geoZones, setGeoZones] = useState<any[]>([]);
 
     useAutoSave(config, onSave);
 
@@ -75,12 +81,19 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                 setCollections(flat);
             })
             .catch(err => console.error('[UniversalProductCollectionSettings] Failed to fetch collections:', err));
+
+        // Fetch markets and geoZones for location targeting
+        fetchGraphQL(FETCH_MARKETS)
+            .then(res => setMarkets(res?.markets || []))
+            .catch(err => console.error('[UniversalProductCollectionSettings] Failed to fetch markets:', err));
+
+        fetchGraphQL(FETCH_GEO_ZONES)
+            .then(res => setGeoZones(res?.geoZones || []))
+            .catch(err => console.error('[UniversalProductCollectionSettings] Failed to fetch geoZones:', err));
     }, []);
 
     const handleChange = (field: string, value: any) => {
-        const updated = { ...config, [field]: value };
-        setConfig(updated);
-        onSave(updated);
+        setConfig((prev: any) => ({ ...prev, [field]: value }));
     };
 
     const ColorField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
@@ -323,6 +336,78 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                     <h4 className="font-bold text-sky-900 flex items-center gap-1.5 border-b border-sky-200 pb-1.5">
                         <span>📍</span> Réglages Spécifiques Proximité GeoEngine & Marchés
                     </h4>
+
+                    {/* Source de Localisation */}
+                    <div>
+                        <label className="block font-semibold mb-1 text-slate-800">Mode de Ciblage Géographique</label>
+                        <select
+                            value={config.locationSource || 'AUTO'}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                handleChange('locationSource', val);
+                                if (val === 'AUTO') {
+                                    handleChange('marketId', '');
+                                    handleChange('marketName', '');
+                                    handleChange('locationId', '');
+                                    handleChange('locationName', '');
+                                }
+                            }}
+                            className="w-full p-2 border rounded text-xs bg-white font-semibold text-slate-800"
+                        >
+                            <option value="AUTO">🌐 Détection Dynamique Client (GeoEngine / Position sélectionnée par le visiteur)</option>
+                            <option value="FIXED_MARKET">🏪 Marché Physique Fixe (ex: Dantokpa, Ganhi, Missèbo, Porto-Novo...)</option>
+                            <option value="FIXED_LOCATION">📍 Quartier ou Ville Fixe (ex: Cotonou, Cadjèhoun, Akpakpa...)</option>
+                        </select>
+                    </div>
+
+                    {/* Sélection Marché Fixe */}
+                    {config.locationSource === 'FIXED_MARKET' && (
+                        <div>
+                            <label className="block font-semibold mb-1 text-slate-800">Sélectionner le Marché Physique Cible</label>
+                            <select
+                                value={config.marketId || ''}
+                                onChange={(e) => {
+                                    const mId = e.target.value;
+                                    const mObj = markets.find((m: any) => String(m.id) === String(mId));
+                                    handleChange('marketId', mId);
+                                    handleChange('marketName', mObj?.name || '');
+                                    handleChange('locationId', '');
+                                    handleChange('locationName', '');
+                                }}
+                                className="w-full p-2 border rounded text-xs bg-white font-medium text-slate-800"
+                            >
+                                <option value="">-- Choisir un marché physique --</option>
+                                {markets.map((m: any) => (
+                                    <option key={m.id} value={m.id}>{m.name} ({m.slug})</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Sélection Quartier / Ville Fixe */}
+                    {config.locationSource === 'FIXED_LOCATION' && (
+                        <div>
+                            <label className="block font-semibold mb-1 text-slate-800">Sélectionner le Quartier ou la Ville Cible</label>
+                            <select
+                                value={config.locationId || ''}
+                                onChange={(e) => {
+                                    const locId = e.target.value;
+                                    const locObj = geoZones.find((z: any) => String(z.id) === String(locId));
+                                    handleChange('locationId', locId);
+                                    handleChange('locationName', locObj?.name || '');
+                                    handleChange('marketId', '');
+                                    handleChange('marketName', '');
+                                }}
+                                className="w-full p-2 border rounded text-xs bg-white font-medium text-slate-800"
+                            >
+                                <option value="">-- Choisir un quartier ou une ville --</option>
+                                {geoZones.map((z: any) => (
+                                    <option key={z.id} value={z.id}>{z.name} ({z.type})</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="block font-semibold mb-1 text-slate-800">Rayon de Recherche GPS (km)</label>
@@ -352,7 +437,7 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                         <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={config.requireConfirmedLocation !== false}
+                                checked={config.requireConfirmedLocation === true}
                                 onChange={(e) => handleChange('requireConfirmedLocation', e.target.checked)}
                             />
                             Masquer la section si le client n'a pas confirmé sa zone/ville

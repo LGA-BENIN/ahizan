@@ -101,28 +101,50 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
         if (isOverride) {
             hasLocation = true;
             if (marketIdFromConfig) {
-                variables = { marketId: marketIdFromConfig };
+                variables = { marketId: String(marketIdFromConfig) };
                 displayName = config?.marketName || '';
             } else {
-                variables = { locationId: locationIdFromConfig };
+                variables = { locationId: String(locationIdFromConfig) };
                 displayName = config?.locationName || '';
             }
         } else if (selectedLocation) {
             hasLocation = true;
             displayName = selectedLocation.name;
-            variables = selectedLocation.type === 'MARKET' ? { marketId: selectedLocation.id } : { locationId: selectedLocation.id };
+            if (selectedLocation.marketId || selectedLocation.type === 'MARKET') {
+                variables.marketId = String(selectedLocation.marketId || selectedLocation.id);
+            } else if (selectedLocation.geoZoneId || selectedLocation.id) {
+                variables.locationId = String(selectedLocation.geoZoneId || selectedLocation.id);
+            }
+            if (selectedLocation.latitude && selectedLocation.longitude) {
+                variables.latitude = selectedLocation.latitude;
+                variables.longitude = selectedLocation.longitude;
+            }
         } else {
             const saved = typeof window !== 'undefined' ? localStorage.getItem('ahizan_client_location') : null;
             if (saved) {
                 try {
                     const loc = JSON.parse(saved);
                     displayName = loc.name;
-                    variables = loc.type === 'MARKET' ? { marketId: loc.id } : { locationId: loc.id };
+                    if (loc.marketId || loc.type === 'MARKET') {
+                        variables.marketId = String(loc.marketId || loc.id);
+                    } else if (loc.geoZoneId || loc.id) {
+                        variables.locationId = String(loc.geoZoneId || loc.id);
+                    }
+                    if (loc.latitude && loc.longitude) {
+                        variables.latitude = loc.latitude;
+                        variables.longitude = loc.longitude;
+                    }
                     hasLocation = true;
                 } catch (e) {
                     console.error("Error parsing client location:", e);
                 }
             }
+        }
+
+        if (requireConfirmedLocation && !hasLocation && !isCmsPreview) {
+            setProducts([]);
+            setLoading(false);
+            return;
         }
 
         setLoading(true);
@@ -133,10 +155,12 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             let localProductsList: any[] = [];
 
             const localQuery = `
-                query GetLocalProducts($marketId: ID, $locationId: ID) {
+                query GetLocalProducts($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float) {
                     vendors(
                         marketId: $marketId, 
                         locationId: $locationId, 
+                        latitude: $latitude,
+                        longitude: $longitude,
                         options: { filter: { status: { eq: "APPROVED" } } }
                     ) {
                         items {
@@ -338,37 +362,30 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             if (finalProducts.length === 0) {
                 // Fallback vers le catalogue général si aucun marchand local n'est encore enregistré dans la zone
                 try {
-                    const fallbackRes = await fetch(shopApiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            query: `
-                                query GetFallbackProducts($take: Int!) {
-                                    search(input: { groupByProduct: false, take: $take }) {
-                                        items {
-                                            productId
-                                            productName
-                                            productVariantId
-                                            productVariantName
-                                            slug
-                                            productAsset { preview }
-                                            productVariantAsset { preview }
-                                            priceWithTax {
-                                                __typename
-                                                ... on PriceRange { min max }
-                                                ... on SinglePrice { value }
-                                            }
-                                            currencyCode
-                                            inStock
-                                        }
+                    const fallbackQuery = `
+                        query GetFallbackProducts($take: Int!) {
+                            search(input: { groupByProduct: false, take: $take }) {
+                                items {
+                                    productId
+                                    productName
+                                    productVariantId
+                                    productVariantName
+                                    slug
+                                    productAsset { preview }
+                                    productVariantAsset { preview }
+                                    priceWithTax {
+                                        __typename
+                                        ... on PriceRange { min max }
+                                        ... on SinglePrice { value }
                                     }
+                                    currencyCode
+                                    inStock
                                 }
-                            `,
-                            variables: { take: limit }
-                        })
-                    });
-                    const fbData = await fallbackRes.json();
-                    const fbItems = fbData.data?.search?.items || [];
+                            }
+                        }
+                    `;
+                    const fbData = await fetchWithClientCache(shopApiUrl, fallbackQuery, { take: limit });
+                    const fbItems = fbData?.search?.items || [];
                     finalProducts = fbItems.map((p: any) => ({
                         id: p.productVariantId || p.productId,
                         productId: p.productId,

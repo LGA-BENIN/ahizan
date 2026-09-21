@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { RichTextEditor } from '../ui/RichTextEditor';
+import { useAutoSave } from '../useAutoSave';
 
 interface RichTextSettingsProps {
     data: any;
@@ -7,25 +8,20 @@ interface RichTextSettingsProps {
 }
 
 export function RichTextSettings({ data, onSave }: RichTextSettingsProps) {
-    const [config, setConfig] = useState({
+    const [config, setConfig] = useState(() => ({
         htmlContent: '',
         bgColor: '#ffffff',
         textColor: '#333333',
         padding: '2rem 1rem',
         maxWidth: '800px',
         ...data
-    });
+    }));
     const [isSourceMode, setIsSourceMode] = useState(false);
 
-    useEffect(() => {
-        // Only update local state if data changes significantly from outside
-        setConfig(prev => ({ ...prev, ...data }));
-    }, [data]);
+    useAutoSave(config, onSave);
 
     const handleChange = (fields: Partial<typeof config>) => {
-        const newConfig = { ...config, ...fields };
-        setConfig(newConfig);
-        onSave(newConfig);
+        setConfig(prev => ({ ...prev, ...fields }));
     };
 
     return (

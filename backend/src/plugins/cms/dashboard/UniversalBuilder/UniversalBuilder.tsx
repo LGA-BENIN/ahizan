@@ -71,8 +71,8 @@ const AUTO_SAVE_HABILLAGE = `
 `;
 
 const PUBLISH_HABILLAGE = `
-  mutation PublishHabillage($presetId: ID!, $pageId: ID!) {
-    publishHabillage(presetId: $presetId, pageId: $pageId) {
+  mutation PublishHabillage($presetId: ID!, $pageId: ID!, $sectionsJson: String) {
+    publishHabillage(presetId: $presetId, pageId: $pageId, sectionsJson: $sectionsJson) {
       id
     }
   }
@@ -414,13 +414,14 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
     try {
       setSaveStatus('Publication en cours...');
       
-      // Force auto-save of the latest local state before publishing
-      await fetchGraphQL(AUTO_SAVE_HABILLAGE, {
-        presetId: targetHabillage.id,
-        sectionsJson: targetHabillage.sectionsJson,
+      const payloadSectionsJson = targetHabillage.sectionsJson;
+
+      await fetchGraphQL(PUBLISH_HABILLAGE, { 
+        presetId: targetHabillage.id, 
+        pageId: selectedPageId,
+        sectionsJson: payloadSectionsJson,
       });
 
-      await fetchGraphQL(PUBLISH_HABILLAGE, { presetId: targetHabillage.id, pageId: selectedPageId });
       setSaveStatus('✅ Habillage publié ! Le storefront est mis à jour instantanément.');
       queryClient.invalidateQueries({ queryKey: ['page', selectedPageId] });
       queryClient.invalidateQueries({ queryKey: ['habillages'] });
@@ -1227,7 +1228,7 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
                   )}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', display: 'block' }}>
                     {activeSection ? (
-                      <SectionEditorFactory key={`${activeSection.id}-${typeof activeSection.dataJson === 'string' ? activeSection.dataJson : JSON.stringify(activeSection.dataJson)}`} section={activeSection} sectionIndex={sections.findIndex((s: any) => s.id === activeSection.id)} onSaveSuccess={refetchPageDetail} />
+                      <SectionEditorFactory key={activeSection.id} section={activeSection} sectionIndex={sections.findIndex((s: any) => s.id === activeSection.id)} onSaveSuccess={refetchPageDetail} />
                     ) : (
                       <div className="empty-state">
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>👆</div>

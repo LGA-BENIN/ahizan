@@ -65,13 +65,17 @@ export class CMSService {
             .then(([items, totalItems]) => ({ items, totalItems }));
     }
 
-    findOne(ctx: RequestContext, id: ID): Promise<Page | null> {
+    async findOne(ctx: RequestContext, id: ID): Promise<Page | null> {
         // Disable cache to ensure fresh reads after mutations
-        return this.connection.getRepository(ctx, Page).findOne({
+        const page = await this.connection.getRepository(ctx, Page).findOne({
             where: { id },
             relations: ['sections'],
             cache: false,
         });
+        if (page && page.sections) {
+            page.sections.sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
+        return page;
     }
 
     async findOneBySlug(ctx: RequestContext, slug: string): Promise<Page | null> {
@@ -85,6 +89,9 @@ export class CMSService {
         });
 
         if (page) {
+            if (page.sections) {
+                page.sections.sort((a, b) => (a.order || 0) - (b.order || 0));
+            }
             return page;
         }
 
@@ -1595,8 +1602,13 @@ export class CMSService {
         return this.connection.getRepository(ctx, PagePreset).save(preset);
     }
 
-    async publishHabillage(ctx: RequestContext, presetId: ID, pageId: ID): Promise<Page> {
+    async publishHabillage(ctx: RequestContext, presetId: ID, pageId: ID, directSectionsJson?: string): Promise<Page> {
         const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, presetId);
+
+        if (directSectionsJson) {
+            preset.sectionsJson = directSectionsJson;
+            await this.connection.getRepository(ctx, PagePreset).save(preset);
+        }
 
         // Only auto-backup if the current active preset is NOT the default
         const currentPage = await this.findOne(ctx, pageId);
@@ -1626,32 +1638,41 @@ export class CMSService {
             }
         }
 
-        const sections = JSON.parse(preset.sectionsJson);
+        const sections = JSON.parse(preset.sectionsJson || '[]');
 
         // Group sections by pageSlug
         const sectionsBySlug: Record<string, any[]> = {};
         for (const sectionData of sections) {
-            const slug = sectionData.pageSlug || 'home';
+            const slug = sectionData.pageSlug || currentPage?.slug || 'home';
             if (!sectionsBySlug[slug]) sectionsBySlug[slug] = [];
             sectionsBySlug[slug].push(sectionData);
         }
 
+        // Ensure at least the current page is updated if sectionsBySlug was empty
+        if (Object.keys(sectionsBySlug).length === 0 && currentPage) {
+            sectionsBySlug[currentPage.slug || 'home'] = [];
+        }
+
         // Apply sections to all referenced pages
         for (const [slug, pageSections] of Object.entries(sectionsBySlug)) {
-            let targetPage = await this.findOneBySlug(ctx, slug);
+            let targetPage = await this.connection.getRepository(ctx, Page).findOne({ where: { slug } });
             if (!targetPage) {
                 targetPage = await this.createPage(ctx, { slug, title: slug, type: 'CUSTOM', isActive: true });
+            } else if (!targetPage.isActive) {
+                targetPage.isActive = true;
+                await this.connection.getRepository(ctx, Page).save(targetPage);
             }
 
             await this.clearPageSections(ctx, targetPage.id);
-            for (const sectionData of pageSections) {
+            for (let i = 0; i < pageSections.length; i++) {
+                const sectionData = pageSections[i];
                 await this.createSection(ctx, {
                     pageId: targetPage.id,
                     type: sectionData.type,
                     title: sectionData.title || '',
                     description: sectionData.description || '',
                     layout: sectionData.layout || 'grid',
-                    order: sectionData.order || 0,
+                    order: sectionData.order !== undefined ? sectionData.order : i,
                     isActive: sectionData.isActive !== false,
                     dataJson: typeof sectionData.dataJson === 'string' ? sectionData.dataJson : JSON.stringify(sectionData.dataJson || {}),
                 });
@@ -1661,7 +1682,10 @@ export class CMSService {
             await this.connection.getRepository(ctx, Page).update(targetPage.id, { activePreset: preset });
         }
 
-        // Note: activePreset was set in the loop above for all pages
+        // Mark preset as published
+        preset.status = 'published';
+        preset.publishedAt = new Date();
+        await this.connection.getRepository(ctx, PagePreset).save(preset);
 
         return this.findOne(ctx, pageId) as Promise<Page>;
     }

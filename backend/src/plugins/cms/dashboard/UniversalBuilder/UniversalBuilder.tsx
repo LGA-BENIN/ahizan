@@ -96,7 +96,7 @@ const REDO_HABILLAGE = `
 
 const FETCH_HABILLAGES = `
   query FetchHabillages {
-    habillages { id name isDefault isBackup status sectionsJson changeHistory historyPointer updatedAt }
+    habillages { id name isDefault isBackup status updatedAt }
   }
 `;
 

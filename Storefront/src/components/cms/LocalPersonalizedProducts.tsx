@@ -6,7 +6,7 @@ import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context';
 
-import { fetchWithClientCache } from '@/lib/vendure/client-cache';
+import { fetchWithClientCache, clearClientCache } from '@/lib/vendure/client-cache';
 
 interface LocalPersonalizedProductsProps {
     config?: {
@@ -48,6 +48,10 @@ interface LocalPersonalizedProductsProps {
         maxItemsPerVendor?: number;
         boostCertifiedVendors?: boolean;
         columns?: number;
+        radiusKm?: number;
+        categoryFilterMode?: string;
+        locationSource?: string;
+        [key: string]: any;
     };
 }
 
@@ -80,7 +84,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     const displayBadgeText = config?.badgeText || '';
     const limit = (config?.limit || config?.take) ? Number(config?.limit || config?.take) : 8;
     const layout = config?.layout || 'grid-4';
-    const requireConfirmedLocation = config?.requireConfirmedLocation !== false; // true par défaut
+    const requireConfirmedLocation = config?.requireConfirmedLocation === true; // false par défaut (affiche pour tout le monde sauf si explicitement activé)
 
     // Advanced configs
     const textAlign = config?.textAlign || 'left';
@@ -89,22 +93,30 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     const badgeBgColor = config?.badgeBgColor || '#e31837';
     const badgeTextColor = config?.badgeTextColor || '#ffffff';
 
-    const marketIdFromConfig = config?.marketId;
-    const locationIdFromConfig = config?.locationId;
-    const isOverride = !!(marketIdFromConfig || locationIdFromConfig);
+    const locationSource = config?.locationSource || 'AUTO';
+    const isFixedMarket = locationSource === 'FIXED_MARKET' && !!config?.marketId;
+    const isFixedLocation = locationSource === 'FIXED_LOCATION' && !!config?.locationId;
+    const isOverride = isFixedMarket || isFixedLocation;
+
+    const marketIdFromConfig = isFixedMarket ? config?.marketId : undefined;
+    const locationIdFromConfig = isFixedLocation ? config?.locationId : undefined;
 
     const fetchLocalProducts = async () => {
         let variables: any = {};
         let displayName = '';
         let hasLocation = false;
 
+        if (config?.radiusKm && Number(config.radiusKm) > 0) {
+            variables.radiusKm = Number(config.radiusKm);
+        }
+
         if (isOverride) {
             hasLocation = true;
-            if (marketIdFromConfig) {
-                variables = { marketId: String(marketIdFromConfig) };
+            if (isFixedMarket) {
+                variables.marketId = String(marketIdFromConfig);
                 displayName = config?.marketName || '';
-            } else {
-                variables = { locationId: String(locationIdFromConfig) };
+            } else if (isFixedLocation) {
+                variables.locationId = String(locationIdFromConfig);
                 displayName = config?.locationName || '';
             }
         } else if (selectedLocation) {
@@ -155,13 +167,14 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             let localProductsList: any[] = [];
 
             const localQuery = `
-                query GetLocalProducts($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float) {
+                query GetLocalProducts($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float, $radiusKm: Float) {
                     vendors(
                         marketId: $marketId, 
                         locationId: $locationId, 
                         latitude: $latitude,
                         longitude: $longitude,
-                        options: { filter: { status: { eq: "APPROVED" } } }
+                        radiusKm: $radiusKm,
+                        options: { filter: { status: { eq: "APPROVED" } }, take: 100 }
                     ) {
                         items {
                             id
@@ -177,7 +190,9 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                                 customFields { approvalStatus }
                                 variants {
                                     id
+                                    name
                                     priceWithTax
+                                    featuredAsset { preview }
                                     customFields {
                                         compareAtPrice
                                         onPromotion
@@ -193,23 +208,113 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             const resultLocal = await fetchWithClientCache(shopApiUrl, localQuery, variables);
             const vendorsList = resultLocal?.vendors?.items || [];
             
-            localProductsList = vendorsList.flatMap((v: any) => (v.products || [])
-                .filter((p: any) => !p.customFields || p.customFields.approvalStatus === 'approved')
-                .map((p: any) => ({
-                    ...p,
-                    vendorName: v.name,
-                    vendorId: v.id,
-                    marketName: v.physicalMarket?.name,
-                    marketId: v.physicalMarket?.id,
-                    locationName: v.location?.name,
-                    locationId: v.location?.id,
-                }))
-            );
+            localProductsList = vendorsList.flatMap((v: any) => {
+                return (v.products || [])
+                    .filter((p: any) => !p.customFields?.approvalStatus || String(p.customFields.approvalStatus).toLowerCase() === 'approved')
+                    .flatMap((p: any) => {
+                        const variants = (p.variants || []).filter((vr: any) => !vr.deletedAt);
+                        if (variants.length === 0) return [];
+                        return variants.map((vr: any) => {
+                            const effectiveAsset = vr.featuredAsset || p.featuredAsset;
+                            return {
+                                id: `${v.id}-${p.id}-${vr.id}`,
+                                productId: p.id,
+                                productVariantId: vr.id,
+                                name: p.name,
+                                productName: p.name,
+                                productVariantName: vr.name,
+                                slug: p.slug,
+                                vendorId: v.id,
+                                vendorName: v.name,
+                                marketName: v.physicalMarket?.name,
+                                marketId: v.physicalMarket?.id,
+                                locationName: v.location?.name,
+                                locationId: v.location?.id,
+                                featuredAsset: effectiveAsset,
+                                productVariantAsset: vr.featuredAsset,
+                                productAsset: p.featuredAsset,
+                                priceWithTax: vr.priceWithTax,
+                                price: vr.priceWithTax,
+                                variants: [vr],
+                                customFields: {
+                                    ...(vr.customFields || {}),
+                                    approvalStatus: p.customFields?.approvalStatus,
+                                    vendor: {
+                                        id: v.id,
+                                        name: v.name,
+                                        physicalMarket: v.physicalMarket,
+                                        location: v.location,
+                                    }
+                                },
+                                collections: p.collections,
+                            };
+                        });
+                    });
+            });
 
-            // Filter by Selection Mode (Collections / Products / Hybrid)
+            // 1. Filter by Categories / Rayons if specified
+            const categoryFilterMode = config?.categoryFilterMode || 'ALL';
+            const isAllCategories = categoryFilterMode === 'ALL';
+
+            const collectionIds = (!isAllCategories && Array.isArray(config?.collectionIds) && config.collectionIds.length > 0)
+                ? config.collectionIds.map(String)
+                : (!isAllCategories && config?.mixCollectionId ? [String(config.mixCollectionId)] : []);
+
+            if (!isAllCategories && collectionIds.length > 0) {
+                localProductsList = localProductsList.filter((p: any) => 
+                    (p.collections || []).some((c: any) => collectionIds.includes(String(c.id)))
+                );
+            }
+
+            // 2. Apply strategy-specific ranking & filtering rules on local products
+            const experienceStrategy = config?.experienceStrategy || 'LOCAL_DISCOVERY';
+            
+            if (experienceStrategy === 'HOME_FEED') {
+                // Quota max of products per merchant
+                const maxItemsPerVendor = config?.maxItemsPerVendor || 3;
+                const vendorCounts: Record<string, number> = {};
+                localProductsList = localProductsList.filter((p: any) => {
+                    const vId = p.vendorId || 'unknown';
+                    vendorCounts[vId] = (vendorCounts[vId] || 0) + 1;
+                    return vendorCounts[vId] <= maxItemsPerVendor;
+                });
+            } else if (experienceStrategy === 'TRENDING') {
+                // Sort by promotion or popular criteria
+                localProductsList.sort((a: any, b: any) => {
+                    const valA = a.variants?.[0]?.customFields?.onPromotion ? 1 : 0;
+                    const valB = b.variants?.[0]?.customFields?.onPromotion ? 1 : 0;
+                    return valB - valA;
+                });
+            }
+
+            // 3. Fair round-robin interleaving so sellers are evenly distributed and certified vendors boosted if enabled
+            const vendorBuckets: Record<string, any[]> = {};
+            const vendorPriority: Record<string, number> = {};
+            for (const item of localProductsList) {
+                const vId = String(item.vendorId || 'unknown');
+                if (!vendorBuckets[vId]) {
+                    vendorBuckets[vId] = [];
+                    const isCertified = item.marketName && (item.marketName.toLowerCase().includes('dantokpa') || item.marketName.toLowerCase().includes('ganhi'));
+                    vendorPriority[vId] = (config?.boostCertifiedVendors !== false && isCertified) ? 1 : 0;
+                }
+                vendorBuckets[vId].push(item);
+            }
+
+            const sortedVendorIds = Object.keys(vendorBuckets).sort((a, b) => (vendorPriority[b] || 0) - (vendorPriority[a] || 0));
+            const interleaved: any[] = [];
+            const maxLen = Math.max(...Object.values(vendorBuckets).map(b => b.length), 0);
+            for (let i = 0; i < maxLen; i++) {
+                for (const vId of sortedVendorIds) {
+                    if (vendorBuckets[vId][i]) {
+                        interleaved.push(vendorBuckets[vId][i]);
+                    }
+                }
+            }
+            localProductsList = interleaved;
+
+            // 4. Filter by Selection Mode (Collections / Products / Hybrid)
             const selectionMode = config?.selectionMode || 'COLLECTIONS';
             const manualProductIds = config?.manualProductIds || [];
-            const collectionIds = config?.collectionIds || (config?.mixCollectionId ? [config.mixCollectionId] : []);
 
             // Fetch manual products globally if specified
             let manualProductsList: any[] = [];
@@ -226,7 +331,9 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                                     collections { id }
                                     variants {
                                         id
+                                        name
                                         priceWithTax
+                                        featuredAsset { preview }
                                         customFields {
                                             compareAtPrice
                                             onPromotion
@@ -247,49 +354,50 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                     `;
                     const resultManual = await fetchWithClientCache(shopApiUrl, manualQuery, { ids: manualProductIds.map(String) });
                     const manualItems = resultManual?.products?.items || [];
-                    manualProductsList = manualItems.map((p: any) => ({
-                        ...p,
-                        vendorName: p.customFields?.vendor?.name,
-                        vendorId: p.customFields?.vendor?.id,
-                        marketName: p.customFields?.vendor?.physicalMarket?.name,
-                        marketId: p.customFields?.vendor?.physicalMarket?.id,
-                        locationName: p.customFields?.vendor?.location?.name,
-                        locationId: p.customFields?.vendor?.location?.id,
-                    }));
+                    manualProductsList = manualItems.flatMap((p: any) => {
+                        const variants = (p.variants || []).filter((vr: any) => !vr.deletedAt);
+                        const v = p.customFields?.vendor;
+                        if (variants.length === 0) {
+                            return [{
+                                ...p,
+                                vendorName: v?.name,
+                                vendorId: v?.id,
+                                marketName: v?.physicalMarket?.name,
+                                marketId: v?.physicalMarket?.id,
+                                locationName: v?.location?.name,
+                                locationId: v?.location?.id,
+                            }];
+                        }
+                        return variants.map((vr: any) => ({
+                            id: `${v?.id || 'm'}-${p.id}-${vr.id}`,
+                            productId: p.id,
+                            productVariantId: vr.id,
+                            name: p.name,
+                            productName: p.name,
+                            productVariantName: vr.name,
+                            slug: p.slug,
+                            vendorId: v?.id,
+                            vendorName: v?.name,
+                            marketName: v?.physicalMarket?.name,
+                            marketId: v?.physicalMarket?.id,
+                            locationName: v?.location?.name,
+                            locationId: v?.location?.id,
+                            featuredAsset: vr.featuredAsset || p.featuredAsset,
+                            productVariantAsset: vr.featuredAsset,
+                            productAsset: p.featuredAsset,
+                            priceWithTax: vr.priceWithTax,
+                            price: vr.priceWithTax,
+                            variants: [vr],
+                            customFields: {
+                                ...(vr.customFields || {}),
+                                vendor: v,
+                            },
+                            collections: p.collections,
+                        }));
+                    });
                 } catch (e) {
                     console.error("Error fetching manual products globally:", e);
                 }
-            }
-
-            // Apply strategy specific ranking & filtering rules on local products before merging
-            const experienceStrategy = config?.experienceStrategy || 'LOCAL_DISCOVERY';
-            
-            if (experienceStrategy === 'HOME_FEED') {
-                // Quota max of products per merchant
-                const maxItemsPerVendor = config?.maxItemsPerVendor || 3;
-                const vendorCounts: Record<string, number> = {};
-                localProductsList = localProductsList.filter((p: any) => {
-                    const vId = p.vendorId;
-                    if (!vId) return true;
-                    vendorCounts[vId] = (vendorCounts[vId] || 0) + 1;
-                    return vendorCounts[vId] <= maxItemsPerVendor;
-                });
-
-                // Boost certified vendors (Dantokpa/Ganhi)
-                if (config?.boostCertifiedVendors !== false) {
-                    localProductsList.sort((a: any, b: any) => {
-                        const aBoost = (a.marketName?.toLowerCase().includes('dantokpa') || a.marketName?.toLowerCase().includes('ganhi')) ? 1 : 0;
-                        const bBoost = (b.marketName?.toLowerCase().includes('dantokpa') || b.marketName?.toLowerCase().includes('ganhi')) ? 1 : 0;
-                        return bBoost - aBoost;
-                    });
-                }
-            } else if (experienceStrategy === 'TRENDING') {
-                // Sort by promotion or popular criteria
-                localProductsList.sort((a: any, b: any) => {
-                    const valA = a.variants?.[0]?.customFields?.onPromotion ? 1 : 0;
-                    const valB = b.variants?.[0]?.customFields?.onPromotion ? 1 : 0;
-                    return valB - valA;
-                });
             }
 
             // Construct final products list according to selectionMode
@@ -300,67 +408,56 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                     finalProducts = localProductsList.filter((p: any) => 
                         manualProductIds.map(String).includes(String(p.id))
                     );
-                } else if (collectionIds.length > 0) {
-                    finalProducts = localProductsList.filter((p: any) => 
-                        (p.collections || []).some((c: any) => collectionIds.map(String).includes(String(c.id)))
-                    );
                 } else {
                     finalProducts = localProductsList;
                 }
             } else if (selectionMode === 'PRODUCTS') {
                 // Mode 2: Manual + Local Engine (ESM)
-                const seenIds = new Set<string>();
+                const seenKeys = new Set<string>();
                 for (const mp of manualProductsList) {
-                    if (!seenIds.has(String(mp.id))) {
+                    const k = `${mp.vendorId || ''}-${mp.id}`;
+                    if (!seenKeys.has(k)) {
                         finalProducts.push(mp);
-                        seenIds.add(String(mp.id));
+                        seenKeys.add(k);
                     }
                 }
                 for (const lp of localProductsList) {
                     if (finalProducts.length >= limit) break;
-                    if (!seenIds.has(String(lp.id))) {
+                    const k = `${lp.vendorId || ''}-${lp.id}`;
+                    if (!seenKeys.has(k)) {
                         finalProducts.push(lp);
-                        seenIds.add(String(lp.id));
+                        seenKeys.add(k);
                     }
                 }
             } else if (selectionMode === 'HYBRID') {
                 // Mode 3: Hybrid
-                const seenIds = new Set<string>();
+                const seenKeys = new Set<string>();
                 
                 // 1. Products of chosen collection in the local zone
-                const localCollectionProducts = localProductsList.filter((p: any) => 
-                    collectionIds.length > 0 && (p.collections || []).some((c: any) => collectionIds.map(String).includes(String(c.id)))
-                );
-                for (const lcp of localCollectionProducts) {
-                    if (!seenIds.has(String(lcp.id))) {
+                for (const lcp of localProductsList) {
+                    const k = `${lcp.vendorId || ''}-${lcp.id}`;
+                    if (!seenKeys.has(k)) {
                         finalProducts.push(lcp);
-                        seenIds.add(String(lcp.id));
+                        seenKeys.add(k);
                     }
                 }
 
                 // 2. Manual products
                 for (const mp of manualProductsList) {
                     if (finalProducts.length >= limit) break;
-                    if (!seenIds.has(String(mp.id))) {
+                    const k = `${mp.vendorId || ''}-${mp.id}`;
+                    if (!seenKeys.has(k)) {
                         finalProducts.push(mp);
-                        seenIds.add(String(mp.id));
-                    }
-                }
-
-                // 3. Fallback to remaining local zone products
-                for (const lp of localProductsList) {
-                    if (finalProducts.length >= limit) break;
-                    if (!seenIds.has(String(lp.id))) {
-                        finalProducts.push(lp);
-                        seenIds.add(String(lp.id));
+                        seenKeys.add(k);
                     }
                 }
             } else {
                 finalProducts = localProductsList;
             }
 
-            if (finalProducts.length === 0) {
-                // Fallback vers le catalogue général si aucun marchand local n'est encore enregistré dans la zone
+            const mixMode = config?.mixMode || 'none';
+            if (finalProducts.length === 0 && (mixMode === 'fallback' || mixMode === 'hybrid')) {
+                // Fallback vers le catalogue général UNIQUEMENT si le mixMode l'autorise explicitement
                 try {
                     const fallbackQuery = `
                         query GetFallbackProducts($take: Int!) {
@@ -415,12 +512,16 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
         fetchLocalProducts();
 
         if (typeof window !== 'undefined') {
-            window.addEventListener('ahizan_location_changed', fetchLocalProducts);
+            const handleLocationChanged = () => {
+                clearClientCache();
+                fetchLocalProducts();
+            };
+            window.addEventListener('ahizan_location_changed', handleLocationChanged);
             return () => {
-                window.removeEventListener('ahizan_location_changed', fetchLocalProducts);
+                window.removeEventListener('ahizan_location_changed', handleLocationChanged);
             };
         }
-    }, [selectedLocation, marketIdFromConfig, locationIdFromConfig, limit, config?.mixCollectionId, config?.mixMode, config?.interleaveSchema, config?.selectionMode, JSON.stringify(config?.collectionIds), JSON.stringify(config?.manualProductIds), config?.experienceStrategy]);
+    }, [selectedLocation, marketIdFromConfig, locationIdFromConfig, limit, config?.mixCollectionId, config?.mixMode, config?.interleaveSchema, config?.selectionMode, JSON.stringify(config?.collectionIds), JSON.stringify(config?.manualProductIds), config?.experienceStrategy, config?.radiusKm]);
 
     const renderProductsLayout = () => {
         const columns = config?.columns || 4;
@@ -461,8 +562,8 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                             msOverflowStyle: 'none',
                         } as React.CSSProperties}
                     >
-                        {products.map(product => (
-                            <div key={product.id} className="w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] shrink-0 snap-start">
+                        {products.map((product, idx) => (
+                            <div key={`${product.vendorId || 'v'}-${product.productVariantId || product.id || idx}`} className="w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] shrink-0 snap-start">
                                 <VendorProductCard product={product} config={config} />
                             </div>
                         ))}
@@ -473,8 +574,8 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
 
         return (
             <div className={gridClass}>
-                {products.map(product => (
-                    <VendorProductCard key={product.id} product={product} config={config} />
+                {products.map((product, idx) => (
+                    <VendorProductCard key={`${product.vendorId || 'v'}-${product.productVariantId || product.id || idx}`} product={product} config={config} />
                 ))}
             </div>
         );
@@ -487,16 +588,20 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
         <section className="py-3 md:py-5 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
             {headerStyle === 'standard' && (
                 <div className={`flex flex-col ${alignClass} mb-4 gap-1`}>
+                    {displayBadgeText && displayBadgeText.trim() !== '' && (
+                        <span 
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase shadow-sm w-fit"
+                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                        >
+                            {displayBadgeText}
+                        </span>
+                    )}
                     {displayTitle && displayTitle.trim() !== '' && (
-                        <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
+                        <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
                             {displayIcon && <span>{displayIcon}</span>} {displayTitle}
                         </h2>
                     )}
-                    {displaySubtitle && displaySubtitle.trim() !== '' && (
-                        <p className="font-medium text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-2xl" style={{ color: subtitleColor || undefined }}>
-                            {displaySubtitle}
-                        </p>
-                    )}
+                    {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
                 </div>
             )}
             {headerStyle === 'bordered' && (
@@ -557,10 +662,13 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 </div>
             ) : products.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-6 rounded-[2rem] border border-dashed border-border bg-muted/20 text-center max-w-xl mx-auto">
-                    <Store className="w-10 h-10 text-muted-foreground/60 mb-3" />
-                    <h3 className="text-sm font-bold text-foreground">Aucun article disponible dans cette zone</h3>
+                    <MapPin className="w-10 h-10 text-muted-foreground/60 mb-3 text-primary animate-bounce" />
+                    <h3 className="text-sm font-bold text-foreground">Aucun article dans ce périmètre</h3>
                     <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">
-                        Les marchands de ce secteur (<strong>{locationName}</strong>) n'ont pas encore publié d'articles pour le moment.
+                        Aucun vendeur actif trouvé dans un rayon de <strong>{config?.radiusKm ? `${config.radiusKm} km` : '15 km'}</strong> autour de <strong>{locationName || selectedLocation?.name || 'votre position'}</strong>.
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-1">
+                        Conseil : élargissez le rayon de recherche ou sélectionnez un grand marché comme Dantokpa ou Ganhi.
                     </p>
                 </div>
             ) : (

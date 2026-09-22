@@ -73,7 +73,8 @@ export class VendorService implements OnApplicationBootstrap {
         latitude?: number,
         longitude?: number,
         marketId?: string,
-        locationId?: string
+        locationId?: string,
+        radiusKm?: number
     ): Promise<PaginatedList<Vendor>> {
         const useSpatialSorting = latitude !== undefined || longitude !== undefined || marketId !== undefined || locationId !== undefined;
 
@@ -109,31 +110,139 @@ export class VendorService implements OnApplicationBootstrap {
             return R * c;
         };
 
-        let filteredItems = [...items];
-        if (locationId) {
-            const locIdStr = locationId.toString();
-            let matchingLocationIds = new Set<string>([locIdStr]);
-            try {
-                const childZones = await this.connection.rawConnection.query(
-                    `SELECT id FROM geo_zone WHERE "parentId" = $1 OR id = $1`,
-                    [Number(locationId)]
-                );
-                if (childZones && Array.isArray(childZones)) {
-                    childZones.forEach((z: any) => matchingLocationIds.add(z.id.toString()));
+        // Pre-load market and zone coordinates for vendor fallback coordinates
+        const marketCoordsMap = new Map<number, { lat: number; lng: number }>();
+        const zoneCoordsMap = new Map<number, { lat: number; lng: number }>();
+        try {
+            const rawMarkets = await this.connection.rawConnection.query(
+                `SELECT id, "centerLatitude", "centerLongitude" FROM market WHERE "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL`
+            );
+            if (Array.isArray(rawMarkets)) {
+                for (const m of rawMarkets) {
+                    marketCoordsMap.set(Number(m.id), { lat: Number(m.centerLatitude), lng: Number(m.centerLongitude) });
                 }
-            } catch (e) {
-                // Keep base locationId on query fallback
             }
-            filteredItems = filteredItems.filter(v => v.locationId && matchingLocationIds.has(v.locationId.toString()));
+            const rawZones = await this.connection.rawConnection.query(
+                `SELECT id, "centerLatitude", "centerLongitude" FROM geo_zone WHERE "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL`
+            );
+            if (Array.isArray(rawZones)) {
+                for (const z of rawZones) {
+                    zoneCoordsMap.set(Number(z.id), { lat: Number(z.centerLatitude), lng: Number(z.centerLongitude) });
+                }
+            }
+        } catch (e) {
+            // Ignore pre-load error
         }
+
+        const getVendorCoords = (v: Vendor): { lat: number; lng: number } | null => {
+            if (v.latitude !== null && v.longitude !== null && v.latitude !== undefined && v.longitude !== undefined && !isNaN(Number(v.latitude)) && !isNaN(Number(v.longitude))) {
+                return { lat: Number(v.latitude), lng: Number(v.longitude) };
+            }
+            if (v.physicalMarketId && marketCoordsMap.has(Number(v.physicalMarketId))) {
+                return marketCoordsMap.get(Number(v.physicalMarketId))!;
+            }
+            if (v.locationId && zoneCoordsMap.has(Number(v.locationId))) {
+                return zoneCoordsMap.get(Number(v.locationId))!;
+            }
+            return null;
+        };
+
+        let filteredItems: Vendor[] = [...items];
+
         if (marketId) {
-            filteredItems = filteredItems.filter(v => 
+            filteredItems = filteredItems.filter((v: Vendor) => 
                 v.physicalMarketId?.toString() === marketId.toString() ||
-                (v.marketIds && Array.isArray(v.marketIds) && v.marketIds.some(id => id?.toString() === marketId.toString()))
+                (v.marketIds && Array.isArray(v.marketIds) && v.marketIds.some((id: any) => id?.toString() === marketId.toString()))
             );
         }
 
-        const sortedItems = filteredItems.sort((a, b) => {
+        let zoneLat: number | undefined = undefined;
+        let zoneLng: number | undefined = undefined;
+        let matchingLocationIds = new Set<string>();
+        let matchingMarketIds = new Set<string>();
+
+        if (locationId) {
+            const locIdStr = locationId.toString();
+            matchingLocationIds.add(locIdStr);
+            try {
+                const zoneRow = await this.connection.rawConnection.query(
+                    `SELECT "centerLatitude", "centerLongitude" FROM geo_zone WHERE id = $1`,
+                    [Number(locationId)]
+                );
+                if (zoneRow && zoneRow[0]) {
+                    if (zoneRow[0].centerLatitude != null && zoneRow[0].centerLongitude != null) {
+                        zoneLat = Number(zoneRow[0].centerLatitude);
+                        zoneLng = Number(zoneRow[0].centerLongitude);
+                    }
+                }
+
+                const zones = await this.connection.rawConnection.query(
+                    `WITH RECURSIVE subzones AS (
+                        SELECT id FROM geo_zone WHERE id = $1
+                        UNION ALL
+                        SELECT gz.id FROM geo_zone gz INNER JOIN subzones sz ON gz."parentId" = sz.id
+                    ),
+                    parentzones AS (
+                        SELECT "parentId" AS id FROM geo_zone WHERE id = $1 AND "parentId" IS NOT NULL
+                        UNION ALL
+                        SELECT gz."parentId" AS id FROM geo_zone gz INNER JOIN parentzones pz ON gz.id = pz.id WHERE gz."parentId" IS NOT NULL
+                    )
+                    SELECT id FROM subzones UNION SELECT id FROM parentzones WHERE id IS NOT NULL`,
+                    [Number(locationId)]
+                );
+                if (zones && Array.isArray(zones)) {
+                    zones.forEach((z: any) => matchingLocationIds.add(z.id.toString()));
+                }
+
+                // Also find markets belonging to this zone
+                const zoneMarkets = await this.connection.rawConnection.query(
+                    `SELECT id FROM market WHERE "geoZoneId" = ANY($1::int[])`,
+                    [Array.from(matchingLocationIds).map(Number).filter(n => !isNaN(n))]
+                );
+                if (zoneMarkets && Array.isArray(zoneMarkets)) {
+                    zoneMarkets.forEach((m: any) => matchingMarketIds.add(m.id.toString()));
+                }
+            } catch (e) {
+                // Fallback to direct match
+            }
+        }
+
+        const effectiveLat = latitude !== undefined ? Number(latitude) : zoneLat;
+        const effectiveLng = longitude !== undefined ? Number(longitude) : zoneLng;
+        const hasEffectiveGps = effectiveLat !== undefined && effectiveLng !== undefined;
+        const maxDistanceMeters = (radiusKm !== undefined && Number(radiusKm) > 0 ? Number(radiusKm) : 15) * 1000;
+
+        if (locationId) {
+            // Zone / City / Neighborhood matching
+            filteredItems = filteredItems.filter((v: Vendor) => {
+                // 1. Direct or recursive subzone match
+                if (v.locationId && matchingLocationIds.has(v.locationId.toString())) return true;
+                if (v.physicalMarketId && matchingMarketIds.has(v.physicalMarketId.toString())) return true;
+
+                // 2. Spatial proximity fallback to the zone center (within max(radiusKm, 15km))
+                if (hasEffectiveGps) {
+                    const coords = getVendorCoords(v);
+                    if (coords) {
+                        const effectiveRadius = Math.max(maxDistanceMeters, 15000);
+                        const dist = getDistance(effectiveLat, effectiveLng, coords.lat, coords.lng);
+                        return dist <= effectiveRadius;
+                    }
+                }
+                return false;
+            });
+        } else if (hasEffectiveGps) {
+            // Pure GPS mode (no specific zone/market selected): strict radius
+            filteredItems = filteredItems.filter((v: Vendor) => {
+                const coords = getVendorCoords(v);
+                if (coords) {
+                    const dist = getDistance(effectiveLat, effectiveLng, coords.lat, coords.lng);
+                    return dist <= maxDistanceMeters;
+                }
+                return false;
+            });
+        }
+
+        const sortedItems = filteredItems.sort((a: Vendor, b: Vendor) => {
             if (marketId) {
                 const aIsResident = a.physicalMarketId?.toString() === marketId.toString();
                 const bIsResident = b.physicalMarketId?.toString() === marketId.toString();
@@ -141,16 +250,16 @@ export class VendorService implements OnApplicationBootstrap {
                 if (!aIsResident && bIsResident) return 1;
             }
 
-            if (latitude !== undefined && longitude !== undefined) {
-                const aHasCoords = a.latitude !== null && a.longitude !== null && a.latitude !== undefined && a.longitude !== undefined;
-                const bHasCoords = b.latitude !== null && b.longitude !== null && b.latitude !== undefined && b.longitude !== undefined;
+            if (hasEffectiveGps) {
+                const aCoords = getVendorCoords(a);
+                const bCoords = getVendorCoords(b);
 
-                if (aHasCoords && !bHasCoords) return -1;
-                if (!aHasCoords && bHasCoords) return 1;
+                if (aCoords && !bCoords) return -1;
+                if (!aCoords && bCoords) return 1;
 
-                if (aHasCoords && bHasCoords) {
-                    const distA = getDistance(latitude, longitude, a.latitude!, a.longitude!);
-                    const distB = getDistance(latitude, longitude, b.latitude!, b.longitude!);
+                if (aCoords && bCoords) {
+                    const distA = getDistance(effectiveLat, effectiveLng, aCoords.lat, aCoords.lng);
+                    const distB = getDistance(effectiveLat, effectiveLng, bCoords.lat, bCoords.lng);
                     if (distA !== distB) {
                         return distA - distB;
                     }
@@ -158,8 +267,8 @@ export class VendorService implements OnApplicationBootstrap {
             }
 
             if (marketId) {
-                const aHasSecondary = a.marketIds?.some(id => id?.toString() === marketId.toString());
-                const bHasSecondary = b.marketIds?.some(id => id?.toString() === marketId.toString());
+                const aHasSecondary = a.marketIds?.some((id: any) => id?.toString() === marketId.toString());
+                const bHasSecondary = b.marketIds?.some((id: any) => id?.toString() === marketId.toString());
                 if (aHasSecondary && !bHasSecondary) return -1;
                 if (!aHasSecondary && bHasSecondary) return 1;
             }
@@ -2784,6 +2893,8 @@ export class VendorService implements OnApplicationBootstrap {
                 .leftJoinAndSelect('options.group', 'group')
                 .leftJoinAndSelect('options.translations', 'optionTranslations')
                 .leftJoinAndSelect('group.translations', 'groupTranslations')
+                .leftJoinAndSelect('variants.collections', 'collections')
+                .leftJoinAndSelect('collections.translations', 'collectionTranslations')
                 .where('product.id IN (:...productIds)', { productIds })
                 .andWhere('product.deletedAt IS NULL')
                 .orderBy('product.createdAt', 'DESC')
@@ -2802,18 +2913,43 @@ export class VendorService implements OnApplicationBootstrap {
 
         // 4. Overlay seller-specific offer values on each product variant
         const resultProducts: Product[] = [];
-        for (const p of products) {
-            const isOwner = String((p.customFields as any)?.vendorId || (p.customFields as any)?.vendor?.id || (p as any)?.customFieldsVendorid || '') === String(vendorId);
+        for (const origP of products) {
+            const isOwner = String((origP.customFields as any)?.vendorId || (origP.customFields as any)?.vendor?.id || (origP as any)?.customFieldsVendorid || '') === String(vendorId);
 
-            if (!p.variants || p.variants.length === 0) {
+            if (!origP.variants || origP.variants.length === 0) {
                 continue; // Skip product entirely if it has 0 variants
             }
 
+            // Clone product instance to prevent cross-vendor contamination
+            const p: any = Object.create(Product.prototype);
+            for (const key of Object.keys(origP)) {
+                p[key] = (origP as any)[key];
+            }
+
+            const prodCollections = new Map<string, any>();
+            for (const vr of origP.variants || []) {
+                for (const col of (vr as any).collections || []) {
+                    prodCollections.set(String(col.id), col);
+                }
+            }
+            p.collections = Array.from(prodCollections.values());
+
+            p.variants = origP.variants.map((origV: ProductVariant) => {
+                const v: any = Object.create(ProductVariant.prototype);
+                for (const key of Object.keys(origV)) {
+                    if (key === 'price' || key === 'priceWithTax') continue;
+                    v[key] = (origV as any)[key];
+                }
+                v.customFields = { ...(origV.customFields || {}) };
+                v.productVariantPrices = origV.productVariantPrices ? origV.productVariantPrices.map((pr: any) => ({ ...pr })) : [];
+                return v as ProductVariant;
+            });
+
             // If not owner (grafted offers), strictly filter to the variants where this vendor has an offer
             if (!isOwner) {
-                p.variants = p.variants.filter(v => !v.deletedAt && offerMap.has(String(v.id)));
+                p.variants = p.variants.filter((v: ProductVariant) => !v.deletedAt && offerMap.has(String(v.id)));
             } else {
-                p.variants = p.variants.filter(v => !v.deletedAt);
+                p.variants = p.variants.filter((v: ProductVariant) => !v.deletedAt);
             }
 
             if (p.variants.length === 0) {

@@ -112,9 +112,10 @@ export function getPromoPriceInfo({
         }
     }
 
-    // 3. Extract the real promotional price from the variant's custom fields
-    const hasRealPromo = variantCustomFields?.onPromotion === true && typeof variantCustomFields?.promotionalPrice === 'number';
-    const realPromoPrice = hasRealPromo ? variantCustomFields.promotionalPrice : null;
+    // 3. Extract promotional and comparison prices
+    const promoPriceRaw = variantCustomFields?.promotionalPrice != null ? Number(variantCustomFields.promotionalPrice) : null;
+    const comparePriceRaw = variantCustomFields?.compareAtPrice != null ? Number(variantCustomFields.compareAtPrice) : null;
+    const isOnPromotion = variantCustomFields?.onPromotion === true || (promoPriceRaw !== null && promoPriceRaw > 0 && promoPriceRaw < price);
 
     let hasPromotion = false;
     let finalOriginalPrice = price;
@@ -122,10 +123,18 @@ export function getPromoPriceInfo({
     let discountPct = 0;
     let showBothPrices = activeFlash ? activeFlash.showPromotionalPrice !== false : true;
 
-    if (hasRealPromo && realPromoPrice !== null && realPromoPrice > 0) {
+    if (comparePriceRaw !== null && comparePriceRaw > price) {
         hasPromotion = true;
-        finalPromoPrice = realPromoPrice;
-        discountPct = price > realPromoPrice ? Math.round(((price - realPromoPrice) / price) * 100) : 0;
+        finalOriginalPrice = comparePriceRaw;
+        finalPromoPrice = (isOnPromotion && promoPriceRaw !== null && promoPriceRaw > 0 && promoPriceRaw < comparePriceRaw)
+            ? promoPriceRaw
+            : price;
+        discountPct = Math.round(((finalOriginalPrice - finalPromoPrice) / finalOriginalPrice) * 100);
+    } else if (isOnPromotion && promoPriceRaw !== null && promoPriceRaw > 0 && promoPriceRaw < price) {
+        hasPromotion = true;
+        finalOriginalPrice = price;
+        finalPromoPrice = promoPriceRaw;
+        discountPct = Math.round(((price - promoPriceRaw) / price) * 100);
     }
 
     return {

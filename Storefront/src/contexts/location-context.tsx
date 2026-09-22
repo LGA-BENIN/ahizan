@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect, useRef } from "react";
 import { getShopApiUrl } from "@/lib/vendure/api-utils";
+import { clearClientCache } from "@/lib/vendure/client-cache";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 
@@ -225,6 +226,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     // 4. Internal apply (no toast) — used by auto-tracking
     const _applyLocation = (loc: LocationData) => {
+        clearClientCache();
         setSelectedLocation(loc);
         localStorage.setItem('ahizan_client_location', JSON.stringify(loc));
         if (typeof window !== 'undefined') {
@@ -239,6 +241,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     };
 
     const clearLocation = () => {
+        clearClientCache();
         setSelectedLocation(null);
         localStorage.removeItem('ahizan_client_location');
         if (watchIdRef.current !== null) {

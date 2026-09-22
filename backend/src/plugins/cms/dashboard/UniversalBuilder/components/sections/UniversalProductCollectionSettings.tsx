@@ -15,7 +15,7 @@ const defaults = {
     title: 'Sélection pour vous',
     subtitle: 'Découvrez nos offres recommandées',
     badgeText: 'Recommandation EMS',
-    experienceStrategy: 'CATALOG',
+    experienceStrategy: 'LOCAL_DISCOVERY',
     layout: 'carousel',
     columns: 4,
     limit: 8,
@@ -33,9 +33,10 @@ const defaults = {
     flashBadgeStyle: 'neon_timer',
     autoHideExpired: true,
     // Catalog specific defaults
-    mixCollectionId: '',
     filterType: 'LATEST',
     enableTabs: false,
+    categoryFilterMode: 'ALL', // 'ALL' | 'SPECIFIC'
+    collectionIds: [] as string[],
     // Local Discovery specific defaults
     locationSource: 'AUTO',
     marketId: '',
@@ -44,7 +45,7 @@ const defaults = {
     locationName: '',
     requireConfirmedLocation: false,
     mixMode: 'none',
-    radiusKm: 10,
+    radiusKm: 15,
     // Personalization specific defaults
     maxItemsPerVendor: 3,
     boostCertifiedVendors: true,
@@ -60,10 +61,11 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
     const [collections, setCollections] = useState<any[]>([]);
     const [markets, setMarkets] = useState<any[]>([]);
     const [geoZones, setGeoZones] = useState<any[]>([]);
+    const [categorySearch, setCategorySearch] = useState('');
 
     useAutoSave(config, onSave);
 
-    // Fetch collections list for CATALOG strategy selector
+    // Fetch collections list
     useEffect(() => {
         fetchGraphQL(FETCH_COLLECTIONS)
             .then((res: any) => {
@@ -71,7 +73,7 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                 const flat: any[] = [];
                 const flatten = (nodes: any[]) => {
                     for (const node of nodes) {
-                        flat.push({ id: node.id, name: node.name, slug: node.slug });
+                        flat.push({ id: String(node.id), name: node.name, slug: node.slug });
                         if (node.children && node.children.length > 0) {
                             flatten(node.children);
                         }
@@ -82,7 +84,7 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
             })
             .catch(err => console.error('[UniversalProductCollectionSettings] Failed to fetch collections:', err));
 
-        // Fetch markets and geoZones for location targeting
+        // Fetch markets and geoZones
         fetchGraphQL(FETCH_MARKETS)
             .then(res => setMarkets(res?.markets || []))
             .catch(err => console.error('[UniversalProductCollectionSettings] Failed to fetch markets:', err));
@@ -96,250 +98,94 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
         setConfig((prev: any) => ({ ...prev, [field]: value }));
     };
 
+    const toggleCollectionId = (id: string) => {
+        const currentIds: string[] = Array.isArray(config.collectionIds) ? config.collectionIds.map(String) : [];
+        const isSelected = currentIds.includes(String(id));
+        const updated = isSelected 
+            ? currentIds.filter(item => item !== String(id))
+            : [...currentIds, String(id)];
+        handleChange('collectionIds', updated);
+    };
+
     const ColorField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
         <div>
-            <label className="label-pro mb-1 block font-semibold">{label}</label>
+            <label className="label-pro mb-1 block font-semibold text-slate-700">{label}</label>
             <div className="flex items-center gap-2">
-                <input type="color" className="w-8 h-8 rounded border p-0 cursor-pointer" value={value || '#000000'} onChange={(e) => onChange(e.target.value)} />
-                <input type="text" className="w-full p-1.5 border rounded text-xs" value={value || ''} onChange={(e) => onChange(e.target.value)} />
+                <input 
+                    type="color" 
+                    className="w-8 h-8 rounded border p-0 cursor-pointer shadow-sm" 
+                    value={value || '#000000'} 
+                    onChange={(e) => onChange(e.target.value)} 
+                />
+                <input 
+                    type="text" 
+                    className="w-full p-1.5 border rounded text-xs font-mono bg-white" 
+                    value={value || ''} 
+                    onChange={(e) => onChange(e.target.value)} 
+                />
             </div>
         </div>
     );
 
-    const strategy = config.experienceStrategy || 'CATALOG';
+    const strategy = config.experienceStrategy || 'LOCAL_DISCOVERY';
+    const categoryFilterMode = config.categoryFilterMode || (config.collectionIds?.length > 0 ? 'SPECIFIC' : 'ALL');
+    const selectedCollectionIds: string[] = Array.isArray(config.collectionIds) ? config.collectionIds.map(String) : [];
+
+    const filteredCollections = collections.filter(c => 
+        !categorySearch || 
+        c.name.toLowerCase().includes(categorySearch.toLowerCase()) || 
+        c.slug.toLowerCase().includes(categorySearch.toLowerCase())
+    );
 
     return (
-        <div className="space-y-4 p-4 text-xs max-h-[75vh] overflow-y-auto">
-            <h3 className="font-bold text-sm text-slate-800 border-b pb-2 flex items-center gap-2">
-                <span>🎯</span> Collection de Produits EMS (Unifiée & Contexte Réactif)
-            </h3>
+        <div className="space-y-4 p-4 text-xs max-h-[80vh] overflow-y-auto font-sans">
+            <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    <span className="text-base">🎯</span> Collection de Produits EMS
+                </h3>
+                <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                    Moteur Intelligent
+                </span>
+            </div>
 
-            {/* 1. SELECTION DE LA STRATÉGIE EMS */}
-            <div className="p-3 border rounded bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 space-y-2">
-                <label className="block font-bold text-blue-900 text-sm">🧠 Stratégie d'Expérience Metier (Moteur EMS)</label>
+            {/* 1. SELECTION DE LA STRATEGIE METIER */}
+            <div className="p-3 border rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 space-y-2">
+                <label className="block font-bold text-blue-950 text-xs uppercase tracking-wide">
+                    1. Type d'Affichage & Stratégie Métier
+                </label>
                 <select
                     value={strategy}
                     onChange={(e) => handleChange('experienceStrategy', e.target.value)}
-                    className="w-full p-2.5 border rounded text-xs bg-white font-bold text-slate-800 shadow-sm"
+                    className="w-full p-2 border rounded-md text-xs bg-white font-bold text-slate-800 shadow-sm border-blue-300 focus:ring-2 focus:ring-blue-400 focus:outline-none"
                 >
-                    <option value="CATALOG">📦 Catalog Standard (Collection / Filtres de catégories)</option>
-                    <option value="LOCAL_DISCOVERY">📍 Local Discovery (Produits à proximité GeoEngine)</option>
-                    <option value="FLASH_SALE">⚡ Flash Sale (Ventes Flash avec Chrono)</option>
-                    <option value="HOME_FEED">🚀 Home Feed (Flux Intelligent par Affinité Client)</option>
-                    <option value="TRENDING">🔥 Trending (Tendances & Meilleures Ventes de la ville)</option>
+                    <option value="LOCAL_DISCOVERY">📍 Découverte Locale (Produits à proximité du client / GeoEngine)</option>
+                    <option value="CATALOG">📦 Catalogue Standard (Sélection par rayons & catégories)</option>
+                    <option value="FLASH_SALE">⚡ Ventes Flash (Offres limitées avec compte à rebours chrono)</option>
+                    <option value="TRENDING">🔥 Tendances & Populaires (Meilleures ventes locales)</option>
+                    <option value="HOME_FEED">🚀 Flux Personnalisé (Recommandations par affinité client)</option>
                 </select>
-                <p className="text-[11px] text-blue-700 italic">
-                    {strategy === 'FLASH_SALE' && "⚡ Mode Ventes Flash : Affiche les offres temporaires avec compte à rebours chrono et badge promo."}
-                    {strategy === 'CATALOG' && "📦 Mode Catalogue : Affiche les produits d'une collection ou catégorie spécifique avec filtres."}
-                    {strategy === 'LOCAL_DISCOVERY' && "📍 Mode Proximité : Sélectionne uniquement les produits des marchands de la zone/ville active du client."}
-                    {strategy === 'HOME_FEED' && "🚀 Mode Flux Personnalisé : Recommande dynamiquement les produits selon les affinités du client."}
-                    {strategy === 'TRENDING' && "🔥 Mode Tendances : Classe les meilleures ventes et produits populaires calculés par le Ranking Engine."}
+                <p className="text-[11px] text-blue-800 leading-relaxed">
+                    {strategy === 'LOCAL_DISCOVERY' && "📍 Affiche uniquement les produits des boutiques situées dans la zone ou à proximité du client (avec séparation stricte des villes)."}
+                    {strategy === 'CATALOG' && "📦 Affiche les produits du catalogue général selon les catégories sélectionnées et le critère de tri."}
+                    {strategy === 'FLASH_SALE' && "⚡ Met en avant les promotions temporaires avec un compte à rebours actif et badge dynamique."}
+                    {strategy === 'TRENDING' && "🔥 Affiche les produits les plus commandés et consultés dans la région du visiteur."}
+                    {strategy === 'HOME_FEED' && "🚀 Calcule dynamiquement les recommandations selon les catégories préférées du client."}
                 </p>
             </div>
 
-            {/* 1.5. MODE DE SELECTION DU CONTENU (Mode 1 / Mode 2 / Mode 3) */}
-            <div className="p-3 border rounded bg-slate-100 border-slate-300 space-y-4">
-                <h4 className="font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                    <span>🎛️</span> Méthode de Sélection du Contenu (EMS)
-                </h4>
-                <div>
-                    <label className="block font-semibold mb-1 text-slate-800">Source / Mode de Sélection</label>
-                    <select
-                        value={config.selectionMode || 'COLLECTIONS'}
-                        onChange={(e) => handleChange('selectionMode', e.target.value)}
-                        className="w-full p-2 border rounded text-xs bg-white font-semibold text-slate-800"
-                    >
-                        <option value="COLLECTIONS">📂 Mode 1 : Collections (Sélection de catégories)</option>
-                        <option value="PRODUCTS">📌 Mode 2 : Sélection de produits (Manuelle + Moteur EMS)</option>
-                        <option value="HYBRID">🔀 Mode 3 : Mode Hybride (Collections + Produits spécifiques)</option>
-                        <option value="AUTOMATIC">🤖 Mode 4 : Laisser au moteur (Automatique & Intelligent)</option>
-                    </select>
-                </div>
-
-                {/* MODE 1 : COLLECTIONS */}
-                {(config.selectionMode === 'COLLECTIONS' || !config.selectionMode) && (
-                    <div className="space-y-3 bg-white p-2.5 rounded-lg border border-slate-200">
-                        {/* Step 1: Search & Pick Collections */}
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-700">1. Rechercher et ajouter des collections</label>
-                            <CollectionSelector
-                                selectedIds={config.collectionIds || []}
-                                onSelectionChange={(ids) => handleChange('collectionIds', ids)}
-                            />
-                        </div>
-
-                        {/* Step 2: Select Target Collection from the picked ones */}
-                        {config.collectionIds && config.collectionIds.length > 0 && (
-                            <div>
-                                <label className="block font-semibold mb-1 text-slate-700">2. Sélectionner la collection active</label>
-                                <select
-                                    value={config.mixCollectionId || ''}
-                                    onChange={(e) => handleChange('mixCollectionId', e.target.value)}
-                                    className="w-full p-2 border rounded text-xs bg-white font-medium"
-                                >
-                                    <option value="">-- Choisir une collection --</option>
-                                    {collections
-                                        .filter(c => config.collectionIds.includes(String(c.id)))
-                                        .map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))
-                                    }
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Step 3: Choose Display Type */}
-                        {config.mixCollectionId && (
-                            <div>
-                                <label className="block font-semibold mb-1 text-slate-700">3. Rendu de la Collection</label>
-                                <select
-                                    value={config.collectionDisplayType || 'ALL'}
-                                    onChange={(e) => handleChange('collectionDisplayType', e.target.value)}
-                                    className="w-full p-2 border rounded text-xs bg-white font-medium"
-                                >
-                                    <option value="ALL">Afficher tous les produits de la collection</option>
-                                    <option value="PRODUCTS">Sélectionner uniquement certains produits</option>
-                                </select>
-                            </div>
-                        )}
-
-                        {/* Step 4: Search Products of this collection */}
-                        {config.mixCollectionId && config.collectionDisplayType === 'PRODUCTS' && (
-                            <div>
-                                <label className="block font-semibold mb-1 text-slate-700">4. Sélectionner les produits de la collection</label>
-                                <ProductSearchModal
-                                    selectedIds={config.manualProductIds || []}
-                                    onSelectionChange={(ids) => handleChange('manualProductIds', ids)}
-                                    collectionId={config.mixCollectionId}
-                                />
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* MODE 2 : SELECTION DE PRODUITS */}
-                {config.selectionMode === 'PRODUCTS' && (
-                    <div className="space-y-3 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <ProductSearchModal
-                            selectedIds={config.manualProductIds || []}
-                            onSelectionChange={(ids) => handleChange('manualProductIds', ids)}
-                        />
-                    </div>
-                )}
-
-                {/* MODE 3 : HYBRIDE */}
-                {config.selectionMode === 'HYBRID' && (
-                    <div className="space-y-3 bg-white p-2.5 rounded-lg border border-slate-200">
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-700">Collections cibles</label>
-                            <CollectionSelector
-                                selectedIds={config.collectionIds || []}
-                                onSelectionChange={(ids) => handleChange('collectionIds', ids)}
-                            />
-                        </div>
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-700">Produits spécifiques à inclure</label>
-                            <ProductSearchModal
-                                selectedIds={config.manualProductIds || []}
-                                onSelectionChange={(ids) => handleChange('manualProductIds', ids)}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {strategy === 'CATALOG' && (
-                    <div className="border-t border-slate-200 pt-3 mt-1 grid grid-cols-2 gap-2">
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Ordre de Filtrage des Produits</label>
-                            <select
-                                value={config.filterType || 'LATEST'}
-                                onChange={(e) => handleChange('filterType', e.target.value)}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
-                            >
-                                <option value="LATEST">Dernières Nouveautés</option>
-                                <option value="BEST_SELLERS">Meilleures Ventes</option>
-                                <option value="COLLECTION">Ordre Personnalisé de la Collection</option>
-                                <option value="FEATURED">Produits en Vedette</option>
-                            </select>
-                        </div>
-                        <div className="flex items-center pt-4">
-                            <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={config.enableTabs || false}
-                                    onChange={(e) => handleChange('enableTabs', e.target.checked)}
-                                />
-                                Activer le découpage en Onglets de Catégories
-                            </label>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* 2. PANNEAU DE CONFIGURATION DYNAMIQUE SELON LA STRATÉGIE SELECTIONNÉE */}
-            {strategy === 'FLASH_SALE' && (
-                <div className="p-3 border rounded bg-amber-50 border-amber-300 space-y-3">
-                    <h4 className="font-bold text-amber-900 flex items-center gap-1.5 border-b border-amber-200 pb-1.5">
-                        <span>⚡</span> Réglages Spécifiques Ventes Flash & Compte à Rebours
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Date et Heure de Fin du Chrono</label>
-                            <input
-                                type="datetime-local"
-                                value={config.countdownEnd || ''}
-                                onChange={(e) => handleChange('countdownEnd', e.target.value)}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
-                            />
-                        </div>
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Titre de la Campagne Flash</label>
-                            <input
-                                type="text"
-                                value={config.flashCampaignTitle || ''}
-                                onChange={(e) => handleChange('flashCampaignTitle', e.target.value)}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
-                            />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Style du Badge Chrono</label>
-                            <select
-                                value={config.flashBadgeStyle || 'neon_timer'}
-                                onChange={(e) => handleChange('flashBadgeStyle', e.target.value)}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
-                            >
-                                <option value="neon_timer">Néon Rouge Lumineux (Compte à Rebours)</option>
-                                <option value="standard">Standard Chrono Minimaliste</option>
-                                <option value="pill_gold">Pilule Dorée Premium</option>
-                            </select>
-                        </div>
-                        <div className="flex items-center pt-4">
-                            <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={config.autoHideExpired !== false}
-                                    onChange={(e) => handleChange('autoHideExpired', e.target.checked)}
-                                />
-                                Masquer la section à la fin du chrono
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-
-
+            {/* 2. CIBLAGE GEOGRAPHIQUE (SI LOCAL DISCOVERY OU SI SOUHAITÉ) */}
             {strategy === 'LOCAL_DISCOVERY' && (
-                <div className="p-3 border rounded bg-sky-50 border-sky-300 space-y-3">
-                    <h4 className="font-bold text-sky-900 flex items-center gap-1.5 border-b border-sky-200 pb-1.5">
-                        <span>📍</span> Réglages Spécifiques Proximité GeoEngine & Marchés
-                    </h4>
+                <div className="p-3 border rounded-lg bg-sky-50 border-sky-300 space-y-3">
+                    <div className="flex items-center justify-between border-b border-sky-200 pb-1.5">
+                        <h4 className="font-bold text-sky-950 flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
+                            <span>📍</span> 2. Périmètre Géographique & Rayon
+                        </h4>
+                        <span className="text-[10px] text-sky-800 font-medium">PostGIS GeoEngine</span>
+                    </div>
 
-                    {/* Source de Localisation */}
+                    {/* Mode de ciblage */}
                     <div>
-                        <label className="block font-semibold mb-1 text-slate-800">Mode de Ciblage Géographique</label>
+                        <label className="block font-semibold mb-1 text-slate-800">Mode de Détection de la Position</label>
                         <select
                             value={config.locationSource || 'AUTO'}
                             onChange={(e) => {
@@ -352,18 +198,18 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                                     handleChange('locationName', '');
                                 }
                             }}
-                            className="w-full p-2 border rounded text-xs bg-white font-semibold text-slate-800"
+                            className="w-full p-2 border rounded text-xs bg-white font-semibold text-slate-800 shadow-sm"
                         >
-                            <option value="AUTO">🌐 Détection Dynamique Client (GeoEngine / Position sélectionnée par le visiteur)</option>
-                            <option value="FIXED_MARKET">🏪 Marché Physique Fixe (ex: Dantokpa, Ganhi, Missèbo, Porto-Novo...)</option>
-                            <option value="FIXED_LOCATION">📍 Quartier ou Ville Fixe (ex: Cotonou, Cadjèhoun, Akpakpa...)</option>
+                            <option value="AUTO">🌐 Auto GPS (Position dynamique détectée chez le client)</option>
+                            <option value="FIXED_MARKET">🏪 Marché Physique Fixe (ex: Dantokpa, Ganhi, Missèbo...)</option>
+                            <option value="FIXED_LOCATION">📍 Ville / Quartier Fixe (ex: Cotonou, Porto-Novo, Cadjèhoun...)</option>
                         </select>
                     </div>
 
-                    {/* Sélection Marché Fixe */}
+                    {/* Marché Fixe */}
                     {config.locationSource === 'FIXED_MARKET' && (
                         <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Sélectionner le Marché Physique Cible</label>
+                            <label className="block font-semibold mb-1 text-slate-800">Marché Cible</label>
                             <select
                                 value={config.marketId || ''}
                                 onChange={(e) => {
@@ -384,10 +230,10 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                         </div>
                     )}
 
-                    {/* Sélection Quartier / Ville Fixe */}
+                    {/* Zone Fixe */}
                     {config.locationSource === 'FIXED_LOCATION' && (
                         <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Sélectionner le Quartier ou la Ville Cible</label>
+                            <label className="block font-semibold mb-1 text-slate-800">Ville / Quartier Cible</label>
                             <select
                                 value={config.locationId || ''}
                                 onChange={(e) => {
@@ -408,94 +254,260 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                         </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Rayon GPS & Fallback */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
                         <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Rayon de Recherche GPS (km)</label>
+                            <label className="block font-semibold mb-1 text-slate-800">
+                                Rayon Max GPS (km)
+                            </label>
                             <input
                                 type="number"
-                                value={config.radiusKm || 10}
-                                onChange={(e) => handleChange('radiusKm', parseInt(e.target.value))}
+                                value={config.radiusKm !== undefined && config.radiusKm !== null ? config.radiusKm : 15}
+                                onChange={(e) => {
+                                    const val = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                                    handleChange('radiusKm', isNaN(val as number) ? '' : val);
+                                }}
                                 min={1}
                                 max={100}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
+                                placeholder="15 (par défaut)"
+                                className="w-full p-1.5 border rounded text-xs bg-white font-medium"
                             />
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                                {config.radiusKm ? `${config.radiusKm} km autour du client` : '15 km par défaut si vide'}
+                            </p>
                         </div>
                         <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Mode de Comblement (Si zone vide)</label>
+                            <label className="block font-semibold mb-1 text-slate-800">
+                                Comportement si Zone Vide
+                            </label>
                             <select
                                 value={config.mixMode || 'none'}
                                 onChange={(e) => handleChange('mixMode', e.target.value)}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
+                                className="w-full p-1.5 border rounded text-xs bg-white font-medium"
                             >
-                                <option value="none">Strict (Uniquement les vendeurs de la zone)</option>
-                                <option value="hybrid">Hybride (Combler avec le reste du catalogue)</option>
-                                <option value="fallback">Repli (Afficher catalogue global si zone vide)</option>
+                                <option value="none">Strict (Ne rien afficher si 0 vendeur)</option>
+                                <option value="hybrid">Hybride (Combler avec d'autres vendeurs)</option>
+                                <option value="fallback">Repli (Catalogue général si aucun vendeur)</option>
                             </select>
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                                {config.mixMode === 'none' ? 'Garantit 0 mélange de villes' : 'Affiche du contenu de secours'}
+                            </p>
                         </div>
                     </div>
-                    <div className="flex items-center pt-2">
-                        <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
+
+                    <div className="pt-1">
+                        <label className="flex items-center gap-2 font-medium text-slate-800 cursor-pointer">
                             <input
                                 type="checkbox"
                                 checked={config.requireConfirmedLocation === true}
                                 onChange={(e) => handleChange('requireConfirmedLocation', e.target.checked)}
+                                className="rounded text-sky-600"
                             />
-                            Masquer la section si le client n'a pas confirmé sa zone/ville
+                            <span>Masquer la section si le client n'a pas encore choisi sa ville/zone</span>
                         </label>
                     </div>
                 </div>
             )}
 
-            {(strategy === 'HOME_FEED' || strategy === 'TRENDING') && (
-                <div className="p-3 border rounded bg-purple-50 border-purple-300 space-y-3">
-                    <h4 className="font-bold text-purple-900 flex items-center gap-1.5 border-b border-purple-200 pb-1.5">
-                        <span>🚀</span> Réglages Spécifiques Feed Personnalisé & Ranking Engine
+            {/* 3. FILTRAGE DIRECT PAR RAYONS / CATEGORIES */}
+            <div className="p-3 border rounded-lg bg-white shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b pb-1.5">
+                    <h4 className="font-bold text-slate-900 uppercase text-[11px] tracking-wide flex items-center gap-1.5">
+                        <span>🏷️</span> 3. Filtrage par Catégories / Rayons
                     </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <label className="block font-semibold mb-1 text-slate-800">Quota Max de Produits par Marchand</label>
+                    {selectedCollectionIds.length > 0 && (
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                            {selectedCollectionIds.length} sélectionnée{selectedCollectionIds.length > 1 ? 's' : ''}
+                        </span>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-4 pt-1">
+                    <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-800">
+                        <input
+                            type="radio"
+                            name="categoryFilterMode"
+                            value="ALL"
+                            checked={categoryFilterMode === 'ALL'}
+                            onChange={() => {
+                                handleChange('categoryFilterMode', 'ALL');
+                                handleChange('collectionIds', []);
+                            }}
+                            className="text-blue-600"
+                        />
+                        <span>Tous les rayons (Catalogue complet)</span>
+                    </label>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-slate-800">
+                        <input
+                            type="radio"
+                            name="categoryFilterMode"
+                            value="SPECIFIC"
+                            checked={categoryFilterMode === 'SPECIFIC'}
+                            onChange={() => handleChange('categoryFilterMode', 'SPECIFIC')}
+                            className="text-blue-600"
+                        />
+                        <span>Filtrer par rayons spécifiques</span>
+                    </label>
+                </div>
+
+                {categoryFilterMode === 'SPECIFIC' && (
+                    <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center gap-2">
                             <input
-                                type="number"
-                                value={config.maxItemsPerVendor || 3}
-                                onChange={(e) => handleChange('maxItemsPerVendor', parseInt(e.target.value))}
-                                min={1}
-                                max={10}
-                                className="w-full p-1.5 border rounded text-xs bg-white"
+                                type="text"
+                                value={categorySearch}
+                                onChange={(e) => setCategorySearch(e.target.value)}
+                                placeholder="🔍 Rechercher un rayon (ex: Épicerie, Mode, Boissons...)"
+                                className="w-full p-2 border rounded-md text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-400 focus:outline-none"
                             />
+                            {selectedCollectionIds.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleChange('collectionIds', [])}
+                                    className="px-2 py-1.5 text-[11px] text-red-600 hover:bg-red-50 rounded border border-red-200 whitespace-nowrap font-medium"
+                                >
+                                    Tout effacer
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Selected tags */}
+                        {selectedCollectionIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 p-2 bg-emerald-50/60 border border-emerald-200 rounded-md">
+                                {selectedCollectionIds.map(id => {
+                                    const col = collections.find(c => String(c.id) === String(id));
+                                    return (
+                                        <span 
+                                            key={id} 
+                                            className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-emerald-300 text-emerald-800 rounded text-[11px] font-semibold shadow-xs"
+                                        >
+                                            <span>✓ {col?.name || `Rayon #${id}`}</span>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => toggleCollectionId(id)} 
+                                                className="text-red-500 hover:text-red-700 font-bold ml-1 text-xs"
+                                            >
+                                                ✕
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* List of categories */}
+                        <div className="max-h-48 overflow-y-auto border rounded-md p-2 bg-slate-50 space-y-1">
+                            {filteredCollections.length === 0 ? (
+                                <p className="text-slate-400 text-center py-3 italic">Aucune catégorie trouvée</p>
+                            ) : (
+                                filteredCollections.map(col => {
+                                    const isChecked = selectedCollectionIds.includes(String(col.id));
+                                    return (
+                                        <label 
+                                            key={col.id} 
+                                            className={`flex items-center gap-2 p-1.5 rounded cursor-pointer transition text-xs ${
+                                                isChecked ? 'bg-emerald-100 font-bold text-emerald-900' : 'hover:bg-slate-200/70 text-slate-700'
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={() => toggleCollectionId(col.id)}
+                                                className="rounded text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <span className="flex-1">{col.name}</span>
+                                            <span className="text-[10px] text-slate-400 font-mono">/{col.slug}</span>
+                                        </label>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Additional criteria for Catalog mode */}
+                {strategy === 'CATALOG' && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t">
+                        <div>
+                            <label className="block font-semibold mb-1 text-slate-800">Ordre de Tri</label>
+                            <select
+                                value={config.filterType || 'LATEST'}
+                                onChange={(e) => handleChange('filterType', e.target.value)}
+                                className="w-full p-1.5 border rounded text-xs bg-white"
+                            >
+                                <option value="LATEST">Dernières Nouveautés</option>
+                                <option value="BEST_SELLERS">Meilleures Ventes</option>
+                                <option value="FEATURED">Produits en Vedette</option>
+                            </select>
                         </div>
                         <div className="flex items-center pt-4">
                             <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    checked={config.boostCertifiedVendors !== false}
-                                    onChange={(e) => handleChange('boostCertifiedVendors', e.target.checked)}
+                                    checked={config.enableTabs || false}
+                                    onChange={(e) => handleChange('enableTabs', e.target.checked)}
+                                    className="rounded text-blue-600"
                                 />
-                                Booster la visibilité des Vendeurs Certifiés (Dantokpa/Ganhi)
+                                Onglets séparés par catégorie
                             </label>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* REGLAGES VENTES FLASH (SI ACTIF) */}
+            {strategy === 'FLASH_SALE' && (
+                <div className="p-3 border rounded-lg bg-amber-50 border-amber-300 space-y-3">
+                    <h4 className="font-bold text-amber-950 flex items-center gap-1.5 border-b border-amber-200 pb-1.5 uppercase text-[11px] tracking-wide">
+                        <span>⚡</span> Réglages Ventes Flash & Compte à Rebours
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="block font-semibold mb-1 text-slate-800">Date/Heure de Fin du Chrono</label>
+                            <input
+                                type="datetime-local"
+                                value={config.countdownEnd || ''}
+                                onChange={(e) => handleChange('countdownEnd', e.target.value)}
+                                className="w-full p-1.5 border rounded text-xs bg-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="block font-semibold mb-1 text-slate-800">Titre de la Campagne Flash</label>
+                            <input
+                                type="text"
+                                value={config.flashCampaignTitle || ''}
+                                onChange={(e) => handleChange('flashCampaignTitle', e.target.value)}
+                                className="w-full p-1.5 border rounded text-xs bg-white"
+                            />
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* 3. TITRE ET EN-TÊTE (COMMUNS A TOUTES LES STRATÉGIES) */}
-            <div className="p-3 border rounded bg-white space-y-3">
-                <h4 className="font-bold text-slate-700">✍️ Titre & Textes d'En-tête</h4>
+            {/* 4. TITRE, TEXTES & EN-TÊTE */}
+            <div className="p-3 border rounded-lg bg-white shadow-sm space-y-3">
+                <h4 className="font-bold text-slate-900 uppercase text-[11px] tracking-wide border-b pb-1.5">
+                    ✍️ 4. Titre & Textes d'En-tête
+                </h4>
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <label className="block font-semibold mb-1">Titre de la section</label>
+                        <label className="block font-semibold mb-1">Titre Principal</label>
                         <input
                             type="text"
                             value={config.title || ''}
                             onChange={(e) => handleChange('title', e.target.value)}
+                            placeholder="ex: Les pépites de votre quartier"
                             className="w-full p-1.5 border rounded text-xs"
                         />
                     </div>
                     <div>
-                        <label className="block font-semibold mb-1">Texte du badge</label>
+                        <label className="block font-semibold mb-1">Texte du Badge</label>
                         <input
                             type="text"
                             value={config.badgeText || ''}
                             onChange={(e) => handleChange('badgeText', e.target.value)}
+                            placeholder="ex: Proximité Express"
                             className="w-full p-1.5 border rounded text-xs"
                         />
                     </div>
@@ -503,10 +515,11 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
 
                 <div>
                     <label className="block font-semibold mb-1">Sous-titre explicatif</label>
-                    <textarea
+                    <input
+                        type="text"
                         value={config.subtitle || ''}
                         onChange={(e) => handleChange('subtitle', e.target.value)}
-                        rows={2}
+                        placeholder="ex: Commandez auprès des vendeurs les plus proches de chez vous"
                         className="w-full p-1.5 border rounded text-xs"
                     />
                 </div>
@@ -531,14 +544,14 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                             onChange={(e) => handleChange('headerStyle', e.target.value)}
                             className="w-full p-1.5 border rounded text-xs bg-white"
                         >
-                            <option value="standard">Standard (Texte simple)</option>
+                            <option value="smart_cart">Smart Cart (Badge au-dessus + Ligne moderne)</option>
+                            <option value="standard">Standard (Texte simple épuré)</option>
                             <option value="bordered">Encadré (Carte avec bordure)</option>
-                            <option value="smart_cart">Smart Cart (Badge au-dessus + Ligne séparatrice)</option>
                         </select>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t">
                     <ColorField label="Couleur Titre" value={config.titleColor} onChange={(v) => handleChange('titleColor', v)} />
                     <ColorField label="Couleur Sous-Titre" value={config.subtitleColor} onChange={(v) => handleChange('subtitleColor', v)} />
                 </div>
@@ -548,9 +561,11 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                 </div>
             </div>
 
-            {/* 4. DISPOSITION ET THÈME VISUEL */}
-            <div className="p-3 border rounded bg-white space-y-3">
-                <h4 className="font-bold text-slate-700">📐 Disposition & Thème de Carte</h4>
+            {/* 5. DISPOSITION & THEME VISUEL */}
+            <div className="p-3 border rounded-lg bg-white shadow-sm space-y-3">
+                <h4 className="font-bold text-slate-900 uppercase text-[11px] tracking-wide border-b pb-1.5">
+                    📐 5. Disposition & Thème de Carte
+                </h4>
                 <div className="grid grid-cols-2 gap-2">
                     <div>
                         <label className="block font-semibold mb-1">Format de Rendu</label>
@@ -559,7 +574,7 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                             onChange={(e) => handleChange('layout', e.target.value)}
                             className="w-full p-1.5 border rounded text-xs bg-white"
                         >
-                            <option value="carousel">Carrousel Défilant Horizontal</option>
+                            <option value="carousel">Carrousel Horizontal Défilant</option>
                             <option value="grid-4">Grille 4 Colonnes</option>
                             <option value="grid-3">Grille Large 3 Colonnes</option>
                             <option value="compact">Mini-Cartes (6 Colonnes)</option>
@@ -573,12 +588,11 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                             onChange={(e) => handleChange('cardTheme', e.target.value)}
                             className="w-full p-1.5 border rounded text-xs bg-white"
                         >
-                            <option value="default">Standard Modern</option>
+                            <option value="default">Standard Modern (Ombré doux)</option>
                             <option value="flat">Minimaliste Plat (Flat Design)</option>
                             <option value="glassmorphism">Glassmorphism (Verre Dépoli)</option>
                             <option value="neon">Néon Premium (Glow Rouge/Noir)</option>
-                            <option value="bold-border">Rétro Bordure Épaisse</option>
-                            <option value="gradient-bg">Dégradé de Fond</option>
+                            <option value="bold-border">Bordure Épaisse Moderne</option>
                         </select>
                     </div>
                 </div>
@@ -589,21 +603,34 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                         <input
                             type="number"
                             value={config.limit || 8}
-                            onChange={(e) => handleChange('limit', parseInt(e.target.value))}
+                            onChange={(e) => handleChange('limit', parseInt(e.target.value, 10))}
                             min={1}
                             max={50}
+                            className="w-full p-1.5 border rounded text-xs"
+                        />
+                    </div>
+                    <div>
+                        <label className="block font-semibold mb-1">Max Produits par Marchand</label>
+                        <input
+                            type="number"
+                            value={config.maxItemsPerVendor || 3}
+                            onChange={(e) => handleChange('maxItemsPerVendor', parseInt(e.target.value, 10))}
+                            min={1}
+                            max={10}
                             className="w-full p-1.5 border rounded text-xs"
                         />
                     </div>
                 </div>
             </div>
 
-            {/* 5. BADGES DES 4 COINS DE LA CARTE */}
-            <div className="p-3 border rounded bg-white space-y-3">
-                <h4 className="font-bold text-slate-700">🏷️ Badges Personnalisés (4 Coins de Carte)</h4>
+            {/* 6. BADGES DES 4 COINS DE CARTE */}
+            <div className="p-3 border rounded-lg bg-white shadow-sm space-y-3">
+                <h4 className="font-bold text-slate-900 uppercase text-[11px] tracking-wide border-b pb-1.5">
+                    🏷️ 6. Badges des 4 Coins de la Carte Produit
+                </h4>
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <label className="block font-semibold mb-1">Haut Gauche ↖️</label>
+                        <label className="block font-semibold mb-1 text-slate-700">Haut Gauche ↖️</label>
                         <select
                             value={config.topLeftBadge || 'vendor_name'}
                             onChange={(e) => handleChange('topLeftBadge', e.target.value)}
@@ -611,20 +638,20 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                         >
                             <option value="none">Aucun</option>
                             <option value="vendor_name">Nom du Vendeur</option>
-                            <option value="market_badge">Badge Marché (Dantokpa/Ganhi)</option>
+                            <option value="market_badge">Badge Marché (ex: Dantokpa)</option>
                             <option value="promo_percent">Pourcentage Réduction</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block font-semibold mb-1">Haut Droite ↗️</label>
+                        <label className="block font-semibold mb-1 text-slate-700">Haut Droite ↗️</label>
                         <select
                             value={config.topRightBadge || 'like_button'}
                             onChange={(e) => handleChange('topRightBadge', e.target.value)}
                             className="w-full p-1.5 border rounded text-xs bg-white"
                         >
                             <option value="none">Aucun</option>
-                            <option value="like_button">Bouton Favoris (J'aime)</option>
-                            <option value="location_distance">Distance / Zone</option>
+                            <option value="like_button">Bouton Favoris (Coeur)</option>
+                            <option value="location_distance">Distance GPS / Zone</option>
                             <option value="market_icon">Icône Marché</option>
                         </select>
                     </div>
@@ -632,20 +659,20 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
 
                 <div className="grid grid-cols-2 gap-2">
                     <div>
-                        <label className="block font-semibold mb-1">Bas Gauche ↙️</label>
+                        <label className="block font-semibold mb-1 text-slate-700">Bas Gauche ↙️</label>
                         <select
                             value={config.bottomLeftBadge || 'stock_status'}
                             onChange={(e) => handleChange('bottomLeftBadge', e.target.value)}
                             className="w-full p-1.5 border rounded text-xs bg-white"
                         >
                             <option value="none">Aucun</option>
-                            <option value="stock_status">Statut Stock (Disponible/Rupture)</option>
+                            <option value="stock_status">Statut Stock (En stock / Rupture)</option>
                             <option value="market_name_short">Nom court du marché</option>
-                            <option value="delivery_time">Temps de livraison estimé</option>
+                            <option value="delivery_time">Temps estimé de livraison</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block font-semibold mb-1">Bas Droite ↘️</label>
+                        <label className="block font-semibold mb-1 text-slate-700">Bas Droite ↘️</label>
                         <select
                             value={config.bottomRightBadge || 'cart_button'}
                             onChange={(e) => handleChange('bottomRightBadge', e.target.value)}
@@ -661,221 +688,3 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
         </div>
     );
 };
-
-// --- Product Search Modal helper ---
-function ProductSearchModal({ selectedIds, onSelectionChange, collectionId }: { selectedIds: string[], onSelectionChange: (ids: string[]) => void, collectionId?: string }) {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-
-    const searchProducts = async (term: string) => {
-        if (!term || term.length < 2) { setSearchResults([]); return; }
-        setLoading(true);
-        try {
-            const origin = window.location.origin.includes(':5173') || window.location.origin.includes(':5174') || window.location.origin.includes(':4200')
-                ? window.location.origin.replace(/:(5173|5174|4200)/, ':3000')
-                : window.location.origin;
-            const shopApiUrl = `${origin}/shop-api`;
-            
-            const input: any = { term, groupByProduct: true, take: 20 };
-            if (collectionId) {
-                input.collectionId = collectionId;
-            }
-
-            const res = await fetch(shopApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: `query SearchProducts($input: SearchInput!) {
-                        search(input: $input) {
-                            items {
-                                productId productName slug
-                                productAsset { id preview }
-                                priceWithTax { ... on SinglePrice { value } ... on PriceRange { min } }
-                            }
-                        }
-                    }`,
-                    variables: { input }
-                })
-            });
-            const result = await res.json();
-            let items = result.data?.search?.items || [];
-            
-            if (items.length === 0 && !collectionId) {
-                const resProducts = await fetch(shopApiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: `query GetProducts($term: String!) {
-                            products(options: { filter: { name: { contains: $term } }, take: 20 }) {
-                                items {
-                                    id name slug
-                                    featuredAsset { id preview }
-                                    variants { priceWithTax }
-                                }
-                            }
-                        }`,
-                        variables: { term }
-                    })
-                });
-                const prodResult = await resProducts.json();
-                const prodItems = prodResult.data?.products?.items || [];
-                items = prodItems.map((p: any) => ({
-                    productId: p.id,
-                    productName: p.name,
-                    slug: p.slug,
-                    productAsset: p.featuredAsset,
-                    priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 }
-                }));
-            }
-            
-            setSearchResults(items);
-        } catch (err) {
-            console.error('Product search failed:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const toggleProduct = (id: string) => {
-        const newIds = selectedIds.includes(id)
-            ? selectedIds.filter((sid: string) => sid !== id)
-            : [...selectedIds, id];
-        onSelectionChange(newIds);
-    };
-
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            searchProducts(searchTerm);
-        }, 500);
-        return () => clearTimeout(handler);
-    }, [searchTerm, collectionId]);
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-            <div>
-                <input 
-                    style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem' }} 
-                    value={searchTerm} 
-                    onChange={(e) => setSearchTerm(e.target.value)} 
-                    placeholder="Rechercher des produits..." 
-                />
-            </div>
-            {selectedIds.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {selectedIds.map((id: string) => (
-                        <span key={id} style={{ padding: '2px 8px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                            ID: {id}
-                            <button onClick={() => toggleProduct(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}>✕</button>
-                        </span>
-                    ))}
-                </div>
-            )}
-            {searchResults.length > 0 && (
-                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                    {searchResults.map((p: any) => {
-                        const isSelected = selectedIds.includes(p.productId);
-                        return (
-                            <div key={p.productId} onClick={() => toggleProduct(p.productId)} style={{
-                                padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                background: isSelected ? '#f1f5f9' : '#fff',
-                                borderBottom: '1px solid #f1f5f9',
-                                fontSize: '0.75rem'
-                            }}>
-                                {p.productAsset && <img src={p.productAsset.preview} alt="" style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px' }} />}
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: 600 }}>{p.productName}</div>
-                                </div>
-                                {isSelected && <span style={{ color: '#2563eb', fontWeight: 'bold' }}>✓</span>}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-}
-
-// --- Collection Selector helper ---
-function CollectionSelector({ selectedIds, onSelectionChange }: { selectedIds: string[], onSelectionChange: (ids: string[]) => void }) {
-    const [collectionTree, setCollectionTree] = useState<any[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    useEffect(() => {
-        fetchGraphQL(`query { cmsCollectionsTree { id name slug children { id name slug } } }`)
-            .then(data => setCollectionTree(data?.cmsCollectionsTree || []))
-            .catch(err => console.error('Failed to fetch collections:', err));
-    }, []);
-
-    const toggleCollection = (id: string, children: any[] = []) => {
-        let newIds = [...selectedIds];
-        const isSelected = selectedIds.includes(id);
-
-        if (isSelected) {
-            const idsToRemove = [id, ...children.map(c => c.id)];
-            newIds = newIds.filter((sid: string) => !idsToRemove.includes(sid));
-        } else {
-            const idsToAdd = [id, ...children.map(c => c.id)];
-            idsToAdd.forEach(addId => {
-                if (!newIds.includes(addId)) newIds.push(addId);
-            });
-        }
-        onSelectionChange(newIds);
-    };
-
-    const flatCollections: any[] = [];
-    const flatten = (nodes: any[]) => {
-        for (const n of nodes) {
-            flatCollections.push(n);
-            if (n.children && n.children.length > 0) flatten(n.children);
-        }
-    };
-    flatten(collectionTree);
-
-    const filtered = flatCollections.filter(c => 
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        c.slug.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-            <input 
-                style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem' }} 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                placeholder="Rechercher des collections..." 
-            />
-            {selectedIds.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {selectedIds.map(id => {
-                        const col = flatCollections.find(c => String(c.id) === String(id));
-                        return (
-                            <span key={id} style={{ padding: '2px 8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '4px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                                {col?.name || `Collection #${id}`}
-                                <button onClick={() => toggleCollection(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}>✕</button>
-                            </span>
-                        );
-                    })}
-                </div>
-            )}
-            {filtered.length > 0 && searchTerm.length > 0 && (
-                <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
-                    {filtered.map(c => {
-                        const isSelected = selectedIds.includes(String(c.id));
-                        return (
-                            <div key={c.id} onClick={() => toggleCollection(String(c.id), c.children)} style={{
-                                padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                background: isSelected ? '#f0fdf4' : '#fff',
-                                borderBottom: '1px solid #f1f5f9',
-                                fontSize: '0.75rem'
-                            }}>
-                                <div style={{ flex: 1 }}>{c.name} ({c.slug})</div>
-                                {isSelected && <span style={{ color: '#16a34a', fontWeight: 'bold' }}>✓</span>}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-}

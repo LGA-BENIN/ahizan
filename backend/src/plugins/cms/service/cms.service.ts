@@ -1513,11 +1513,29 @@ export class CMSService {
     async openHabillage(ctx: RequestContext, presetId: ID): Promise<PagePreset> {
         const preset = await this.connection.getEntityOrThrow(ctx, PagePreset, presetId);
 
-        // Initialize change history if empty
-        if (!preset.changeHistory) {
-            const history = [preset.sectionsJson];
-            preset.changeHistory = JSON.stringify(history);
+        let history: string[] = [];
+        try {
+            history = preset.changeHistory ? JSON.parse(preset.changeHistory) : [];
+        } catch (e) {
+            history = [];
+        }
+
+        let needsSave = false;
+        if (!history || history.length === 0) {
+            history = [preset.sectionsJson];
             preset.historyPointer = 0;
+            needsSave = true;
+        } else if (history.length > 10) {
+            // Trim bloated history down to max 10 entries for instant loading
+            const pointer = Math.min(preset.historyPointer ?? history.length - 1, history.length - 1);
+            const start = Math.max(0, pointer - 9);
+            history = history.slice(start, pointer + 1);
+            preset.historyPointer = history.length - 1;
+            needsSave = true;
+        }
+
+        if (needsSave) {
+            preset.changeHistory = JSON.stringify(history);
             await this.connection.getRepository(ctx, PagePreset).save(preset);
         }
 
@@ -1590,9 +1608,9 @@ export class CMSService {
         // Append new state
         history.push(sectionsJson);
 
-        // Keep history manageable (max 50 entries)
-        if (history.length > 50) {
-            history = history.slice(history.length - 50);
+        // Keep history manageable (max 10 entries for fast transfers)
+        if (history.length > 10) {
+            history = history.slice(history.length - 10);
         }
 
         preset.sectionsJson = sectionsJson;

@@ -631,7 +631,7 @@ export const shopApiExtensions = `
     extend type Query {
         publicPlatformStats: PlatformPublicStats!
         vendor(id: ID!): Vendor
-        vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
+        vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID, radiusKm: Float): VendorList!
         myVendorProfile: Vendor
         myVendorOrders(options: OrderListOptions): OrderList!
         myVendorOrder(id: ID!): Order

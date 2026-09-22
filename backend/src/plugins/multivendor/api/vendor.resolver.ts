@@ -87,8 +87,9 @@ export class VendorResolver {
         @Args('longitude') longitude?: number,
         @Args('marketId') marketId?: string,
         @Args('locationId') locationId?: string,
+        @Args('radiusKm') radiusKm?: number,
     ): Promise<PaginatedList<Vendor>> {
-        return this.vendorService.findAll(ctx, options, latitude, longitude, marketId, locationId);
+        return this.vendorService.findAll(ctx, options, latitude, longitude, marketId, locationId, radiusKm);
     }
 
     @Query()
@@ -468,8 +469,9 @@ export class VendorAdminResolver {
         @Args('longitude') longitude?: number,
         @Args('marketId') marketId?: string,
         @Args('locationId') locationId?: string,
+        @Args('radiusKm') radiusKm?: number,
     ): Promise<PaginatedList<Vendor>> {
-        return this.vendorService.findAll(ctx, options, latitude, longitude, marketId, locationId);
+        return this.vendorService.findAll(ctx, options, latitude, longitude, marketId, locationId, radiusKm);
     }
 
     @Query()

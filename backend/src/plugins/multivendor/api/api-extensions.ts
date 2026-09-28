@@ -871,8 +871,8 @@ export const adminApiExtensions = `
             approveVendorOffer: Boolean
             optionGroups: [OptionGroupInput!]
             variantsMatrix: [AdminVariantMatrixInput!]
-            selectedImages: [AdminReviewProductImageInput!]
         ): Product!
+        adminDeleteProduct(id: ID!): DeletionResponse!
         adminReviewSellerOffer(id: ID!, status: String!, rejectionReason: String): SellerOffer!
         reassignVariantToProduct(variantId: ID!, targetProductId: ID!, approveOffer: Boolean): ProductVariant!
         reassignOfferToTargetVariant(sourceOfferId: ID!, targetVariantId: ID!, deleteSourceVariantIfEmpty: Boolean): SellerOffer!

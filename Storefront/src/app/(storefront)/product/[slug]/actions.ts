@@ -97,8 +97,19 @@ export async function getSellerOffersForProductVariants(variantIds: string[]) {
             name
             rating
             ratingCount
+            verificationStatus
+            zone
+            address
             logo {
               preview
+            }
+            location {
+              id
+              name
+            }
+            physicalMarket {
+              id
+              name
             }
           }
           productVariant {

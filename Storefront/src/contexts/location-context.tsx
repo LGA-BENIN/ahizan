@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useRef } from "react";
 import { getShopApiUrl } from "@/lib/vendure/api-utils";
 import { clearClientCache } from "@/lib/vendure/client-cache";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 export interface LocationData {
@@ -224,13 +224,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         };
     };
 
+    const router = useRouter();
+
     // 4. Internal apply (no toast) — used by auto-tracking
     const _applyLocation = (loc: LocationData) => {
         clearClientCache();
         setSelectedLocation(loc);
         localStorage.setItem('ahizan_client_location', JSON.stringify(loc));
         if (typeof window !== 'undefined') {
+            document.cookie = `ahizan_client_location=${encodeURIComponent(JSON.stringify(loc))}; path=/; max-age=31536000; SameSite=Lax`;
             window.dispatchEvent(new Event('ahizan_location_changed'));
+            try {
+                router.refresh();
+            } catch {}
         }
     };
 
@@ -250,7 +256,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         }
         lastAutoUpdateRef.current = null;
         if (typeof window !== 'undefined') {
+            document.cookie = `ahizan_client_location=; path=/; max-age=0; SameSite=Lax`;
             window.dispatchEvent(new Event('ahizan_location_changed'));
+            try {
+                router.refresh();
+            } catch {}
         }
         toast.info('Position réinitialisée.');
     };

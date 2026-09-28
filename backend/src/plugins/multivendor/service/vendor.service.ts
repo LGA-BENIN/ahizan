@@ -1703,7 +1703,13 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
-        // 6. Hydrate and publish product updated event for search reindexing
+        // 6. Automatically harmonize and sync variant names with the new parent product
+        await this.synchronizeAllVariantNamesForProduct(ctx, String(targetProductId));
+        if (oldProductId && String(oldProductId) !== String(targetProductId)) {
+            await this.synchronizeAllVariantNamesForProduct(ctx, String(oldProductId));
+        }
+
+        // 7. Hydrate and publish product updated event for search reindexing
         const updatedVariant = await this.connection.getRepository(ctx, ProductVariant).findOne({
             where: { id: variantId },
             relations: ['product', 'options', 'options.group', 'channels']
@@ -1712,6 +1718,106 @@ export class VendorService implements OnApplicationBootstrap {
         console.log(`[reassignVariantToProduct] Successfully moved variant #${variantId} (${variant.sku}) from Product #${variant.productId} to Product #${targetProductId} (${targetProduct.name})`);
 
         return updatedVariant || variant;
+    }
+
+    /**
+     * Superadmin permanently deletes a product proposal or marketplace product and clears all related offers and variant constraints cleanly.
+     */
+    async adminDeleteProduct(ctx: RequestContext, productId: string): Promise<{ result: string; message?: string }> {
+        const adminCtx = await this.getSuperAdminContext(ctx);
+        try {
+            // 1. Get all variant IDs for this product
+            const variants = await this.connection.rawConnection.query(
+                `SELECT id FROM product_variant WHERE "productId" = $1`,
+                [productId]
+            );
+            const variantIds = variants.map((v: any) => v.id);
+
+            if (variantIds.length > 0) {
+                // Remove seller_offers
+                await this.connection.rawConnection.query(
+                    `DELETE FROM seller_offer WHERE "productVariantId" = ANY($1)`,
+                    [variantIds]
+                );
+
+                // Remove from collections
+                await this.connection.rawConnection.query(
+                    `DELETE FROM collection_product_variants_product_variant WHERE "productVariantId" = ANY($1)`,
+                    [variantIds]
+                );
+
+                // Remove from variant channels
+                await this.connection.rawConnection.query(
+                    `DELETE FROM product_variant_channels_channel WHERE "productVariantId" = ANY($1)`,
+                    [variantIds]
+                );
+
+                // Remove from option relations
+                await this.connection.rawConnection.query(
+                    `DELETE FROM product_variant_options_product_option WHERE "productVariantId" = ANY($1)`,
+                    [variantIds]
+                );
+
+                // Remove from search index
+                await this.connection.rawConnection.query(
+                    `DELETE FROM search_index_item WHERE "productVariantId" = ANY($1)`,
+                    [variantIds]
+                );
+
+                // Remove prices
+                await this.connection.rawConnection.query(
+                    `DELETE FROM product_variant_price WHERE "variantId" = ANY($1)`,
+                    [variantIds]
+                );
+
+                // Soft-delete product_variants
+                await this.connection.rawConnection.query(
+                    `UPDATE product_variant SET "deletedAt" = NOW(), enabled = false WHERE "productId" = $1`,
+                    [productId]
+                );
+            }
+
+            // Remove product option groups
+            await this.connection.rawConnection.query(
+                `DELETE FROM product_option_groups_product_option_group WHERE "productId" = $1`,
+                [productId]
+            );
+
+            // Remove product channels
+            await this.connection.rawConnection.query(
+                `DELETE FROM product_channels_channel WHERE "productId" = $1`,
+                [productId]
+            );
+
+            // Remove product collections
+            try {
+                await this.connection.rawConnection.query(
+                    `DELETE FROM product_collections_collection WHERE "productId" = $1`,
+                    [productId]
+                );
+            } catch (_) {}
+
+            // Try standard productService.softDelete or fallback to direct SQL soft-delete
+            try {
+                const res = await this.productService.softDelete(adminCtx, productId);
+                if (res.result === 'DELETED') {
+                    return { result: 'DELETED', message: 'Produit supprimé avec succès' };
+                }
+            } catch (delErr: any) {
+                console.warn('[adminDeleteProduct] Native productService.softDelete note:', delErr?.message);
+            }
+
+            // Fallback soft-delete
+            await this.connection.rawConnection.query(
+                `UPDATE product SET "deletedAt" = NOW(), enabled = false, "updatedAt" = NOW() WHERE id = $1`,
+                [productId]
+            );
+
+            return { result: 'DELETED', message: 'Produit supprimé avec succès' };
+        } catch (error: any) {
+            console.error('[adminDeleteProduct] Error deleting product:', error);
+            return { result: 'NOT_DELETED', message: error?.message || 'Erreur lors de la suppression' };
+        }
     }
 
     /**
@@ -2324,7 +2430,7 @@ export class VendorService implements OnApplicationBootstrap {
     async synchronizeAllVariantNamesForProduct(ctx: RequestContext, productId: string): Promise<boolean> {
         try {
             const prodTranslation = await this.connection.rawConnection.query(
-                `SELECT name FROM product_translation WHERE "baseId" = $1 AND "languageCode" = 'fr' LIMIT 1`,
+                `SELECT name FROM product_translation WHERE "baseId" = $1 ORDER BY CASE WHEN "languageCode" = 'fr' THEN 1 ELSE 2 END LIMIT 1`,
                 [productId]
             );
             const prodName = (prodTranslation[0]?.name || '').trim() || 'Produit';
@@ -2336,34 +2442,34 @@ export class VendorService implements OnApplicationBootstrap {
 
             for (const v of variants) {
                 const optionNamesRes = await this.connection.rawConnection.query(
-                    `SELECT pot.name 
+                    `SELECT COALESCE(pot.name, po.code) as name 
                      FROM product_variant_options_product_option pvo
-                     JOIN product_option_translation pot ON pot."baseId" = pvo."productOptionId" AND pot."languageCode" = 'fr'
-                     WHERE pvo."productVariantId" = $1`,
+                     JOIN product_option po ON po.id = pvo."productOptionId"
+                     LEFT JOIN product_option_translation pot ON pot."baseId" = po.id
+                     WHERE pvo."productVariantId" = $1
+                     ORDER BY po.id ASC`,
                     [v.id]
                 );
-                const optionNames = optionNamesRes.map((r: any) => r.name).filter(Boolean);
+                const optionNames = Array.from(new Set(optionNamesRes.map((r: any) => r.name).filter(Boolean)));
                 
                 let newVariantName = prodName;
                 if (optionNames.length > 0) {
                     newVariantName = `${prodName} – ${optionNames.join(' - ')}`;
                 } else {
-                    const currentVarTrans = await this.connection.rawConnection.query(
-                        `SELECT name FROM product_variant_translation WHERE "baseId" = $1 AND "languageCode" = 'fr' LIMIT 1`,
-                        [v.id]
-                    );
-                    const currName = currentVarTrans[0]?.name || '';
-                    const dashSplit = currName.split(/\s*[-–—]\s*/);
-                    if (dashSplit.length > 1) {
-                        const trailingOptions = dashSplit.slice(1).join(' - ');
-                        newVariantName = `${prodName} – ${trailingOptions}`;
-                    }
+                    newVariantName = prodName;
                 }
 
                 await this.connection.rawConnection.query(
-                    `UPDATE product_variant_translation SET name = $1 WHERE "baseId" = $2 AND "languageCode" = 'fr'`,
+                    `UPDATE product_variant_translation SET name = $1 WHERE "baseId" = $2`,
                     [newVariantName, v.id]
                 );
+
+                try {
+                    await this.connection.rawConnection.query(
+                        `UPDATE search_index_item SET "productVariantName" = $1 WHERE "productVariantId" = $2`,
+                        [newVariantName, v.id]
+                    );
+                } catch (_) {}
             }
             return true;
         } catch (err) {
@@ -2925,6 +3031,9 @@ export class VendorService implements OnApplicationBootstrap {
             for (const key of Object.keys(origP)) {
                 p[key] = (origP as any)[key];
             }
+            p.name = origP.translations?.[0]?.name || origP.name || (origP as any).name || 'Produit';
+            p.slug = origP.translations?.[0]?.slug || origP.slug || (origP as any).slug || String(origP.id);
+            p.description = origP.translations?.[0]?.description || origP.description || '';
 
             const prodCollections = new Map<string, any>();
             for (const vr of origP.variants || []) {

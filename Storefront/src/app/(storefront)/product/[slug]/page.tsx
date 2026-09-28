@@ -39,59 +39,138 @@ async function getWhatsappNumber(): Promise<string> {
     }
 }
 
-async function getProductData(slug: string) {
-    console.log(`[getProductData] Fetching for slug: "${slug}"`);
-    const result = await query(GetProductDetailQuery, { slug });
-    console.log(`[getProductData] Result for "${slug}":`, result.data.product ? 'FOUND' : 'NOT FOUND');
-    return result;
+async function getProductData(slugOrId: string) {
+    if (!slugOrId || slugOrId === 'undefined' || slugOrId === 'null') {
+        return { data: { product: null } };
+    }
+    let decoded = slugOrId;
+    try {
+        decoded = decodeURIComponent(slugOrId);
+    } catch (_) {}
+
+    try {
+        // 1. Try slug with decoded value
+        let result = await query(GetProductDetailQuery, { slug: decoded });
+        if (result?.data?.product) return result;
+
+        // 2. Try slug with original raw value
+        if (decoded !== slugOrId) {
+            result = await query(GetProductDetailQuery, { slug: slugOrId });
+            if (result?.data?.product) return result;
+        }
+
+        // 3. Try lookup by ID with decoded value
+        result = await query(GetProductDetailQuery, { id: decoded });
+        if (result?.data?.product) return result;
+
+        // 4. Try lookup by ID with raw value
+        if (decoded !== slugOrId) {
+            result = await query(GetProductDetailQuery, { id: slugOrId });
+            if (result?.data?.product) return result;
+        }
+
+        // 5. Try lookup if slugOrId is a variant ID
+        try {
+            const GET_PRODUCT_BY_VARIANT_ID = `
+                query GetProductByVariant($variantId: ID!) {
+                    productVariant(id: $variantId) {
+                        id
+                        product {
+                            id
+                            slug
+                        }
+                    }
+                }
+            `;
+            const variantRes = await rawQuery(GET_PRODUCT_BY_VARIANT_ID, { variables: { variantId: decoded } });
+            const prodId = variantRes?.productVariant?.product?.id;
+            if (prodId) {
+                result = await query(GetProductDetailQuery, { id: prodId });
+                if (result?.data?.product) return result;
+            }
+        } catch {}
+
+        return { data: { product: null } };
+    } catch (err) {
+        console.warn(`[getProductData] Query error for "${slugOrId}":`, err);
+        return { data: { product: null } };
+    }
 }
 
-export async function generateMetadata({ params }: any): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: any): Promise<Metadata> {
     const { slug } = await params;
-    const result = await getProductData(slug);
-    const product = result.data.product;
+    const resolvedSearchParams = searchParams ? await searchParams : {};
+    try {
+        const result = await getProductData(slug);
+        const product = result?.data?.product;
 
-    if (!product) {
-        return {
-            title: 'Produit non trouvé',
-        };
+        if (!product) {
+            return {
+                title: 'Produit non trouvé',
+            };
+        }
+
+    const rawVariantParam = resolvedSearchParams?.variant || resolvedSearchParams?.variantId;
+    let targetVariant = product.variants?.[0];
+    if (rawVariantParam) {
+        const vId = String(Array.isArray(rawVariantParam) ? rawVariantParam[0] : rawVariantParam);
+        const matched = product.variants?.find((v: any) => String(v.id) === vId);
+        if (matched) {
+            targetVariant = matched;
+        }
     }
 
     const description = truncateDescription(product.description);
-    const ogImage = product.assets?.[0]?.preview;
-    const mainVariant = product.variants?.[0];
-    const priceAmount = mainVariant?.priceWithTax ? (mainVariant.priceWithTax).toString() : undefined;
+    const ogImage = targetVariant?.featuredAsset?.preview || targetVariant?.assets?.[0]?.preview || product.assets?.[0]?.preview;
+    const priceAmount = targetVariant?.priceWithTax ? (targetVariant.priceWithTax).toString() : undefined;
+    const optNames = (targetVariant?.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
+    let declSuffix = optNames;
+    if (!declSuffix && targetVariant?.name) {
+        const vName = targetVariant.name.trim();
+        if (vName.toLowerCase().startsWith(product.name.toLowerCase()) && vName.length > product.name.length) {
+            const clean = vName.substring(product.name.length).replace(/^[\s\-–—:]+/, '').trim();
+            if (clean && clean.toLowerCase() !== product.name.toLowerCase()) {
+                declSuffix = clean;
+            }
+        }
+    }
     const collectionsStr = product.collections?.map((c: any) => c.name).join(', ');
-    const keywords = [product.name, collectionsStr, SITE_NAME, 'Bénin', 'E-commerce', 'Achat en ligne'].filter(Boolean).join(', ');
+    const fullTitle = declSuffix ? `${product.name} — ${declSuffix}` : product.name;
+    const keywords = [product.name, declSuffix, collectionsStr, SITE_NAME, 'Bénin', 'E-commerce', 'Achat en ligne'].filter(Boolean).join(', ');
 
-    return {
-        title: product.name,
-        description: description || `Achetez ${product.name} sur ${SITE_NAME}`,
-        keywords,
-        alternates: {
-            canonical: buildCanonicalUrl(`/product/${product.slug}`),
-        },
-        openGraph: {
-            title: product.name,
-            description: description || `Achetez ${product.name} sur ${SITE_NAME}`,
-            type: 'website',
-            url: buildCanonicalUrl(`/product/${product.slug}`),
-            images: buildOgImages(ogImage, product.name),
-            ...(priceAmount ? {
-                other: {
-                    'product:price:amount': priceAmount,
-                    'product:price:currency': 'XOF',
-                    'product:availability': 'in stock',
-                }
-            } : {})
-        },
-        twitter: {
-            card: 'summary_large_image',
-            title: product.name,
-            description: description || `Achetez ${product.name} sur ${SITE_NAME}`,
-            images: ogImage ? [ogImage] : undefined,
-        },
-    };
+        return {
+            title: fullTitle,
+            description: description || `Achetez ${fullTitle} sur ${SITE_NAME}`,
+            keywords,
+            alternates: {
+                canonical: buildCanonicalUrl(`/product/${product.slug}${targetVariant?.id ? `?variant=${targetVariant.id}` : ''}`),
+            },
+            openGraph: {
+                title: fullTitle,
+                description: description || `Achetez ${fullTitle} sur ${SITE_NAME}`,
+                type: 'website',
+                url: buildCanonicalUrl(`/product/${product.slug}${targetVariant?.id ? `?variant=${targetVariant.id}` : ''}`),
+                images: buildOgImages(ogImage, fullTitle),
+                ...(priceAmount ? {
+                    other: {
+                        'product:price:amount': priceAmount,
+                        'product:price:currency': 'XOF',
+                        'product:availability': 'in stock',
+                    }
+                } : {})
+            },
+            twitter: {
+                card: 'summary_large_image',
+                title: fullTitle,
+                description: description || `Achetez ${fullTitle} sur ${SITE_NAME}`,
+                images: ogImage ? [ogImage] : undefined,
+            },
+        };
+    } catch {
+        return {
+            title: 'Produit',
+        };
+    }
 }
 
 function buildProductJsonLd(product: any) {
@@ -133,6 +212,36 @@ function isRootCollection(col: any): boolean {
     return !name || name.includes('root_collection') || name.startsWith('_root') || slug.includes('root_collection') || slug.startsWith('_root');
 }
 
+function getProductBreadcrumbTrail(product: any): Array<{ id: string; name: string; slug: string }> {
+    const collections = product?.collections || [];
+    if (collections.length === 0) return [];
+
+    let bestTrail: any[] = [];
+
+    // 1. Prioritize real hierarchical ancestor breadcrumbs from the deepest collection
+    for (const col of collections) {
+        if (isRootCollection(col)) continue;
+        const crumbs = (col.breadcrumbs || []).filter((b: any) => !isRootCollection(b));
+        if (crumbs.length > bestTrail.length) {
+            bestTrail = crumbs;
+        }
+    }
+
+    if (bestTrail.length > 0) {
+        return bestTrail;
+    }
+
+    // 2. Fallback: Pick the deepest collection (with parent) or first valid collection
+    const validCollections = collections.filter((col: any) => !isRootCollection(col));
+    if (validCollections.length === 0) return [];
+
+    const deepest = validCollections.find((c: any) => c.parent?.id) || validCollections[0];
+    if (deepest.parent && deepest.parent.name && !isRootCollection(deepest.parent)) {
+        return [deepest.parent, deepest];
+    }
+    return [deepest];
+}
+
 function buildBreadcrumbJsonLd(product: any) {
     const items: any[] = [
         {
@@ -143,21 +252,19 @@ function buildBreadcrumbJsonLd(product: any) {
         },
     ];
 
-    const validCollections = (product.collections || []).filter((col: any) => !isRootCollection(col));
-    if (validCollections.length > 0) {
-        validCollections.forEach((col: any, idx: number) => {
-            items.push({
-                '@type': 'ListItem',
-                position: idx + 2,
-                name: col.name,
-                item: buildCanonicalUrl(`/collection/${col.slug}`),
-            });
+    const breadcrumbTrail = getProductBreadcrumbTrail(product);
+    breadcrumbTrail.forEach((col: any, idx: number) => {
+        items.push({
+            '@type': 'ListItem',
+            position: idx + 2,
+            name: col.name,
+            item: buildCanonicalUrl(`/collection/${col.slug}`),
         });
-    }
+    });
 
     items.push({
         '@type': 'ListItem',
-        position: items.length + 1,
+        position: breadcrumbTrail.length + 2,
         name: product.name,
         item: buildCanonicalUrl(`/product/${product.slug}`),
     });
@@ -274,14 +381,20 @@ function ProductReviews({ config }: { config: any }) {
 
 export default async function ProductDetailPage({ params, searchParams }: any) {
     const { slug } = await params;
-    const searchParamsResolved = await searchParams;
+    const searchParamsResolved = searchParams ? await searchParams : {};
 
-    console.log(`[ProductDetailPage] Rendering for slug: "${slug}"`);
-    const [result, whatsappNumber] = await Promise.all([
-        getProductData(slug),
-        getWhatsappNumber(),
-    ]);
-    const product = result.data.product;
+    let product = null;
+    let whatsappNumber = '';
+    try {
+        const [result, wa] = await Promise.all([
+            getProductData(slug),
+            getWhatsappNumber(),
+        ]);
+        product = result?.data?.product;
+        whatsappNumber = wa || '';
+    } catch (e) {
+        console.error('[ProductDetailPage] Error fetching product data:', e);
+    }
 
     if (!product) {
         notFound();
@@ -308,8 +421,21 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                             name
                             rating
                             ratingCount
+                            verificationStatus
+                            latitude
+                            longitude
+                            zone
+                            address
                             logo {
                                 preview
+                            }
+                            location {
+                                id
+                                name
+                            }
+                            physicalMarket {
+                                id
+                                name
                             }
                         }
                         productVariant {
@@ -328,7 +454,15 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
         }
     }
 
-    const primaryCollection = product.collections?.find((c: any) => c.parent?.id) ?? product.collections?.[0];
+    const sortedCollectionSlugs = (product.collections || [])
+        .filter((col: any) => !isRootCollection(col))
+        .sort((a: any, b: any) => {
+            const aDepth = (a.breadcrumbs?.length || (a.parent?.id ? 2 : 1));
+            const bDepth = (b.breadcrumbs?.length || (b.parent?.id ? 2 : 1));
+            return bDepth - aDepth;
+        })
+        .map((c: any) => c.slug)
+        .filter(Boolean);
 
     // Load CMS configurations (preset preview or published page)
     const presetId = searchParamsResolved?.presetId;
@@ -358,8 +492,8 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                 />
                 {/* Breadcrumb Navigation */}
                 {(() => {
-                    const validCollections = (product.collections || []).filter((col: any) => !isRootCollection(col));
-                    if (validCollections.length === 0) return null;
+                    const breadcrumbTrail = getProductBreadcrumbTrail(product);
+                    if (breadcrumbTrail.length === 0) return null;
                     return (
                         <div className="bg-gray-50 border-b border-gray-200">
                             <div className="container mx-auto px-4 md:px-6 lg:px-8 py-2">
@@ -368,15 +502,15 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                                         Accueil
                                     </Link>
                                     <span className="text-gray-400">/</span>
-                                    {validCollections.map((collection: any, index: number) => (
-                                        <React.Fragment key={collection.id}>
+                                    {breadcrumbTrail.map((collection: any, index: number) => (
+                                        <React.Fragment key={collection.id || collection.slug || index}>
                                             <Link 
                                                 href={`/collection/${collection.slug}`}
                                                 className="text-gray-600 hover:text-gray-900 whitespace-nowrap"
                                             >
                                                 {collection.name}
                                             </Link>
-                                            {index < validCollections.length - 1 && (
+                                            {index < breadcrumbTrail.length - 1 && (
                                                 <span className="text-gray-400">/</span>
                                             )}
                                         </React.Fragment>
@@ -413,14 +547,14 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                                 />
                             );
                         } else if (section.type === 'RELATED_PRODUCTS') {
-                            content = primaryCollection ? (
+                            content = (
                                 <RelatedProducts
-                                    collectionSlug={primaryCollection.slug}
+                                    collectionSlugs={sortedCollectionSlugs}
                                     currentProductId={product.id}
                                     title={section.data?.title}
                                     productsCount={Number(section.data?.productsCount)}
                                 />
-                            ) : null;
+                            );
                         } else {
                             content = (
                                 <BodySectionRenderer 
@@ -450,8 +584,8 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
     return (
         <>
             {(() => {
-                const validCollections = (product.collections || []).filter((col: any) => !isRootCollection(col));
-                if (validCollections.length === 0) return null;
+                const breadcrumbTrail = getProductBreadcrumbTrail(product);
+                if (breadcrumbTrail.length === 0) return null;
                 return (
                     <div className="bg-gray-50 border-b border-gray-200">
                         <div className="container mx-auto px-4 md:px-6 lg:px-8 py-2">
@@ -460,15 +594,15 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                                     Accueil
                                 </Link>
                                 <span className="text-gray-400">/</span>
-                                {validCollections.map((collection: any, index: number) => (
-                                    <React.Fragment key={collection.id}>
+                                {breadcrumbTrail.map((collection: any, index: number) => (
+                                    <React.Fragment key={collection.id || collection.slug || index}>
                                         <Link 
                                             href={`/collection/${collection.slug}`}
                                             className="text-gray-600 hover:text-gray-900 whitespace-nowrap"
                                         >
                                             {collection.name}
                                         </Link>
-                                        {index < validCollections.length - 1 && (
+                                        {index < breadcrumbTrail.length - 1 && (
                                             <span className="text-gray-400">/</span>
                                         )}
                                     </React.Fragment>
@@ -503,12 +637,10 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
 
             <div id="cms-last-section-top" />
 
-            {primaryCollection && (
-                <RelatedProducts
-                    collectionSlug={primaryCollection.slug}
-                    currentProductId={product.id}
-                />
-            )}
+            <RelatedProducts
+                collectionSlugs={sortedCollectionSlugs}
+                currentProductId={product.id}
+            />
         </>
     );
 }

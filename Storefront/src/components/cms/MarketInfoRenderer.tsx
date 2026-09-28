@@ -63,7 +63,14 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
                                 featuredAsset { preview }
                                 variants {
                                     id
+                                    name
                                     priceWithTax
+                                    options {
+                                        id
+                                        name
+                                        code
+                                        group { id name }
+                                    }
                                     customFields {
                                         compareAtPrice
                                         onPromotion

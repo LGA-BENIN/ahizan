@@ -1,6 +1,6 @@
 import { getAuthToken } from '@/lib/auth';
+import { getShopApiUrl } from './api-utils';
 
-const VENDURE_API_URL = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL;
 const VENDURE_CHANNEL_TOKEN = process.env.VENDURE_CHANNEL_TOKEN || process.env.NEXT_PUBLIC_VENDURE_CHANNEL_TOKEN || '__default_channel__';
 const VENDURE_AUTH_TOKEN_HEADER = process.env.VENDURE_AUTH_TOKEN_HEADER || 'vendure-auth-token';
 const VENDURE_CHANNEL_TOKEN_HEADER = process.env.VENDURE_CHANNEL_TOKEN_HEADER || 'vendure-token';
@@ -16,6 +16,7 @@ interface RawQueryOptions {
  * Used for custom plugin queries (vendor, platformSettings, etc.)
  */
 export async function rawQuery(queryString: string, options?: RawQueryOptions): Promise<any> {
+    const apiUrl = process.env.VENDURE_SHOP_API_URL || process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || getShopApiUrl();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         [VENDURE_CHANNEL_TOKEN_HEADER]: VENDURE_CHANNEL_TOKEN,
@@ -29,7 +30,7 @@ export async function rawQuery(queryString: string, options?: RawQueryOptions): 
         }
     }
 
-    const response = await fetch(VENDURE_API_URL!, {
+    const response = await fetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({

@@ -225,9 +225,9 @@ const UPDATE_PRODUCT_APPROVAL = `
     }
 `;
 
-const DELETE_PRODUCT = `
-    mutation DeleteProduct($id: ID!) {
-        deleteProduct(id: $id) {
+const ADMIN_DELETE_PRODUCT = `
+    mutation AdminDeleteProduct($id: ID!) {
+        adminDeleteProduct(id: $id) {
             result
             message
         }
@@ -1077,7 +1077,13 @@ export function ProductListComponent() {
 
     // Delete Product Mutation
     const deleteMutation = useMutation({
-        mutationFn: (id: string) => fetchGraphQL(DELETE_PRODUCT, { id }),
+        mutationFn: async (id: string) => {
+            const res = await fetchGraphQL(ADMIN_DELETE_PRODUCT, { id });
+            if (res?.adminDeleteProduct?.result === 'NOT_DELETED') {
+                throw new Error(res.adminDeleteProduct.message || 'Impossible de supprimer ce produit');
+            }
+            return res;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
         },
@@ -2445,12 +2451,21 @@ export function ProductListComponent() {
                                                                                                     <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>🏪</div>
                                                                                                 )}
                                                                                                 <div>
-                                                                                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
-                                                                                                        {offer.vendor?.name || 'Vendeur Marchand'}
-                                                                                                        <span style={{ fontWeight: 600, color: '#64748b', fontSize: '11px', marginLeft: '6px' }}>
-                                                                                                            • {offer.productVariant?.name || 'Déclinaison'}
-                                                                                                        </span>
-                                                                                                    </div>
+                                                                                                    {(() => {
+                                                                                                        const optNames = (offer.productVariant?.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
+                                                                                                        const rawVariantName = offer.productVariant?.name || '';
+                                                                                                        // If rawVariantName is empty or still contains old un-harmonized name, format cleanly with current product name
+                                                                                                        const cleanVariantName = optNames ? `${product.name} – ${optNames}` : (rawVariantName || product.name);
+
+                                                                                                        return (
+                                                                                                            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
+                                                                                                                {offer.vendor?.name || 'Vendeur Marchand'}
+                                                                                                                <span style={{ fontWeight: 600, color: '#64748b', fontSize: '11px', marginLeft: '6px' }}>
+                                                                                                                    • {cleanVariantName}
+                                                                                                                </span>
+                                                                                                            </div>
+                                                                                                        );
+                                                                                                    })()}
 
                                                                                                     {/* Badges d'options (Couleur, Taille, Volume...) */}
                                                                                                     {offer.productVariant?.options && offer.productVariant.options.length > 0 && (
@@ -4564,185 +4579,334 @@ export function ProductListComponent() {
             )}
 
             {/* Superadmin Interactive Option Groups & Options Configuration Modal */}
-            {editingVariantOptions && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110000, padding: '20px', backdropFilter: 'blur(6px)' }}>
-                    <div style={{ background: '#ffffff', borderRadius: '18px', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', border: '1px solid #e2e8f0', padding: '24px' }}>
-                        {/* Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
-                            <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontSize: '20px' }}>🎨</span>
-                                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
-                                        Gestionnaire d'Option Groups & Attributs
-                                    </h3>
+            {editingVariantOptions && (() => {
+                const currentProductForOptions = products.find(p => p.id === editingVariantOptions.productId) || (data?.products?.items || []).find((p: any) => p.id === editingVariantOptions.productId);
+                const productOptionGroups: Array<{ id: string; name: string; options?: Array<{ id: string; name: string }> }> = currentProductForOptions?.optionGroups || [];
+                
+                const COMMON_GROUP_PRESETS: Record<string, string[]> = {
+                    'Couleur': ['Noir', 'Blanc', 'Bleu', 'Rouge', 'Vert', 'Jaune', 'Gris', 'Rose', 'Marron', 'Orange', 'Violet', 'Doré', 'Argenté', 'Beige', 'Bordeaux', 'Kaki', 'Multicolore', 'Bleu Nuit', 'Gris Sidéral'],
+                    'Taille': ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', 'Unique', 'Enfant', 'Adulte', '2-4 ans', '4-6 ans', '6-8 ans', '8-10 ans', '10-12 ans'],
+                    'Pointure': ['35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'],
+                    'Volume': ['30 ml', '50 ml', '100 ml', '200 ml', '250 ml', '330 ml', '500 ml', '750 ml', '1 L', '1.5 L', '2 L', '3 L', '5 L', '10 L', '20 L'],
+                    'Capacité': ['16 Go', '32 Go', '64 Go', '128 Go', '256 Go', '512 Go', '1 To', '2 To', '4 Go / 64 Go', '6 Go / 128 Go', '8 Go / 128 Go', '8 Go / 256 Go', '12 Go / 256 Go', '16 Go / 512 Go'],
+                    'Poids': ['50 g', '100 g', '200 g', '250 g', '500 g', '1 kg', '2 kg', '5 kg', '10 kg', '25 kg', '50 kg'],
+                    'Format': ['Standard', 'Mini', 'Maxi', 'Pack de 2', 'Pack de 3', 'Pack de 4', 'Pack de 5', 'Pack de 6', 'Pack de 10', 'Format voyage', 'Format familial'],
+                    'Matière': ['Coton', 'Cuir', 'Soie', 'Polyester', 'Lin', 'Inox', 'Bois', 'Plastique', 'Verre', 'Aluminium', 'Céramique', 'Silicone', 'Or', 'Argent'],
+                };
+
+                const allAvailableGroupNames = Array.from(new Set([
+                    ...productOptionGroups.map(og => og.name),
+                    ...Object.keys(COMMON_GROUP_PRESETS)
+                ]));
+
+                return (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110000, padding: '20px', backdropFilter: 'blur(6px)' }}>
+                        <div style={{ background: '#ffffff', borderRadius: '18px', maxWidth: '720px', width: '100%', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)', border: '1px solid #e2e8f0', padding: '24px' }}>
+                            {/* Header */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '16px' }}>
+                                <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontSize: '22px' }}>🎨</span>
+                                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                                            Gestionnaire d'Option Groups & Attributs
+                                        </h3>
+                                    </div>
+                                    <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                                        Définissez et sélectionnez précisément les groupes d'options (Couleur, Taille, etc.) et leurs valeurs correspondantes.
+                                    </p>
                                 </div>
-                                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                                    Modifiez ou attribuez de nouveaux groupes d'options (ex: changer Couleur: Rouge en Couleur: Noir, ou remplacer par Taille: XL et Volume: 5L).
-                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingVariantOptions(null)}
+                                    style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', color: '#64748b' }}
+                                >
+                                    ✕
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setEditingVariantOptions(null)}
-                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '16px', color: '#64748b' }}
-                            >
-                                ✕
-                            </button>
-                        </div>
 
-                        {/* Quick Presets */}
-                        <div style={{ marginBottom: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                                ⚡ Suggestions de groupes courants :
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {['Couleur', 'Taille', 'Volume', 'Capacité', 'Pointure', 'Matière', 'Poids', 'Format'].map(grp => (
-                                    <button
-                                        key={grp}
-                                        type="button"
-                                        onClick={() => {
-                                            setEditingVariantOptions(prev => {
-                                                if (!prev) return prev;
-                                                const exists = prev.options.some(o => o.groupName.toLowerCase() === grp.toLowerCase());
-                                                if (exists) return prev;
-                                                return {
-                                                    ...prev,
-                                                    options: [...prev.options, { groupName: grp, valueName: '' }]
-                                                };
-                                            });
-                                        }}
-                                        style={{ padding: '4px 9px', borderRadius: '6px', background: '#ffffff', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 700, color: '#0284c7', cursor: 'pointer' }}
-                                    >
-                                        + {grp}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Option Rows */}
-                        <div style={{ display: 'grid', gap: '10px', marginBottom: '18px' }}>
-                            {editingVariantOptions.options.length === 0 ? (
-                                <div style={{ padding: '16px', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '12px', color: '#64748b' }}>
-                                    Aucun attribut d'option défini. Cliquez sur "+ Ajouter une option" ci-dessous.
+                            {/* Quick Presets / Product Groups */}
+                            <div style={{ marginBottom: '16px', background: '#f8fafc', padding: '12px 14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>⚡</span>
+                                    <span>Groupes d'options disponibles :</span>
+                                    {productOptionGroups.length > 0 && (
+                                        <span style={{ background: '#dbeafe', color: '#1e40af', padding: '1px 6px', borderRadius: '4px', fontSize: '10px' }}>
+                                            {productOptionGroups.length} existant(s) sur ce produit
+                                        </span>
+                                    )}
                                 </div>
-                            ) : (
-                                editingVariantOptions.options.map((opt, idx) => (
-                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                                        <div style={{ flex: '1 1 45%' }}>
-                                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
-                                                Groupe d'option
-                                            </label>
-                                            <input
-                                                type="text"
-                                                placeholder="Ex: Couleur, Taille, Volume..."
-                                                value={opt.groupName}
-                                                onChange={e => {
-                                                    const val = e.target.value;
-                                                    setEditingVariantOptions(prev => {
-                                                        if (!prev) return prev;
-                                                        const nextOpts = [...prev.options];
-                                                        nextOpts[idx] = { ...nextOpts[idx], groupName: val };
-                                                        return { ...prev, options: nextOpts };
-                                                    });
-                                                }}
-                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, color: '#0f172a', boxSizing: 'border-box' }}
-                                            />
-                                        </div>
-
-                                        <div style={{ flex: '1 1 45%' }}>
-                                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>
-                                                Valeur de l'option
-                                            </label>
-                                            <input
-                                                type="text"
-                                                placeholder="Ex: Noir, XL, 5L, 128 Go..."
-                                                value={opt.valueName}
-                                                onChange={e => {
-                                                    const val = e.target.value;
-                                                    setEditingVariantOptions(prev => {
-                                                        if (!prev) return prev;
-                                                        const nextOpts = [...prev.options];
-                                                        nextOpts[idx] = { ...nextOpts[idx], valueName: val };
-                                                        return { ...prev, options: nextOpts };
-                                                    });
-                                                }}
-                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', color: '#0f172a', boxSizing: 'border-box' }}
-                                            />
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'flex-end', paddingTop: '16px' }}>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {allAvailableGroupNames.map(grp => {
+                                        const isAlreadyInUse = editingVariantOptions.options.some(o => o.groupName.toLowerCase() === grp.toLowerCase());
+                                        const isFromProduct = productOptionGroups.some(og => og.name.toLowerCase() === grp.toLowerCase());
+                                        return (
                                             <button
+                                                key={grp}
                                                 type="button"
                                                 onClick={() => {
                                                     setEditingVariantOptions(prev => {
                                                         if (!prev) return prev;
-                                                        const nextOpts = prev.options.filter((_, i) => i !== idx);
-                                                        return { ...prev, options: nextOpts };
+                                                        if (isAlreadyInUse) return prev;
+                                                        return {
+                                                            ...prev,
+                                                            options: [...prev.options, { groupName: grp, valueName: '' }]
+                                                        };
                                                     });
                                                 }}
-                                                style={{ background: '#fee2e2', border: 'none', color: '#dc2626', width: '32px', height: '32px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}
-                                                title="Supprimer cette option"
+                                                style={{
+                                                    padding: '5px 10px',
+                                                    borderRadius: '6px',
+                                                    background: isAlreadyInUse ? '#f1f5f9' : (isFromProduct ? '#eff6ff' : '#ffffff'),
+                                                    border: isAlreadyInUse ? '1px solid #cbd5e1' : (isFromProduct ? '1px solid #93c5fd' : '1px solid #cbd5e1'),
+                                                    fontSize: '11px',
+                                                    fontWeight: 700,
+                                                    color: isAlreadyInUse ? '#94a3b8' : (isFromProduct ? '#1d4ed8' : '#0284c7'),
+                                                    cursor: isAlreadyInUse ? 'default' : 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                }}
+                                                title={isAlreadyInUse ? 'Groupe déjà ajouté' : (isFromProduct ? 'Groupe déjà configuré sur ce produit' : 'Ajouter ce groupe')}
                                             >
-                                                🗑️
+                                                {isAlreadyInUse ? '✓ ' : '+ '}
+                                                {grp}
                                             </button>
-                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Option Rows */}
+                            <div style={{ display: 'grid', gap: '14px', marginBottom: '18px' }}>
+                                {editingVariantOptions.options.length === 0 ? (
+                                    <div style={{ padding: '20px', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1', fontSize: '13px', color: '#64748b' }}>
+                                        Aucun attribut d'option défini. Cliquez sur un groupe suggéré ci-dessus ou "+ Ajouter une option" ci-dessous.
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                ) : (
+                                    editingVariantOptions.options.map((opt, idx) => {
+                                        const grpTrimmed = opt.groupName.trim();
+                                        const matchedProductGroup = productOptionGroups.find(og => og.name.toLowerCase() === grpTrimmed.toLowerCase());
+                                        const productValues = matchedProductGroup?.options?.map(o => o.name) || [];
+                                        
+                                        const matchedPresetKey = Object.keys(COMMON_GROUP_PRESETS).find(k => k.toLowerCase() === grpTrimmed.toLowerCase());
+                                        const presetValues = matchedPresetKey ? COMMON_GROUP_PRESETS[matchedPresetKey] : [];
+                                        
+                                        const suggestedValues = Array.from(new Set([...productValues, ...presetValues]));
 
-                        {/* Add option button */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setEditingVariantOptions(prev => {
-                                    if (!prev) return prev;
-                                    return {
-                                        ...prev,
-                                        options: [...prev.options, { groupName: '', valueName: '' }]
-                                    };
-                                });
-                            }}
-                            style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px dashed #3b82f6', background: '#eff6ff', color: '#1d4ed8', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginBottom: '18px' }}
-                        >
-                            ➕ Ajouter une Option (ex: Volume, Taille...)
-                        </button>
+                                        return (
+                                            <div key={idx} style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'grid', gap: '10px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                                    {/* Group Name input + quick select */}
+                                                    <div style={{ flex: '1 1 45%' }}>
+                                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                                            Groupe d'option
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            list={`groups-datalist-${idx}`}
+                                                            placeholder="Ex: Couleur, Taille, Volume..."
+                                                            value={opt.groupName}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                setEditingVariantOptions(prev => {
+                                                                    if (!prev) return prev;
+                                                                    const nextOpts = [...prev.options];
+                                                                    nextOpts[idx] = { ...nextOpts[idx], groupName: val };
+                                                                    return { ...prev, options: nextOpts };
+                                                                });
+                                                            }}
+                                                            style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700, color: '#0f172a', boxSizing: 'border-box' }}
+                                                        />
+                                                        <datalist id={`groups-datalist-${idx}`}>
+                                                            {allAvailableGroupNames.map(g => (
+                                                                <option key={g} value={g} />
+                                                            ))}
+                                                        </datalist>
+                                                    </div>
 
-                        {/* Preview */}
-                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 14px', marginBottom: '20px' }}>
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>
-                                Aperçu du libellé de la déclinaison :
-                            </div>
-                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
-                                {editingVariantOptions.productName || 'Produit'} – {editingVariantOptions.options.map(o => o.valueName.trim()).filter(Boolean).join(' / ') || 'Standard'}
-                            </div>
-                        </div>
+                                                    {/* Value Selector & Input */}
+                                                    <div style={{ flex: '1 1 45%' }}>
+                                                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                                            Valeur de l'option
+                                                        </label>
+                                                        
+                                                        {suggestedValues.length > 0 ? (
+                                                            <div style={{ display: 'grid', gap: '6px' }}>
+                                                                <select
+                                                                    value={suggestedValues.includes(opt.valueName) ? opt.valueName : '__CUSTOM__'}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        if (val === '__CUSTOM__') return;
+                                                                        setEditingVariantOptions(prev => {
+                                                                            if (!prev) return prev;
+                                                                            const nextOpts = [...prev.options];
+                                                                            nextOpts[idx] = { ...nextOpts[idx], valueName: val };
+                                                                            return { ...prev, options: nextOpts };
+                                                                        });
+                                                                    }}
+                                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 600, color: '#0f172a', background: '#ffffff', boxSizing: 'border-box' }}
+                                                                >
+                                                                    <option value="">-- Sélectionner une valeur ({suggestedValues.length}) --</option>
+                                                                    {suggestedValues.map(sv => (
+                                                                        <option key={sv} value={sv}>
+                                                                            {sv} {productValues.includes(sv) ? '(sur ce produit)' : ''}
+                                                                        </option>
+                                                                    ))}
+                                                                    <option value="__CUSTOM__">✍️ Saisie manuelle...</option>
+                                                                </select>
+                                                                
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Ou saisir manuellement (ex: Bleu Nuit, XL...)"
+                                                                    value={opt.valueName}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setEditingVariantOptions(prev => {
+                                                                            if (!prev) return prev;
+                                                                            const nextOpts = [...prev.options];
+                                                                            nextOpts[idx] = { ...nextOpts[idx], valueName: val };
+                                                                            return { ...prev, options: nextOpts };
+                                                                        });
+                                                                    }}
+                                                                    style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#0f172a', boxSizing: 'border-box' }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Ex: Noir, XL, 5L, 128 Go..."
+                                                                value={opt.valueName}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditingVariantOptions(prev => {
+                                                                        if (!prev) return prev;
+                                                                        const nextOpts = [...prev.options];
+                                                                        nextOpts[idx] = { ...nextOpts[idx], valueName: val };
+                                                                        return { ...prev, options: nextOpts };
+                                                                    });
+                                                                }}
+                                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', color: '#0f172a', boxSizing: 'border-box' }}
+                                                            />
+                                                        )}
+                                                    </div>
 
-                        {/* Actions */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-                            <button
-                                type="button"
-                                onClick={() => setEditingVariantOptions(null)}
-                                style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                type="button"
-                                disabled={isSavingVariantOptions}
-                                onClick={() => handleSaveVariantOptions(
-                                    editingVariantOptions.variantId,
-                                    editingVariantOptions.options,
-                                    editingVariantOptions.productId
+                                                    {/* Delete button */}
+                                                    <div style={{ paddingTop: '22px' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setEditingVariantOptions(prev => {
+                                                                    if (!prev) return prev;
+                                                                    const nextOpts = prev.options.filter((_, i) => i !== idx);
+                                                                    return { ...prev, options: nextOpts };
+                                                                });
+                                                            }}
+                                                            style={{ background: '#fee2e2', border: 'none', color: '#dc2626', width: '36px', height: '36px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px' }}
+                                                            title="Supprimer cette option"
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Clickable Quick Value Pills */}
+                                                {suggestedValues.length > 0 && (
+                                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center', paddingTop: '4px' }}>
+                                                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                                                            Valeurs rapides :
+                                                        </span>
+                                                        {suggestedValues.slice(0, 12).map(val => {
+                                                            const isSelected = opt.valueName.trim().toLowerCase() === val.trim().toLowerCase();
+                                                            return (
+                                                                <button
+                                                                    key={val}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setEditingVariantOptions(prev => {
+                                                                            if (!prev) return prev;
+                                                                            const nextOpts = [...prev.options];
+                                                                            nextOpts[idx] = { ...nextOpts[idx], valueName: val };
+                                                                            return { ...prev, options: nextOpts };
+                                                                        });
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '3px 8px',
+                                                                        borderRadius: '12px',
+                                                                        background: isSelected ? '#16a34a' : '#ffffff',
+                                                                        color: isSelected ? '#ffffff' : '#334155',
+                                                                        border: isSelected ? '1px solid #16a34a' : '1px solid #cbd5e1',
+                                                                        fontSize: '11px',
+                                                                        fontWeight: isSelected ? 800 : 600,
+                                                                        cursor: 'pointer',
+                                                                        transition: 'all 0.1s ease'
+                                                                    }}
+                                                                >
+                                                                    {val}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
                                 )}
-                                style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: isSavingVariantOptions ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            </div>
+
+                            {/* Add option button */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setEditingVariantOptions(prev => {
+                                        if (!prev) return prev;
+                                        return {
+                                            ...prev,
+                                            options: [...prev.options, { groupName: '', valueName: '' }]
+                                        };
+                                    });
+                                }}
+                                style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px dashed #3b82f6', background: '#eff6ff', color: '#1d4ed8', fontSize: '13px', fontWeight: 800, cursor: 'pointer', marginBottom: '18px' }}
                             >
-                                <span>{isSavingVariantOptions ? '⏳' : '💾'}</span>
-                                <span>{isSavingVariantOptions ? 'Enregistrement...' : 'Enregistrer les Options & Attributs'}</span>
+                                ➕ Ajouter un groupe d'option supplémentaire
                             </button>
+
+                            {/* Preview */}
+                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534' }}>
+                                    Aperçu en temps réel du libellé de la déclinaison :
+                                </div>
+                                <div style={{ fontSize: '14px', fontWeight: 800, color: '#15803d', marginTop: '3px' }}>
+                                    {editingVariantOptions.productName || 'Produit'} – {editingVariantOptions.options.map(o => o.valueName.trim()).filter(Boolean).join(' / ') || 'Standard'}
+                                </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingVariantOptions(null)}
+                                    style={{ padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isSavingVariantOptions}
+                                    onClick={() => handleSaveVariantOptions(
+                                        editingVariantOptions.variantId,
+                                        editingVariantOptions.options,
+                                        editingVariantOptions.productId
+                                    )}
+                                    style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#ffffff', fontSize: '12px', fontWeight: 800, cursor: isSavingVariantOptions ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                >
+                                    <span>{isSavingVariantOptions ? '⏳' : '💾'}</span>
+                                    <span>{isSavingVariantOptions ? 'Enregistrement...' : 'Enregistrer les Options & Attributs'}</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* Superadmin Interactive Image Cropper Modal */}
             {adminCropState && (

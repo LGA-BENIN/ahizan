@@ -77,7 +77,8 @@ export function ProductMobileFixedBar({
                     const targetNumber = whatsappNumber || '';
                     const cleanNumber = targetNumber.replace(/[^0-9+]/g, '');
                     const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-                    const message = `Bonjour, je souhaite commander ce produit : ${product.name}\n${currentUrl}`;
+                    const itemTitle = selectedVariant?.name || product.name;
+                    const message = `Bonjour, je souhaite commander : ${itemTitle}\n${currentUrl}`;
 
                     if (cleanNumber) {
                         const phone = cleanNumber.startsWith('+') ? cleanNumber.slice(1) : cleanNumber;
@@ -111,8 +112,8 @@ export function ProductMobileFixedBar({
                         <span className="truncate">
                             {isPending
                                 ? 'Ajout...'
-                                : !selectedVariant && product.optionGroups.length > 0
-                                    ? 'Options'
+                                : !canAddToCart
+                                    ? 'Non disponible'
                                     : !isInStock
                                         ? 'Rupture'
                                         : 'Ajouter au panier'}

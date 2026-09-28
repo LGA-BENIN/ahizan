@@ -1361,9 +1361,10 @@ export class VendorAdminResolver {
         const safeShortDesc = shortDescription !== undefined ? shortDescription.trim().slice(0, 250) : undefined;
         const safeRejectionReason = rejectionReason ? rejectionReason.trim().slice(0, 250) : undefined;
 
+        const shouldEnableProduct = status === 'approved' || status === 'published' || convertToOfficialCatalog === true;
         const updateData: any = {
             id,
-            enabled: status === 'approved',
+            enabled: shouldEnableProduct,
             customFields: {
                 approvalStatus: status,
                 rejectionReason: status === 'rejected' ? (safeRejectionReason || 'Non conforme aux critères Ahizan') : null,
@@ -1396,6 +1397,17 @@ export class VendorAdminResolver {
         }
 
         const updated = await this.productService.update(ctx, updateData);
+
+        if (shouldEnableProduct) {
+            await this.connection.rawConnection.query(
+                `UPDATE product SET enabled = true, "updatedAt" = NOW() WHERE id = $1`,
+                [id]
+            );
+            await this.connection.rawConnection.query(
+                `UPDATE product_variant SET enabled = true, "updatedAt" = NOW() WHERE "productId" = $1 AND "deletedAt" IS NULL`,
+                [id]
+            );
+        }
 
         if (officialSku) {
             await this.connection.rawConnection.query('UPDATE product_variant SET sku = $1 WHERE "productId" = $2', [officialSku.slice(0, 250), id]);
@@ -2176,6 +2188,15 @@ export class VendorAdminResolver {
         }
 
         return savedOffer;
+    }
+
+    @Mutation()
+    @Allow(Permission.SuperAdmin, Permission.UpdateCatalog, Permission.Authenticated)
+    async adminDeleteProduct(
+        @Ctx() ctx: RequestContext,
+        @Args('id') id: string,
+    ): Promise<any> {
+        return this.vendorService.adminDeleteProduct(ctx, id);
     }
 
     @Mutation()

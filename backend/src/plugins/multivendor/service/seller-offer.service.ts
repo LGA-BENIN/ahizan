@@ -32,6 +32,9 @@ export class SellerOfferService {
 
     async getOffersForVariants(ctx: RequestContext, variantIds: string[]): Promise<SellerOffer[]> {
         if (!variantIds || variantIds.length === 0) return [];
+        const numVariantIds = variantIds.map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
+        if (numVariantIds.length === 0) return [];
+
         const qb = this.connection.getRepository(ctx, SellerOffer)
             .createQueryBuilder('offer')
             .leftJoinAndSelect('offer.vendor', 'vendor')
@@ -39,14 +42,102 @@ export class SellerOfferService {
             .leftJoinAndSelect('offer.productVariant', 'variant')
             .leftJoinAndSelect('variant.translations', 'translations')
             .leftJoinAndSelect('variant.featuredAsset', 'variantAsset')
+            .leftJoinAndSelect('variant.options', 'options')
+            .leftJoinAndSelect('options.translations', 'optionTranslations')
+            .leftJoinAndSelect('options.group', 'optionGroup')
+            .leftJoinAndSelect('optionGroup.translations', 'optionGroupTranslations')
             .leftJoinAndSelect('variant.product', 'product')
             .leftJoinAndSelect('product.featuredAsset', 'productAsset')
-            .where('offer.productVariantId IN (:...variantIds)', { variantIds });
+            .where('offer.productVariantId IN (:...variantIds)', { variantIds: numVariantIds });
 
         if (ctx.apiType === 'shop') {
             qb.andWhere('offer.status = :status', { status: 'approved' });
         }
-        return qb.getMany();
+        const existingOffers = await qb.getMany();
+
+        // Fallback for variants that belong to a vendor but don't have an explicit seller_offer row
+        const foundVariantIds = new Set(existingOffers.map(o => Number(o.productVariant?.id || (o as any).productVariantId)));
+        const missingIds = numVariantIds.filter(id => !foundVariantIds.has(id));
+
+        if (missingIds.length > 0) {
+            try {
+                const shopFilter = ctx.apiType === 'shop' 
+                    ? `AND p.enabled = true AND pv.enabled = true AND (pv."customFieldsOfferstatus" = 'APPROVED' OR pv."customFieldsOfferstatus" IS NULL)` 
+                    : '';
+                const rawRows = await this.connection.rawConnection.query(
+                    `SELECT pv.id as "variantId", pv.sku, p.id as "productId", 
+                            p."customFieldsVendorid" as "vendorId",
+                            pvp.price as "price"
+                     FROM product_variant pv
+                     INNER JOIN product p ON p.id = pv."productId"
+                     LEFT JOIN product_variant_price pvp ON pvp."variantId" = pv.id
+                     WHERE pv.id = ANY($1)
+                       AND p."customFieldsVendorid" IS NOT NULL
+                       ${shopFilter}`,
+                    [missingIds]
+                );
+
+                const vendorIdMap = new Map<number, number>();
+                for (const row of rawRows) {
+                    if (row.vendorId) {
+                        vendorIdMap.set(Number(row.variantId), Number(row.vendorId));
+                    }
+                }
+
+                if (vendorIdMap.size > 0) {
+                    const uniqueVendorIds = Array.from(new Set(vendorIdMap.values()));
+                    const vendors = await this.connection.getRepository(ctx, Vendor)
+                        .createQueryBuilder('vendor')
+                        .leftJoinAndSelect('vendor.logo', 'logo')
+                        .where('vendor.id IN (:...uniqueVendorIds)', { uniqueVendorIds })
+                        .getMany();
+
+                    const vendorById = new Map<number, Vendor>();
+                    for (const vnd of vendors) {
+                        vendorById.set(Number(vnd.id), vnd);
+                    }
+
+                    const variantsWithVendor = await this.connection.getRepository(ctx, ProductVariant)
+                        .createQueryBuilder('variant')
+                        .leftJoinAndSelect('variant.translations', 'translations')
+                        .leftJoinAndSelect('variant.featuredAsset', 'variantAsset')
+                        .leftJoinAndSelect('variant.options', 'options')
+                        .leftJoinAndSelect('options.translations', 'optionTranslations')
+                        .leftJoinAndSelect('options.group', 'optionGroup')
+                        .leftJoinAndSelect('optionGroup.translations', 'optionGroupTranslations')
+                        .leftJoinAndSelect('variant.product', 'product')
+                        .leftJoinAndSelect('product.featuredAsset', 'productAsset')
+                        .where('variant.id IN (:...missingIds)', { missingIds })
+                        .getMany();
+
+                    for (const v of variantsWithVendor) {
+                        const targetVendorId = vendorIdMap.get(Number(v.id));
+                        const vendor = targetVendorId ? vendorById.get(targetVendorId) : null;
+                        if (vendor) {
+                            const fallbackOffer = {
+                                id: `fallback-${v.id}-${vendor.id}`,
+                                price: (v as any).priceWithTax || (v as any).price || 0,
+                                stock: (v as any).stockOnHand ?? 5,
+                                sku: v.sku,
+                                deliveryTimeValue: 2,
+                                deliveryTimeUnit: DeliveryTimeUnit.HOURS,
+                                condition: ProductCondition.NEW,
+                                onPromotion: (v.customFields as any)?.onPromotion || false,
+                                promotionalPrice: (v.customFields as any)?.promotionalPrice || null,
+                                status: 'approved',
+                                vendor,
+                                productVariant: v,
+                            } as any;
+                            existingOffers.push(fallbackOffer);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[getOffersForVariants] Fallback vendor resolution failed:', e);
+            }
+        }
+
+        return existingOffers;
     }
 
     async getOffersForProduct(ctx: RequestContext, productId: string): Promise<SellerOffer[]> {
@@ -212,6 +303,13 @@ export class SellerOfferService {
                  WHERE id = $4`,
                 [shouldBeEnabled, offerStatus, savedOffer.rejectionReason, numVariantId]
             );
+
+            if (prodRes[0]?.id && shouldBeEnabled) {
+                await pvRepo.query(
+                    `UPDATE product SET enabled = true, "updatedAt" = NOW() WHERE id = $1 AND "deletedAt" IS NULL`,
+                    [prodRes[0].id]
+                );
+            }
             try {
                 await pvRepo.query(
                     `UPDATE product_variant_price SET "price" = COALESCE(

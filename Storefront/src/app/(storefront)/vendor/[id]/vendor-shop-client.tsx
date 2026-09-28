@@ -517,7 +517,20 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                             {paginatedProducts.map(product => (
                                                 <VendorProductCard 
                                                     key={product.id} 
-                                                    product={{ ...product, vendorId: vendor.id }} 
+                                                    product={{ 
+                                                        ...product, 
+                                                        vendorId: vendor.id,
+                                                        vendorName: vendor.name,
+                                                        vendor: {
+                                                            id: vendor.id,
+                                                            name: vendor.name,
+                                                            zone: vendor.zone,
+                                                            address: vendor.address,
+                                                            logo: vendor.logo,
+                                                            rating: vendor.rating,
+                                                            ratingCount: vendor.ratingCount,
+                                                        }
+                                                    }} 
                                                 />
                                             ))}
                                         </div>
@@ -525,8 +538,12 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                         /* List view (simple row design) */
                                         <div className="space-y-4">
                                             {paginatedProducts.map(product => {
-                                                const price = product.variants?.[0]?.priceWithTax || 0;
-                                                const variantId = product.variants?.[0]?.id || '';
+                                                const v0 = product.variants?.[0];
+                                                const promoPrice = (v0?.customFields as any)?.promotionalPrice;
+                                                const onPromo = (v0?.customFields as any)?.onPromotion || (promoPrice && promoPrice > 0 && promoPrice < (v0?.priceWithTax || 0));
+                                                const rawPrice = v0?.priceWithTax || 0;
+                                                const finalPrice = onPromo && promoPrice ? promoPrice : rawPrice;
+                                                const variantId = v0?.id || '';
                                                 const featuredImageUrl = product.featuredAsset?.preview ? getAssetUrl(product.featuredAsset.preview) : null;
                                                 return (
                                                     <Link 
@@ -552,8 +569,15 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                                                     </p>
                                                                 )}
                                                             </div>
-                                                            <div className="text-base font-black text-primary">
-                                                                {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(price)}
+                                                            <div className="flex items-baseline gap-2">
+                                                                <span className="text-base font-black text-primary">
+                                                                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(finalPrice)}
+                                                                </span>
+                                                                {onPromo && promoPrice < rawPrice && (
+                                                                    <span className="text-xs text-slate-400 line-through">
+                                                                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(rawPrice)}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </Link>

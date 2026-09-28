@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
 import { ProductCard } from "@/components/commerce/product-card";
+import { MasterProductCard } from "@/components/commerce/master-product-card";
+import { processAndResolveDisplayItems } from "@/lib/vendure/display-engine";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -176,7 +178,15 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                 featuredAsset { id preview }
                                 variants {
                                     id
+                                    name
                                     priceWithTax
+                                    featuredAsset { id preview }
+                                    options {
+                                        id
+                                        name
+                                        code
+                                        group { id name }
+                                    }
                                 }
                                 customFields {
                                     vendor {
@@ -196,6 +206,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     productName: p.name,
                     slug: p.slug,
                     productAsset: p.featuredAsset,
+                    variants: p.variants,
                     priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
                     currencyCode: 'XOF',
                     inStock: true,
@@ -239,7 +250,15 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                         featuredAsset { preview }
                                         variants {
                                             id
+                                            name
                                             priceWithTax
+                                            featuredAsset { preview }
+                                            options {
+                                                id
+                                                name
+                                                code
+                                                group { id name }
+                                            }
                                         }
                                     }
                                 }
@@ -258,6 +277,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         productName: p.name,
                         slug: p.slug,
                         productAsset: p.featuredAsset,
+                        variants: p.variants,
                         priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
                         currencyCode: 'XOF',
                         inStock: true,
@@ -279,18 +299,18 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     items = resultFallback?.search?.items || [];
                 }
 
-                const seen = new Set();
-                items = items.filter((item: any) => {
-                    const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
-                    const key = `${item.productId}_${priceVal}`;
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                });
-                setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                const displayContext = {
+                    userLat: selectedLocation?.latitude,
+                    userLon: selectedLocation?.longitude,
+                    marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
+                    locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
+                };
+                const resolved = processAndResolveDisplayItems(items, displayContext);
+                setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             } else if (selectionMode === 'PRODUCTS') {
                 const items = await fetchManualProducts();
-                setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                const resolved = processAndResolveDisplayItems(items);
+                setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             } else if (selectionMode === 'HYBRID') {
                 const [collectionItems, manualItems] = await Promise.all([
                     (async () => {
@@ -305,44 +325,21 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     fetchManualProducts()
                 ]);
                 
-                let items = [...manualItems, ...collectionItems];
-                const seen = new Set();
-                items = items.filter((item: any) => {
-                    const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
-                    const key = `${item.productId}_${priceVal}`;
-                    if (seen.has(key)) return false;
-                    seen.add(key);
-                    return true;
-                });
-                setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                const items = [...manualItems, ...collectionItems];
+                const resolved = processAndResolveDisplayItems(items);
+                setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             } else {
                 // COLLECTIONS
+                let items: any[] = [];
                 if (collectionIds.length > 0) {
                     const promises = collectionIds.map((id: string) => fetchForCollection(id));
                     const results = await Promise.all(promises);
-                    let items = results.flat();
-                    
-                    const seen = new Set();
-                    items = items.filter((item: any) => {
-                        const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
-                        const key = `${item.productId}_${priceVal}`;
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                    });
-                    setProductsMap(prev => ({ ...prev, [tab.id]: items.slice(0, take) }));
+                    items = results.flat();
                 } else {
-                    const items = await fetchForCollection();
-                    const seen = new Set();
-                    const deduplicated = items.filter((item: any) => {
-                        const priceVal = item.priceWithTax?.value || item.priceWithTax?.min || (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0);
-                        const key = `${item.productId}_${priceVal}`;
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                    });
-                    setProductsMap(prev => ({ ...prev, [tab.id]: deduplicated.slice(0, take) }));
+                    items = await fetchForCollection();
                 }
+                const resolved = processAndResolveDisplayItems(items);
+                setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             }
         } catch (err) {
             console.error('Error in fetchProducts workflow:', err);
@@ -458,8 +455,8 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             msOverflowStyle: 'none',
                         } as React.CSSProperties}
                     >
-                        {products.map((p: any) => (
-                            <div key={p.productId} className={
+                        {products.map((p: any, idx: number) => (
+                            <div key={p.id || `${p.productId}-${p.productVariantId || idx}`} className={
                                 props.cardStyle === 'dense' 
                                 ? "snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]"
                                 : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
@@ -467,7 +464,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                 {props.cardStyle === 'dense' ? (
                                     <DenseProductCard product={p} />
                                 ) : (
-                                    <ProductCard product={p} config={props} />
+                                    <MasterProductCard item={p} config={props} />
                                 )}
                             </div>
                         ))}
@@ -478,11 +475,11 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
         return (
             <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'}`}>
-                {products.map((p: any) =>
+                {products.map((p: any, idx: number) =>
                     props.cardStyle === 'dense' ? (
-                        <DenseProductCard key={p.productId} product={p} />
+                        <DenseProductCard key={p.id || `${p.productId}-${p.productVariantId || idx}`} product={p} />
                     ) : (
-                        <ProductCard key={p.productId} product={p} config={props} />
+                        <MasterProductCard key={p.id || `${p.productId}-${p.productVariantId || idx}`} item={p} config={props} />
                     )
                 )}
             </div>

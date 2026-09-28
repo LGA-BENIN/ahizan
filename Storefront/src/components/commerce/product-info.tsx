@@ -14,7 +14,6 @@ import { getPromoPriceInfo } from "@/lib/vendure/api-utils";
 import { useThemeSettings } from "@/components/providers/theme-provider";
 import { ProductMobileFixedBar } from './product-mobile-fixed-bar';
 import { encodeId } from '@/lib/hash-utils';
-import DOMPurify from 'dompurify';
 
 interface ProductInfoProps {
     product: {
@@ -101,15 +100,15 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
     }, [allOffers, product.variants]);
 
     // 1. Identify the Selected Vendor
-    const selectedVendorId = useMemo(() => {
+    const initialVendorId = useMemo(() => {
         // Priority 1: explicitly passed in searchParams or URL (?vendorId=...)
         const urlVendor = searchParams?.vendorId || currentSearchParams?.get('vendorId');
         if (urlVendor) {
             return String(Array.isArray(urlVendor) ? urlVendor[0] : urlVendor);
         }
 
-        // Priority 2: if variantId is specified, check vendor of the offer for this variant
-        const urlVariant = searchParams?.variantId || currentSearchParams?.get('variantId');
+        // Priority 2: if variant or variantId is specified, check vendor of the offer for this variant
+        const urlVariant = searchParams?.variant || searchParams?.variantId || currentSearchParams?.get('variant') || currentSearchParams?.get('variantId');
         if (urlVariant) {
             const vId = String(Array.isArray(urlVariant) ? urlVariant[0] : urlVariant);
             const matchedOffer = (sellerOffers || []).find((o) => String(o.productVariant?.id) === vId);
@@ -131,15 +130,48 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         return null;
     }, [searchParams, currentSearchParams, sellerOffers, product.customFields?.vendor?.id]);
 
+    const [activeVendorId, setActiveVendorId] = useState<string | null>(initialVendorId);
+
+    useEffect(() => {
+        if (initialVendorId && !activeVendorId) {
+            setActiveVendorId(initialVendorId);
+        }
+    }, [initialVendorId]);
+
+    const selectedVendorId = activeVendorId || initialVendorId;
+
+    const handleSelectVendor = (vendorId: string, variantId?: string) => {
+        setActiveVendorId(vendorId);
+        const vOffers = (sellerOffers || []).filter((o) => String(o.vendor?.id) === String(vendorId));
+        let targetVariantId = variantId;
+        if (!targetVariantId && vOffers.length > 0) {
+            targetVariantId = String(vOffers[0].productVariant?.id);
+        }
+
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            params.set('vendorId', vendorId);
+            if (targetVariantId) {
+                params.set('variantId', targetVariantId);
+            }
+            window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
+        }
+
+        if (targetVariantId) {
+            setSelectedVariantId(targetVariantId);
+        }
+    };
+
     // 2. Filter offers that belong strictly to the selected vendor
     const vendorOffers = useMemo(() => {
         if (!sellerOffers || sellerOffers.length === 0) return [];
         if (!selectedVendorId) return sellerOffers;
-        return sellerOffers.filter((o) => String(o.vendor?.id) === String(selectedVendorId));
+        const matching = sellerOffers.filter((o) => String(o.vendor?.id) === String(selectedVendorId));
+        return matching.length > 0 ? matching : sellerOffers;
     }, [sellerOffers, selectedVendorId]);
 
-    // 3. Filter variants to those offered by THIS vendor
-    const vendorVariants = useMemo(() => {
+    // 3. All approved variants of this central product family
+    const allApprovedVariants = useMemo(() => {
         const baseApproved = (product.variants || []).filter((v: any) => {
             if (v.enabled === false) return false;
             const offerStatus = (v.customFields as any)?.offerStatus || (v.customFields as any)?.offerstatus;
@@ -149,61 +181,76 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
             return true;
         });
 
-        if (vendorOffers.length > 0) {
-            const vendorVariantIds = new Set(vendorOffers.map((o) => String(o.productVariant?.id)));
-            const filtered = baseApproved.filter((v) => vendorVariantIds.has(String(v.id)));
-            if (filtered.length > 0) {
-                return filtered;
-            }
-        }
+        return baseApproved.length > 0 ? baseApproved : (product.variants || []);
+    }, [product.variants]);
 
-        return baseApproved;
-    }, [product.variants, vendorOffers]);
-
-    // 4. Extract available option IDs for THIS vendor's variants only
-    const availableOptionIds = useMemo(() => {
+    // 4. Extract available option IDs across the product family
+    const familyOptionIds = useMemo(() => {
         const ids = new Set<string>();
-        vendorVariants.forEach((v) => {
+        allApprovedVariants.forEach((v) => {
             (v.options || []).forEach((opt) => ids.add(String(opt.id)));
         });
         return ids;
-    }, [vendorVariants]);
+    }, [allApprovedVariants]);
 
-    // 5. Filter option groups to ONLY display groups and options available for THIS vendor
+    // 5. Filter and merge option groups to display all family options cleanly
     const filteredOptionGroups = useMemo(() => {
-        return product.optionGroups
-            .map((group) => ({
-                ...group,
-                options: group.options.filter((opt) => availableOptionIds.has(String(opt.id))),
-            }))
-            .filter((group) => group.options.length > 0);
-    }, [product.optionGroups, availableOptionIds]);
+        const groupMap = new Map<string, { id: string; code: string; name: string; options: any[] }>();
+
+        for (const group of (product.optionGroups || [])) {
+            const validOptions = (group.options || []).filter((opt) => 
+                familyOptionIds.size === 0 || familyOptionIds.has(String(opt.id))
+            );
+            if (validOptions.length === 0) continue;
+
+            const normalizedName = (group.name || '').trim().toLowerCase();
+            if (groupMap.has(normalizedName)) {
+                const existing = groupMap.get(normalizedName)!;
+                for (const opt of validOptions) {
+                    if (!existing.options.some((o: any) => String(o.id) === String(opt.id) || o.name === opt.name)) {
+                        existing.options.push(opt);
+                    }
+                }
+            } else {
+                groupMap.set(normalizedName, {
+                    id: group.id,
+                    code: group.code,
+                    name: group.name,
+                    options: [...validOptions],
+                });
+            }
+        }
+
+        return Array.from(groupMap.values());
+    }, [product.optionGroups, familyOptionIds]);
 
     const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
-        if (searchParams?.variantId) {
-            const vId = String(Array.isArray(searchParams.variantId) ? searchParams.variantId[0] : searchParams.variantId);
-            const matched = vendorVariants.find((v) => String(v.id) === vId);
+        const rawParamVariant = searchParams?.variant || searchParams?.variantId;
+        if (rawParamVariant) {
+            const vId = String(Array.isArray(rawParamVariant) ? rawParamVariant[0] : rawParamVariant);
+            const matched = allApprovedVariants.find((v) => String(v.id) === vId);
             if (matched) return String(matched.id);
         }
-        return vendorVariants[0]?.id || '';
+        return allApprovedVariants[0]?.id || '';
     });
 
     useEffect(() => {
-        if (vendorVariants.length > 0) {
-            const exists = vendorVariants.some((v) => String(v.id) === String(selectedVariantId));
+        if (allApprovedVariants.length > 0) {
+            const exists = allApprovedVariants.some((v) => String(v.id) === String(selectedVariantId));
             if (!exists) {
-                setSelectedVariantId(String(vendorVariants[0].id));
+                setSelectedVariantId(String(allApprovedVariants[0].id));
             }
         }
-    }, [vendorVariants, selectedVariantId]);
+    }, [allApprovedVariants, selectedVariantId]);
 
     const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
         const initialOptions: Record<string, string> = {};
 
         let matchedVariant = null;
-        if (searchParams?.variantId) {
-            const vId = String(Array.isArray(searchParams.variantId) ? searchParams.variantId[0] : searchParams.variantId);
-            matchedVariant = vendorVariants.find((v) => String(v.id) === vId);
+        const rawParamVariant = searchParams?.variant || searchParams?.variantId;
+        if (rawParamVariant) {
+            const vId = String(Array.isArray(rawParamVariant) ? rawParamVariant[0] : rawParamVariant);
+            matchedVariant = allApprovedVariants.find((v) => String(v.id) === vId);
         }
 
         if (matchedVariant && matchedVariant.options && matchedVariant.options.length > 0) {
@@ -215,17 +262,17 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
             });
         }
 
-        product.optionGroups.forEach((group) => {
+        (product.optionGroups || []).forEach((group) => {
             const paramValue = searchParams?.[group.code];
             if (typeof paramValue === 'string') {
-                const option = group.options.find((opt) => opt.code === paramValue && availableOptionIds.has(String(opt.id)));
+                const option = (group.options || []).find((opt) => opt.code === paramValue && familyOptionIds.has(String(opt.id)));
                 if (option) {
                     initialOptions[group.id] = option.id;
                 }
             }
         });
 
-        const defaultVariant = matchedVariant || vendorVariants[0];
+        const defaultVariant = matchedVariant || allApprovedVariants[0];
         if (defaultVariant && defaultVariant.options) {
             defaultVariant.options.forEach((opt) => {
                 const gId = (opt as any).groupId || opt.group?.id;
@@ -238,10 +285,10 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         return initialOptions;
     });
 
-    // Update selectedOptions when vendorVariants change
+    // Update selectedOptions when active variant changes
     useEffect(() => {
-        if (vendorVariants.length > 0) {
-            const activeV = vendorVariants.find((v) => String(v.id) === String(selectedVariantId)) || vendorVariants[0];
+        if (allApprovedVariants.length > 0) {
+            const activeV = allApprovedVariants.find((v) => String(v.id) === String(selectedVariantId)) || allApprovedVariants[0];
             if (activeV && activeV.options) {
                 const newOpts: Record<string, string> = {};
                 activeV.options.forEach((opt) => {
@@ -251,55 +298,77 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                 setSelectedOptions(newOpts);
             }
         }
-    }, [vendorVariants, selectedVariantId]);
+    }, [allApprovedVariants, selectedVariantId]);
 
-    // Find the matching variant strictly within vendorVariants
+    // Find the matching variant strictly across the central product family
     const selectedVariant = useMemo(() => {
-        if (vendorVariants.length === 0) return null;
-        if (vendorVariants.length === 1) return vendorVariants[0];
+        if (allApprovedVariants.length === 0) return null;
 
-        if (product.optionGroups.length > 0) {
-            const selectedOptionIds = Object.values(selectedOptions);
+        if (product.optionGroups && product.optionGroups.length > 0) {
+            const selectedOptionIds = Object.values(selectedOptions).map(String);
             if (selectedOptionIds.length > 0) {
-                const found = vendorVariants.find((variant) => {
-                    const variantOptionIds = (variant.options || []).map((opt) => String(opt.id));
-                    return selectedOptionIds.every((optId) => variantOptionIds.includes(String(optId)));
+                const found = allApprovedVariants.find((variant) => {
+                    const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+                    return selectedOptionIds.every((optId) => variantOptionIds.includes(optId));
                 });
                 if (found) return found;
             }
         }
 
         if (selectedVariantId) {
-            const byId = vendorVariants.find((v) => String(v.id) === String(selectedVariantId));
+            const byId = allApprovedVariants.find((v) => String(v.id) === String(selectedVariantId));
             if (byId) return byId;
         }
 
-        return vendorVariants[0];
-    }, [selectedOptions, vendorVariants, product.optionGroups, selectedVariantId]);
+        return allApprovedVariants[0] || null;
+    }, [selectedOptions, allApprovedVariants, product.optionGroups, selectedVariantId]);
 
-    // Active offer for the selected variant from this vendor
-    const activeOffer = useMemo(() => {
-        if (!selectedVariant || vendorOffers.length === 0) return null;
-        return vendorOffers.find((o) => String(o.productVariant?.id) === String(selectedVariant.id)) || vendorOffers[0];
-    }, [vendorOffers, selectedVariant]);
+    // Offer strictly belonging to the currently selected vendor for this variant
+    const currentVendorOffer = useMemo(() => {
+        if (!selectedVariant || !sellerOffers || sellerOffers.length === 0) return null;
+        if (!selectedVendorId) return sellerOffers[0] || null;
+        return sellerOffers.find((o) => 
+            String(o.productVariant?.id) === String(selectedVariant.id) && 
+            String(o.vendor?.id) === String(selectedVendorId)
+        ) || null;
+    }, [sellerOffers, selectedVariant, selectedVendorId]);
+
+    const activeOffer = currentVendorOffer;
+    const isAvailableForCurrentVendor = Boolean(currentVendorOffer);
+
+    // Other vendors who offer this specific variant (if current vendor doesn't or as alternatives)
+    const otherOffersForVariant = useMemo(() => {
+        if (!selectedVariant || !sellerOffers) return [];
+        return sellerOffers.filter((o) => 
+            String(o.productVariant?.id) === String(selectedVariant.id) && 
+            String(o.vendor?.id) !== String(selectedVendorId)
+        );
+    }, [sellerOffers, selectedVariant, selectedVendorId]);
 
     // Active vendor details
     const activeVendor = useMemo(() => {
-        if (activeOffer?.vendor) return activeOffer.vendor;
-        if (vendorOffers.length > 0 && vendorOffers[0]?.vendor) return vendorOffers[0].vendor;
-        if (product.customFields?.vendor) return product.customFields.vendor;
+        if (selectedVendorId) {
+            const match = (sellerOffers || []).find((o) => String(o.vendor?.id) === String(selectedVendorId));
+            if (match?.vendor?.name) return match.vendor;
+        }
+        if (sellerOffers && sellerOffers.length > 0 && sellerOffers[0]?.vendor?.name) {
+            return sellerOffers[0].vendor;
+        }
+        if (product.customFields?.vendor?.name) {
+            return product.customFields.vendor;
+        }
         return null;
-    }, [activeOffer, vendorOffers, product.customFields?.vendor]);
+    }, [sellerOffers, selectedVendorId, product.customFields?.vendor]);
 
     const activePrice = useMemo(() => {
-        if (activeOffer) {
-            if (activeOffer.onPromotion && activeOffer.promotionalPrice) {
-                return activeOffer.promotionalPrice;
+        if (currentVendorOffer) {
+            if (currentVendorOffer.onPromotion && currentVendorOffer.promotionalPrice) {
+                return currentVendorOffer.promotionalPrice;
             }
-            return activeOffer.price;
+            return currentVendorOffer.price;
         }
-        return selectedVariant?.priceWithTax;
-    }, [activeOffer, selectedVariant]);
+        return null;
+    }, [currentVendorOffer]);
 
     // Dispatch variant change event to synchronize image carousel and components
     useEffect(() => {
@@ -317,41 +386,41 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         };
         setSelectedOptions(nextOptions);
 
-        // Find newly matched variant within vendorVariants ONLY!
-        const nextOptionIds = Object.values(nextOptions);
-        const nextVariant = vendorVariants.find((variant) => {
-            const variantOptionIds = (variant.options || []).map((opt) => String(opt.id));
-            return nextOptionIds.every((optId) => variantOptionIds.includes(String(optId)));
+        const nextOptionIds = Object.values(nextOptions).map(String);
+        let matchingVariant = allApprovedVariants.find((variant) => {
+            const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+            return nextOptionIds.every((optId) => variantOptionIds.includes(optId));
         });
 
-        if (nextVariant) {
-            setSelectedVariantId(String(nextVariant.id));
+        if (!matchingVariant) {
+            matchingVariant = allApprovedVariants.find((variant) => {
+                const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+                return variantOptionIds.includes(String(optionId));
+            });
         }
 
-        // Update URL shallowly without triggering full page reload
-        if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            if (selectedVendorId) {
-                params.set('vendorId', selectedVendorId);
+        if (matchingVariant) {
+            setSelectedVariantId(String(matchingVariant.id));
+
+            if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                if (selectedVendorId) {
+                    params.set('sellerId', selectedVendorId);
+                    params.set('vendorId', selectedVendorId);
+                }
+                params.set('variantId', String(matchingVariant.id));
+                params.set('variant', String(matchingVariant.id));
+                window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
             }
-            if (nextVariant) {
-                params.set('variantId', String(nextVariant.id));
-            }
-            const group = product.optionGroups.find((g) => g.id === groupId);
-            const option = group?.options.find((opt) => opt.id === optionId);
-            if (group && option) {
-                params.set(group.code, option.code);
-            }
-            window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
         }
     };
 
     const handleAddToCart = async () => {
-        if (!selectedVariant) return;
+        if (!selectedVariant || !isAvailableForCurrentVendor) return;
 
         startTransition(async () => {
-            const assignedVendorId = selectedVendorId || activeOffer?.vendor?.id || product.customFields?.vendor?.id || undefined;
-            const sellerOfferId = activeOffer?.id || undefined;
+            const assignedVendorId = selectedVendorId || currentVendorOffer?.vendor?.id || product.customFields?.vendor?.id || undefined;
+            const sellerOfferId = currentVendorOffer?.id || undefined;
             const result = await addToCart(selectedVariant.id, quantity, assignedVendorId, sellerOfferId);
 
             if (result.success) {
@@ -371,21 +440,21 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         });
     };
 
-
     const isInStock = Boolean(
         selectedVariant && 
         selectedVariant.stockLevel !== 'OUT_OF_STOCK' &&
-        (!activeOffer || activeOffer.stock > 0)
+        currentVendorOffer &&
+        (currentVendorOffer.stock === undefined || currentVendorOffer.stock > 0)
     );
-    const canAddToCart = Boolean(selectedVariant && isInStock);
+    const canAddToCart = Boolean(selectedVariant && isAvailableForCurrentVendor && isInStock);
 
     const activeFlash = themeSettings?.activeFlashSale;
     const applyToProduct = themeSettings?.applyFlashPromoToProducts;
 
     const priceInfo = useMemo(() => {
-        if (!selectedVariant) return null;
+        if (!selectedVariant || activePrice === null) return null;
         return getPromoPriceInfo({
-            price: activePrice || selectedVariant.priceWithTax,
+            price: activePrice,
             variantCustomFields: selectedVariant.customFields,
             productId: product.id,
             collectionIds: product.collections?.map((c: any) => c.id) || [],
@@ -397,17 +466,78 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         });
     }, [selectedVariant, activePrice, product.id, product.collections, activeFlash, applyToProduct]);
 
+    const handleSelectVariant = (variantId: string) => {
+        setSelectedVariantId(variantId);
+        const targetV = allApprovedVariants.find((v) => String(v.id) === String(variantId));
+        if (targetV && targetV.options) {
+            const nextOpts: Record<string, string> = {};
+            targetV.options.forEach((opt) => {
+                const gId = (opt as any).groupId || opt.group?.id;
+                if (gId) nextOpts[gId] = opt.id;
+            });
+            setSelectedOptions(nextOpts);
+        }
+
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (selectedVendorId) {
+                params.set('sellerId', selectedVendorId);
+                params.set('vendorId', selectedVendorId);
+            }
+            params.set('variantId', String(variantId));
+            params.set('variant', String(variantId));
+            window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
+        }
+    };
+
+    // Strict and clean title resolution: NEVER display foreign product names from grafted variants
+    const optNames = (selectedVariant?.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
+    let declinationSuffix = optNames;
+
+    if (!declinationSuffix && selectedVariant?.name) {
+        const vName = selectedVariant.name.trim();
+        if (vName.toLowerCase().startsWith(product.name.toLowerCase()) && vName.length > product.name.length) {
+            const clean = vName.substring(product.name.length).replace(/^[\s\-–—:]+/, '').trim();
+            if (clean && clean.toLowerCase() !== product.name.toLowerCase()) {
+                declinationSuffix = clean;
+            }
+        }
+    }
+
+    const variantDisplayName = declinationSuffix 
+        ? `${product.name} — ${declinationSuffix}` 
+        : product.name;
 
     return (
         <div className="space-y-4 text-foreground">
-            {/* Product Title */}
+            {/* SKU and Offer Condition Badges */}
+            <div className="flex flex-wrap items-center gap-2">
+                {selectedVariant?.sku && (
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/60 px-2.5 py-0.5 rounded-md border border-border/40">
+                        SKU: {selectedVariant.sku}
+                    </span>
+                )}
+                {activeOffer?.condition && (
+                    <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md border border-primary/20">
+                        {activeOffer.condition === 'NEW' ? 'Neuf' : activeOffer.condition === 'USED_GOOD' ? 'Très bon état' : activeOffer.condition}
+                    </span>
+                )}
+                {activeVendor?.name && (
+                    <span className="text-[11px] font-semibold text-muted-foreground bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md flex items-center gap-1">
+                        <Store className="w-3 h-3 text-primary" />
+                        Offre de {activeVendor.name}
+                    </span>
+                )}
+            </div>
+
+            {/* Product & Variant Title */}
             <div>
-                <h1 className="text-2xl font-bold tracking-tight">{product.name}</h1>
-                {selectedVariant && priceInfo && (
-                    <div className="flex items-center gap-4 mt-2">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{variantDisplayName}</h1>
+                {selectedVariant && isAvailableForCurrentVendor && priceInfo ? (
+                    <div className="flex items-center gap-4 mt-2.5">
                         {priceInfo.hasPromotion ? (
                             <div className="flex items-center gap-3">
-                                <p className={`text-2xl font-bold ${priceInfo.showBothPrices ? 'text-red-600' : 'text-primary'}`}>
+                                <p className={`text-2xl sm:text-3xl font-bold ${priceInfo.showBothPrices ? 'text-red-600' : 'text-primary'}`}>
                                     <Price value={priceInfo.promotionalPrice} />
                                 </p>
                                 {priceInfo.showBothPrices && (
@@ -422,21 +552,30 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                                 )}
                             </div>
                         ) : (
-                            <p className="text-2xl font-bold text-primary">
+                            <p className="text-2xl sm:text-3xl font-bold text-primary">
                                 <Price value={activePrice ?? selectedVariant.priceWithTax}/>
                             </p>
                         )}
 
                         {isInStock ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                <CheckCircle2 className="w-3 h-3 mr-1" />
-                                En stock
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                {activeOffer && typeof activeOffer.stock === 'number'
+                                    ? `${activeOffer.stock} en stock`
+                                    : 'En stock'}
                             </span>
                         ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                                Rupture de stock
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                Rupture chez ce vendeur
                             </span>
                         )}
+                    </div>
+                ) : (
+                    <div className="mt-3">
+                        <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300/70 dark:border-amber-700/60">
+                            <span>⚠️</span>
+                            <span>Cette déclinaison n'est pas disponible chez {activeVendor?.name ? <span className="underline">{activeVendor.name}</span> : 'ce vendeur'}.</span>
+                        </div>
                     </div>
                 )}
             </div>
@@ -445,41 +584,78 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
             {Boolean(product.customFields?.shortDescription || product.description) && (
                 <div className="text-sm text-muted-foreground leading-relaxed my-3 font-medium">
                     {product.customFields?.shortDescription || (
-                        typeof window !== 'undefined'
-                            ? DOMPurify.sanitize(product.description || '').replace(/<[^>]*>?/gm, '').slice(0, 180) + '...'
-                            : (product.description || '')
+                        (product.description || '').replace(/<[^>]*>?/gm, '').slice(0, 180) + '...'
                     )}
                 </div>
             )}
 
-            {/* Option Groups (Filtered only to options available in active variants) */}
+            {/* Option Groups (Filtered only to options available in active variants for THIS vendor) */}
             {filteredOptionGroups.length > 0 && (
                 <div className="space-y-4 pt-4 border-t">
                     {filteredOptionGroups.map((group) => (
                         <div key={group.id} className="space-y-2">
-                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
-                                {group.name}
-                            </Label>
+                            <div className="flex items-center justify-between">
+                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
+                                    {group.name}
+                                </Label>
+                            </div>
                             <RadioGroup
                                 value={selectedOptions[group.id] || ''}
                                 onValueChange={(value) => handleOptionChange(group.id, value)}
                             >
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {group.options.map((option) => (
-                                        <div key={option.id}>
-                                            <RadioGroupItem
-                                                value={option.id}
-                                                id={option.id}
-                                                className="peer sr-only"
-                                            />
-                                            <Label
-                                                htmlFor={option.id}
-                                                className="flex items-center justify-center rounded-lg border border-input bg-background px-3 py-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all font-semibold text-xs text-center"
-                                            >
-                                                {option.name}
-                                            </Label>
-                                        </div>
-                                    ))}
+                                    {group.options.map((option) => {
+                                        const isSelected = selectedOptions[group.id] === option.id;
+                                        const isSoldByCurrentVendor = allApprovedVariants.some((variant) => {
+                                            const isVendorVariant = (sellerOffers || []).some(
+                                                (o) => String(o.productVariant?.id) === String(variant.id) && (selectedVendorId ? String(o.vendor?.id) === String(selectedVendorId) : true)
+                                            );
+                                            if (!isVendorVariant) return false;
+                                            const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+                                            if (!variantOptionIds.includes(String(option.id))) return false;
+                                            for (const [otherGId, otherOptId] of Object.entries(selectedOptions)) {
+                                                if (otherGId !== group.id && !variantOptionIds.includes(String(otherOptId))) {
+                                                    return false;
+                                                }
+                                            }
+                                            return true;
+                                        });
+
+                                        const isAvailableWithSelection = allApprovedVariants.some((variant) => {
+                                            const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+                                            if (!variantOptionIds.includes(String(option.id))) return false;
+                                            for (const [otherGId, otherOptId] of Object.entries(selectedOptions)) {
+                                                if (otherGId !== group.id && !variantOptionIds.includes(String(otherOptId))) {
+                                                    return false;
+                                                }
+                                            }
+                                            return true;
+                                        });
+
+                                        return (
+                                            <div key={option.id}>
+                                                <RadioGroupItem
+                                                    value={option.id}
+                                                    id={option.id}
+                                                    className="peer sr-only"
+                                                />
+                                                <Label
+                                                    htmlFor={option.id}
+                                                    className={`flex items-center justify-center rounded-lg border px-3 py-2 cursor-pointer transition-all font-semibold text-xs text-center ${
+                                                        isSelected
+                                                            ? 'border-primary bg-primary/10 text-primary font-bold shadow-xs'
+                                                            : isSoldByCurrentVendor
+                                                                ? 'border-input bg-background hover:bg-accent hover:text-accent-foreground text-foreground'
+                                                                : isAvailableWithSelection
+                                                                    ? 'border-dashed border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20 text-muted-foreground hover:border-primary/40'
+                                                                    : 'border-dashed border-input/40 bg-muted/10 text-muted-foreground/50 opacity-60'
+                                                    }`}
+                                                >
+                                                    {option.name}
+                                                </Label>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </RadioGroup>
                         </div>
@@ -487,26 +663,33 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                 </div>
             )}
 
-            {/* Direct Variants Selector (if no optionGroups but multiple variants exist for this vendor) */}
-
-            {product.optionGroups.length === 0 && vendorVariants.length > 1 && (
+            {/* Direct Variants Selector (if no optionGroups or filteredOptionGroups empty, but multiple variants exist) */}
+            {((!product.optionGroups || product.optionGroups.length === 0) || filteredOptionGroups.length === 0) && allApprovedVariants.length > 1 && (
                 <div className="space-y-2 pt-4 border-t">
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
-                        Déclinaisons disponibles ({vendorVariants.length})
+                        Déclinaisons disponibles ({allApprovedVariants.length})
                     </Label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {vendorVariants.map((v) => {
+                        {allApprovedVariants.map((v) => {
                             const isSelected = selectedVariant?.id === v.id;
-                            const vOffer = vendorOffers.find((o) => String(o.productVariant?.id) === String(v.id));
+                            const vOffer = (sellerOffers || []).find((o) => String(o.productVariant?.id) === String(v.id) && (selectedVendorId ? String(o.vendor?.id) === String(selectedVendorId) : true)) || (sellerOffers || []).find((o) => String(o.productVariant?.id) === String(v.id));
                             const vPrice = vOffer?.price ?? v.priceWithTax;
+
+                            const vOptNames = (v.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
+                            let vLabel = vOptNames;
+                            if (!vLabel && v.name && v.name.toLowerCase().startsWith(product.name.toLowerCase()) && v.name.length > product.name.length) {
+                                vLabel = v.name.substring(product.name.length).replace(/^[\s\-–—:]+/, '').trim();
+                            }
+                            if (!vLabel) vLabel = product.name;
+
                             return (
                                 <button
                                     key={v.id}
                                     type="button"
-                                    onClick={() => setSelectedVariantId(v.id)}
+                                    onClick={() => handleSelectVariant(v.id)}
                                     className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20 shadow-sm' : 'border-input hover:border-slate-300 dark:hover:border-slate-600 bg-background text-foreground'}`}
                                 >
-                                    <span className="truncate max-w-full">{v.name}</span>
+                                    <span className="truncate max-w-full">{vLabel}</span>
                                     <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
                                         <Price value={vPrice} />
                                     </span>
@@ -575,7 +758,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                                             <span>•</span>
                                             <span className="flex items-center gap-0.5">
                                                 <Clock className="w-3 h-3" />
-                                                {activeOffer.deliveryTimeValue} {activeOffer.deliveryTimeUnit === 'h' ? 'heures' : 'jours'}
+                                                Livraison {activeOffer.deliveryTimeValue} {activeOffer.deliveryTimeUnit === 'h' ? 'heures' : 'jours'}
                                             </span>
                                         </>
                                     )}
@@ -646,10 +829,10 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                                 <span className="truncate">
                                     {isPending
                                         ? 'Ajout...'
-                                        : !selectedVariant && product.optionGroups.length > 0
-                                            ? 'Options'
+                                        : (!selectedVariant || !isAvailableForCurrentVendor)
+                                            ? 'Non disponible chez ce vendeur'
                                             : !isInStock
-                                                ? 'Rupture'
+                                                ? 'Rupture de stock'
                                                 : 'Ajouter au panier'}
                                 </span>
                             </>
@@ -665,7 +848,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                             const targetNumber = whatsappNumber || '';
                             const cleanNumber = targetNumber.replace(/[^0-9+]/g, '');
                             const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-                            const message = `Bonjour, je souhaite commander ce produit : ${product.name}\n${currentUrl}`;
+                            const message = `Bonjour, je souhaite commander : ${variantDisplayName}${activeVendor?.name ? ` (Vendeur: ${activeVendor.name})` : ''}\n${currentUrl}`;
 
                             if (cleanNumber) {
                                 const phone = cleanNumber.startsWith('+') ? cleanNumber.slice(1) : cleanNumber;

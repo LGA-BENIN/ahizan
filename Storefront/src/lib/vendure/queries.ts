@@ -121,8 +121,8 @@ export const GetProductsQuery = graphql(`
 `);
 
 export const GetProductDetailQuery = graphql(`
-    query GetProductDetail($slug: String!) {
-        product(slug: $slug) {
+    query GetProductDetail($slug: String, $id: ID) {
+        product(slug: $slug, id: $id) {
             id
             name
             description
@@ -138,6 +138,16 @@ export const GetProductDetailQuery = graphql(`
                 sku
                 priceWithTax
                 stockLevel
+                featuredAsset {
+                    id
+                    preview
+                    source
+                }
+                assets {
+                    id
+                    preview
+                    source
+                }
                 customFields {
                     compareAtPrice
                     onPromotion
@@ -169,8 +179,15 @@ export const GetProductDetailQuery = graphql(`
                 id
                 name
                 slug
+                breadcrumbs {
+                    id
+                    name
+                    slug
+                }
                 parent {
                     id
+                    name
+                    slug
                 }
             }
             customFields {

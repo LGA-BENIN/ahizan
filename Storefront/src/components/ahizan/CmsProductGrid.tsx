@@ -123,7 +123,16 @@ export function CmsProductGrid({ config }: CmsProductGridProps) {
                                         preview
                                     }
                                     variants {
+                                        id
+                                        name
                                         priceWithTax
+                                        featuredAsset { id preview }
+                                        options {
+                                            id
+                                            name
+                                            code
+                                            group { id name }
+                                        }
                                     }
                                 }
                             }

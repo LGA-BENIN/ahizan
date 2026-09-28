@@ -1,4 +1,5 @@
 import { rawQuery } from './raw-api';
+import { processAndResolveDisplayItems, DisplayEngineContext } from './display-engine';
 
 const GET_SELLER_OFFERS_FOR_VARIANTS = `
     query GetSellerOffersForVariants($variantIds: [ID!]!) {
@@ -14,8 +15,21 @@ const GET_SELLER_OFFERS_FOR_VARIANTS = `
             vendor {
                 id
                 name
+                latitude
+                longitude
+                verificationStatus
+                rating
+                ratingCount
                 logo {
                     preview
+                }
+                location {
+                    id
+                    name
+                }
+                physicalMarket {
+                    id
+                    name
                 }
             }
             productVariant {
@@ -26,7 +40,19 @@ const GET_SELLER_OFFERS_FOR_VARIANTS = `
                     id
                     preview
                 }
+                options {
+                    id
+                    name
+                    code
+                    group {
+                        id
+                        name
+                    }
+                }
                 product {
+                    id
+                    name
+                    slug
                     featuredAsset {
                         id
                         preview
@@ -38,16 +64,21 @@ const GET_SELLER_OFFERS_FOR_VARIANTS = `
 `;
 
 /**
- * Expands a list of SearchResult/Product items into individual Seller Offer cards.
- * If a variant has multiple approved seller offers (e.g. Seller A @ 1000 and Seller B @ 9889),
- * each seller's unique offer is presented as a distinct card with their price, image, and vendor badge.
+ * Resolves a list of SearchResult/Product items with their real-time Seller Offers and Buy Box scoring.
+ * Prevents variant flooding and duplicate cards by consolidating offers onto the Master Product.
  */
-export async function expandProductsWithSellerOffers(items: any[]): Promise<any[]> {
+export async function expandProductsWithSellerOffers(
+    items: any[], 
+    context: DisplayEngineContext = {}
+): Promise<any[]> {
     if (!items || items.length === 0) return [];
 
-    // If items are already expanded, return them as is to prevent double expansion
-    if (items.some(i => i.isExpandedOffer)) {
-        return items;
+    // If items are already resolved as master items, re-score them with current context
+    if (items.some(i => i.isMasterResolved)) {
+        return processAndResolveDisplayItems(items, context).map(r => ({
+            ...r,
+            isMasterResolved: true,
+        }));
     }
 
     const variantIds = Array.from(
@@ -62,11 +93,9 @@ export async function expandProductsWithSellerOffers(items: any[]): Promise<any[
         });
 
         const offers: any[] = res?.sellerOffersForVariants || [];
-        if (offers.length === 0) return items;
-
-        const expanded: any[] = [];
-        const seenOfferIds = new Set<string>();
-
+        
+        // Prepare items with attached offers
+        const rawItemsWithOffers: any[] = [];
         for (const item of items) {
             const vId = String(item.productVariantId || item.id);
             const matchingOffers = offers.filter(
@@ -75,50 +104,51 @@ export async function expandProductsWithSellerOffers(items: any[]): Promise<any[
 
             if (matchingOffers.length > 0) {
                 for (const offer of matchingOffers) {
-                    const offerId = String(offer.id);
-                    if (seenOfferIds.has(offerId)) {
-                        continue;
-                    }
-                    seenOfferIds.add(offerId);
-
-                    const offerAsset = offer.productVariant?.featuredAsset
-                        || offer.productVariant?.product?.featuredAsset
-                        || item.productVariantAsset
-                        || item.productAsset
-                        || item.featuredAsset;
-                    const effectivePrice = offer.onPromotion && offer.promotionalPrice ? offer.promotionalPrice : offer.price;
-
-                    expanded.push({
+                    rawItemsWithOffers.push({
                         ...item,
-                        id: `${item.productId || item.id}-offer-${offer.id}`,
+                        productId: item.productId || item.product?.id || item.id,
+                        productName: item.productName || item.name,
                         productVariantId: vId,
+                        productVariantName: offer.productVariant?.name || item.productVariantName,
+                        productVariant: offer.productVariant || item.productVariant,
+                        sku: offer.productVariant?.sku || item.sku,
                         vendorId: offer.vendor?.id,
                         vendorName: offer.vendor?.name,
                         marketName: offer.vendor?.physicalMarket?.name,
+                        marketId: offer.vendor?.physicalMarket?.id,
                         locationName: offer.vendor?.location?.name,
-                        priceWithTax: {
-                            __typename: 'SinglePrice',
-                            value: effectivePrice,
-                        },
-                        price: effectivePrice,
-                        productVariantAsset: offerAsset,
-                        productAsset: offerAsset || item.productAsset,
-                        featuredAsset: offerAsset,
-                        inStock: offer.stock > 0,
-                        isExpandedOffer: true,
+                        locationId: offer.vendor?.location?.id,
+                        latitude: offer.vendor?.latitude,
+                        longitude: offer.vendor?.longitude,
+                        price: offer.price,
+                        promotionalPrice: offer.promotionalPrice,
+                        onPromotion: offer.onPromotion,
+                        stock: offer.stock,
+                        condition: offer.condition,
+                        deliveryTimeValue: offer.deliveryTimeValue,
+                        deliveryTimeUnit: offer.deliveryTimeUnit,
+                        vendor: offer.vendor,
+                        options: offer.productVariant?.options || item.options,
+                        customFields: {
+                            ...(item.customFields || {}),
+                            vendor: offer.vendor,
+                            onPromotion: offer.onPromotion,
+                            promotionalPrice: offer.promotionalPrice,
+                        }
                     });
                 }
             } else {
-                expanded.push({
-                    ...item,
-                    isExpandedOffer: true,
-                });
+                rawItemsWithOffers.push(item);
             }
         }
 
-        return expanded;
+        const resolved = processAndResolveDisplayItems(rawItemsWithOffers, context);
+        return resolved.map(r => ({
+            ...r,
+            isMasterResolved: true,
+        }));
     } catch (e) {
         console.warn('[expandProductsWithSellerOffers] Fallback to original items:', e);
-        return items;
+        return processAndResolveDisplayItems(items, context).map(r => ({ ...r, isMasterResolved: true }));
     }
 }

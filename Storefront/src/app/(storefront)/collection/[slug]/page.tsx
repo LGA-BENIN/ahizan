@@ -16,6 +16,7 @@ import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
 import { FiltersToggleWrapper } from '@/components/commerce/FiltersToggleWrapper';
 import { priceFromSubunit } from '@/lib/format';
 import { expandProductsWithSellerOffers } from '@/lib/vendure/seller-offers';
+import { cookies } from 'next/headers';
 import React from 'react';
 
 function isRootCollection(col?: { slug?: string | null; name?: string | null } | null): boolean {
@@ -211,7 +212,7 @@ function CategoryHeader({ config, collection, totalItems, fallbackCollectionImag
     );
 }
 
-function DynamicProductGrid({ config, productData, currentPage, allowedFacets, allowedFacetIds }: { config: any, productData: any, currentPage: number, allowedFacets: any[], allowedFacetIds: string[] }) {
+function DynamicProductGrid({ config, productData, currentPage, allowedFacets, allowedFacetIds, userLocation }: { config: any, productData: any, currentPage: number, allowedFacets: any[], allowedFacetIds: string[], userLocation?: any }) {
     const showFilters = config.showFilters !== false;
     const columns = Number(config.columns) || 3;
     const productsPerPage = Number(config.productsPerPage) || 12;
@@ -237,6 +238,7 @@ function DynamicProductGrid({ config, productData, currentPage, allowedFacets, a
                 take={productsPerPage} 
                 columns={columns} 
                 config={config}
+                userLocation={userLocation}
             />
         ) : (
             <div className="bg-muted/30 text-muted-foreground p-16 rounded-3xl border border-dashed border-border text-center">
@@ -302,12 +304,9 @@ export default async function CollectionPage({ params, searchParams }: any) {
             .filter((s: any) => (s.pageSlug || 'home') === 'category')
             .sort((a: any, b: any) => a.order - b.order);
 
-        // Handle products per page from CMS settings if present
-        const gridSection = sections.find((s: any) => s.type === 'DYNAMIC_PRODUCT_GRID');
-        if (gridSection?.data?.productsPerPage) {
-            searchInput.take = Number(gridSection.data.productsPerPage);
-            searchInput.skip = (page - 1) * searchInput.take;
-        }
+        // Fetch a comprehensive candidate pool (take: 100) so the proximity decision engine has full visibility over all sellers
+        searchInput.take = 100;
+        searchInput.skip = 0;
 
         // Execute unified native query for collection details + search results
         const searchResult = await query(GetCollectionProductsQuery, {
@@ -329,9 +328,28 @@ export default async function CollectionPage({ params, searchParams }: any) {
             }
         }
 
+        // Extract location from cookies if present
+        let userLocation: any = undefined;
+        try {
+            const cookieStore = await cookies();
+            const locCookie = cookieStore.get('ahizan_client_location')?.value;
+            if (locCookie) {
+                userLocation = JSON.parse(decodeURIComponent(locCookie));
+            }
+        } catch {}
+
         const searchData = searchResult?.data?.search;
         let rawProducts: any[] = searchData?.items || [];
-        let products: any[] = await expandProductsWithSellerOffers(rawProducts);
+        let products: any[] = await expandProductsWithSellerOffers(rawProducts, {
+            pageType: 'COLLECTION',
+            userLocation,
+            userLat: userLocation?.latitude ? Number(userLocation.latitude) : undefined,
+            userLon: userLocation?.longitude ? Number(userLocation.longitude) : undefined,
+            marketId: userLocation?.marketId ? String(userLocation.marketId) : undefined,
+            locationId: userLocation?.geoZoneId || userLocation?.id ? String(userLocation.geoZoneId || userLocation.id) : undefined,
+            communeName: userLocation?.commune || userLocation?.name,
+            boostCertifiedVendors: true,
+        });
         let totalItems = products.length || searchData?.totalItems || 0;
         const facetValues = searchData?.facetValues || [];
 
@@ -399,6 +417,7 @@ export default async function CollectionPage({ params, searchParams }: any) {
                                         currentPage={page}
                                         allowedFacets={allowedFacets}
                                         allowedFacetIds={allowedFacetIds}
+                                        userLocation={userLocation}
                                     />
                                 );
                             }
@@ -478,6 +497,7 @@ export default async function CollectionPage({ params, searchParams }: any) {
                                 currentPage={page} 
                                 take={12} 
                                 columns={3} 
+                                userLocation={userLocation}
                             />
                         ) : (
                             <div className="bg-muted/30 text-muted-foreground p-16 rounded-3xl border border-dashed border-border text-center">

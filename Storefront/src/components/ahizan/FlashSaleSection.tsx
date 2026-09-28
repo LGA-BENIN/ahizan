@@ -5,6 +5,8 @@ import { Clock, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import Link from "next/link";
 import { ProductCard } from "@/components/commerce/product-card";
+import { MasterProductCard } from "@/components/commerce/master-product-card";
+import { processAndResolveDisplayItems } from "@/lib/vendure/display-engine";
 import { getAssetUrl, getShopApiUrl, getPromoPriceInfo } from "@/lib/vendure/api-utils";
 import { fetchWithClientCache } from "@/lib/vendure/client-cache";
 import { Card, CardContent } from "@/components/ui/card";
@@ -113,315 +115,231 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         setLoading(true);
         setErrorMsg(null);
 
-        if (isLocalMode) {
-            const variables = locObj 
-                ? (activeFlashObj.selectionType === 'LOCAL_MARKET' || locObj.type === 'MARKET' ? { marketId: locObj.id } : { locationId: locObj.id })
-                : {};
-            const localQuery = `
-                query GetLocalFlashProducts($marketId: ID, $locationId: ID) {
-                    vendors(
-                        marketId: $marketId, 
-                        locationId: $locationId, 
-                        options: { filter: { status: { eq: "APPROVED" } } }
-                    ) {
-                        items {
-                            id
-                            name
-                            location {
-                                id
-                                name
-                            }
-                            physicalMarket {
-                                id
-                                name
-                            }
-                            products {
-                                id
-                                name
-                                slug
-                                featuredAsset { preview }
-                                variants {
-                                    id
-                                    priceWithTax
-                                    customFields {
-                                        compareAtPrice
-                                        onPromotion
-                                        promotionalPrice
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            `;
-            const shopApiUrl = getShopApiUrl();
-            fetchWithClientCache(shopApiUrl, localQuery, variables)
-                .then(data => {
-                    const vendorsList = data?.vendors?.items || [];
-                    let items = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({
-                        productId: p.id,
-                        productVariantId: p.variants?.[0]?.id || p.id,
-                        variants: p.variants,
-                        productName: p.name,
-                        slug: p.slug,
-                        productAsset: p.featuredAsset || null,
-                        priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
-                        currencyCode: 'XOF',
-                        inStock: true,
-                        collectionIds: [],
-                        facetValueIds: [],
-                        vendorName: v.name,
-                        marketName: v.physicalMarket?.name || null,
-                        locationName: v.location?.name || null
-                    })));
-                    const limit = activeFlashObj.filterCriteria?.take || 12;
-                    setFlashProducts(items.slice(0, limit));
-                    setLoading(false);
-                })
-                .catch(err => {
-                    console.error('Fetch error for local flash:', err);
-                    setLoading(false);
-                });
-            return;
+        const variables: any = {};
+        if (isLocalMode && locObj) {
+            if (activeFlashObj.selectionType === 'LOCAL_MARKET' || locObj.type === 'MARKET') {
+                variables.marketId = locObj.id;
+            } else {
+                variables.locationId = locObj.id;
+            }
         }
-        
-        if (isFilterMode) {
-            const collectionIds = activeFlashObj.filterCriteria?.collectionIds || [];
-            const shopApiUrl = getShopApiUrl();
 
-            const fetchForCollection = async (collectionId?: string) => {
-                const take = activeFlashObj.filterCriteria?.take || 50;
-                
-                if (collectionId) {
-                    const collectionQuery = `
-                        query GetCollectionProducts($id: ID!, $take: Int!) {
-                            collection(id: $id) {
-                                productVariants(options: { take: $take }) {
-                                    items {
-                                        priceWithTax
-                                        customFields {
-                                            compareAtPrice
-                                            onPromotion
-                                            promotionalPrice
-                                        }
-                                        product {
-                                            id
-                                            name
-                                            slug
-                                            assets {
-                                                id
-                                                preview
-                                            }
-                                            customFields {
-                                                vendor {
-                                                    id
-                                                    name
-                                                    location { name }
-                                                    physicalMarket { name }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    `;
-                    try {
-                        const data = await fetchWithClientCache(shopApiUrl, collectionQuery, { id: String(collectionId), take });
-                        if (!data?.collection?.productVariants?.items) return [];
-                        const items = data.collection.productVariants.items;
-                        const seen = new Set();
-                        return items.reduce((acc: any[], item: any) => {
-                            if (!seen.has(item.product.id)) {
-                                seen.add(item.product.id);
-                                acc.push({
-                                    productId: item.product.id,
-                                    productVariantId: item.id,
-                                    productName: item.product.name,
-                                    slug: item.product.slug,
-                                    productAsset: item.product.assets?.[0],
-                                    priceWithTax: { value: item.priceWithTax },
-                                    customFields: item.customFields,
-                                    vendorName: item.product.customFields?.vendor?.name || null,
-                                    marketName: item.product.customFields?.vendor?.physicalMarket?.name || null,
-                                    locationName: item.product.customFields?.vendor?.location?.name || null
-                                });
-                            }
-                            return acc;
-                        }, []);
-                    } catch (err) {
-                        console.error('Fetch error:', err);
-                        return [];
-                    }
-                } else {
-                    const productsQuery = `
-                        query GetProducts($options: ProductListOptions) {
-                            products(options: $options) {
-                                items {
-                                    id
-                                    name
-                                    slug
-                                    assets {
-                                        id
-                                        preview
-                                    }
-                                    variants {
-                                        id
-                                        priceWithTax
-                                    }
-                                    customFields {
-                                        vendor {
-                                            id
-                                            name
-                                            location { name }
-                                            physicalMarket { name }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    `;
-                    try {
-                        const data = await fetchWithClientCache(shopApiUrl, productsQuery, { options: { take } });
-                        if (!data?.products?.items) return [];
-                        return data.products.items.map((prod: any) => ({
-                            productId: prod.id,
-                            productVariantId: prod.variants?.[0]?.id || prod.id,
-                            variants: prod.variants,
-                            productName: prod.name,
-                            slug: prod.slug,
-                            productAsset: prod.assets?.[0],
-                            priceWithTax: { value: prod.variants?.[0]?.priceWithTax || 0 },
-                            vendorName: prod.customFields?.vendor?.name || null,
-                            marketName: prod.customFields?.vendor?.physicalMarket?.name || null,
-                            locationName: prod.customFields?.vendor?.location?.name || null
-                        }));
-                    } catch (err) {
-                        console.error('Fetch error:', err);
-                        return [];
-                    }
-                }
-            };
-
-            const promises = collectionIds.length > 0 
-                ? collectionIds.map((id: string) => fetchForCollection(id))
-                : [fetchForCollection()];
-
-            Promise.all(promises).then(results => {
-                let items = results.flat();
-                
-                // Deduplicate items by productId
-                const seen = new Set();
-                items = items.filter(item => {
-                    if (seen.has(item.productId)) return false;
-                    seen.add(item.productId);
-                    return true;
-                });
-                
-                if (activeFlashObj.filterCriteria) {
-                    const { minPrice, maxPrice } = activeFlashObj.filterCriteria;
-                    
-                    items = items.filter((item: any) => {
-                        const price = item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0;
-                        const priceInFcfa = price;
-
-                        if (minPrice > 0 && priceInFcfa < minPrice) return false;
-                        if (maxPrice > 0 && priceInFcfa > maxPrice) return false;
-
-                        return true;
-                    });
-                }
-
-                const limit = activeFlashObj.filterCriteria?.take || 12;
-                items = items.slice(0, limit);
-
-                setFlashProducts(items.map((item: any) => ({
-                    productId: item.productId,
-                    productVariantId: item.productVariantId || item.variants?.[0]?.id || item.productId,
-                    variants: item.variants,
-                    productName: item.productName,
-                    slug: item.slug,
-                    productAsset: item.productAsset || null,
-                    priceWithTax: { __typename: 'SinglePrice', value: item.priceWithTax?.min ?? item.priceWithTax?.value ?? 0 },
-                    currencyCode: 'XOF',
-                    inStock: true,
-                    collectionIds: [],
-                    facetValueIds: []
-                })));
-                setLoading(false);
-            })
-            .catch(err => { 
-                console.error(`Fetch error for flash sale ${activeFlashObj.id}:`, err); 
-                setErrorMsg('Connexion instable. Veuillez vérifier votre connexion internet et actualiser la page.');
-                setLoading(false); 
-            });
-
-        } else if (activeFlashObj.selectionType === 'MANUAL' && activeFlashObj.manualProductIds?.length > 0) {
-            const shopApiUrl = getShopApiUrl();
-            const manualQuery = `
-                query GetFlashProducts($options: ProductListOptions) {
-                    products(options: $options) {
-                        items {
+        const flashVendorsQuery = `
+            query GetFlashVendors($marketId: ID, $locationId: ID) {
+                vendors(
+                    marketId: $marketId, 
+                    locationId: $locationId, 
+                    options: { filter: { status: { eq: "APPROVED" } }, take: 100 }
+                ) {
+                    items {
+                        id
+                        name
+                        location { id name }
+                        physicalMarket { id name }
+                        products {
                             id
                             name
                             slug
+                            featuredAsset { id preview }
+                            assets { id preview }
+                            collections { id }
+                            customFields { approvalStatus }
                             variants {
                                 id
-                                price
+                                name
                                 priceWithTax
-                                stockLevel
+                                featuredAsset { id preview }
+                                options {
+                                    id
+                                    name
+                                    code
+                                    group { id name }
+                                }
                                 customFields {
                                     compareAtPrice
                                     onPromotion
                                     promotionalPrice
                                 }
                             }
-                            assets {
-                                preview
+                        }
+                    }
+                }
+            }
+        `;
+
+        const flashCatalogQuery = `
+            query GetFlashCatalogProducts($options: ProductListOptions) {
+                products(options: $options) {
+                    items {
+                        id
+                        name
+                        slug
+                        featuredAsset { id preview }
+                        assets { id preview }
+                        collections { id name slug }
+                        customFields {
+                            approvalStatus
+                            vendor {
+                                id
+                                name
+                                location { id name }
+                                physicalMarket { id name }
+                            }
+                        }
+                        variants {
+                            id
+                            name
+                            priceWithTax
+                            stockLevel
+                            featuredAsset { id preview }
+                            options {
+                                id
+                                name
+                                code
+                                group { id name }
                             }
                             customFields {
-                                vendor {
-                                    id
-                                    name
-                                    location { name }
-                                    physicalMarket { name }
-                                }
+                                compareAtPrice
+                                onPromotion
+                                promotionalPrice
                             }
                         }
                     }
                 }
-            `;
-            fetchWithClientCache(shopApiUrl, manualQuery, {
-                options: { 
-                    filter: { id: { in: activeFlashObj.manualProductIds } },
-                    take: activeFlashObj.filterCriteria?.take || 12
-                } 
-            })
-            .then(data => {
-                const items = data?.products?.items || [];
-                setFlashProducts(items.map((p: any) => ({
-                    productId: p.id,
-                    productVariantId: p.variants?.[0]?.id || p.id,
-                    variants: p.variants,
-                    productName: p.name,
-                    slug: p.slug,
-                    productAsset: p.assets?.[0] || null,
-                    priceWithTax: { __typename: 'SinglePrice', value: p.variants?.[0]?.priceWithTax || 0 },
-                    currencyCode: 'XOF',
-                    inStock: p.variants?.[0]?.stockLevel === 'IN_STOCK',
-                    collectionIds: [],
-                    facetValueIds: [],
-                    vendorName: p.customFields?.vendor?.name || null,
-                    marketName: p.customFields?.vendor?.physicalMarket?.name || null,
-                    locationName: p.customFields?.vendor?.location?.name || null
-                })));
+            }
+        `;
+
+        const shopApiUrl = getShopApiUrl();
+        fetchWithClientCache(shopApiUrl, flashVendorsQuery, variables)
+            .then(async (data) => {
+                let vendorsList = data?.vendors?.items || [];
+
+                // Fallback 1: If local market/location filter had 0 vendors, fallback to all approved vendors
+                if (vendorsList.length === 0 && (variables.marketId || variables.locationId)) {
+                    try {
+                        const allData = await fetchWithClientCache(shopApiUrl, flashVendorsQuery, {});
+                        vendorsList = allData?.vendors?.items || [];
+                    } catch (_) {}
+                }
+
+                const collectionIds = (activeFlashObj.filterCriteria?.collectionIds || []).map(String);
+                const manualProductIds = (activeFlashObj.manualProductIds || []).map(String);
+
+                const rawPairs: any[] = [];
+                for (const v of (vendorsList || [])) {
+                    for (const p of (v.products || [])) {
+                        if (p.customFields?.approvalStatus) {
+                            const status = String(p.customFields.approvalStatus).toLowerCase();
+                            if (status === 'pending' || status === 'rejected' || status === 'refused') continue;
+                        }
+
+                        // Filter by collections if in filter mode
+                        if (isFilterMode && collectionIds.length > 0) {
+                            const hasMatchingCollection = (p.collections || []).some((c: any) => collectionIds.includes(String(c.id)));
+                            if (!hasMatchingCollection) continue;
+                        }
+
+                        // Filter by manual product IDs if in manual mode
+                        if (isManualMode && manualProductIds.length > 0) {
+                            if (!manualProductIds.includes(String(p.id))) continue;
+                        }
+
+                        rawPairs.push({
+                            ...p,
+                            productId: p.id,
+                            featuredAsset: p.featuredAsset || p.assets?.[0],
+                            productAsset: p.featuredAsset || p.assets?.[0],
+                            vendorId: v.id,
+                            vendorName: v.name,
+                            marketName: v.physicalMarket?.name || null,
+                            marketId: v.physicalMarket?.id || null,
+                            locationName: v.location?.name || null,
+                            locationId: v.location?.id || null,
+                            customFields: {
+                                ...(p.customFields || {}),
+                                vendor: {
+                                    id: v.id,
+                                    name: v.name,
+                                    physicalMarket: v.physicalMarket,
+                                    location: v.location,
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // Fallback 2: If vendors.products was empty, load from catalog products
+                if (rawPairs.length === 0) {
+                    try {
+                        const catalogData = await fetchWithClientCache(shopApiUrl, flashCatalogQuery, { options: { take: 100 } });
+                        const catalogItems = catalogData?.products?.items || [];
+
+                        for (const p of catalogItems) {
+                            if (p.customFields?.approvalStatus) {
+                                const status = String(p.customFields.approvalStatus).toLowerCase();
+                                if (status === 'pending' || status === 'rejected' || status === 'refused') continue;
+                            }
+
+                            if (isFilterMode && collectionIds.length > 0) {
+                                const hasMatchingCollection = (p.collections || []).some((c: any) => collectionIds.includes(String(c.id)));
+                                if (!hasMatchingCollection) continue;
+                            }
+
+                            if (isManualMode && manualProductIds.length > 0) {
+                                if (!manualProductIds.includes(String(p.id))) continue;
+                            }
+
+                            const v = p.customFields?.vendor;
+                            rawPairs.push({
+                                ...p,
+                                productId: p.id,
+                                featuredAsset: p.featuredAsset || p.assets?.[0],
+                                productAsset: p.featuredAsset || p.assets?.[0],
+                                vendorId: v?.id || null,
+                                vendorName: v?.name || null,
+                                marketName: v?.physicalMarket?.name || null,
+                                marketId: v?.physicalMarket?.id || null,
+                                locationName: v?.location?.name || null,
+                                locationId: v?.location?.id || null,
+                                customFields: p.customFields,
+                            });
+                        }
+                    } catch (catErr) {
+                        console.warn('Fallback catalog fetch error in FlashSaleSection:', catErr);
+                    }
+                }
+
+                let resolved = processAndResolveDisplayItems(rawPairs, {
+                    experienceStrategy: 'FLASH_SALE',
+                    marketId: variables.marketId,
+                    locationId: variables.locationId,
+                    requirePromotion: false,
+                    requireVariantsWithOptions: true,
+                    maxVariantsPerCentralProduct: 2,
+                });
+
+                if (activeFlashObj.filterCriteria) {
+                    const { minPrice, maxPrice } = activeFlashObj.filterCriteria;
+                    if (minPrice > 0 || maxPrice > 0) {
+                        resolved = resolved.filter((item: any) => {
+                            const price = item.price ?? item.winningOffer?.price ?? 0;
+                            if (minPrice > 0 && price < minPrice) return false;
+                            if (maxPrice > 0 && price > maxPrice) return false;
+                            return true;
+                        });
+                    }
+                }
+
+                const rawLimit = activeFlashObj.filterCriteria?.take ?? activeFlashObj.limit ?? activeFlashObj.take ?? 12;
+                const limit = Number(rawLimit) > 0 ? Number(rawLimit) : 12;
+                setFlashProducts(resolved.slice(0, limit));
                 setLoading(false);
             })
             .catch(err => {
-                console.error('Fetch error for manual flash products:', err);
+                console.error('Fetch error for flash sale:', err);
+                setErrorMsg('Erreur lors du chargement des ventes flash.');
                 setLoading(false);
             });
-        }
     }, [activeFlashStr]);
 
     const now = new Date();
@@ -657,7 +575,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
 
                     return (
                         <div 
-                            key={p.productId} 
+                            key={p.productId || p.id} 
                             className={
                                 activeFlash.displayLayout === 'vertical_grid'
                                 ? "w-full"
@@ -669,7 +587,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 height: activeFlash.cardHeight || undefined,
                             }}
                         >
-                            <ProductCard product={p} config={activeFlash} />
+                            <MasterProductCard item={p} config={activeFlash} />
                         </div>
                     );
                 })}

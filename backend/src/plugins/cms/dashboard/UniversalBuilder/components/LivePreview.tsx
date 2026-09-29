@@ -109,6 +109,12 @@ export const LivePreview = () => {
             if (selectedPreviewSlug) return `${storefrontOrigin}/neighborhood/${selectedPreviewSlug}${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
             return ''; // Do not fall back if no neighborhood selected
         }
+        if (activePageSlug === 'flash_deals') {
+            return `${storefrontOrigin}/flash-deals${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
+        }
+        if (activePageSlug === 'local_discovery') {
+            return `${storefrontOrigin}/local-discovery${activeHabillage ? `?presetId=${activeHabillage.id}&v=${previewVersion}` : ''}`;
+        }
         // Custom CMS Pages and Home page: use habillage preview
         if (activeHabillage) {
             const slugParam = (activePageSlug && activePageSlug !== 'home') ? `&pageSlug=${activePageSlug}` : '';
@@ -125,6 +131,8 @@ export const LivePreview = () => {
         if (activePageSlug === 'home') return 'ACCUEIL';
         if (activePageSlug === 'category') return 'CATÉGORIE';
         if (activePageSlug === 'product') return 'PRODUIT';
+        if (activePageSlug === 'flash_deals') return '⚡ VENTES FLASH';
+        if (activePageSlug === 'local_discovery') return '📍 DÉCOUVERTE LOCALE';
         if (activePageSlug === 'market') return 'MARCHÉ';
         if (activePageSlug === 'neighborhood') return 'QUARTIER';
         return activePageSlug ? activePageSlug.toUpperCase() : 'APERÇU';
@@ -133,6 +141,8 @@ export const LivePreview = () => {
     const getBadgeColor = () => {
         if (activePageSlug === 'home') return '#3b82f6';
         if (activePageSlug === 'category') return '#8b5cf6';
+        if (activePageSlug === 'flash_deals') return '#e11d48';
+        if (activePageSlug === 'local_discovery') return '#059669';
         if (activePageSlug === 'market') return '#10b981';
         if (activePageSlug === 'neighborhood') return '#f59e0b';
         return '#f59e0b';

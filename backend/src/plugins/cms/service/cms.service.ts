@@ -527,7 +527,191 @@ export class CMSService {
 
     async createPage(ctx: RequestContext, input: any): Promise<Page> {
         const page = new Page(input);
-        return this.connection.getRepository(ctx, Page).save(page);
+        const savedPage = await this.connection.getRepository(ctx, Page).save(page);
+
+        if (savedPage.slug === 'flash_deals') {
+            await this.seedFlashDealsSections(ctx, savedPage);
+        } else if (savedPage.slug === 'local_discovery') {
+            await this.seedLocalDiscoverySections(ctx, savedPage);
+        }
+
+        return this.findOne(ctx, savedPage.id) as Promise<Page>;
+    }
+
+    async seedFlashDealsSections(ctx: RequestContext, page: Page) {
+        const sectionsRepo = this.connection.getRepository(ctx, PageSection);
+        const existingCount = await sectionsRepo.count({ where: { page: { id: page.id } } });
+        if (existingCount > 0) return;
+
+        const s1 = new PageSection({
+            page,
+            type: 'FLASH_HERO_BANNER',
+            title: 'En-tête Ventes Flash',
+            description: 'Bannière principale et compte à rebours',
+            order: 0,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: 'Les Meilleures Remises Du Moment',
+                subtitle: 'Découvrez toutes les offres promotionnelles à durée et stock limités proposées par nos boutiques au Bénin.',
+                badgeText: '⚡ Ventes Flash Quotidiennes',
+                icon: '⚡',
+                showCountdown: false,
+                isUnlimited: true,
+                countdownEnd: '',
+                bgColor: '#0f172a',
+                textColor: '#ffffff',
+                badgeBgColor: '#e11d48',
+                showBeninGuarantees: true,
+            })
+        });
+
+        const s2 = new PageSection({
+            page,
+            type: 'FLASH_DEALS_SEARCH_HUB',
+            title: 'Recherche & Filtres Flash',
+            description: 'Barre de recherche et filtres de remises',
+            order: 1,
+            isActive: true,
+            dataJson: JSON.stringify({
+                showSearch: true,
+                showDiscountFilters: true,
+                showPriceFilter: true,
+                showSort: true,
+                enableCatalogFallback: true,
+            })
+        });
+
+        const s3 = new PageSection({
+            page,
+            type: 'FLASH_DEALS_GRID',
+            title: 'Grille des Produits Flash',
+            description: 'Affichage des produits en promotion',
+            order: 2,
+            isActive: true,
+            dataJson: JSON.stringify({
+                columns: 4,
+                take: 24,
+                cardStyle: 'standard',
+                showVendor: true,
+                showMarket: true,
+            })
+        });
+
+        await sectionsRepo.save([s1, s2, s3]);
+    }
+
+    async seedLocalDiscoverySections(ctx: RequestContext, page: Page) {
+        const sectionsRepo = this.connection.getRepository(ctx, PageSection);
+        const existingCount = await sectionsRepo.count({ where: { page: { id: page.id } } });
+        if (existingCount > 0) return;
+
+        const s1 = new PageSection({
+            page,
+            type: 'LOCAL_HERO_BANNER',
+            title: 'En-tête Découverte Locale',
+            description: 'Bannière et sélecteur de localisation rapide',
+            order: 0,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: 'Découvrez Vos Commerces & Marchés',
+                subtitle: 'Retrouvez les produits, marchés physiques et boutiques vérifiées les plus proches de chez vous au Bénin avec livraison express.',
+                badgeText: '📍 Découverte Locale & Proximité',
+                icon: '📍',
+                showQuickLocationSelector: true,
+                showGpsDetectionButton: true,
+                bgColor: '#0f172a',
+                textColor: '#ffffff',
+                badgeBgColor: '#059669',
+            })
+        });
+
+        const s2 = new PageSection({
+            page,
+            type: 'LOCAL_DISCOVERY_TABS',
+            title: 'Onglets de Découverte',
+            description: '4 onglets (Produits / Marchés / Quartiers / Boutiques)',
+            order: 1,
+            isActive: true,
+            dataJson: JSON.stringify({
+                defaultTab: 'products',
+                showProductsTab: true,
+                showMarketsTab: true,
+                showNeighborhoodsTab: true,
+                showVendorsTab: true,
+            })
+        });
+
+        const s3 = new PageSection({
+            page,
+            type: 'LOCAL_CASCADE_ENGINE',
+            title: 'Moteur de Cascade de Proximité',
+            description: 'Filtrage par zones kilométriques (Zone A, B, C)',
+            order: 2,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: 'Sélection de Produits par Proximité',
+                zoneARadiusKm: 3,
+                zoneBRadiusKm: 10,
+                zoneALabel: 'À proximité immédiate (< 3 km)',
+                zoneBLabel: 'Dans votre commune / ville (< 10 km)',
+                zoneCLabel: 'Disponibles au Bénin avec livraison',
+                boostCertified: true,
+                maxPerZone: 16,
+                showZoneBadges: true,
+                showSlaInfo: true,
+            })
+        });
+
+        const s4 = new PageSection({
+            page,
+            type: 'LOCAL_MARKETS_SECTION',
+            title: 'Marchés Populaires du Bénin',
+            description: 'Dantokpa, Ganhi, Ouando, Missèbo...',
+            order: 3,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: 'Marchés Populaires du Bénin',
+                subtitle: 'Explorez les grands pôles commerciaux et leurs commerçants.',
+                layout: 'grid',
+                take: 12,
+                showDistance: true,
+                showProductsCount: true,
+            })
+        });
+
+        const s5 = new PageSection({
+            page,
+            type: 'LOCAL_NEIGHBORHOODS_SECTION',
+            title: 'Quartiers & Villes du Bénin',
+            description: 'Cotonou, Calavi, Porto-Novo, Parakou...',
+            order: 4,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: 'Quartiers & Villes du Bénin',
+                subtitle: 'Sélectionnez votre quartier pour afficher les offres de proximité.',
+                layout: 'grid',
+                take: 12,
+            })
+        });
+
+        const s6 = new PageSection({
+            page,
+            type: 'LOCAL_VENDORS_SECTION',
+            title: 'Boutiques et Marchands Certifiés',
+            description: 'Boutiques de confiance et contact direct',
+            order: 5,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: 'Boutiques et Marchands Certifiés',
+                subtitle: 'Commandez en direct auprès de boutiques de confiance au Bénin.',
+                layout: 'grid',
+                take: 12,
+                showMarketBadge: true,
+                showWhatsappDirect: true,
+            })
+        });
+
+        await sectionsRepo.save([s1, s2, s3, s4, s5, s6]);
     }
 
     async updatePage(ctx: RequestContext, input: any): Promise<Page> {
@@ -538,7 +722,7 @@ export class CMSService {
 
     async deletePage(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
         const page = await this.connection.getEntityOrThrow(ctx, Page, id);
-        if (['home', 'category', 'product', 'market', 'neighborhood'].includes(page.slug)) {
+        if (['home', 'category', 'product', 'market', 'neighborhood', 'flash_deals', 'local_discovery'].includes(page.slug)) {
             throw new Error(`Impossible de supprimer la page système par défaut "${page.slug}"`);
         }
         await this.connection.getRepository(ctx, Page).remove(page);
@@ -593,6 +777,38 @@ export class CMSService {
             }
         } else {
             console.log('[CMSService] "home" page already exists and is fully populated.');
+        }
+
+        // Also ensure flash_deals and local_discovery pages exist with default sections
+        try {
+            const pageRepo = this.connection.getRepository(ctx, Page);
+            let flashPage = await pageRepo.findOne({ where: { slug: 'flash_deals' }, relations: ['sections'] });
+            if (!flashPage) {
+                flashPage = await pageRepo.save(new Page({
+                    slug: 'flash_deals',
+                    title: '⚡ Ventes Flash',
+                    type: 'CUSTOM' as any,
+                    isActive: true,
+                }));
+                await this.seedFlashDealsSections(ctx, flashPage);
+            } else if (!flashPage.sections || flashPage.sections.length === 0) {
+                await this.seedFlashDealsSections(ctx, flashPage);
+            }
+
+            let localPage = await pageRepo.findOne({ where: { slug: 'local_discovery' }, relations: ['sections'] });
+            if (!localPage) {
+                localPage = await pageRepo.save(new Page({
+                    slug: 'local_discovery',
+                    title: '📍 Découverte Locale',
+                    type: 'CUSTOM' as any,
+                    isActive: true,
+                }));
+                await this.seedLocalDiscoverySections(ctx, localPage);
+            } else if (!localPage.sections || localPage.sections.length === 0) {
+                await this.seedLocalDiscoverySections(ctx, localPage);
+            }
+        } catch (e: any) {
+            console.warn('[CMSService] ensureSystemPages warning:', e.message);
         }
     }
 

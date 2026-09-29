@@ -6,7 +6,7 @@ import {usePathname, useRouter, useSearchParams} from 'next/navigation';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
 import {RadioGroup, RadioGroupItem} from '@/components/ui/radio-group';
-import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy, Minus, Plus, Star, Clock, Store, BadgeCheck} from 'lucide-react';
+import {ShoppingCart, CheckCircle2, Share2, Facebook, MessageCircle, Twitter, Copy, Minus, Plus, Star, Clock, Store, BadgeCheck, ChevronDown, ChevronUp, Search} from 'lucide-react';
 import {addToCart, getSellerOffersForProductVariants} from '@/app/(storefront)/product/[slug]/actions';
 import {toast} from 'sonner';
 import {Price} from '@/components/commerce/price';
@@ -14,11 +14,13 @@ import { getPromoPriceInfo } from "@/lib/vendure/api-utils";
 import { useThemeSettings } from "@/components/providers/theme-provider";
 import { ProductMobileFixedBar } from './product-mobile-fixed-bar';
 import { encodeId } from '@/lib/hash-utils';
+import { AddToCartModal } from './add-to-cart-modal';
 
 interface ProductInfoProps {
     product: {
         id: string;
         name: string;
+        slug?: string;
         description: string;
         variants: Array<{
             id: string;
@@ -78,6 +80,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
     const themeSettings = useThemeSettings();
     const [isPending, startTransition] = useTransition();
     const [isAdded, setIsAdded] = useState(false);
+    const [isAddToCartModalOpen, setIsAddToCartModalOpen] = useState(false);
     const [quantity, setQuantity] = useState(1);
 
     // Offers for this product (passed from server or fetched dynamically)
@@ -170,19 +173,18 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         return matching.length > 0 ? matching : sellerOffers;
     }, [sellerOffers, selectedVendorId]);
 
-    // 3. All approved variants of this central product family
+    // 3. All approved variants of this central product family that have active seller offers
     const allApprovedVariants = useMemo(() => {
-        const baseApproved = (product.variants || []).filter((v: any) => {
+        const variantsWithOffers = (product.variants || []).filter((v: any) => {
             if (v.enabled === false) return false;
-            const offerStatus = (v.customFields as any)?.offerStatus || (v.customFields as any)?.offerstatus;
-            if (offerStatus === 'PENDING' || offerStatus === 'pending' || offerStatus === 'REFUSED' || offerStatus === 'rejected') return false;
-            const approvalStatus = (v.customFields as any)?.approvalStatus || (v.customFields as any)?.approvalstatus;
-            if (approvalStatus === 'pending' || approvalStatus === 'refused' || approvalStatus === 'rejected') return false;
-            return true;
+            const hasOffer = (sellerOffers || []).some(
+                (o) => String(o.productVariant?.id) === String(v.id) && o.vendor?.id
+            );
+            return hasOffer;
         });
 
-        return baseApproved.length > 0 ? baseApproved : (product.variants || []);
-    }, [product.variants]);
+        return variantsWithOffers;
+    }, [product.variants, sellerOffers]);
 
     // 4. Extract available option IDs across the product family
     const familyOptionIds = useMemo(() => {
@@ -193,15 +195,20 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         return ids;
     }, [allApprovedVariants]);
 
-    // 5. Filter and merge option groups to display all family options cleanly
+    // 5. Filter and merge option groups to display only options present in active seller variants
     const filteredOptionGroups = useMemo(() => {
+        if (familyOptionIds.size === 0 || allApprovedVariants.length <= 1) {
+            return [];
+        }
+
         const groupMap = new Map<string, { id: string; code: string; name: string; options: any[] }>();
 
         for (const group of (product.optionGroups || [])) {
             const validOptions = (group.options || []).filter((opt) => 
-                familyOptionIds.size === 0 || familyOptionIds.has(String(opt.id))
+                familyOptionIds.has(String(opt.id))
             );
-            if (validOptions.length === 0) continue;
+            // Only show the group if there are at least 2 distinct valid options to choose between
+            if (validOptions.length <= 1) continue;
 
             const normalizedName = (group.name || '').trim().toLowerCase();
             if (groupMap.has(normalizedName)) {
@@ -222,7 +229,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         }
 
         return Array.from(groupMap.values());
-    }, [product.optionGroups, familyOptionIds]);
+    }, [product.optionGroups, familyOptionIds, allApprovedVariants.length]);
 
     const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
         const rawParamVariant = searchParams?.variant || searchParams?.variantId;
@@ -299,6 +306,18 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
             }
         }
     }, [allApprovedVariants, selectedVariantId]);
+
+    // State for collapsible option groups and search
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+    const [groupSearch, setGroupSearch] = useState<Record<string, string>>({});
+
+    const toggleGroupExpansion = (groupId: string) => {
+        setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+    };
+
+    const handleGroupSearchChange = (groupId: string, val: string) => {
+        setGroupSearch(prev => ({ ...prev, [groupId]: val }));
+    };
 
     // Find the matching variant strictly across the central product family
     const selectedVariant = useMemo(() => {
@@ -425,12 +444,13 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
 
             if (result.success) {
                 setIsAdded(true);
+                setIsAddToCartModalOpen(true);
                 toast.success('Ajouté au panier', {
                     description: `${product.name} (${selectedVariant.name || ''}) a été ajouté à votre panier`,
                 });
                 router.refresh();
 
-                // Reset the added state after 2 seconds
+                // Reset the added button state after 2 seconds
                 setTimeout(() => setIsAdded(false), 2000);
             } else {
                 toast.error('Erreur', {
@@ -446,7 +466,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
         currentVendorOffer &&
         (currentVendorOffer.stock === undefined || currentVendorOffer.stock > 0)
     );
-    const canAddToCart = Boolean(selectedVariant && isAvailableForCurrentVendor && isInStock);
+    const canAddToCart = Boolean(selectedVariant && isAvailableForCurrentVendor && isInStock && activePrice && activePrice > 0);
 
     const activeFlash = themeSettings?.activeFlashSale;
     const applyToProduct = themeSettings?.applyFlashPromoToProducts;
@@ -553,7 +573,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                             </div>
                         ) : (
                             <p className="text-2xl sm:text-3xl font-bold text-primary">
-                                <Price value={activePrice ?? selectedVariant.priceWithTax}/>
+                                <Price value={activePrice || 0}/>
                             </p>
                         )}
 
@@ -574,7 +594,11 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                     <div className="mt-3">
                         <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300/70 dark:border-amber-700/60">
                             <span>⚠️</span>
-                            <span>Cette déclinaison n'est pas disponible chez {activeVendor?.name ? <span className="underline">{activeVendor.name}</span> : 'ce vendeur'}.</span>
+                            <span>
+                                {activeVendor?.name 
+                                    ? `Cette déclinaison n'est pas proposée par ${activeVendor.name}.`
+                                    : "Cette déclinaison n'a actuellement aucune offre de vendeur active."}
+                            </span>
                         </div>
                     </div>
                 )}
@@ -589,77 +613,147 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                 </div>
             )}
 
-            {/* Option Groups (Filtered only to options available in active variants for THIS vendor) */}
+            {/* Option Groups (Ergonomic, Touch-friendly Pills with Collapsible & Search support) */}
             {filteredOptionGroups.length > 0 && (
                 <div className="space-y-4 pt-4 border-t">
-                    {filteredOptionGroups.map((group) => (
-                        <div key={group.id} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
-                                    {group.name}
-                                </Label>
-                            </div>
-                            <RadioGroup
-                                value={selectedOptions[group.id] || ''}
-                                onValueChange={(value) => handleOptionChange(group.id, value)}
-                            >
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {group.options.map((option) => {
-                                        const isSelected = selectedOptions[group.id] === option.id;
-                                        const isSoldByCurrentVendor = allApprovedVariants.some((variant) => {
-                                            const isVendorVariant = (sellerOffers || []).some(
-                                                (o) => String(o.productVariant?.id) === String(variant.id) && (selectedVendorId ? String(o.vendor?.id) === String(selectedVendorId) : true)
-                                            );
-                                            if (!isVendorVariant) return false;
-                                            const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
-                                            if (!variantOptionIds.includes(String(option.id))) return false;
-                                            for (const [otherGId, otherOptId] of Object.entries(selectedOptions)) {
-                                                if (otherGId !== group.id && !variantOptionIds.includes(String(otherOptId))) {
-                                                    return false;
-                                                }
-                                            }
-                                            return true;
-                                        });
+                    {filteredOptionGroups.map((group) => {
+                        const currentSelectedId = selectedOptions[group.id];
+                        const currentSelectedOption = group.options.find(o => String(o.id) === String(currentSelectedId));
+                        const isExpanded = Boolean(expandedGroups[group.id]);
+                        const searchTerm = (groupSearch[group.id] || '').trim().toLowerCase();
 
-                                        const isAvailableWithSelection = allApprovedVariants.some((variant) => {
-                                            const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
-                                            if (!variantOptionIds.includes(String(option.id))) return false;
-                                            for (const [otherGId, otherOptId] of Object.entries(selectedOptions)) {
-                                                if (otherGId !== group.id && !variantOptionIds.includes(String(otherOptId))) {
-                                                    return false;
-                                                }
-                                            }
-                                            return true;
-                                        });
+                        // Filter options if searching
+                        const matchingOptions = searchTerm
+                            ? group.options.filter(o => o.name?.toLowerCase().includes(searchTerm) || o.code?.toLowerCase().includes(searchTerm))
+                            : group.options;
 
-                                        return (
-                                            <div key={option.id}>
-                                                <RadioGroupItem
-                                                    value={option.id}
-                                                    id={option.id}
-                                                    className="peer sr-only"
-                                                />
-                                                <Label
-                                                    htmlFor={option.id}
-                                                    className={`flex items-center justify-center rounded-lg border px-3 py-2 cursor-pointer transition-all font-semibold text-xs text-center ${
-                                                        isSelected
-                                                            ? 'border-primary bg-primary/10 text-primary font-bold shadow-xs'
-                                                            : isSoldByCurrentVendor
-                                                                ? 'border-input bg-background hover:bg-accent hover:text-accent-foreground text-foreground'
-                                                                : isAvailableWithSelection
-                                                                    ? 'border-dashed border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20 text-muted-foreground hover:border-primary/40'
-                                                                    : 'border-dashed border-input/40 bg-muted/10 text-muted-foreground/50 opacity-60'
-                                                    }`}
-                                                >
-                                                    {option.name}
-                                                </Label>
-                                            </div>
-                                        );
-                                    })}
+                        // Smart slicing: if > 8 options and not expanded, show 8 items.
+                        // Always guarantee the currently selected option is visible!
+                        let visibleOptions = matchingOptions;
+                        const hasManyOptions = matchingOptions.length > 8;
+
+                        if (hasManyOptions && !isExpanded && !searchTerm) {
+                            visibleOptions = matchingOptions.slice(0, 8);
+                            if (currentSelectedId && !visibleOptions.some(o => String(o.id) === String(currentSelectedId))) {
+                                const selOpt = matchingOptions.find(o => String(o.id) === String(currentSelectedId));
+                                if (selOpt) {
+                                    visibleOptions = [...visibleOptions.slice(0, 7), selOpt];
+                                }
+                            }
+                        }
+
+                        const hiddenCount = matchingOptions.length - visibleOptions.length;
+
+                        return (
+                            <div key={group.id} className="space-y-2.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            {group.name} :
+                                        </Label>
+                                        {currentSelectedOption && (
+                                            <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
+                                                {currentSelectedOption.name}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {group.options.length > 10 && (
+                                        <div className="relative w-28 sm:w-36">
+                                            <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                            <input
+                                                type="text"
+                                                value={groupSearch[group.id] || ''}
+                                                onChange={(e) => handleGroupSearchChange(group.id, e.target.value)}
+                                                placeholder="Rechercher..."
+                                                className="w-full pl-6 pr-2 py-1 text-[11px] rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                            </RadioGroup>
-                        </div>
-                    ))}
+
+                                <RadioGroup
+                                    value={selectedOptions[group.id] || ''}
+                                    onValueChange={(value) => handleOptionChange(group.id, value)}
+                                >
+                                    <div className="flex flex-wrap gap-2">
+                                        {visibleOptions.map((option) => {
+                                            const isSelected = selectedOptions[group.id] === option.id;
+                                            const isSoldByCurrentVendor = allApprovedVariants.some((variant) => {
+                                                const isVendorVariant = (sellerOffers || []).some(
+                                                    (o) => String(o.productVariant?.id) === String(variant.id) && (selectedVendorId ? String(o.vendor?.id) === String(selectedVendorId) : true)
+                                                );
+                                                if (!isVendorVariant) return false;
+                                                const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+                                                if (!variantOptionIds.includes(String(option.id))) return false;
+                                                for (const [otherGId, otherOptId] of Object.entries(selectedOptions)) {
+                                                    if (otherGId !== group.id && !variantOptionIds.includes(String(otherOptId))) {
+                                                        return false;
+                                                    }
+                                                }
+                                                return true;
+                                            });
+
+                                            const isAvailableWithSelection = allApprovedVariants.some((variant) => {
+                                                const variantOptionIds = (variant.options || []).map((opt: any) => String(opt.id));
+                                                if (!variantOptionIds.includes(String(option.id))) return false;
+                                                for (const [otherGId, otherOptId] of Object.entries(selectedOptions)) {
+                                                    if (otherGId !== group.id && !variantOptionIds.includes(String(otherOptId))) {
+                                                        return false;
+                                                    }
+                                                }
+                                                return true;
+                                            });
+
+                                            return (
+                                                <div key={option.id}>
+                                                    <RadioGroupItem
+                                                        value={option.id}
+                                                        id={option.id}
+                                                        className="peer sr-only"
+                                                    />
+                                                    <Label
+                                                        htmlFor={option.id}
+                                                        className={`inline-flex items-center justify-center rounded-xl border px-3.5 py-1.5 cursor-pointer transition-all font-bold text-xs text-center ${
+                                                            isSelected
+                                                                ? 'border-primary bg-primary text-primary-foreground shadow-sm scale-102 ring-2 ring-primary/20'
+                                                                : isSoldByCurrentVendor
+                                                                    ? 'border-border bg-card hover:border-primary/60 hover:bg-accent text-foreground'
+                                                                    : isAvailableWithSelection
+                                                                        ? 'border-dashed border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20 text-muted-foreground hover:border-primary/40'
+                                                                        : 'border-dashed border-border/40 bg-muted/20 text-muted-foreground/50 opacity-60'
+                                                        }`}
+                                                    >
+                                                        {option.name}
+                                                    </Label>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </RadioGroup>
+
+                                {hasManyOptions && !searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleGroupExpansion(group.id)}
+                                        className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary/80 transition-colors pt-1 cursor-pointer"
+                                    >
+                                        {isExpanded ? (
+                                            <>
+                                                <ChevronUp className="w-3.5 h-3.5" />
+                                                Voir moins
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ChevronDown className="w-3.5 h-3.5" />
+                                                Voir +{hiddenCount} autres options ({group.options.length} au total)
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
@@ -669,7 +763,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
                         Déclinaisons disponibles ({allApprovedVariants.length})
                     </Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="flex flex-wrap gap-2">
                         {allApprovedVariants.map((v) => {
                             const isSelected = selectedVariant?.id === v.id;
                             const vOffer = (sellerOffers || []).find((o) => String(o.productVariant?.id) === String(v.id) && (selectedVendorId ? String(o.vendor?.id) === String(selectedVendorId) : true)) || (sellerOffers || []).find((o) => String(o.productVariant?.id) === String(v.id));
@@ -687,10 +781,14 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                                     key={v.id}
                                     type="button"
                                     onClick={() => handleSelectVariant(v.id)}
-                                    className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs font-bold transition-all ${isSelected ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20 shadow-sm' : 'border-input hover:border-slate-300 dark:hover:border-slate-600 bg-background text-foreground'}`}
+                                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                        isSelected 
+                                            ? 'border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20' 
+                                            : 'border-border hover:border-primary/50 bg-card text-foreground'
+                                    }`}
                                 >
-                                    <span className="truncate max-w-full">{vLabel}</span>
-                                    <span className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                                    <span className="truncate max-w-[160px]">{vLabel}</span>
+                                    <span className={`text-[11px] font-semibold ${isSelected ? 'text-primary-foreground/90' : 'text-muted-foreground'}`}>
                                         <Price value={vPrice} />
                                     </span>
                                 </button>
@@ -843,12 +941,47 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                     <Button
                         type="button"
                         size="lg"
-                        className="w-full h-11 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] bg-[#25D366] text-white hover:bg-[#20bd5a] flex items-center justify-center gap-1.5 px-2"
+                        disabled={!canAddToCart}
+                        className="w-full h-11 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all active:scale-[0.98] bg-[#25D366] text-white hover:bg-[#20bd5a] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 px-2"
                         onClick={() => {
+                            // Strictly use centralized platform WhatsApp number from backend settings
                             const targetNumber = whatsappNumber || '';
                             const cleanNumber = targetNumber.replace(/[^0-9+]/g, '');
-                            const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-                            const message = `Bonjour, je souhaite commander : ${variantDisplayName}${activeVendor?.name ? ` (Vendeur: ${activeVendor.name})` : ''}\n${currentUrl}`;
+                            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                            const queryParams = new URLSearchParams();
+                            if (selectedVariant?.id) queryParams.set('variantId', String(selectedVariant.id));
+                            if (activeVendor?.id) queryParams.set('sellerId', String(activeVendor.id));
+                            const queryString = queryParams.toString();
+                            const productSlug = product.slug || product.id || pathname.split('/').pop() || '';
+                            const productUrl = `${origin}/product/${productSlug}${queryString ? `?${queryString}` : ''}`;
+
+                            const formatPrice = (val: number) => {
+                                return new Intl.NumberFormat('fr-FR', {
+                                    style: 'currency',
+                                    currency: 'XOF',
+                                    maximumFractionDigits: 0,
+                                }).format(val);
+                            };
+
+                            const effectivePrice = activePrice || (typeof selectedVariant?.priceWithTax === 'object' ? (selectedVariant?.priceWithTax as any)?.value : (selectedVariant?.priceWithTax as any)) || 0;
+                            const priceFormatted = effectivePrice ? formatPrice(effectivePrice) : '';
+
+                            let message = `🛒 *COMMANDE SUR AHIZAN*\n`;
+                            message += `-----------------------------------\n`;
+                            message += `• *Article :* ${variantDisplayName}\n`;
+                            if (selectedVariant?.sku) {
+                                message += `• *Réf/SKU :* ${selectedVariant.sku}\n`;
+                            }
+                            if (priceFormatted) {
+                                message += `• *Prix :* ${priceFormatted}\n`;
+                            }
+                            if (activeVendor?.name) {
+                                const marketOrZone = activeVendor.physicalMarket?.name || activeVendor.location?.name || activeVendor.zone || '';
+                                message += `• *Boutique / Vendeur :* ${activeVendor.name}${marketOrZone ? ` (${marketOrZone})` : ''}\n`;
+                            }
+                            message += `• *Lien direct :* ${productUrl}\n`;
+                            message += `-----------------------------------\n`;
+                            message += `Bonjour, je souhaite commander cet article. Merci de me confirmer sa disponibilité.`;
 
                             if (cleanNumber) {
                                 const phone = cleanNumber.startsWith('+') ? cleanNumber.slice(1) : cleanNumber;
@@ -870,6 +1003,9 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
             <ProductMobileFixedBar
                 product={product}
                 selectedVariant={selectedVariant}
+                activeVendor={activeVendor}
+                activePrice={activePrice}
+                variantDisplayName={variantDisplayName}
                 canAddToCart={Boolean(canAddToCart)}
                 isPending={Boolean(isPending)}
                 isAdded={Boolean(isAdded)}
@@ -890,47 +1026,62 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                     <Share2 className="w-3.5 h-3.5" /> Partager :
                 </span>
                 <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950"
+                    {/* Facebook: #1877F2 */}
+                    <button
+                        type="button"
+                        className="h-8 w-8 rounded-full bg-[#1877F2] text-white hover:bg-[#166fe5] hover:scale-105 active:scale-95 transition-all shadow-xs flex items-center justify-center cursor-pointer border-0"
                         onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank')}
                         title="Partager sur Facebook"
+                        aria-label="Partager sur Facebook"
                     >
-                        <Facebook className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950"
+                        <Facebook className="h-4 w-4 fill-white text-white" />
+                    </button>
+                    {/* WhatsApp: #25D366 */}
+                    <button
+                        type="button"
+                        className="h-8 w-8 rounded-full bg-[#25D366] text-white hover:bg-[#20bd5a] hover:scale-105 active:scale-95 transition-all shadow-xs flex items-center justify-center cursor-pointer border-0"
                         onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(product.name + ' - ' + window.location.href)}`, '_blank')}
                         title="Partager sur WhatsApp"
+                        aria-label="Partager sur WhatsApp"
                     >
-                        <MessageCircle className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full hover:bg-sky-50 hover:text-sky-500 dark:hover:bg-sky-950"
+                        <MessageCircle className="h-4 w-4 fill-white text-white" />
+                    </button>
+                    {/* Twitter / X */}
+                    <button
+                        type="button"
+                        className="h-8 w-8 rounded-full bg-[#0f1419] dark:bg-slate-800 text-white hover:bg-black hover:scale-105 active:scale-95 transition-all shadow-xs flex items-center justify-center cursor-pointer border-0"
                         onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(product.name)}&url=${encodeURIComponent(window.location.href)}`, '_blank')}
                         title="Partager sur X (Twitter)"
+                        aria-label="Partager sur X (Twitter)"
                     >
-                        <Twitter className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 rounded-full hover:bg-muted"
+                        <Twitter className="h-4 w-4 fill-white text-white" />
+                    </button>
+                    {/* Copier le lien */}
+                    <button
+                        type="button"
+                        className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 hover:scale-105 active:scale-95 transition-all border border-slate-300 dark:border-slate-700 flex items-center justify-center cursor-pointer"
                         onClick={() => {
                             navigator.clipboard.writeText(window.location.href);
                             toast.success('Lien copié dans le presse-papier !');
                         }}
                         title="Copier le lien"
+                        aria-label="Copier le lien"
                     >
-                        <Copy className="h-4 w-4" />
-                    </Button>
+                        <Copy className="h-3.5 w-3.5" />
+                    </button>
                 </div>
             </div>
+
+            {/* Added To Cart Confirmation Modal (Screenshot 4 design) */}
+            <AddToCartModal
+                isOpen={isAddToCartModalOpen}
+                onClose={() => setIsAddToCartModalOpen(false)}
+                productTitle={product.name}
+                variantName={declinationSuffix}
+                price={activePrice || 0}
+                imagePreview={(selectedVariant as any)?.featuredAsset?.preview || (product as any)?.featuredAsset?.preview}
+                vendorName={activeVendor?.name}
+            />
         </div>
     );
 }

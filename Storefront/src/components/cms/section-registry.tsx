@@ -16,6 +16,11 @@ import { CtaVendorSection } from '@/components/cms/cta-vendor-section';
 import { NewsletterSection } from '@/components/cms/newsletter-section';
 import { TestimonialsSection } from '@/components/cms/testimonials-section';
 import { TabbedProductGrid } from '@/components/cms/tabbed-product-grid';
+import { LocalPersonalizedProducts } from '@/components/cms/LocalPersonalizedProducts';
+import { LocalVendorsProximitySection } from '@/components/cms/LocalVendorsProximitySection';
+import { LocalMarketsProximitySection } from '@/components/cms/LocalMarketsProximitySection';
+import { LocalNeighborhoodsProximitySection } from '@/components/cms/LocalNeighborhoodsProximitySection';
+import { LocalCascadeEngineSection } from '@/components/cms/LocalCascadeEngineSection';
 
 /**
  * Le registre fait correspondre un "type" de section provenant du CMS Backend Vendure
@@ -46,6 +51,14 @@ export const sectionRegistry: Record<string, React.ComponentType<any>> = {
     'NEWSLETTER': NewsletterSection,
     'TESTIMONIALS': TestimonialsSection,
     'TABBED_PRODUCT_GRID': TabbedProductGrid,
+    'LOCAL_PRODUCTS': LocalPersonalizedProducts,
+    'LOCAL_VENDORS': LocalVendorsProximitySection,
+    'LOCAL_VENDORS_SECTION': LocalVendorsProximitySection,
+    'LOCAL_MARKETS': LocalMarketsProximitySection,
+    'LOCAL_MARKETS_SECTION': LocalMarketsProximitySection,
+    'LOCAL_NEIGHBORHOODS': LocalNeighborhoodsProximitySection,
+    'LOCAL_NEIGHBORHOODS_SECTION': LocalNeighborhoodsProximitySection,
+    'LOCAL_CASCADE_ENGINE': LocalCascadeEngineSection,
 };
 
 export function getSectionComponent(type: string): React.ComponentType<any> | null {

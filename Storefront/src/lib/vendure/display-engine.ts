@@ -176,8 +176,8 @@ export function scoreOffer(
     // 1. In Stock Check (Crucial)
     const stock = Number(offer.stock ?? offer.stockOnHand ?? 1);
     if (stock <= 0) {
-        if (context.onlyInStock || strategy === 'FLASH_SALE') return -1000;
-        score -= 50;
+        if (context.onlyInStock === true) return -1000;
+        score -= 20;
     } else {
         score += 25;
     }
@@ -308,6 +308,62 @@ export function scoreOffer(
 }
 
 /**
+ * Robustly resolves the declination (variant) title suffix (e.g. "Rouge • L" or "Rouge" or "256 Go").
+ * Prevents generic master product fallback when valid variant names or option values exist.
+ */
+export function resolveDeclinationName(
+    productName: string,
+    options?: any[],
+    rawVariantName?: string,
+    fallbackNames?: (string | undefined | null)[]
+): string {
+    // 1. Check structured option list
+    const optNames = (options || [])
+        .map((o: any) => o?.name || o?.code || o?.translations?.[0]?.name)
+        .filter(Boolean)
+        .join(' • ');
+    if (optNames && optNames.trim().length > 0) {
+        return optNames.trim();
+    }
+
+    const prodClean = (productName || '').trim().toLowerCase();
+    const candidates = [rawVariantName, ...(fallbackNames || [])].filter(
+        (n): n is string => Boolean(n && typeof n === 'string' && n.trim().length > 0)
+    );
+
+    for (const raw of candidates) {
+        const str = raw.trim();
+        const strLower = str.toLowerCase();
+
+        // 2. Check if variant name contains product name prefix (e.g. "T-shirt Col V Rouge" -> "Rouge")
+        if (prodClean && strLower.startsWith(prodClean) && str.length > prodClean.length) {
+            const clean = str.substring(prodClean.length).replace(/^[\s\-–—:•/]+/, '').trim();
+            if (clean && clean.toLowerCase() !== prodClean) {
+                return clean;
+            }
+        }
+
+        // 3. Check delimiter patterns (e.g. "Product - Rouge", "Product / XL")
+        if (str.includes(' — ') || str.includes(' - ') || str.includes(' : ') || str.includes(' / ')) {
+            const parts = str.split(/\s+[—\-:/]\s+/);
+            if (parts.length > 1 && parts[parts.length - 1].trim()) {
+                const tail = parts[parts.length - 1].trim();
+                if (tail.toLowerCase() !== prodClean) {
+                    return tail;
+                }
+            }
+        }
+
+        // 4. If str is completely different from product name (e.g. "Rouge", "128 Go", "XL")
+        if (prodClean && strLower !== prodClean && !strLower.startsWith(prodClean)) {
+            return str;
+        }
+    }
+
+    return '';
+}
+
+/**
  * Normalizes raw product & variant data into individual sellable declination offers.
  */
 function extractOfferCandidates(rawItems: any[]): {
@@ -397,28 +453,21 @@ function extractOfferCandidates(rawItems: any[]): {
                 address: winningVendor?.address || directVendor?.address || customVendor?.address,
             };
 
-            const vendorId = String(vendorInfo?.id || 'main');
+            const vendorId = String(vendorInfo.id || 'main');
             const vrAsset = vr.featuredAsset?.preview ? vr.featuredAsset : (vr.assets?.[0]?.preview ? vr.assets[0] : rawAsset);
-            const vrPrice = vr.priceWithTax?.value ?? vr.priceWithTax ?? vr.price ?? item.price ?? 0;
+            const rawPrice = vr.price ?? item.price ?? vr.priceWithTax?.value ?? vr.priceWithTax?.min ?? item.priceWithTax?.value ?? item.priceWithTax?.min ?? (typeof vr.priceWithTax === 'number' ? vr.priceWithTax : (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0));
+            const vrPrice = Number(rawPrice) || 0;
             const onPromotion = Boolean(vr.customFields?.onPromotion ?? item.onPromotion ?? false);
             const promotionalPrice = vr.customFields?.promotionalPrice ?? item.promotionalPrice ?? null;
             const stock = Number(vr.stockOnHand ?? vr.customFields?.stock ?? item.stock ?? 5);
 
-            const optNames = (vr.options || item.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
             const prodName = productMap.get(prodId).name;
-
-            let declinationName = optNames;
-            if (!declinationName && vr.name) {
-                const vName = vr.name.trim();
-                if (vName.toLowerCase().startsWith(prodName.toLowerCase()) && vName.length > prodName.length) {
-                    const clean = vName.substring(prodName.length).replace(/^[\s\-–—:]+/, '').trim();
-                    if (clean && clean.toLowerCase() !== prodName.toLowerCase()) {
-                        declinationName = clean;
-                    }
-                }
-            } else if (!declinationName && item.declinationName) {
-                declinationName = item.declinationName;
-            }
+            const declinationName = resolveDeclinationName(
+                prodName,
+                vr.options || item.options,
+                vr.name,
+                [item.productVariantName, item.declinationName, item.variantName]
+            );
 
             const variantName = declinationName 
                 ? `${prodName} — ${declinationName}` 
@@ -503,9 +552,9 @@ export function processAndResolveDisplayItems(
         off.score = scoreOffer(off, context, avgPrice);
     }
 
-    const mustHaveOptions = context.requireVariantsWithOptions === true || (context.experienceStrategy === 'FLASH_SALE' && context.allowProductsWithoutOptions !== true);
+    const mustHaveOptions = context.requireVariantsWithOptions === true;
 
-    // 4. Filter out ineligible candidates (e.g. score < -500 for strict out of stock, or missing option group when required)
+    // 4. Filter out ineligible candidates (e.g. score < -500 for strict out of stock, or missing option group when explicitly required)
     const eligibleOffers = offers.filter(o => {
         if (o.score <= -500) return false;
         if (mustHaveOptions) {

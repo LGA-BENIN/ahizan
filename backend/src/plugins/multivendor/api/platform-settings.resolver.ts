@@ -39,6 +39,10 @@ export class PlatformSettingsShopResolver {
     @Query()
     @Allow(Permission.Public)
     async whatsappNumber(@Ctx() ctx: RequestContext): Promise<string> {
+        const platformSettings = await this.platformSettingsService.getSettings(ctx);
+        if (platformSettings?.whatsappNumber && platformSettings.whatsappNumber.trim().length > 0) {
+            return platformSettings.whatsappNumber.trim();
+        }
         const settings = await this.globalSettingsService.getSettings(ctx);
         return (settings?.customFields as any)?.whatsappNumber || '';
     }

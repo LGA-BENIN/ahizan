@@ -25,6 +25,7 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
             const newSettings = repo.create({
                 id: 'platform_settings',
                 platformName: 'Ahizan',
+                whatsappNumber: '',
                 defaultCommissionRate: 10,
                 showVendorContact: false,
                 vendorContactFields: { phone: true, email: false, whatsapp: true, facebook: false, instagram: false, website: false },
@@ -49,6 +50,7 @@ export class PlatformSettingsService implements OnApplicationBootstrap {
         
         const updateFields: any = {};
         if (input.platformName !== undefined) updateFields.platformName = input.platformName;
+        if (input.whatsappNumber !== undefined) updateFields.whatsappNumber = input.whatsappNumber;
         if (input.defaultCommissionRate !== undefined) updateFields.defaultCommissionRate = input.defaultCommissionRate;
         if (input.showVendorContact !== undefined) updateFields.showVendorContact = input.showVendorContact;
         if (input.vendorContactFields !== undefined) updateFields.vendorContactFields = input.vendorContactFields;

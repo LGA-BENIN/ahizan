@@ -1,6 +1,7 @@
  "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { getShopApiUrl } from '@/lib/vendure/api-utils';
 import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 import { MasterProductCard } from '@/components/commerce/master-product-card';
@@ -521,21 +522,30 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     return (
         <section className="py-3 md:py-5 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
             {headerStyle === 'standard' && (
-                <div className={`flex flex-col ${alignClass} mb-4 gap-1`}>
-                    {displayBadgeText && displayBadgeText.trim() !== '' && (
-                        <span 
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase shadow-sm w-fit"
-                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                        >
-                            {displayBadgeText}
-                        </span>
-                    )}
-                    {displayTitle && displayTitle.trim() !== '' && (
-                        <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
-                            {displayIcon && <span>{displayIcon}</span>} {displayTitle}
-                        </h2>
-                    )}
-                    {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <div className={`flex flex-col ${alignClass} gap-1`}>
+                        {displayBadgeText && displayBadgeText.trim() !== '' && (
+                            <span 
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase shadow-sm w-fit"
+                                style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                            >
+                                {displayBadgeText}
+                            </span>
+                        )}
+                        {displayTitle && displayTitle.trim() !== '' && (
+                            <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
+                                {displayIcon && <span>{displayIcon}</span>} {displayTitle}
+                            </h2>
+                        )}
+                        {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
+                    </div>
+                    <Link 
+                        href="/local-discovery"
+                        className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
+                    >
+                        <span>VOIR TOUT</span>
+                        <ChevronRight className="w-4 h-4" />
+                    </Link>
                 </div>
             )}
             {headerStyle === 'bordered' && (
@@ -553,38 +563,55 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                         )}
                         {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
                     </div>
+                    <Link 
+                        href="/local-discovery"
+                        className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
+                    >
+                        <span>VOIR TOUT</span>
+                        <ChevronRight className="w-4 h-4" />
+                    </Link>
                 </div>
             )}
             {(headerStyle === 'smart_cart' || !['standard', 'bordered'].includes(headerStyle)) && (
-                <div className={`flex flex-col ${alignClass} mb-4 gap-1`}>
-                    {displayBadgeText && displayBadgeText.trim() !== '' && (
-                        <div 
-                            className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm w-fit"
-                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                        >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>{displayBadgeText}</span>
-                        </div>
-                    )}
-                    {displayTitle && displayTitle.trim() !== '' && (
-                        <h2 
-                            className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-1 flex items-center gap-2"
-                            style={{ color: titleColor || undefined }}
-                        >
-                            {displayIcon && <span>{displayIcon}</span>} {displayTitle}
-                        </h2>
-                    )}
-                    {displaySubtitle && displaySubtitle.trim() !== '' && (
-                        <p 
-                            className="font-medium text-xs sm:text-sm mt-0.5 max-w-2xl text-muted-foreground"
-                            style={{ color: subtitleColor || undefined }}
-                        >
-                            {displaySubtitle}
-                        </p>
-                    )}
-                    {(displayTitle || displayBadgeText) && (
-                        <div className="h-1 w-12 bg-primary mt-1.5 rounded-full" style={{ backgroundColor: badgeBgColor }} />
-                    )}
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <div className={`flex flex-col ${alignClass} gap-1`}>
+                        {displayBadgeText && displayBadgeText.trim() !== '' && (
+                            <div 
+                                className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm w-fit"
+                                style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>{displayBadgeText}</span>
+                            </div>
+                        )}
+                        {displayTitle && displayTitle.trim() !== '' && (
+                            <h2 
+                                className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-1 flex items-center gap-2"
+                                style={{ color: titleColor || undefined }}
+                            >
+                                {displayIcon && <span>{displayIcon}</span>} {displayTitle}
+                            </h2>
+                        )}
+                        {displaySubtitle && displaySubtitle.trim() !== '' && (
+                            <p 
+                                className="font-medium text-xs sm:text-sm mt-0.5 max-w-2xl text-muted-foreground"
+                                style={{ color: subtitleColor || undefined }}
+                            >
+                                {displaySubtitle}
+                            </p>
+                        )}
+                        {(displayTitle || displayBadgeText) && (
+                            <div className="h-1 w-12 bg-primary mt-1.5 rounded-full" style={{ backgroundColor: badgeBgColor }} />
+                        )}
+                    </div>
+
+                    <Link 
+                        href="/local-discovery"
+                        className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
+                    >
+                        <span>VOIR TOUT</span>
+                        <ChevronRight className="w-4 h-4" />
+                    </Link>
                 </div>
             )}
 

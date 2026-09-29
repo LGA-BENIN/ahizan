@@ -6,6 +6,7 @@ const GET_PLATFORM_SETTINGS = `
         platformSettings {
             id
             platformName
+            whatsappNumber
             defaultCommissionRate
             showVendorContact
             vendorContactFields
@@ -25,6 +26,7 @@ const UPDATE_PLATFORM_SETTINGS = `
         updatePlatformSettings(input: $input) {
             id
             platformName
+            whatsappNumber
             defaultCommissionRate
             showVendorContact
             vendorContactFields
@@ -56,6 +58,7 @@ export function PlatformSettingsComponent() {
     const [toasts, setToasts] = useState<any[]>([]);
     const [formData, setFormData] = useState<any>({
         platformName: 'Ahizan',
+        whatsappNumber: '',
         defaultCommissionRate: 10,
         showVendorContact: false,
         vendorContactFields: { phone: true, email: false, whatsapp: true, facebook: false, instagram: false, website: false },
@@ -122,19 +125,32 @@ export function PlatformSettingsComponent() {
                         <legend style={{ fontWeight: 'bold', padding: '0 8px' }}>Informations générales</legend>
                         <label style={{ display: 'block', marginBottom: 8 }}>
                             <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Nom de la plateforme</span>
-                            <input type="text" value={formData.platformName} onChange={e => setFormData({ ...formData, platformName: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
+                            <input type="text" value={formData.platformName || ''} onChange={e => setFormData({ ...formData, platformName: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
+                        </label>
+                        <label style={{ display: 'block', marginBottom: 8 }}>
+                            <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>📱 Numéro WhatsApp pour les commandes (ex: +22997000000)</span>
+                            <input 
+                                type="text" 
+                                placeholder="+229 97 00 00 00"
+                                value={formData.whatsappNumber || ''} 
+                                onChange={e => setFormData({ ...formData, whatsappNumber: e.target.value })} 
+                                style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontWeight: '600' }} 
+                            />
+                            <span style={{ fontSize: 12, color: '#6b7280', display: 'block', marginTop: 4 }}>
+                                Ce numéro recevra le récapitulatif des commandes WhatsApp passées depuis le panier et la boutique.
+                            </span>
                         </label>
                         <label style={{ display: 'block', marginBottom: 8 }}>
                             <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Devise par défaut</span>
-                            <input type="text" value={formData.defaultCurrencyCode} onChange={e => setFormData({ ...formData, defaultCurrencyCode: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
+                            <input type="text" value={formData.defaultCurrencyCode || ''} onChange={e => setFormData({ ...formData, defaultCurrencyCode: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
                         </label>
                         <label style={{ display: 'block', marginBottom: 8 }}>
                             <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Indicatif téléphonique</span>
-                            <input type="text" value={formData.defaultPhonePrefix} onChange={e => setFormData({ ...formData, defaultPhonePrefix: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
+                            <input type="text" value={formData.defaultPhonePrefix || ''} onChange={e => setFormData({ ...formData, defaultPhonePrefix: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
                         </label>
                         <label style={{ display: 'block', marginBottom: 8 }}>
                             <span style={{ display: 'block', fontWeight: 500, marginBottom: 4 }}>Domaine email placeholder</span>
-                            <input type="text" value={formData.placeholderEmailDomain} onChange={e => setFormData({ ...formData, placeholderEmailDomain: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
+                            <input type="text" value={formData.placeholderEmailDomain || ''} onChange={e => setFormData({ ...formData, placeholderEmailDomain: e.target.value })} style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4 }} />
                         </label>
                     </fieldset>
 

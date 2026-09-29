@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { getBackendBaseUrl, getAssetUrl } from '../../../lib/utils';
+import { ImageCropModal } from './ImageCropModal';
 
 interface FileUploadFieldProps {
     label: string;
@@ -6,26 +8,64 @@ interface FileUploadFieldProps {
     onChange: (url: string) => void;
     accept?: string;
     placeholder?: string;
+    aspectRatio?: number;
 }
 
-import { getBackendBaseUrl, getAssetUrl } from '../../../lib/utils';
-
-export const FileUploadField = ({ label, value, onChange, accept = 'image/*,video/mp4,image/gif', placeholder = 'Upload or enter URL' }: FileUploadFieldProps) => {
+export const FileUploadField = ({ 
+    label, 
+    value, 
+    onChange, 
+    accept = 'image/*,video/mp4,image/gif', 
+    placeholder = 'Upload or enter URL',
+    aspectRatio = 16 / 9
+}: FileUploadFieldProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Crop Modal State
+    const [isCropOpen, setIsCropOpen] = useState(false);
+    const [cropImageSrc, setCropImageSrc] = useState<string>('');
+    const [originalFileName, setOriginalFileName] = useState<string>('market-image.jpg');
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // If video or GIF, upload directly
+        if (file.type.includes('video') || file.type.includes('gif')) {
+            uploadBlob(file, file.name);
+            return;
+        }
+
+        // For images: load into ImageCropModal
+        setOriginalFileName(file.name);
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (reader.result) {
+                setCropImageSrc(reader.result as string);
+                setIsCropOpen(true);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleReCropExisting = () => {
+        if (!value) return;
+        setCropImageSrc(getAssetUrl(value));
+        setIsCropOpen(true);
+    };
+
+    const uploadBlob = async (blob: Blob | File, filename = 'image.jpg') => {
         setUploading(true);
         setError(null);
 
+        const file = blob instanceof File ? blob : new File([blob], filename.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
         const formData = new FormData();
         formData.append('file', file);
 
         try {
-            // Primary: Use createCmsAsset mutation (dedicated CMS upload endpoint)
+            // Primary: Use createCmsAsset mutation
             const gqlUrl = `${getBackendBaseUrl()}/admin-api`;
             const gqlFormData = new FormData();
             const operations = {
@@ -51,7 +91,7 @@ export const FileUploadField = ({ label, value, onChange, accept = 'image/*,vide
                 return;
             }
 
-            // Fallback 1: REST upload (BannerManager endpoint)
+            // Fallback 1: REST upload
             const uploadUrl = `${getBackendBaseUrl()}/banner/upload`;
             const response = await fetch(uploadUrl, { method: 'POST', body: formData });
 
@@ -114,24 +154,63 @@ export const FileUploadField = ({ label, value, onChange, accept = 'image/*,vide
                     onChange={handleFileChange}
                 />
                 <button 
+                    type="button"
                     className="btn-pro" 
                     style={{ padding: '0 12px', height: '36px', whiteSpace: 'nowrap', cursor: 'pointer' }}
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
                 >
-                    {uploading ? '⏳ Uploading...' : '📁 Upload'}
+                    {uploading ? '⏳ Uploading...' : '📁 Choisir & Rogner'}
                 </button>
             </div>
             {error && <div style={{ color: '#ef4444', fontSize: '0.7rem', marginTop: '4px' }}>{error}</div>}
+            
             {value && (
-                <div style={{ marginTop: '8px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--builder-border)', background: '#000', maxHeight: '120px', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ marginTop: '8px', position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--builder-border)', background: '#0f172a', maxHeight: '140px', display: 'flex', justifyContent: 'center' }}>
                     {isVideo ? (
-                        <video src={getAssetUrl(value)} style={{ maxHeight: '120px', maxWidth: '100%' }} muted />
+                        <video src={getAssetUrl(value)} style={{ maxHeight: '140px', maxWidth: '100%' }} muted />
                     ) : (
-                        <img src={getAssetUrl(value)} alt="Preview" style={{ maxHeight: '120px', maxWidth: '100%', objectFit: 'contain' }} />
+                        <>
+                            <img src={getAssetUrl(value)} alt="Preview" style={{ maxHeight: '140px', maxWidth: '100%', objectFit: 'contain' }} />
+                            <button
+                                type="button"
+                                onClick={handleReCropExisting}
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '6px',
+                                    right: '6px',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    background: 'rgba(15, 23, 42, 0.85)',
+                                    color: '#ffffff',
+                                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                                    cursor: 'pointer',
+                                    backdropFilter: 'blur(4px)',
+                                }}
+                            >
+                                ✂️ Re-cadrer
+                            </button>
+                        </>
                     )}
                 </div>
             )}
+
+            {/* Interactive Image Cropper Modal */}
+            <ImageCropModal
+                isOpen={isCropOpen}
+                imageSrc={cropImageSrc}
+                initialAspectRatio={aspectRatio}
+                onClose={() => {
+                    setIsCropOpen(false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                onCropComplete={(croppedBlob) => {
+                    uploadBlob(croppedBlob, originalFileName);
+                }}
+            />
         </div>
     );
 };
+

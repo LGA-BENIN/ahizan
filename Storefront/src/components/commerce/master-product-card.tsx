@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { toggleProductLikeAction, checkProductLikeStatus } from '@/app/(storefront)/likes-actions';
 import { LoginPromptModal } from '@/components/shared/login-prompt-modal';
 import { addToCart } from '@/app/(storefront)/product/[slug]/actions';
-import { MasterDisplayItem } from '@/lib/vendure/display-engine';
+import { MasterDisplayItem, resolveDeclinationName } from '@/lib/vendure/display-engine';
 import { priceFromSubunit } from '@/lib/format';
 
 interface MasterProductCardProps {
@@ -37,19 +37,15 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
     const productName = item.productName || item.name || 'Produit';
     const productSlug = item.slug || item.productSlug || item.productId || item.id;
 
-    // Resolve title and declination suffix: NEVER inject foreign variant names
-    const optNames = (initialVariant?.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
-    let declinationName = item.declinationName || winningOffer?.declinationName || optNames;
-
-    if (!declinationName && initialVariant?.name) {
-        const vName = initialVariant.name.trim();
-        if (vName.toLowerCase().startsWith(productName.toLowerCase()) && vName.length > productName.length) {
-            const clean = vName.substring(productName.length).replace(/^[\s\-–—:]+/, '').trim();
-            if (clean && clean.toLowerCase() !== productName.toLowerCase()) {
-                declinationName = clean;
-            }
-        }
-    }
+    // Resolve title and declination suffix robustly
+    const declinationName = item.declinationName 
+        || winningOffer?.declinationName 
+        || resolveDeclinationName(
+            productName,
+            initialVariant?.options || item.options,
+            initialVariant?.name,
+            [item.productVariantName, item.variantName]
+        );
 
     const displayTitle = declinationName 
         ? `${productName} — ${declinationName}` 
@@ -231,16 +227,18 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                         )}
                     </button>
 
-                    {/* Quick Add To Cart Button */}
-                    <button
-                        onClick={handleAddToCart}
-                        disabled={isPending}
-                        aria-label="Ajouter au panier"
-                        className="absolute bottom-2 right-2 z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center shadow-md translate-y-2 opacity-0 group-hover/card:translate-y-0 group-hover/card:opacity-100 transition-all duration-300"
-                        title="Ajouter au panier"
-                    >
-                        {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-                    </button>
+                    {/* Quick Add To Cart Button (Optional, customer goes to PDP by default) */}
+                    {config?.showQuickAddToCart && (
+                        <button
+                            onClick={handleAddToCart}
+                            disabled={isPending}
+                            aria-label="Ajouter au panier"
+                            className="absolute bottom-2 right-2 z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center shadow-md translate-y-2 opacity-0 group-hover/card:translate-y-0 group-hover/card:opacity-100 transition-all duration-300"
+                            title="Ajouter au panier"
+                        >
+                            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                        </button>
+                    )}
                 </div>
 
                 {/* Card Content */}

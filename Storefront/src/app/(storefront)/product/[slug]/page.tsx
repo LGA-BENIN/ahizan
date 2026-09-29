@@ -419,6 +419,7 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                         vendor {
                             id
                             name
+                            phoneNumber
                             rating
                             ratingCount
                             verificationStatus

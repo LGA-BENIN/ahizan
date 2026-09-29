@@ -102,15 +102,18 @@ export async function OrderSummary({activeOrder, whatsappNumber}: { activeOrder:
                 <p className="text-[10px] text-muted-foreground mt-1 font-medium">TVA incluse</p>
             </div>
 
-            <Button className="w-full h-11 rounded-lg font-bold text-base shadow-lg shadow-primary/10 transition-all active:scale-[0.98]" size="lg" asChild>
+            {/* Continuer vos achats on TOP (Bleu Nuit + Rounded-full) */}
+            <Button className="w-full mb-3 rounded-full font-bold text-sm bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-sm transition-colors" asChild>
+                <Link href="/search">← Continuer vos achats</Link>
+            </Button>
+
+            {/* Passer la commande (Ahizan Red + Rounded-full) */}
+            <Button className="w-full h-12 rounded-full font-bold text-base shadow-lg bg-[#e11d48] hover:bg-[#be123c] text-white transition-all active:scale-[0.98]" size="lg" asChild>
                 <Link href="/checkout">Passer la commande</Link>
             </Button>
 
+            {/* Passer la commande sur WhatsApp */}
             <WhatsappOrderButton activeOrder={activeOrder} whatsappNumber={whatsappNumber} />
-
-            <Button variant="ghost" className="w-full mt-4 rounded-xl font-bold text-muted-foreground hover:text-primary transition-colors" asChild>
-                <Link href="/search">Continuer vos achats</Link>
-            </Button>
         </div>
     );
 }

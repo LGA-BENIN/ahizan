@@ -164,12 +164,23 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                                             <span>🏙️</span> Villes & Communes
                                         </h4>
                                         {filteredCities.map(c => {
-                                            const isSelected = (selectedLocation?.type === 'COMMUNE' || selectedLocation?.type === 'NEIGHBORHOOD') && selectedLocation.id === c.id;
+                                            const isSelected = (selectedLocation?.type === 'COMMUNE' || selectedLocation?.type === 'NEIGHBORHOOD') && (selectedLocation.id === String(c.id) || selectedLocation.commune === c.name);
                                             return (
                                                 <button
                                                     key={c.id}
-                                                    onClick={() => { selectLocation({ id: c.id, name: c.name, latitude: c.centerLatitude, longitude: c.centerLongitude, type: 'COMMUNE' }); setIsOpen(false); }}
-                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
+                                                    onClick={() => { 
+                                                        selectLocation({ 
+                                                            id: String(c.id), 
+                                                            name: c.name, 
+                                                            latitude: Number(c.centerLatitude || 6.3654), 
+                                                            longitude: Number(c.centerLongitude || 2.4183), 
+                                                            type: 'COMMUNE',
+                                                            commune: c.name,
+                                                            geoZoneId: String(c.id)
+                                                        }); 
+                                                        setIsOpen(false); 
+                                                    }}
+                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                                                 >
                                                     <span className="flex items-center gap-2">
                                                         <MapPin className="w-4 h-4 text-primary font-black" />
@@ -189,12 +200,24 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                                             <span>📍</span> Quartiers & Arrondissements
                                         </h4>
                                         {filteredNeighborhoods.map(n => {
-                                            const isSelected = selectedLocation?.type === 'NEIGHBORHOOD' && selectedLocation.id === n.id;
+                                            const isSelected = selectedLocation?.type === 'NEIGHBORHOOD' && (selectedLocation.id === String(n.id) || selectedLocation.name === n.name);
                                             return (
                                                 <button
                                                     key={n.id}
-                                                    onClick={() => { selectLocation({ id: n.id, name: n.name, latitude: n.centerLatitude, longitude: n.centerLongitude, type: 'NEIGHBORHOOD' }); setIsOpen(false); }}
-                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
+                                                    onClick={() => { 
+                                                        selectLocation({ 
+                                                            id: String(n.id), 
+                                                            name: n.name, 
+                                                            latitude: Number(n.centerLatitude || 6.3654), 
+                                                            longitude: Number(n.centerLongitude || 2.4183), 
+                                                            type: 'NEIGHBORHOOD',
+                                                            commune: n.commune || n.parent?.name || 'Cotonou',
+                                                            neighborhood: n.name,
+                                                            geoZoneId: String(n.id)
+                                                        }); 
+                                                        setIsOpen(false); 
+                                                    }}
+                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                                                 >
                                                     <span className="flex items-center gap-2">
                                                         <MapPin className="w-4 h-4 text-slate-400 opacity-80" />
@@ -214,12 +237,25 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                                             <span>🛍️</span> Marchés
                                         </h4>
                                         {filteredMarkets.map(m => {
-                                            const isSelected = selectedLocation?.type === 'MARKET' && selectedLocation.id === m.id;
+                                            const isSelected = selectedLocation?.type === 'MARKET' && (selectedLocation.id === String(m.id) || selectedLocation.marketId === String(m.id));
                                             return (
                                                 <button
                                                     key={m.id}
-                                                    onClick={() => { selectLocation({ id: m.id, name: m.name, latitude: m.centerLatitude, longitude: m.centerLongitude, type: 'MARKET' }); setIsOpen(false); }}
-                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold"
+                                                    onClick={() => { 
+                                                        selectLocation({ 
+                                                            id: String(m.id), 
+                                                            name: m.name, 
+                                                            latitude: Number(m.centerLatitude || 6.367), 
+                                                            longitude: Number(m.centerLongitude || 2.44), 
+                                                            type: 'MARKET',
+                                                            marketId: String(m.id),
+                                                            marketName: m.name,
+                                                            commune: m.geoZone?.name || 'Cotonou',
+                                                            geoZoneId: m.geoZone?.id ? String(m.geoZone.id) : undefined
+                                                        }); 
+                                                        setIsOpen(false); 
+                                                    }}
+                                                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/40 text-left text-sm transition-colors text-slate-700 dark:text-slate-300 font-bold cursor-pointer"
                                                 >
                                                     <span className="flex items-center gap-2">
                                                         <Landmark className="w-4 h-4 text-amber-600 opacity-80" />

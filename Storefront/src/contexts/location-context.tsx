@@ -64,12 +64,24 @@ const FALLBACK_MARKETS = [
 ];
 
 const FALLBACK_NEIGHBORHOODS = [
-    { id: "14", name: "Tokpota", slug: "tokpota", type: "NEIGHBORHOOD", centerLatitude: 6.515, centerLongitude: 2.632 },
-    { id: "13", name: "Ahouangbo", slug: "ahouangbo", type: "NEIGHBORHOOD", centerLatitude: 6.488, centerLongitude: 2.628 },
-    { id: "12", name: "Ouando", slug: "ouando", type: "NEIGHBORHOOD", centerLatitude: 6.505, centerLongitude: 2.618 },
-    { id: "17", name: "Cococodji", slug: "cococodji", type: "NEIGHBORHOOD", centerLatitude: 6.425, centerLongitude: 2.298 },
-    { id: "15", name: "Zogbadjè", slug: "zogbadje", type: "NEIGHBORHOOD", centerLatitude: 6.4236, centerLongitude: 2.3347 },
-    { id: "16", name: "Godomey", slug: "godomey", type: "NEIGHBORHOOD", centerLatitude: 6.3854, centerLongitude: 2.3432 }
+    { id: "101", name: "Védoko", slug: "vedoko", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3750, centerLongitude: 2.3920 },
+    { id: "102", name: "Mènontin", slug: "menontin", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3710, centerLongitude: 2.3850 },
+    { id: "103", name: "Agla", slug: "agla", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3650, centerLongitude: 2.3780 },
+    { id: "104", name: "Fidjrossè", slug: "fidjrosse", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3690, centerLongitude: 2.3610 },
+    { id: "105", name: "Cadjèhoun", slug: "cadjehoun", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3620, centerLongitude: 2.4000 },
+    { id: "106", name: "Gbégamey", slug: "gbegamey", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3650, centerLongitude: 2.4080 },
+    { id: "107", name: "Akpakpa Dodomè", slug: "akpakpa-dodome", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3873, centerLongitude: 2.4573 },
+    { id: "108", name: "Sikècodji", slug: "sikecodji", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3740, centerLongitude: 2.4130 },
+    { id: "109", name: "Sainte-Rita", slug: "sainte-rita", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3780, centerLongitude: 2.4050 },
+    { id: "110", name: "Haie Vive", slug: "haie-vive", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3720, centerLongitude: 2.3950 },
+    { id: "111", name: "Zongo", slug: "zongo", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3660, centerLongitude: 2.4220 },
+    { id: "14", name: "Tokpota", slug: "tokpota", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.515, centerLongitude: 2.632 },
+    { id: "13", name: "Ahouangbo", slug: "ahouangbo", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.488, centerLongitude: 2.628 },
+    { id: "12", name: "Ouando", slug: "ouando", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.505, centerLongitude: 2.618 },
+    { id: "112", name: "Djassin", slug: "djassin", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.478, centerLongitude: 2.632 },
+    { id: "17", name: "Cococodji", slug: "cococodji", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.425, centerLongitude: 2.298 },
+    { id: "15", name: "Zogbadjè", slug: "zogbadje", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.4236, centerLongitude: 2.3347 },
+    { id: "16", name: "Godomey", slug: "godomey", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.3854, centerLongitude: 2.3432 }
 ];
 
 const FALLBACK_CITIES = [
@@ -141,12 +153,17 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             if (fetchedMarkets.length > 0) setMarkets(fetchedMarkets);
             if (fetchedZones.length > 0) {
                 const fetchedCities = fetchedZones.filter((z: any) => z.type === 'COMMUNE' || z.type === 'CITY');
-                const fetchedNeighborhoods = fetchedZones.filter((z: any) => z.type !== 'COMMUNE' && z.type !== 'CITY');
+                const fetchedNeighborhoods = fetchedZones.filter((z: any) => z.type === 'NEIGHBORHOOD' || z.type === 'ARRONDISSEMENT');
                 setCities(fetchedCities.length > 0 ? fetchedCities : FALLBACK_CITIES);
-                setNeighborhoods(fetchedNeighborhoods.length > 0 ? fetchedNeighborhoods : fetchedZones);
+                setNeighborhoods(fetchedNeighborhoods.length > 0 ? fetchedNeighborhoods : FALLBACK_NEIGHBORHOODS);
+            } else {
+                setCities(FALLBACK_CITIES);
+                setNeighborhoods(FALLBACK_NEIGHBORHOODS);
             }
         } catch (err) {
             clearTimeout(timeoutId);
+            setCities(FALLBACK_CITIES);
+            setNeighborhoods(FALLBACK_NEIGHBORHOODS);
             console.warn('Locations fetch timed out or failed, using fast fallback list:', err);
         } finally {
             setLoading(false);
@@ -157,7 +174,25 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         refreshLocations();
     }, []);
 
-    // 3. Centralized resolveCoordinates query calling PostGIS (Single Source of Truth)
+    // 3. Helper to find closest item by GPS coordinates
+    const findClosest = (lat: number, lon: number, items: any[]) => {
+        let best: any = null;
+        let minD = Infinity;
+        for (const it of items) {
+            const iLat = Number(it.centerLatitude ?? it.latitude);
+            const iLon = Number(it.centerLongitude ?? it.longitude);
+            if (!isNaN(iLat) && !isNaN(iLon) && iLat !== 0 && iLon !== 0) {
+                const d = getDistance(lat, lon, iLat, iLon);
+                if (d < minD) {
+                    minD = d;
+                    best = { item: it, distanceMeters: d };
+                }
+            }
+        }
+        return best;
+    };
+
+    // 4. Centralized resolveCoordinates query calling PostGIS + Local spatial matching
     const reverseGeocode = async (latitude: number, longitude: number): Promise<LocationData> => {
         const apiUrl = getShopApiUrl();
         const queryStr = `
@@ -182,7 +217,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             }
         `;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        // Precompute closest neighborhood and market in memory
+        const currentNeighborhoods = neighborhoods.length > 0 ? neighborhoods : FALLBACK_NEIGHBORHOODS;
+        const currentMarkets = markets.length > 0 ? markets : FALLBACK_MARKETS;
+        const currentCities = cities.length > 0 ? cities : FALLBACK_CITIES;
+
+        const closestNeigh = findClosest(latitude, longitude, currentNeighborhoods);
+        const closestMkt = findClosest(latitude, longitude, currentMarkets);
+        const closestCity = findClosest(latitude, longitude, currentCities);
 
         try {
             const res = await fetch(apiUrl, {
@@ -195,32 +239,47 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             const result = await res.json();
             const loc = result.data?.resolveCoordinates;
             if (loc) {
+                const finalNeighborhood = loc.neighborhood || closestNeigh?.item?.name;
+                const finalCommune = loc.commune || closestNeigh?.item?.commune || closestCity?.item?.name || 'Cotonou';
+                const finalMarketId = loc.marketId ? String(loc.marketId) : (closestMkt && closestMkt.distanceMeters <= 3000 ? String(closestMkt.item.id) : undefined);
+                const finalMarketName = loc.marketName || (finalMarketId && closestMkt ? closestMkt.item.name : undefined);
+
                 return {
-                    id: loc.geoId || String(loc.geoZoneId || 'gps_raw'),
-                    name: loc.displayName || loc.neighborhood || loc.commune || 'Cotonou',
-                    latitude: loc.latitude,
-                    longitude: loc.longitude,
-                    type: loc.marketId ? 'MARKET' : (loc.commune && !loc.neighborhood ? 'COMMUNE' : 'NEIGHBORHOOD'),
-                    commune: loc.commune,
+                    id: loc.geoId || String(loc.geoZoneId || closestNeigh?.item?.id || 'gps_raw'),
+                    name: finalNeighborhood ? `${finalNeighborhood}` : (loc.displayName || finalCommune || 'Cotonou'),
+                    latitude: loc.latitude || latitude,
+                    longitude: loc.longitude || longitude,
+                    type: finalMarketId ? 'MARKET' : (finalNeighborhood ? 'NEIGHBORHOOD' : 'COMMUNE'),
+                    commune: finalCommune,
                     department: loc.department,
                     arrondissement: loc.arrondissement,
-                    neighborhood: loc.neighborhood,
-                    marketId: loc.marketId ? String(loc.marketId) : undefined,
-                    marketName: loc.marketName,
-                    geoZoneId: loc.geoZoneId ? String(loc.geoZoneId) : undefined
+                    neighborhood: finalNeighborhood,
+                    marketId: finalMarketId,
+                    marketName: finalMarketName,
+                    geoZoneId: loc.geoZoneId ? String(loc.geoZoneId) : (closestNeigh?.item?.id ? String(closestNeigh.item.id) : undefined)
                 };
             }
         } catch (err) {
             clearTimeout(timeoutId);
-            console.warn('GeoEngine resolveCoordinates call timeout or error:', err);
+            console.warn('GeoEngine resolveCoordinates call timeout or error, using high-precision local fallback:', err);
         }
 
+        // High-precision local spatial fallback
+        const bestNeigh = closestNeigh?.item;
+        const bestMkt = (closestMkt && closestMkt.distanceMeters <= 3000) ? closestMkt.item : null;
+        const bestCityName = bestNeigh?.commune || closestCity?.item?.name || 'Cotonou';
+
         return {
-            id: 'gps_raw',
-            name: 'Cotonou',
+            id: bestNeigh?.id ? String(bestNeigh.id) : 'gps_raw',
+            name: bestNeigh?.name ? `${bestNeigh.name}` : bestCityName,
             latitude,
             longitude,
-            type: 'GPS'
+            type: bestMkt ? 'MARKET' : (bestNeigh ? 'NEIGHBORHOOD' : 'GPS'),
+            commune: bestCityName,
+            neighborhood: bestNeigh?.name,
+            marketId: bestMkt ? String(bestMkt.id) : undefined,
+            marketName: bestMkt?.name,
+            geoZoneId: bestNeigh?.id ? String(bestNeigh.id) : undefined
         };
     };
 

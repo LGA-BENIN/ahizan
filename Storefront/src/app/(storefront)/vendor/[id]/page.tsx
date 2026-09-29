@@ -79,10 +79,26 @@ async function getVendorData(id: string) {
     }
 }
 
+async function resolveVendor(paramId: string) {
+    if (!paramId) return null;
+
+    // 1. Try decoded ID (if it was an encoded hash)
+    const decoded = decodeId(paramId);
+    if (decoded && decoded !== paramId) {
+        const vendorByDecoded = await getVendorData(decoded);
+        if (vendorByDecoded) return vendorByDecoded;
+    }
+
+    // 2. Try raw param directly (e.g. numeric ID '53' or string ID)
+    const vendorByRaw = await getVendorData(paramId);
+    if (vendorByRaw) return vendorByRaw;
+
+    return null;
+}
+
 export async function generateMetadata({ params }: VendorPageProps): Promise<Metadata> {
-    const { id: hashedId } = await params;
-    const id = decodeId(hashedId);
-    const vendor = await getVendorData(id);
+    const { id: paramId } = await params;
+    const vendor = await resolveVendor(paramId);
     if (!vendor) {
         return {
             title: 'Boutique introuvable | Ahizan',
@@ -95,9 +111,8 @@ export async function generateMetadata({ params }: VendorPageProps): Promise<Met
 }
 
 export default async function VendorDetailPage({ params }: VendorPageProps) {
-    const { id: hashedId } = await params;
-    const id = decodeId(hashedId);
-    const vendor = await getVendorData(id);
+    const { id: paramId } = await params;
+    const vendor = await resolveVendor(paramId);
 
     if (!vendor) {
         notFound();

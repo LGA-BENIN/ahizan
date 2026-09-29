@@ -13,6 +13,9 @@ export class PlatformSettings extends VendureEntity {
     @Column({ default: 'Ahizan' })
     platformName: string;
 
+    @Column({ nullable: true, default: '' })
+    whatsappNumber: string;
+
     @Column({ type: 'float', default: 10 })
     defaultCommissionRate: number;
 

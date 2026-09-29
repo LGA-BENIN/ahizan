@@ -1334,6 +1334,8 @@ const PagesDropdown = ({ activeTab, setActiveTab }: any) => {
     { title: 'Accueil', slug: 'home' },
     { title: 'Catégorie (Collection)', slug: 'category' },
     { title: 'Produit', slug: 'product' },
+    { title: '⚡ Ventes Flash', slug: 'flash_deals' },
+    { title: '📍 Découverte Locale', slug: 'local_discovery' },
     { title: 'Marché', slug: 'market' },
     { title: 'Quartier', slug: 'neighborhood' },
   ];

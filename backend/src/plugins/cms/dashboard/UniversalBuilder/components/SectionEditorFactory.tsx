@@ -20,6 +20,15 @@ import { RelatedProductsSettings } from './sections/RelatedProductsSettings';
 import { SmartVisualGridSettings } from './sections/SmartGrid/SmartVisualGridSettings';
 import { FreeformBuilderSettings } from './sections/craft-freeform/FreeformBuilderSettings';
 import { UniversalProductCollectionSettings } from './sections/UniversalProductCollectionSettings';
+import { FlashHeroBannerSettings } from './sections/FlashHeroBannerSettings';
+import { FlashSearchHubSettings } from './sections/FlashSearchHubSettings';
+import { FlashGridSettings } from './sections/FlashGridSettings';
+import { LocalHeroBannerSettings } from './sections/LocalHeroBannerSettings';
+import { LocalDiscoveryTabsSettings } from './sections/LocalDiscoveryTabsSettings';
+import { LocalCascadeEngineSettings } from './sections/LocalCascadeEngineSettings';
+import { LocalMarketsSettings } from './sections/LocalMarketsSettings';
+import { LocalNeighborhoodsSettings } from './sections/LocalNeighborhoodsSettings';
+import { LocalVendorsSettings } from './sections/LocalVendorsSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 import { FileUploadField } from './sections/FileUploadField';
@@ -167,6 +176,38 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
 
         case 'MODALS':
             return withCodePanel(<ModalSettings data={data} onSave={handleSave} />);
+
+        // --- Flash Deals page components ---
+        case 'FLASH_HERO_BANNER':
+            return withCodePanel(<FlashHeroBannerSettings data={data} onSave={handleSave} />);
+
+        case 'FLASH_DEALS_SEARCH_HUB':
+            return withCodePanel(<FlashSearchHubSettings data={data} onSave={handleSave} />);
+
+        case 'FLASH_DEALS_GRID':
+            return withCodePanel(<FlashGridSettings data={data} onSave={handleSave} />);
+
+        // --- Local Discovery page components ---
+        case 'LOCAL_HERO_BANNER':
+            return withCodePanel(<LocalHeroBannerSettings data={data} onSave={handleSave} />);
+
+        case 'LOCAL_DISCOVERY_TABS':
+            return withCodePanel(<LocalDiscoveryTabsSettings data={data} onSave={handleSave} />);
+
+        case 'LOCAL_CASCADE_ENGINE':
+            return withCodePanel(<LocalCascadeEngineSettings data={data} onSave={handleSave} />);
+
+        case 'LOCAL_MARKETS':
+        case 'LOCAL_MARKETS_SECTION':
+            return withCodePanel(<LocalMarketsSettings data={data} onSave={handleSave} />);
+
+        case 'LOCAL_NEIGHBORHOODS':
+        case 'LOCAL_NEIGHBORHOODS_SECTION':
+            return withCodePanel(<LocalNeighborhoodsSettings data={data} onSave={handleSave} />);
+
+        case 'LOCAL_VENDORS':
+        case 'LOCAL_VENDORS_SECTION':
+            return withCodePanel(<LocalVendorsSettings data={data} onSave={handleSave} />);
 
         // --- Category page components ---
         case 'CATEGORY_HEADER':

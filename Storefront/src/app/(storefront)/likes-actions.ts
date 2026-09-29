@@ -202,10 +202,11 @@ export async function getMyLikedProductsAction(options?: any) {
             useAuthToken: true,
             variables: { options: options || {} },
         });
+        const items = (data.myLikedProducts?.items || []).filter((p: any) => p && p.id && p.slug);
         return { 
             success: true, 
-            products: data.myLikedProducts?.items || [], 
-            totalItems: data.myLikedProducts?.totalItems || 0 
+            products: items, 
+            totalItems: data.myLikedProducts?.totalItems || items.length 
         };
     } catch (e: any) {
         const errorMessage = e.message || '';

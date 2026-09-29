@@ -15,6 +15,7 @@ const GET_SELLER_OFFERS_FOR_VARIANTS = `
             vendor {
                 id
                 name
+                phoneNumber
                 latitude
                 longitude
                 verificationStatus
@@ -94,12 +95,12 @@ export async function expandProductsWithSellerOffers(
 
         const offers: any[] = res?.sellerOffersForVariants || [];
         
-        // Prepare items with attached offers
+        // Prepare items with attached offers (ONLY variants with active seller offers)
         const rawItemsWithOffers: any[] = [];
         for (const item of items) {
             const vId = String(item.productVariantId || item.id);
             const matchingOffers = offers.filter(
-                o => String(o.productVariant?.id) === vId
+                o => String(o.productVariant?.id) === vId && o.vendor?.id
             );
 
             if (matchingOffers.length > 0) {
@@ -137,9 +138,9 @@ export async function expandProductsWithSellerOffers(
                         }
                     });
                 }
-            } else {
-                rawItemsWithOffers.push(item);
             }
+            // IMPORTANT: If matchingOffers.length === 0, the declination has no seller offer
+            // and must NOT be added to the storefront catalogue.
         }
 
         const resolved = processAndResolveDisplayItems(rawItemsWithOffers, context);
@@ -148,7 +149,7 @@ export async function expandProductsWithSellerOffers(
             isMasterResolved: true,
         }));
     } catch (e) {
-        console.warn('[expandProductsWithSellerOffers] Fallback to original items:', e);
-        return processAndResolveDisplayItems(items, context).map(r => ({ ...r, isMasterResolved: true }));
+        console.warn('[expandProductsWithSellerOffers] Failed to fetch seller offers:', e);
+        return [];
     }
 }

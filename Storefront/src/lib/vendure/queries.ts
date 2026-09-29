@@ -259,6 +259,7 @@ export const GetActiveOrderQuery = graphql(`
                             vendor {
                                 id
                                 name
+                                phoneNumber
                                 location {
                                     id
                                     name
@@ -279,6 +280,7 @@ export const GetActiveOrderQuery = graphql(`
                     assignedVendor {
                         id
                         name
+                        phoneNumber
                         location {
                             id
                             name

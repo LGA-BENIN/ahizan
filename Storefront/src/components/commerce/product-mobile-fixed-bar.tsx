@@ -9,9 +9,13 @@ interface ProductMobileFixedBarProps {
     product: {
         id: string;
         name: string;
+        slug?: string;
         optionGroups: Array<any>;
     };
     selectedVariant: any;
+    activeVendor?: any;
+    activePrice?: number | null;
+    variantDisplayName?: string;
     canAddToCart?: boolean;
     isPending?: boolean;
     isAdded?: boolean;
@@ -22,6 +26,9 @@ interface ProductMobileFixedBarProps {
 export function ProductMobileFixedBar({
     product,
     selectedVariant,
+    activeVendor,
+    activePrice,
+    variantDisplayName,
     canAddToCart,
     isPending,
     isAdded,
@@ -72,13 +79,49 @@ export function ProductMobileFixedBar({
             <Button
                 type="button"
                 size="lg"
-                className="w-full h-12 rounded-none font-bold text-xs bg-[#25D366] text-white hover:bg-[#20bd5a] flex items-center justify-center gap-1.5 px-2 border-r border-white/20 shadow-none"
+                disabled={!canAddToCart}
+                className="w-full h-12 rounded-none font-bold text-xs bg-[#25D366] text-white hover:bg-[#20bd5a] disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 px-2 border-r border-white/20 shadow-none"
                 onClick={() => {
+                    // Strictly use centralized platform WhatsApp number from backend settings
                     const targetNumber = whatsappNumber || '';
                     const cleanNumber = targetNumber.replace(/[^0-9+]/g, '');
-                    const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-                    const itemTitle = selectedVariant?.name || product.name;
-                    const message = `Bonjour, je souhaite commander : ${itemTitle}\n${currentUrl}`;
+                    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                    const queryParams = new URLSearchParams();
+                    if (selectedVariant?.id) queryParams.set('variantId', String(selectedVariant.id));
+                    if (activeVendor?.id) queryParams.set('sellerId', String(activeVendor.id));
+                    const queryString = queryParams.toString();
+                    const productSlug = product.slug || product.id;
+                    const productUrl = `${origin}/product/${productSlug}${queryString ? `?${queryString}` : ''}`;
+
+                    const itemTitle = variantDisplayName || selectedVariant?.name || product.name;
+
+                    const formatPrice = (val: number) => {
+                        return new Intl.NumberFormat('fr-FR', {
+                            style: 'currency',
+                            currency: 'XOF',
+                            maximumFractionDigits: 0,
+                        }).format(val);
+                    };
+
+                    const effectivePrice = activePrice || 0;
+                    const priceFormatted = effectivePrice ? formatPrice(effectivePrice) : '';
+
+                    let message = `🛒 *COMMANDE SUR AHIZAN*\n`;
+                    message += `-----------------------------------\n`;
+                    message += `• *Article :* ${itemTitle}\n`;
+                    if (selectedVariant?.sku) {
+                        message += `• *Réf/SKU :* ${selectedVariant.sku}\n`;
+                    }
+                    if (priceFormatted) {
+                        message += `• *Prix :* ${priceFormatted}\n`;
+                    }
+                    if (activeVendor?.name) {
+                        const marketOrZone = activeVendor.physicalMarket?.name || activeVendor.location?.name || activeVendor.zone || '';
+                        message += `• *Boutique / Vendeur :* ${activeVendor.name}${marketOrZone ? ` (${marketOrZone})` : ''}\n`;
+                    }
+                    message += `• *Lien direct :* ${productUrl}\n`;
+                    message += `-----------------------------------\n`;
+                    message += `Bonjour, je souhaite commander cet article. Merci de me confirmer sa disponibilité.`;
 
                     if (cleanNumber) {
                         const phone = cleanNumber.startsWith('+') ? cleanNumber.slice(1) : cleanNumber;

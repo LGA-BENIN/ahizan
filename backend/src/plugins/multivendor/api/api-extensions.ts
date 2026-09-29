@@ -375,6 +375,7 @@ export const commonApiExtensions = `
     type PlatformSettings {
         id: ID!
         platformName: String!
+        whatsappNumber: String
         defaultCommissionRate: Float!
         showVendorContact: Boolean!
         vendorContactFields: JSON
@@ -391,6 +392,7 @@ export const commonApiExtensions = `
 
     input UpdatePlatformSettingsInput {
         platformName: String
+        whatsappNumber: String
         defaultCommissionRate: Float
         showVendorContact: Boolean
         vendorContactFields: JSON

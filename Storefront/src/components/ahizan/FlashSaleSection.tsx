@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Clock, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useThemeSettings } from '@/components/providers/theme-provider';
+import { useLocation } from '@/contexts/location-context';
 
 interface FlashSaleSectionProps {
     config: any;
@@ -22,29 +23,58 @@ interface FlashSaleSectionProps {
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
 export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps) {
+    const hasExplicitCountdown = !activeFlash?.isUnlimited && 
+        activeFlash?.showCountdown !== false && 
+        Boolean(activeFlash?.countdownEnd || activeFlash?.endTime);
+
     let endTimeStr = activeFlash?.countdownEnd || activeFlash?.endTime;
     let endMs = typeof endTimeStr === 'string' && endTimeStr.trim().length > 0 ? new Date(endTimeStr).getTime() : NaN;
     
-    // If date is missing or in the past, provide an active 24h rolling countdown fallback so the section never disappears unexpectedly
-    if (isNaN(endMs) || endMs <= Date.now()) {
+    if (hasExplicitCountdown && (isNaN(endMs) || endMs <= Date.now())) {
         if (activeFlash?.forceHideWhenExpired === true) {
             return null;
         }
-        const fallbackEnd = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        endTimeStr = fallbackEnd.toISOString();
-        endMs = fallbackEnd.getTime();
     }
 
+    const { selectedLocation } = useLocation();
+    const [clientLoc, setClientLoc] = useState<any>(selectedLocation || null);
     const [flashProducts, setFlashProducts] = useState<any[]>([]);
     const iconValue = activeFlash?.icon || '⚡';
     const DynamicIcon = (LucideIcons as any)[iconValue];
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState({ h: '00', m: '00', s: '00' });
-    const [clientLoc, setClientLoc] = useState<any>(null);
     const themeSettings = useThemeSettings();
     const defaultImage = themeSettings?.defaultProductImage;
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Synchronize client location from context or localStorage
+    useEffect(() => {
+        if (selectedLocation) {
+            setClientLoc(selectedLocation);
+        } else if (typeof window !== 'undefined') {
+            try {
+                const savedLoc = localStorage.getItem('ahizan_client_location');
+                if (savedLoc) setClientLoc(JSON.parse(savedLoc));
+            } catch (_) {}
+        }
+    }, [selectedLocation]);
+
+    // Listen to real-time location changes across the platform (e.g. city selector modal)
+    useEffect(() => {
+        const handleLocationChange = () => {
+            try {
+                const saved = localStorage.getItem('ahizan_client_location');
+                if (saved) {
+                    setClientLoc(JSON.parse(saved));
+                } else {
+                    setClientLoc(null);
+                }
+            } catch (_) {}
+        };
+        window.addEventListener('ahizan_location_changed', handleLocationChange);
+        return () => window.removeEventListener('ahizan_location_changed', handleLocationChange);
+    }, []);
 
     const scroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
@@ -54,8 +84,32 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         }
     };
 
+    // Calculate smart view all link preserving collection, market and filters
+    const targetViewAllLink = useMemo(() => {
+        if (activeFlash?.viewAllLink && typeof activeFlash.viewAllLink === 'string' && activeFlash.viewAllLink.trim().length > 0) {
+            return activeFlash.viewAllLink.trim();
+        }
+        const params = new URLSearchParams();
+        if (activeFlash?.collectionSlug) {
+            params.set('collection', String(activeFlash.collectionSlug));
+        } else if (activeFlash?.collectionId) {
+            params.set('collectionId', String(activeFlash.collectionId));
+        } else if (Array.isArray(activeFlash?.filterCriteria?.collectionIds) && activeFlash.filterCriteria.collectionIds.length > 0) {
+            params.set('collectionId', activeFlash.filterCriteria.collectionIds.map(String).join(','));
+        } else if (Array.isArray(activeFlash?.collectionIds) && activeFlash.collectionIds.length > 0) {
+            params.set('collectionId', activeFlash.collectionIds.map(String).join(','));
+        }
+        if (activeFlash?.marketId) {
+            params.set('marketId', String(activeFlash.marketId));
+        } else if (activeFlash?.selectionType === 'LOCAL_MARKET' && clientLoc?.id) {
+            params.set('marketId', String(clientLoc.id));
+        }
+        const qs = params.toString();
+        return `/flash-deals${qs ? `?${qs}` : ''}`;
+    }, [activeFlash?.viewAllLink, activeFlash?.collectionSlug, activeFlash?.collectionId, activeFlash?.filterCriteria, activeFlash?.collectionIds, activeFlash?.marketId, activeFlash?.selectionType, clientLoc?.id]);
+
     useEffect(() => {
-        if (!endTimeStr || activeFlash.isUnlimited) return;
+        if (!hasExplicitCountdown || !endTimeStr) return;
         
         const updateTimer = () => {
             const now = new Date();
@@ -90,7 +144,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         updateTimer();
         const timer = setInterval(updateTimer, 1000);
         return () => clearInterval(timer);
-    }, [endTimeStr, activeFlash]);
+    }, [hasExplicitCountdown, endTimeStr, activeFlash]);
 
     const activeFlashStr = JSON.stringify(activeFlash);
 
@@ -98,14 +152,28 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         const activeFlashObj = activeFlashStr ? JSON.parse(activeFlashStr) : null;
         if (!activeFlashObj) return;
 
-        const savedLoc = typeof window !== 'undefined' ? localStorage.getItem('ahizan_client_location') : null;
-        const locObj = savedLoc ? JSON.parse(savedLoc) : null;
-        setClientLoc(locObj);
-
+        const locObj = clientLoc;
         const isLocalMode = activeFlashObj.selectionType === 'LOCAL_NEIGHBORHOOD' || activeFlashObj.selectionType === 'LOCAL_MARKET';
-        const isManualMode = activeFlashObj.selectionType === 'MANUAL' && activeFlashObj.manualProductIds?.length > 0;
-        const isFilterMode = !isLocalMode && !isManualMode;
-        
+        const isManualMode = activeFlashObj.selectionType === 'MANUAL';
+        const manualProductIds = (activeFlashObj.manualProductIds || []).map(String).filter(Boolean);
+        const collectionIds = (activeFlashObj.filterCriteria?.collectionIds || activeFlashObj.collectionIds || []).map(String).filter(Boolean);
+        const collectionSlug = activeFlashObj.collectionSlug || activeFlashObj.filterCriteria?.collectionSlug;
+
+        // 1. Strict Empty Check:
+        // If in FILTER mode (or default) and NO collections are selected -> DO NOT show random products.
+        if (!isLocalMode && !isManualMode && collectionIds.length === 0 && !collectionSlug) {
+            setFlashProducts([]);
+            setLoading(false);
+            return;
+        }
+
+        // If in MANUAL mode and NO product IDs -> show nothing.
+        if (isManualMode && manualProductIds.length === 0) {
+            setFlashProducts([]);
+            setLoading(false);
+            return;
+        }
+
         if (isLocalMode && !locObj && activeFlashObj.unconfirmedLocationBehavior === 'hide_completely') {
             setFlashProducts([]);
             setLoading(false);
@@ -115,209 +183,340 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         setLoading(true);
         setErrorMsg(null);
 
-        const variables: any = {};
-        if (isLocalMode && locObj) {
-            if (activeFlashObj.selectionType === 'LOCAL_MARKET' || locObj.type === 'MARKET') {
-                variables.marketId = locObj.id;
-            } else {
-                variables.locationId = locObj.id;
-            }
-        }
-
-        const flashVendorsQuery = `
-            query GetFlashVendors($marketId: ID, $locationId: ID) {
-                vendors(
-                    marketId: $marketId, 
-                    locationId: $locationId, 
-                    options: { filter: { status: { eq: "APPROVED" } }, take: 100 }
-                ) {
-                    items {
-                        id
-                        name
-                        location { id name }
-                        physicalMarket { id name }
-                        products {
-                            id
-                            name
-                            slug
-                            featuredAsset { id preview }
-                            assets { id preview }
-                            collections { id }
-                            customFields { approvalStatus }
-                            variants {
-                                id
-                                name
-                                priceWithTax
-                                featuredAsset { id preview }
-                                options {
-                                    id
-                                    name
-                                    code
-                                    group { id name }
-                                }
-                                customFields {
-                                    compareAtPrice
-                                    onPromotion
-                                    promotionalPrice
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        `;
-
-        const flashCatalogQuery = `
-            query GetFlashCatalogProducts($options: ProductListOptions) {
-                products(options: $options) {
-                    items {
-                        id
-                        name
-                        slug
-                        featuredAsset { id preview }
-                        assets { id preview }
-                        collections { id name slug }
-                        customFields {
-                            approvalStatus
-                            vendor {
-                                id
-                                name
-                                location { id name }
-                                physicalMarket { id name }
-                            }
-                        }
-                        variants {
-                            id
-                            name
-                            priceWithTax
-                            stockLevel
-                            featuredAsset { id preview }
-                            options {
-                                id
-                                name
-                                code
-                                group { id name }
-                            }
-                            customFields {
-                                compareAtPrice
-                                onPromotion
-                                promotionalPrice
-                            }
-                        }
-                    }
-                }
-            }
-        `;
+        const targetMarketId = locObj?.marketId || (locObj?.type === 'MARKET' && locObj?.id && !isNaN(Number(locObj.id)) ? String(locObj.id) : undefined);
+        const targetLocationId = locObj?.geoZoneId || (locObj?.type !== 'MARKET' && locObj?.id && locObj.id !== 'gps_raw' && !isNaN(Number(locObj.id)) ? String(locObj.id) : undefined);
+        const userLat = locObj?.latitude != null && !isNaN(Number(locObj.latitude)) ? Number(locObj.latitude) : undefined;
+        const userLon = locObj?.longitude != null && !isNaN(Number(locObj.longitude)) ? Number(locObj.longitude) : undefined;
 
         const shopApiUrl = getShopApiUrl();
-        fetchWithClientCache(shopApiUrl, flashVendorsQuery, variables)
-            .then(async (data) => {
-                let vendorsList = data?.vendors?.items || [];
 
-                // Fallback 1: If local market/location filter had 0 vendors, fallback to all approved vendors
-                if (vendorsList.length === 0 && (variables.marketId || variables.locationId)) {
-                    try {
-                        const allData = await fetchWithClientCache(shopApiUrl, flashVendorsQuery, {});
-                        vendorsList = allData?.vendors?.items || [];
-                    } catch (_) {}
-                }
+        const loadProducts = async () => {
+            try {
+                let baseItems: any[] = [];
 
-                const collectionIds = (activeFlashObj.filterCriteria?.collectionIds || []).map(String);
-                const manualProductIds = (activeFlashObj.manualProductIds || []).map(String);
-
-                const rawPairs: any[] = [];
-                for (const v of (vendorsList || [])) {
-                    for (const p of (v.products || [])) {
-                        if (p.customFields?.approvalStatus) {
-                            const status = String(p.customFields.approvalStatus).toLowerCase();
-                            if (status === 'pending' || status === 'rejected' || status === 'refused') continue;
-                        }
-
-                        // Filter by collections if in filter mode
-                        if (isFilterMode && collectionIds.length > 0) {
-                            const hasMatchingCollection = (p.collections || []).some((c: any) => collectionIds.includes(String(c.id)));
-                            if (!hasMatchingCollection) continue;
-                        }
-
-                        // Filter by manual product IDs if in manual mode
-                        if (isManualMode && manualProductIds.length > 0) {
-                            if (!manualProductIds.includes(String(p.id))) continue;
-                        }
-
-                        rawPairs.push({
-                            ...p,
-                            productId: p.id,
-                            featuredAsset: p.featuredAsset || p.assets?.[0],
-                            productAsset: p.featuredAsset || p.assets?.[0],
-                            vendorId: v.id,
-                            vendorName: v.name,
-                            marketName: v.physicalMarket?.name || null,
-                            marketId: v.physicalMarket?.id || null,
-                            locationName: v.location?.name || null,
-                            locationId: v.location?.id || null,
-                            customFields: {
-                                ...(p.customFields || {}),
-                                vendor: {
-                                    id: v.id,
-                                    name: v.name,
-                                    physicalMarket: v.physicalMarket,
-                                    location: v.location,
+                if (isManualMode) {
+                    const manualQuery = `
+                        query GetManualFlashProducts($ids: [ID!]!) {
+                            products(options: { filter: { id: { in: $ids } } }) {
+                                items {
+                                    id
+                                    name
+                                    slug
+                                    featuredAsset { id preview }
+                                    assets { id preview }
+                                    variants {
+                                        id
+                                        name
+                                        priceWithTax
+                                        featuredAsset { id preview }
+                                        options { id name code group { id name } }
+                                    }
                                 }
                             }
-                        });
-                    }
-                }
-
-                // Fallback 2: If vendors.products was empty, load from catalog products
-                if (rawPairs.length === 0) {
-                    try {
-                        const catalogData = await fetchWithClientCache(shopApiUrl, flashCatalogQuery, { options: { take: 100 } });
-                        const catalogItems = catalogData?.products?.items || [];
-
-                        for (const p of catalogItems) {
-                            if (p.customFields?.approvalStatus) {
-                                const status = String(p.customFields.approvalStatus).toLowerCase();
-                                if (status === 'pending' || status === 'rejected' || status === 'refused') continue;
-                            }
-
-                            if (isFilterMode && collectionIds.length > 0) {
-                                const hasMatchingCollection = (p.collections || []).some((c: any) => collectionIds.includes(String(c.id)));
-                                if (!hasMatchingCollection) continue;
-                            }
-
-                            if (isManualMode && manualProductIds.length > 0) {
-                                if (!manualProductIds.includes(String(p.id))) continue;
-                            }
-
-                            const v = p.customFields?.vendor;
-                            rawPairs.push({
-                                ...p,
+                        }
+                    `;
+                    const res = await fetchWithClientCache(shopApiUrl, manualQuery, { ids: manualProductIds });
+                    const pList = res?.products?.items || [];
+                    for (const p of pList) {
+                        for (const vr of (p.variants || [])) {
+                            baseItems.push({
                                 productId: p.id,
-                                featuredAsset: p.featuredAsset || p.assets?.[0],
+                                id: p.id,
+                                name: p.name,
+                                slug: p.slug,
+                                featuredAsset: vr.featuredAsset || p.featuredAsset || p.assets?.[0],
                                 productAsset: p.featuredAsset || p.assets?.[0],
-                                vendorId: v?.id || null,
-                                vendorName: v?.name || null,
-                                marketName: v?.physicalMarket?.name || null,
-                                marketId: v?.physicalMarket?.id || null,
-                                locationName: v?.location?.name || null,
-                                locationId: v?.location?.id || null,
-                                customFields: p.customFields,
+                                productVariantId: vr.id,
+                                productVariantName: vr.name,
+                                variants: [vr],
+                                priceWithTax: { __typename: 'SinglePrice', value: vr.priceWithTax },
+                                inStock: true,
                             });
                         }
-                    } catch (catErr) {
-                        console.warn('Fallback catalog fetch error in FlashSaleSection:', catErr);
+                    }
+                } else if (!isLocalMode) {
+                    // FILTER MODE: Strictly fetch items for the configured collection(s)
+                    const searchFlashQuery = `
+                        query GetFlashSearchProducts($input: SearchInput!) {
+                            search(input: $input) {
+                                items {
+                                    productId
+                                    productVariantId
+                                    productName
+                                    productVariantName
+                                    slug
+                                    productAsset { id preview }
+                                    productVariantAsset { id preview }
+                                    priceWithTax {
+                                        __typename
+                                        ... on SinglePrice { value }
+                                        ... on PriceRange { min max }
+                                    }
+                                    currencyCode
+                                    inStock
+                                }
+                            }
+                        }
+                    `;
+
+                    if (collectionIds.length > 0) {
+                        const searchPromises = collectionIds.map((cId: string) => 
+                            fetchWithClientCache(shopApiUrl, searchFlashQuery, { 
+                                input: { collectionId: cId, take: 50, groupByProduct: false } 
+                            }).catch(() => null)
+                        );
+                        const results = await Promise.all(searchPromises);
+                        const seenKeys = new Set<string>();
+                        for (const r of results) {
+                            const items = r?.search?.items || [];
+                            for (const item of items) {
+                                const key = `${item.productId}-${item.productVariantId}`;
+                                if (!seenKeys.has(key)) {
+                                    seenKeys.add(key);
+                                    baseItems.push({
+                                        productId: item.productId,
+                                        productVariantId: item.productVariantId,
+                                        id: item.productId,
+                                        name: item.productName,
+                                        productName: item.productName,
+                                        productVariantName: item.productVariantName,
+                                        slug: item.slug,
+                                        featuredAsset: item.productAsset || item.productVariantAsset,
+                                        productAsset: item.productAsset,
+                                        productVariantAsset: item.productVariantAsset,
+                                        variants: [{
+                                            id: item.productVariantId,
+                                            name: item.productVariantName || item.productName,
+                                            priceWithTax: item.priceWithTax?.value ?? item.priceWithTax?.min ?? 0,
+                                            featuredAsset: item.productVariantAsset || item.productAsset,
+                                        }],
+                                        priceWithTax: item.priceWithTax,
+                                        inStock: item.inStock !== false,
+                                    });
+                                }
+                            }
+                        }
+                    } else if (collectionSlug) {
+                        const r = await fetchWithClientCache(shopApiUrl, searchFlashQuery, { 
+                            input: { collectionSlug, take: 50, groupByProduct: false } 
+                        });
+                        const items = r?.search?.items || [];
+                        for (const item of items) {
+                            baseItems.push({
+                                productId: item.productId,
+                                productVariantId: item.productVariantId,
+                                id: item.productId,
+                                name: item.productName,
+                                productName: item.productName,
+                                productVariantName: item.productVariantName,
+                                slug: item.slug,
+                                featuredAsset: item.productAsset || item.productVariantAsset,
+                                productAsset: item.productAsset,
+                                productVariantAsset: item.productVariantAsset,
+                                variants: [{
+                                    id: item.productVariantId,
+                                    name: item.productVariantName || item.productName,
+                                    priceWithTax: item.priceWithTax?.value ?? item.priceWithTax?.min ?? 0,
+                                    featuredAsset: item.productVariantAsset || item.productAsset,
+                                }],
+                                priceWithTax: item.priceWithTax,
+                                inStock: item.inStock !== false,
+                            });
+                        }
+                    }
+                } else {
+                    // LOCAL MODE (Local Market or Neighborhood)
+                    const localQuery = `
+                        query GetLocalFlashVendors($marketId: ID, $locationId: ID) {
+                            vendors(marketId: $marketId, locationId: $locationId, options: { filter: { status: { eq: "APPROVED" } }, take: 100 }) {
+                                items {
+                                    id
+                                    name
+                                    location { id name }
+                                    physicalMarket { id name }
+                                    products {
+                                        id
+                                        name
+                                        slug
+                                        featuredAsset { id preview }
+                                        assets { id preview }
+                                        collections { id }
+                                        variants {
+                                            id
+                                            name
+                                            priceWithTax
+                                            featuredAsset { id preview }
+                                            options { id name code group { id name } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    `;
+                    const res = await fetchWithClientCache(shopApiUrl, localQuery, { 
+                        marketId: targetMarketId, 
+                        locationId: targetLocationId 
+                    });
+                    const vendors = res?.vendors?.items || [];
+                    for (const v of vendors) {
+                        for (const p of (v.products || [])) {
+                            for (const vr of (p.variants || [])) {
+                                baseItems.push({
+                                    productId: p.id,
+                                    id: p.id,
+                                    name: p.name,
+                                    slug: p.slug,
+                                    featuredAsset: vr.featuredAsset || p.featuredAsset || p.assets?.[0],
+                                    productAsset: p.featuredAsset || p.assets?.[0],
+                                    productVariantId: vr.id,
+                                    productVariantName: vr.name,
+                                    vendorId: v.id,
+                                    vendorName: v.name,
+                                    marketName: v.physicalMarket?.name,
+                                    marketId: v.physicalMarket?.id,
+                                    locationName: v.location?.name,
+                                    locationId: v.location?.id,
+                                    variants: [vr],
+                                    priceWithTax: { __typename: 'SinglePrice', value: vr.priceWithTax },
+                                    inStock: true,
+                                    customFields: {
+                                        vendor: v,
+                                    }
+                                });
+                            }
+                        }
                     }
                 }
 
-                let resolved = processAndResolveDisplayItems(rawPairs, {
+                if (baseItems.length === 0) {
+                    setFlashProducts([]);
+                    setLoading(false);
+                    return;
+                }
+
+                // 2. Expand strictly selected base items with seller offers
+                const variantIds = Array.from(
+                    new Set(baseItems.map(i => i.productVariantId || i.id).filter(Boolean))
+                );
+
+                let rawCandidates: any[] = [];
+
+                if (variantIds.length > 0) {
+                    try {
+                        const sellerOffersQuery = `
+                            query GetFlashSellerOffers($variantIds: [ID!]!) {
+                                sellerOffersForVariants(variantIds: $variantIds) {
+                                    id
+                                    price
+                                    stock
+                                    onPromotion
+                                    promotionalPrice
+                                    condition
+                                    deliveryTimeValue
+                                    deliveryTimeUnit
+                                    vendor {
+                                        id
+                                        name
+                                        phoneNumber
+                                        latitude
+                                        longitude
+                                        verificationStatus
+                                        rating
+                                        ratingCount
+                                        logo { preview }
+                                        location { id name }
+                                        physicalMarket { id name }
+                                    }
+                                    productVariant {
+                                        id
+                                        name
+                                        sku
+                                        featuredAsset { id preview }
+                                        options { id name code group { id name } }
+                                        product {
+                                            id
+                                            name
+                                            slug
+                                            featuredAsset { id preview }
+                                        }
+                                    }
+                                }
+                            }
+                        `;
+                        const offersRes = await fetchWithClientCache(shopApiUrl, sellerOffersQuery, { variantIds });
+                        const offers: any[] = offersRes?.sellerOffersForVariants || [];
+
+                        for (const item of baseItems) {
+                            const vId = String(item.productVariantId || item.id);
+                            const matchingOffers = offers.filter(
+                                o => String(o.productVariant?.id) === vId && o.vendor?.id
+                            );
+
+                            if (matchingOffers.length > 0) {
+                                for (const off of matchingOffers) {
+                                    rawCandidates.push({
+                                        ...item,
+                                        productId: item.productId || off.productVariant?.product?.id,
+                                        productName: item.productName || off.productVariant?.product?.name,
+                                        productVariantId: vId,
+                                        productVariantName: off.productVariant?.name || item.productVariantName,
+                                        productVariant: off.productVariant || item.productVariant,
+                                        sku: off.productVariant?.sku || item.sku,
+                                        vendorId: off.vendor?.id,
+                                        vendorName: off.vendor?.name,
+                                        marketName: off.vendor?.physicalMarket?.name,
+                                        marketId: off.vendor?.physicalMarket?.id,
+                                        locationName: off.vendor?.location?.name,
+                                        locationId: off.vendor?.location?.id,
+                                        latitude: off.vendor?.latitude,
+                                        longitude: off.vendor?.longitude,
+                                        price: off.price,
+                                        promotionalPrice: off.promotionalPrice,
+                                        onPromotion: off.onPromotion,
+                                        stock: off.stock,
+                                        condition: off.condition,
+                                        deliveryTimeValue: off.deliveryTimeValue,
+                                        deliveryTimeUnit: off.deliveryTimeUnit,
+                                        vendor: off.vendor,
+                                        options: off.productVariant?.options || item.options,
+                                        customFields: {
+                                            ...(item.customFields || {}),
+                                            vendor: off.vendor,
+                                            onPromotion: off.onPromotion,
+                                            promotionalPrice: off.promotionalPrice,
+                                        }
+                                    });
+                                }
+                            } else {
+                                // Default catalog variant if no seller offer
+                                rawCandidates.push(item);
+                            }
+                        }
+                    } catch (offerErr) {
+                        console.warn('Error fetching seller offers for flash sale:', offerErr);
+                        rawCandidates = baseItems;
+                    }
+                } else {
+                    rawCandidates = baseItems;
+                }
+
+                // 3. Score candidates with GeoEngine based on user's active location
+                let resolved = processAndResolveDisplayItems(rawCandidates, {
                     experienceStrategy: 'FLASH_SALE',
-                    marketId: variables.marketId,
-                    locationId: variables.locationId,
+                    pageType: 'FLASH_SALE',
+                    userLocation: locObj,
+                    userLat,
+                    userLon,
+                    marketId: targetMarketId,
+                    locationId: targetLocationId,
+                    communeName: locObj?.commune || locObj?.name,
+                    boostCertifiedVendors: true,
                     requirePromotion: false,
-                    requireVariantsWithOptions: true,
+                    requireVariantsWithOptions: false,
                     maxVariantsPerCentralProduct: 2,
                 });
 
+                // 4. Apply price filters if configured
                 if (activeFlashObj.filterCriteria) {
                     const { minPrice, maxPrice } = activeFlashObj.filterCriteria;
                     if (minPrice > 0 || maxPrice > 0) {
@@ -333,17 +532,20 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 const rawLimit = activeFlashObj.filterCriteria?.take ?? activeFlashObj.limit ?? activeFlashObj.take ?? 12;
                 const limit = Number(rawLimit) > 0 ? Number(rawLimit) : 12;
                 setFlashProducts(resolved.slice(0, limit));
-                setLoading(false);
-            })
-            .catch(err => {
+            } catch (err) {
                 console.error('Fetch error for flash sale:', err);
                 setErrorMsg('Erreur lors du chargement des ventes flash.');
+            } finally {
                 setLoading(false);
-            });
-    }, [activeFlashStr]);
+            }
+        };
 
-    const now = new Date();
-    // Do not hide section silently when products are loading or empty
+        loadProducts();
+    }, [activeFlashStr, clientLoc]);
+
+    if (!loading && flashProducts.length === 0) {
+        return null;
+    }
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-6 duration-500 relative group/carousel">
@@ -364,22 +566,31 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         >
                             <span>{activeFlash?.icon || '🛍️'}</span> {activeFlash?.title || "Ventes Flash"}
                         </h2>
-                        {!activeFlash.isUnlimited && (
-                            <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Expire dans:</span>
-                                <div 
-                                    className="flex items-center gap-1 font-black text-xs sm:text-sm"
-                                    style={{ color: activeFlash.accentColor || activeFlash.badgeBgColor || 'var(--primary)' }}
-                                >
-                                    <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.h}</span>:
-                                    <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.m}</span>:
-                                    <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.s}</span>
+                        <div className="flex items-center gap-3">
+                            {hasExplicitCountdown && (
+                                <div className="flex items-center gap-2 bg-muted/60 px-3 py-1.5 rounded-xl border border-border">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Expire dans:</span>
+                                    <div 
+                                        className="flex items-center gap-1 font-black text-xs sm:text-sm"
+                                        style={{ color: activeFlash.accentColor || activeFlash.badgeBgColor || 'var(--primary)' }}
+                                    >
+                                        <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.h}</span>:
+                                        <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.m}</span>:
+                                        <span className="bg-card px-1.5 py-0.5 rounded shadow-2xs">{timeLeft.s}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                            <Link 
+                                href={targetViewAllLink}
+                                className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
+                            >
+                                <span>VOIR TOUT</span>
+                                <ChevronRight className="w-4 h-4" />
+                            </Link>
+                        </div>
                     </div>
                     <p className="font-medium text-xs sm:text-sm mt-1 max-w-2xl text-muted-foreground">
-                        {activeFlash?.subtitle || "Profitez de nos remises exceptionnelles en cours d'expiration"}
+                        {activeFlash?.subtitle || "Profitez de nos remises exceptionnelles du moment"}
                     </p>
                     <div 
                         className="h-1 w-16 mt-3 rounded-full" 
@@ -393,6 +604,11 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         alt="" 
                         className="w-full h-auto object-cover max-h-[350px] rounded-t-xl" 
                     />
+                    <div className="absolute top-4 right-4 z-10">
+                        <Button variant="outline" size="sm" asChild className="bg-black/60 text-white border-white/20 hover:bg-white hover:text-black font-black">
+                            <Link href={targetViewAllLink}>TOUT VOIR <ChevronRight className="w-4 h-4 ml-1" /></Link>
+                        </Button>
+                    </div>
                 </div>
             ) : (
                 <div 
@@ -443,8 +659,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         </div>
                     </div>
 
-                    {!activeFlash.isSimpleMode && !activeFlash.isUnlimited && (
-                        <div className="ml-auto flex items-center gap-2 sm:gap-4 relative z-10 flex-shrink-0">
+                    <div className="ml-auto flex items-center gap-2 sm:gap-4 relative z-10 flex-shrink-0">
+                        {hasExplicitCountdown && (
                             <div className="flex items-center gap-1.5 sm:gap-2">
                                 <span className={`text-[10px] font-black uppercase tracking-widest hidden sm:block ${
                                     activeFlash.isSimpleMode ? 'text-muted-foreground' : 'text-white/60'
@@ -459,29 +675,20 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     <span className={`${activeFlash.isSimpleMode ? 'bg-muted' : 'bg-white/10 border border-white/20'} px-1 sm:px-2 py-0.5 sm:py-1 rounded min-w-[22px] sm:min-w-[32px] text-center`}>{timeLeft.s}</span>
                                 </div>
                             </div>
-                            
-                            <Button 
-                                variant={activeFlash.isSimpleMode ? "link" : "outline"} 
-                                size="sm" 
-                                asChild 
-                                className={activeFlash.isSimpleMode 
-                                    ? "text-primary font-black p-0 h-auto" 
-                                    : "bg-white/10 text-white border-white/20 hover:bg-white hover:text-black font-black hidden md:flex"
-                                }
-                            >
-                                <Link href="/search?sales=true">TOUT VOIR</Link>
-                            </Button>
-                        </div>
-                    )}
-                    
-                    {/* Fallback View All for Simple Mode or Unlimited Mode */}
-                    {(activeFlash.isSimpleMode || activeFlash.isUnlimited) && (
-                        <div className="relative z-10">
-                            <Button variant="link" asChild className={activeFlash.isSimpleMode ? "text-primary font-black p-0 h-auto" : "bg-white/10 text-white border-white/20 hover:bg-white hover:text-black font-black p-0 h-auto"}>
-                                <Link href="/search?sales=true">TOUT VOIR <ChevronRight className="w-4 h-4 ml-1" /></Link>
-                            </Button>
-                        </div>
-                    )}
+                        )}
+                        
+                        <Button 
+                            variant={activeFlash.isSimpleMode ? "link" : "outline"} 
+                            size="sm" 
+                            asChild 
+                            className={activeFlash.isSimpleMode 
+                                ? "text-primary font-black p-0 h-auto" 
+                                : "bg-white/10 text-white border-white/20 hover:bg-white hover:text-black font-black text-xs"
+                            }
+                        >
+                            <Link href={targetViewAllLink}>TOUT VOIR <ChevronRight className="w-4 h-4 ml-1" /></Link>
+                        </Button>
+                    </div>
                 </div>
             )}
 

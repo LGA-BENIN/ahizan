@@ -34,8 +34,8 @@ export class LikeService {
             const customer = await this.connection.getRepository(ctx, Customer).findOne({ where: { id: numericCustomerId } });
             const product = await this.connection.getRepository(ctx, Product).findOne({ where: { id: numericProductId } });
 
-            if (!customer || !product) {
-                throw new Error(`Customer or Product not found to create like`);
+            if (!customer || !product || product.deletedAt || product.enabled === false) {
+                throw new Error(`Customer or active Product not found to create like`);
             }
 
             const newLike = new ProductLike({
@@ -92,12 +92,15 @@ export class LikeService {
         const numericCustomerId = Number(customerId);
         const numericProductId = Number(productId);
 
-        const count = await this.connection.getRepository(ctx, ProductLike).count({
-            where: {
-                customer: { id: numericCustomerId },
-                product: { id: numericProductId },
-            },
-        });
+        const count = await this.connection.getRepository(ctx, ProductLike)
+            .createQueryBuilder('like')
+            .innerJoin('like.product', 'product')
+            .where('like.customerId = :customerId', { customerId: numericCustomerId })
+            .andWhere('like.productId = :productId', { productId: numericProductId })
+            .andWhere('product.deletedAt IS NULL')
+            .andWhere('product.enabled = :enabled', { enabled: true })
+            .getCount();
+
         return count > 0;
     }
 
@@ -122,11 +125,13 @@ export class LikeService {
      */
     async getProductLikesCount(ctx: RequestContext, productId: ID): Promise<number> {
         const numericProductId = Number(productId);
-        return this.connection.getRepository(ctx, ProductLike).count({
-            where: {
-                product: { id: numericProductId },
-            },
-        });
+        return this.connection.getRepository(ctx, ProductLike)
+            .createQueryBuilder('like')
+            .innerJoin('like.product', 'product')
+            .where('like.productId = :productId', { productId: numericProductId })
+            .andWhere('product.deletedAt IS NULL')
+            .andWhere('product.enabled = :enabled', { enabled: true })
+            .getCount();
     }
 
     /**
@@ -158,7 +163,7 @@ export class LikeService {
         });
 
         return {
-            items: likes.map(l => l.customer).filter(Boolean),
+            items: likes.map((l: VendorLike) => l.customer).filter(Boolean),
             totalItems,
         };
     }
@@ -180,29 +185,38 @@ export class LikeService {
         });
 
         return {
-            items: likes.map(l => l.vendor).filter(Boolean),
+            items: likes.map((l: VendorLike) => l.vendor).filter(Boolean),
             totalItems,
         };
     }
 
     /**
-     * Get list of products liked by a specific Customer
+     * Get list of products liked by a specific Customer (excluding soft-deleted & disabled products)
      */
     async getLikedProductsForCustomer(ctx: RequestContext, customerId: ID, options?: any): Promise<{ items: Product[]; totalItems: number }> {
         const numericCustomerId = Number(customerId);
         const skip = options?.skip || 0;
         const take = options?.take || 10;
 
-        const [likes, totalItems] = await this.connection.getRepository(ctx, ProductLike).findAndCount({
-            where: { customer: { id: numericCustomerId } },
-            relations: ['product', 'product.featuredAsset', 'product.variants', 'product.translations'],
-            skip,
-            take,
-            order: { createdAt: 'DESC' },
-        });
+        const [likes, totalItems] = await this.connection.getRepository(ctx, ProductLike)
+            .createQueryBuilder('like')
+            .innerJoinAndSelect('like.product', 'product')
+            .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
+            .leftJoinAndSelect('product.variants', 'variants')
+            .leftJoinAndSelect('product.translations', 'translations')
+            .where('like.customerId = :customerId', { customerId: numericCustomerId })
+            .andWhere('product.deletedAt IS NULL')
+            .andWhere('product.enabled = :enabled', { enabled: true })
+            .orderBy('like.createdAt', 'DESC')
+            .skip(skip)
+            .take(take)
+            .getManyAndCount();
 
-        const products = likes.map(l => l.product).filter(Boolean);
-        const translatedProducts = products.map(product => this.translator.translate(product, ctx));
+        const validProducts: Product[] = likes
+            .map((l: ProductLike) => l.product)
+            .filter((product: Product): product is Product => Boolean(product && !product.deletedAt && product.enabled !== false));
+            
+        const translatedProducts = validProducts.map((product: Product) => this.translator.translate(product, ctx));
 
         return {
             items: translatedProducts,

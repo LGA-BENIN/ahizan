@@ -18,6 +18,10 @@ import { SmartVisualGridSection } from "./SmartGrid/SmartVisualGridSection";
 import { FreeformBuilderSection } from './FreeformBuilderSection';
 import MarketInfoRenderer from "@/components/cms/MarketInfoRenderer";
 import { LocalPersonalizedProducts } from "@/components/cms/LocalPersonalizedProducts";
+import { LocalVendorsProximitySection } from "@/components/cms/LocalVendorsProximitySection";
+import { LocalMarketsProximitySection } from "@/components/cms/LocalMarketsProximitySection";
+import { LocalNeighborhoodsProximitySection } from "@/components/cms/LocalNeighborhoodsProximitySection";
+import { LocalCascadeEngineSection } from "@/components/cms/LocalCascadeEngineSection";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Script from "next/script";
 import { useLocation } from "@/contexts/location-context";
@@ -351,6 +355,41 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             return (
                 <section className={`${wrapper} mt-2 md:mt-3`}>
                     <LocalPersonalizedProducts config={config} />
+                </section>
+            );
+        }
+
+        case 'LOCAL_VENDORS':
+        case 'LOCAL_VENDORS_SECTION': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <LocalVendorsProximitySection config={config} />
+                </section>
+            );
+        }
+
+        case 'LOCAL_MARKETS':
+        case 'LOCAL_MARKETS_SECTION': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <LocalMarketsProximitySection config={config} />
+                </section>
+            );
+        }
+
+        case 'LOCAL_NEIGHBORHOODS':
+        case 'LOCAL_NEIGHBORHOODS_SECTION': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <LocalNeighborhoodsProximitySection config={config} />
+                </section>
+            );
+        }
+
+        case 'LOCAL_CASCADE_ENGINE': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <LocalCascadeEngineSection config={config} />
                 </section>
             );
         }

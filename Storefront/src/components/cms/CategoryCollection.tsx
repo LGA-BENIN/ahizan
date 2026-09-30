@@ -7,11 +7,14 @@ export interface CategoryCollectionProps {
     title?: string;
     subtitle?: string;
     description?: string;
-    layout?: 'carousel' | 'grid' | string;
+    layout?: 'carousel' | 'grid' | 'list' | string;
     columnsDesktop?: number;
     columnsMobile?: number;
     limit?: number;
+    take?: number;
     categories?: any[];
+    autoplaySpeed?: number | string;
+    cardStyle?: string;
     [key: string]: any;
 }
 
@@ -20,7 +23,18 @@ export interface CategoryCollectionProps {
  * Remplaçant unique pour les grilles et carrousels de catégories.
  */
 export function CategoryCollection(props: CategoryCollectionProps) {
-    const { title, subtitle, description, layout = 'carousel', categories, limit = 12 } = props;
+    const { 
+        title, 
+        subtitle, 
+        description, 
+        layout = 'carousel', 
+        categories, 
+        limit = 12,
+        take,
+        autoplaySpeed = 0,
+        cardStyle = 'standard',
+        columnsDesktop = 6,
+    } = props;
 
     const validLayout = (layout === 'grid' || layout === 'list' || layout === 'carousel') ? layout : 'carousel';
 
@@ -28,9 +42,14 @@ export function CategoryCollection(props: CategoryCollectionProps) {
         <CategoryGrid
             title={title}
             description={subtitle || description}
-            layout={validLayout}
+            layout={validLayout as any}
             categories={categories}
-            take={limit}
+            take={take || limit}
+            autoplaySpeed={autoplaySpeed}
+            cardStyle={cardStyle}
+            columnsDesktop={columnsDesktop}
         />
     );
 }
+
+export default CategoryCollection;

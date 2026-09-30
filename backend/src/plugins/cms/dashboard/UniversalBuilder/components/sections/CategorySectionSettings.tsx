@@ -58,6 +58,7 @@ export const CategorySectionSettings = ({ data, onSave }: CategorySectionSetting
             title: 'Nos Catégories',
             subtitle: '',
             layout: 'grid',
+            autoplaySpeed: 0,
             columnsDesktop: 6,
             columnsTablet: 3,
             columnsMobile: 2,
@@ -159,6 +160,28 @@ export const CategorySectionSettings = ({ data, onSave }: CategorySectionSetting
                             </select>
                         </div>
                     </div>
+
+                    {config.layout === 'carousel' && (
+                        <div style={{ marginTop: '0.5rem', padding: '10px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                            <label className="label-pro" style={{ color: '#0369a1', fontWeight: 'bold' }}>
+                                ⏱️ Vitesse de Défilement Automatique (Carrousel)
+                            </label>
+                            <select 
+                                className="input-pro" 
+                                value={config.autoplaySpeed || 0} 
+                                onChange={(e) => handleChange('autoplaySpeed', parseInt(e.target.value) || 0)}
+                            >
+                                <option value={0}>Désactivé (Défilement Manuel)</option>
+                                <option value={2500}>Très Rapide (2.5 secondes)</option>
+                                <option value={4000}>Rapide (4 secondes)</option>
+                                <option value={6000}>Normal (6 secondes)</option>
+                                <option value={8000}>Lent (8 secondes)</option>
+                            </select>
+                            <p style={{ fontSize: '11px', color: '#0284c7', margin: '4px 0 0 0' }}>
+                                Les flèches de navigation gauche/droite et le glissement tactile restent toujours actifs.
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
 

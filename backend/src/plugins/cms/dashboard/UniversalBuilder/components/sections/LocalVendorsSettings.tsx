@@ -161,6 +161,40 @@ export const LocalVendorsSettings = ({ data, onSave }: LocalVendorsSettingsProps
                 </div>
             </div>
 
+            {/* 🎬 Animations & Défilement */}
+            <div className="settings-card">
+                <div className="settings-card-header">🎬 Animations & Défilement Dynamique</div>
+                <div className="grid-3">
+                    <div>
+                        <label className="label-pro">Animation d'apparition</label>
+                        <select className="input-pro" value={config.animationType || 'fade-in'} onChange={(e) => handleChange('animationType', e.target.value)}>
+                            <option value="none">Aucune</option>
+                            <option value="fade-in">Fondu (Fade In)</option>
+                            <option value="slide-up">Glissement vers le haut (Slide Up)</option>
+                            <option value="zoom-in">Zoom In progressif</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Effet au survol (Hover)</label>
+                        <select className="input-pro" value={config.hoverEffect || 'lift'} onChange={(e) => handleChange('hoverEffect', e.target.value)}>
+                            <option value="none">Aucun</option>
+                            <option value="lift">Élévation & Ombre (Lift)</option>
+                            <option value="zoom">Zoom doux (Scale)</option>
+                            <option value="glow">Lueur / Glow</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Défilement auto (Carrousel)</label>
+                        <select className="input-pro" value={config.autoplaySpeed || '0'} onChange={(e) => handleChange('autoplaySpeed', e.target.value)}>
+                            <option value="0">Désactivé (Manuel)</option>
+                            <option value="3000">Rapide (3 secondes)</option>
+                            <option value="5000">Normal (5 secondes)</option>
+                            <option value="8000">Lent (8 secondes)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             {/* Couleurs & Habillage */}
             <div className="settings-card">
                 <div className="settings-card-header">🎨 Couleurs & Styles</div>

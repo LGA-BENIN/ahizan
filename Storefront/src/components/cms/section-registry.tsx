@@ -21,6 +21,8 @@ import { LocalVendorsProximitySection } from '@/components/cms/LocalVendorsProxi
 import { LocalMarketsProximitySection } from '@/components/cms/LocalMarketsProximitySection';
 import { LocalNeighborhoodsProximitySection } from '@/components/cms/LocalNeighborhoodsProximitySection';
 import { LocalCascadeEngineSection } from '@/components/cms/LocalCascadeEngineSection';
+import { MarketHeroBanner } from '@/components/cms/MarketHeroBanner';
+import { MarketProductSearch } from '@/components/cms/MarketProductSearch';
 
 /**
  * Le registre fait correspondre un "type" de section provenant du CMS Backend Vendure
@@ -59,6 +61,10 @@ export const sectionRegistry: Record<string, React.ComponentType<any>> = {
     'LOCAL_NEIGHBORHOODS': LocalNeighborhoodsProximitySection,
     'LOCAL_NEIGHBORHOODS_SECTION': LocalNeighborhoodsProximitySection,
     'LOCAL_CASCADE_ENGINE': LocalCascadeEngineSection,
+    'MARKET_HERO_BANNER': MarketHeroBanner,
+    'MARKET_IDENTITY_HERO': MarketHeroBanner,
+    'MARKET_SEARCH_BAR': MarketProductSearch,
+    'MARKET_PRODUCT_SEARCH': MarketProductSearch,
 };
 
 export function getSectionComponent(type: string): React.ComponentType<any> | null {

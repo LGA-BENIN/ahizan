@@ -74,7 +74,7 @@ const MASTER_ZONE_MAP = [
             { type: 'LOCAL_DISCOVERY_TABS', icon: '📑', label: 'Barre des 4 Onglets Locaux', mode: 'singleton' },
             { type: 'LOCAL_CASCADE_ENGINE', icon: '🎯', label: 'Moteur de Cascade de Proximité (Zone A, B, C)', mode: 'singleton' },
             { type: 'LOCAL_MARKETS_SECTION', icon: '🏪', label: 'Grille des Marchés Populaires', mode: 'multi' },
-            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Grille des Quartiers & Villes', mode: 'multi' },
+            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Grille des Quartiers', mode: 'multi' },
             { type: 'LOCAL_VENDORS_SECTION', icon: '🏬', label: 'Grille des Boutiques Certifiées', mode: 'multi' },
         ],
         allowedOn: ['local_discovery']
@@ -109,10 +109,12 @@ const MASTER_ZONE_MAP = [
     {
         zone: 'Commerce Local & Proximité Bénin',
         items: [
+            { type: 'MARKET_HERO_BANNER', icon: '🌴', label: 'Bannière d\'Identité du Marché (Hero, Photos, Badges)', mode: 'singleton' },
+            { type: 'MARKET_SEARCH_BAR', icon: '🔍', label: 'Recherche Produits au Marché (Barre & Suggestions)', mode: 'singleton' },
             { type: 'LOCAL_CASCADE_ENGINE', icon: '🎯', label: 'Cascade de Produits Locaux (Zones A, B, C)', mode: 'multi' },
             { type: 'LOCAL_VENDORS_SECTION', icon: '🏬', label: 'Boutiques et Marchands Locaux', mode: 'multi' },
             { type: 'LOCAL_MARKETS_SECTION', icon: '🏪', label: 'Marchés Populaires du Bénin', mode: 'multi' },
-            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Quartiers & Villes du Bénin', mode: 'multi' },
+            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Grille des Quartiers du Bénin', mode: 'multi' },
             { type: 'LOCAL_PRODUCTS', icon: '📍', label: 'Découverte Locale (Marchés & Boutiques)', mode: 'multi' },
             { type: 'MARKET_INFO', icon: '🏪', label: 'Infos du Marché (Carte & Commerces)', mode: 'singleton' },
             { type: 'NEIGHBORHOOD_INFO', icon: '🏘️', label: 'Infos du Quartier (Carte & Commerces)', mode: 'singleton' },
@@ -170,7 +172,7 @@ const getZoneMapForSlug = (slug?: string) => {
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         market: [
-            'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'MARKET_INFO', 'LOCAL_PRODUCTS', 'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+            'THEME_SETTINGS', 'HEADER_CONF', 'MARKET_HERO_BANNER', 'MARKET_SEARCH_BAR', 'HERO', 'MARKET_INFO', 'LOCAL_PRODUCTS', 'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
             'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
         ],
         neighborhood: [

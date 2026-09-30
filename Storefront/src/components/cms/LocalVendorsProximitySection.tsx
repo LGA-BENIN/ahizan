@@ -63,6 +63,25 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
         }
     };
 
+    // Carousel Autoplay
+    useEffect(() => {
+        const speed = Number(config.autoplaySpeed || 0);
+        if (config.layoutStyle !== 'carousel' || speed <= 0) return;
+
+        const interval = setInterval(() => {
+            if (scrollContainerRef.current) {
+                const maxScrollLeft = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+                if (scrollContainerRef.current.scrollLeft >= maxScrollLeft - 10) {
+                    scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    scroll('right');
+                }
+            }
+        }, speed);
+
+        return () => clearInterval(interval);
+    }, [config.layoutStyle, config.autoplaySpeed]);
+
     useEffect(() => {
         let isMounted = true;
         setLoading(true);
@@ -81,8 +100,9 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
                 variables.radiusKm = Number(config.radiusKm);
             }
         }
-        if (selectedLocation?.marketId) {
-            variables.marketId = String(selectedLocation.marketId);
+        const effectiveMarketId = config.marketId || selectedLocation?.marketId;
+        if (effectiveMarketId) {
+            variables.marketId = String(effectiveMarketId);
         }
 
         const query = `
@@ -397,8 +417,21 @@ function VendorCard({ vendor, index, config }: { vendor: any; index: number; con
     const vendorLink = vendor.id && !vendor.id.startsWith('mock') ? `/vendor/${encodeId(vendor.id)}` : `/vendors`;
     const initials = getVendorInitials(vendor.name);
 
+    // Animation & Hover classes
+    const hoverEffectClass = {
+        lift: 'hover:-translate-y-2 hover:shadow-lg',
+        zoom: 'hover:scale-[1.03] hover:shadow-lg',
+        glow: 'hover:shadow-[0_0_20px_rgba(37,99,235,0.25)] hover:border-blue-400',
+    }[config?.hoverEffect as 'lift' | 'zoom' | 'glow'] || 'hover:-translate-y-1 hover:shadow-md';
+
+    const animationClass = {
+        'fade-in': 'animate-fade-in',
+        'slide-up': 'animate-slide-up',
+        'zoom-in': 'animate-zoom-in',
+    }[config?.animationType as 'fade-in' | 'slide-up' | 'zoom-in'] || '';
+
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-3.5 shadow-xs hover:shadow-md transition-all duration-300 border border-slate-200/70 dark:border-slate-700/60 flex flex-col justify-between group h-full">
+        <div className={`bg-white dark:bg-slate-800 rounded-2xl p-3.5 shadow-xs transition-all duration-300 border border-slate-200/70 dark:border-slate-700/60 flex flex-col justify-between group h-full ${hoverEffectClass} ${animationClass}`}>
             <div>
                 {/* Shop Image or 2-letter Avatar */}
                 <div className="aspect-square w-full rounded-2xl overflow-hidden mb-3 bg-slate-100 dark:bg-slate-700/80 relative flex items-center justify-center border border-slate-200/60 dark:border-slate-700">

@@ -81,6 +81,25 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
         }
     }, []);
 
+    // Carousel Autoplay
+    useEffect(() => {
+        const speed = Number(config?.autoplaySpeed || 0);
+        if (config?.layout !== 'carousel' || speed <= 0) return;
+
+        const interval = setInterval(() => {
+            if (scrollContainerRef.current) {
+                const maxScrollLeft = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+                if (scrollContainerRef.current.scrollLeft >= maxScrollLeft - 10) {
+                    scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    scroll('right');
+                }
+            }
+        }, speed);
+
+        return () => clearInterval(interval);
+    }, [config?.layout, config?.autoplaySpeed]);
+
     const displayTitle = config?.title !== undefined && config?.title !== null ? config.title : "Produits à Proximité";
     const displayIcon = config?.icon ?? '🛍️';
     const displaySubtitle = config?.subtitle || '';

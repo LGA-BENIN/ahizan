@@ -30,6 +30,10 @@ const isGif = (url: string | undefined | null) => url?.toLowerCase().endsWith('.
 export default function MarketInfoRenderer({ config, showProducts = true }: MarketInfoProps) {
     const { id, name, slug, description, latitude, longitude, radius, image, type = 'MARKET', location, parent } = config;
     
+    const numLat = latitude != null && !isNaN(Number(latitude)) && Number(latitude) !== 0 ? Number(latitude) : undefined;
+    const numLng = longitude != null && !isNaN(Number(longitude)) && Number(longitude) !== 0 ? Number(longitude) : undefined;
+    const numRadius = radius != null && !isNaN(Number(radius)) && Number(radius) > 0 ? Number(radius) : 400;
+
     const [vendors, setVendors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [leafletReady, setLeafletReady] = useState(false);
@@ -104,7 +108,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
 
     // Load Leaflet dynamically client-side
     useEffect(() => {
-        if (typeof window === 'undefined' || !latitude || !longitude) return;
+        if (typeof window === 'undefined' || numLat == null || numLng == null) return;
 
         if ((window as any).L) {
             setLeafletReady(true);
@@ -124,11 +128,11 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
             setLeafletReady(true);
         };
         document.body.appendChild(script);
-    }, [latitude, longitude]);
+    }, [numLat, numLng]);
 
     // Initialize map once Leaflet is ready and vendors are loaded
     useEffect(() => {
-        if (!leafletReady || !latitude || !longitude || typeof window === 'undefined') return;
+        if (!leafletReady || numLat == null || numLng == null || typeof window === 'undefined') return;
         const L = (window as any).L;
         if (!L) return;
 
@@ -141,7 +145,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
             return;
         }
 
-        const map = L.map('local-page-map').setView([latitude, longitude], 15);
+        const map = L.map('local-page-map').setView([numLat, numLng], 15);
 
         setTimeout(() => {
             map.invalidateSize();
@@ -155,11 +159,11 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
         }).addTo(map);
 
         // Add circle representing the market/neighborhood area
-        L.circle([latitude, longitude], {
+        L.circle([numLat, numLng], {
             color: '#e31837',
             fillColor: '#e31837',
             fillOpacity: 0.1,
-            radius: radius || 400
+            radius: numRadius || 400
         }).addTo(map);
 
         // Primary marker at center
@@ -172,7 +176,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
             shadowSize: [41, 41]
         });
 
-        L.marker([latitude, longitude], { icon: centerIcon }).addTo(map)
+        L.marker([numLat, numLng], { icon: centerIcon }).addTo(map)
             .bindPopup(`<b>${name}</b><br/>${type === 'MARKET' ? 'Centre du Marché' : 'Quartier'}`)
             .openPopup();
 
@@ -221,7 +225,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
                     `);
             }
         });
-    }, [leafletReady, latitude, longitude, vendors, radius, name, type]);
+    }, [leafletReady, numLat, numLng, vendors, numRadius, name, type]);
 
     const parentLocationName = location?.name || parent?.name || '';
     const parentLocationType = location?.type || parent?.type || '';
@@ -273,12 +277,12 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
                         </div>
                     )}
 
-                    {latitude && longitude && (
+                    {numLat != null && numLng != null && (
                         <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-4">
                             <span className="text-xs font-bold text-slate-400 uppercase">Coordonnées GPS</span>
                             <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
                                 <Navigation className="w-3.5 h-3.5 text-slate-400" />
-                                {latitude.toFixed(5)}, {longitude.toFixed(5)}
+                                {numLat.toFixed(5)}, {numLng.toFixed(5)}
                             </span>
                         </div>
                     )}
@@ -346,7 +350,7 @@ export default function MarketInfoRenderer({ config, showProducts = true }: Mark
 
                 {/* Map Column */}
                 <div className="lg:col-span-2 flex flex-col gap-4">
-                    {latitude && longitude ? (
+                    {numLat != null && numLng != null ? (
                         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm h-[500px] relative overflow-hidden flex flex-col">
                             <div className="flex justify-between items-center mb-3 px-2">
                                 <h3 className="text-sm font-black text-slate-950 dark:text-white uppercase tracking-tight flex items-center gap-2">

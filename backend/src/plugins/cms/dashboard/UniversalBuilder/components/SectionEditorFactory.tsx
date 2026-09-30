@@ -29,6 +29,8 @@ import { LocalCascadeEngineSettings } from './sections/LocalCascadeEngineSetting
 import { LocalMarketsSettings } from './sections/LocalMarketsSettings';
 import { LocalNeighborhoodsSettings } from './sections/LocalNeighborhoodsSettings';
 import { LocalVendorsSettings } from './sections/LocalVendorsSettings';
+import { MarketHeroBannerSettings } from './sections/MarketHeroBannerSettings';
+import { MarketSearchSettings } from './sections/MarketSearchSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 import { FileUploadField } from './sections/FileUploadField';
@@ -208,6 +210,14 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
         case 'LOCAL_VENDORS':
         case 'LOCAL_VENDORS_SECTION':
             return withCodePanel(<LocalVendorsSettings data={data} onSave={handleSave} />);
+
+        case 'MARKET_HERO_BANNER':
+        case 'MARKET_IDENTITY_HERO':
+            return withCodePanel(<MarketHeroBannerSettings data={data} onSave={handleSave} />);
+
+        case 'MARKET_SEARCH_BAR':
+        case 'MARKET_PRODUCT_SEARCH':
+            return withCodePanel(<MarketSearchSettings data={data} onSave={handleSave} />);
 
         // --- Category page components ---
         case 'CATEGORY_HEADER':

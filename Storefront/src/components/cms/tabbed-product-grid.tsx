@@ -42,6 +42,9 @@ interface TabbedProductGridProps {
     tabStyle?: 'pill' | 'underline' | 'boxed';
     tabColor?: string;
     tabActiveColor?: string;
+    marketId?: string;
+    locationId?: string;
+    autoplaySpeed?: number | string;
 }
 
 function formatCFA(price: number): string {
@@ -69,6 +72,25 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
         }
     };
+
+    // Carousel Autoplay
+    useEffect(() => {
+        const speed = Number(props.autoplaySpeed || 0);
+        if (props.layout !== 'carousel' || speed <= 0) return;
+
+        const interval = setInterval(() => {
+            if (scrollContainerRef.current) {
+                const maxScrollLeft = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+                if (scrollContainerRef.current.scrollLeft >= maxScrollLeft - 10) {
+                    scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    scroll('right');
+                }
+            }
+        }, speed);
+
+        return () => clearInterval(interval);
+    }, [props.layout, props.autoplaySpeed]);
 
     const fetchProducts = useCallback(async (tab: TabConfig) => {
         if (!tab) return;
@@ -224,17 +246,17 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
         try {
             if (selectionMode === 'AUTOMATIC') {
-                const marketId = selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : null);
-                const locationId = selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : null);
+                const marketId = props.marketId || selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : null);
+                const locationId = props.locationId || selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : null);
                 let items: any[] = [];
                 
-                if (selectedLocation) {
+                if (selectedLocation || marketId || locationId) {
                     const localQuery = `
                         query GetLocalProducts($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float) {
                             vendors(
                                 marketId: $marketId, 
                                 locationId: $locationId, 
-                                latitude: $latitude,
+                                latitude: $latitude, 
                                 longitude: $longitude,
                                 options: { filter: { status: { eq: "APPROVED" } } }
                             ) {
@@ -266,10 +288,10 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                         }
                     `;
                     const result = await fetchWithClientCache(shopApiUrl, localQuery, { 
-                        marketId, 
-                        locationId,
-                        latitude: selectedLocation.latitude,
-                        longitude: selectedLocation.longitude
+                        marketId: marketId ? String(marketId) : undefined, 
+                        locationId: locationId ? String(locationId) : undefined,
+                        latitude: selectedLocation?.latitude ? Number(selectedLocation.latitude) : undefined,
+                        longitude: selectedLocation?.longitude ? Number(selectedLocation.longitude) : undefined
                     });
                     const vendorsList = result?.vendors?.items || [];
                     items = vendorsList.flatMap((v: any) => (v.products || []).map((p: any) => ({

@@ -28,38 +28,24 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
     const { selectedLocation, neighborhoods, selectLocation } = useLocation();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Focus strictly on authentic neighborhoods & villages (filter out any macro-communes)
-    let rawList: any[] = (neighborhoods && neighborhoods.length > 0) 
-        ? neighborhoods.filter((item: any) => item.type !== 'COMMUNE' && item.type !== 'CITY') 
-        : [];
+    // Focus strictly on authentic neighborhoods & villages from GeoEngine
+    const isNeighborhoodType = (item: any) => {
+        const t = (item.type || '').toUpperCase();
+        return t === 'NEIGHBORHOOD' || t === 'QUARTIER' || t === 'VILLAGE' || t === 'ARRONDISSEMENT' || (!['COMMUNE', 'CITY', 'DEPARTMENT', 'COUNTRY'].includes(t));
+    };
 
-    if (rawList.length === 0) {
-        rawList = [
-            { id: "101", name: "Védoko", slug: "vedoko", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3750, centerLongitude: 2.3920 },
-            { id: "102", name: "Mènontin", slug: "menontin", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3710, centerLongitude: 2.3850 },
-            { id: "103", name: "Agla", slug: "agla", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3650, centerLongitude: 2.3780 },
-            { id: "104", name: "Fidjrossè", slug: "fidjrosse", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3690, centerLongitude: 2.3610 },
-            { id: "105", name: "Cadjèhoun", slug: "cadjehoun", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3620, centerLongitude: 2.4000 },
-            { id: "106", name: "Gbégamey", slug: "gbegamey", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3650, centerLongitude: 2.4080 },
-            { id: "107", name: "Akpakpa Dodomè", slug: "akpakpa-dodome", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3873, centerLongitude: 2.4573 },
-            { id: "108", name: "Sikècodji", slug: "sikecodji", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3740, centerLongitude: 2.4130 },
-            { id: "109", name: "Sainte-Rita", slug: "sainte-rita", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3780, centerLongitude: 2.4050 },
-            { id: "110", name: "Haie Vive", slug: "haie-vive", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3720, centerLongitude: 2.3950 },
-            { id: "111", name: "Zongo", slug: "zongo", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3660, centerLongitude: 2.4220 },
-            { id: "14", name: "Tokpota", slug: "tokpota", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.515, centerLongitude: 2.632 },
-            { id: "13", name: "Ahouangbo", slug: "ahouangbo", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.488, centerLongitude: 2.628 },
-            { id: "12", name: "Ouando", slug: "ouando", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.505, centerLongitude: 2.618 },
-            { id: "112", name: "Djassin", slug: "djassin", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.478, centerLongitude: 2.632 },
-            { id: "17", name: "Cococodji", slug: "cococodji", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.425, centerLongitude: 2.298 },
-            { id: "15", name: "Zogbadjè", slug: "zogbadje", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.4236, centerLongitude: 2.3347 },
-            { id: "16", name: "Godomey", slug: "godomey", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.3854, centerLongitude: 2.3432 }
-        ];
-    }
+    let rawList: any[] = (neighborhoods && neighborhoods.length > 0) 
+        ? neighborhoods.filter(isNeighborhoodType) 
+        : [];
 
     // Filter by specific commune if configured
     if (config.filterCommune && config.filterCommune !== 'ALL') {
-        const commTarget = config.filterCommune.toLowerCase();
-        rawList = rawList.filter((item: any) => (item.commune || '').toLowerCase().includes(commTarget));
+        const commTarget = config.filterCommune.toLowerCase().trim();
+        rawList = rawList.filter((item: any) => {
+            const itemComm = (item.commune || item.parent?.name || '').toLowerCase();
+            const itemName = (item.name || '').toLowerCase();
+            return itemComm.includes(commTarget) || itemName.includes(commTarget);
+        });
     }
 
     // Filter by manual IDs if configured
@@ -75,10 +61,17 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
         rawList = rawList.map((item: any) => {
             if (item.centerLatitude && item.centerLongitude) {
                 const dist = calculateDistanceKm(uLat, uLon, Number(item.centerLatitude), Number(item.centerLongitude));
-                return { ...item, distanceKm: Math.round(dist * 10) / 10 };
+                const itemComm = (item.commune || item.parent?.name || '').toLowerCase().trim();
+                const uComm = (selectedLocation.commune || selectedLocation.name || '').toLowerCase().trim();
+                const isSameCommune = Boolean(uComm && itemComm && (itemComm.includes(uComm) || uComm.includes(itemComm)));
+                return { ...item, distanceKm: Math.round(dist * 10) / 10, isSameCommune };
             }
             return item;
-        }).sort((a: any, b: any) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+        }).sort((a: any, b: any) => {
+            if (a.isSameCommune && !b.isSameCommune) return -1;
+            if (!a.isSameCommune && b.isSameCommune) return 1;
+            return (a.distanceKm ?? 999) - (b.distanceKm ?? 999);
+        });
     }
 
     const take = Number(config.take || 12);
@@ -91,12 +84,31 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
         }
     };
 
-    const title = interpolateLocalVariables(config.title || 'Quartiers & Villages du Bénin', selectedLocation);
-    const subtitle = interpolateLocalVariables(config.subtitle || 'Découvrez les offres et boutiques situées directement dans votre quartier ou rue voisine.', selectedLocation);
-    const badgeText = interpolateLocalVariables(config.badgeText || 'Quartiers Proches', selectedLocation);
-
     const layout = config.layout || 'grid';
     const columns = config.columns || 4;
+
+    // Carousel Autoplay
+    React.useEffect(() => {
+        const speed = Number(config.autoplaySpeed || 0);
+        if (layout !== 'carousel' || speed <= 0) return;
+
+        const interval = setInterval(() => {
+            if (scrollContainerRef.current) {
+                const maxScrollLeft = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+                if (scrollContainerRef.current.scrollLeft >= maxScrollLeft - 10) {
+                    scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    scroll('right');
+                }
+            }
+        }, speed);
+
+        return () => clearInterval(interval);
+    }, [layout, config.autoplaySpeed]);
+
+    const title = interpolateLocalVariables(config.title || 'Quartiers du Bénin', selectedLocation);
+    const subtitle = interpolateLocalVariables(config.subtitle || 'Découvrez les offres et boutiques situées directement dans votre quartier ou rue voisine.', selectedLocation);
+    const badgeText = interpolateLocalVariables(config.badgeText || 'Quartiers Proches', selectedLocation);
 
     const gridColsClass = {
         2: 'grid-cols-1 sm:grid-cols-2',
@@ -263,11 +275,27 @@ function NeighborhoodCard({
     onSelect: () => void;
 }) {
     const isCity = item.type === 'COMMUNE';
+    const hoverEffect = config?.hoverEffect || 'lift';
+    const animationType = config?.animationType || 'fade-in';
+
+    const hoverClass = {
+        lift: 'hover:-translate-y-1.5 hover:shadow-xl',
+        zoom: 'hover:scale-105 hover:shadow-lg',
+        glow: 'hover:ring-2 hover:ring-blue-500/40 hover:shadow-lg',
+        none: 'hover:shadow-md'
+    }[hoverEffect as 'lift' | 'zoom' | 'glow' | 'none'] || 'hover:-translate-y-1.5 hover:shadow-xl';
+
+    const animClass = {
+        'fade-in': 'animate-in fade-in duration-500',
+        'slide-up': 'animate-in fade-in slide-in-from-bottom-4 duration-500',
+        'zoom-in': 'animate-in fade-in zoom-in-95 duration-500',
+        'none': ''
+    }[animationType as 'fade-in' | 'slide-up' | 'zoom-in' | 'none'] || '';
 
     return (
         <Card
             onClick={onSelect}
-            className={`group cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1 rounded-xl border backdrop-blur-sm ${
+            className={`group cursor-pointer overflow-hidden transition-all duration-300 rounded-xl border backdrop-blur-sm ${hoverClass} ${animClass} ${
                 isSelected
                     ? 'ring-2 ring-blue-600 shadow-md border-blue-500 bg-blue-50/70 dark:bg-blue-950/40'
                     : 'border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90'

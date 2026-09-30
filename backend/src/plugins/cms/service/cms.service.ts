@@ -160,6 +160,18 @@ export class CMSService {
                                 data.title = market.name;
                                 data.subtitle = `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`;
                                 data.backgroundImage = this.getAssetUrl(market.image) || data.backgroundImage || '';
+                            } else if (s.type === 'MARKET_HERO_BANNER' || s.type === 'MARKET_IDENTITY_HERO') {
+                                data.marketId = String(market.id);
+                                data.marketName = market.name;
+                                data.marketSlug = market.slug;
+                                data.marketDescription = market.description;
+                                data.marketImage = this.getAssetUrl(market.image) || data.marketImage || '';
+                                data.marketLocation = market.geoZone?.name || data.marketLocation || '';
+                            } else if (s.type === 'MARKET_SEARCH_BAR' || s.type === 'MARKET_PRODUCT_SEARCH') {
+                                data.marketId = String(market.id);
+                                data.marketName = market.name;
+                                data.marketSlug = market.slug;
+                                data.placeholder = data.placeholder || `Rechercher un produit au ${market.name}...`;
                             } else if (s.type === 'MARKET_INFO') {
                                 data = {
                                     id: market.id,
@@ -172,6 +184,7 @@ export class CMSService {
                                     image: this.getAssetUrl(market.image),
                                     icon: this.getAssetUrl(market.icon),
                                     location: market.geoZone ? { id: market.geoZone.id, name: market.geoZone.name, type: market.geoZone.type } : null,
+                                    ...(typeof data === 'object' ? data : {})
                                 };
                             } else if (s.type === 'MARKET_CODE') {
                                 data.id = market.id;
@@ -180,12 +193,31 @@ export class CMSService {
                                 data.longitude = market.centerLongitude;
                                 data.radius = market.radiusMeters;
                                 data.type = 'MARKET';
-                            } else if (s.type === 'LOCAL_PRODUCTS') {
-                                data.marketId = market.id;
+                            } else if (s.type === 'LOCAL_PRODUCTS' || s.type === 'PRODUCT_COLLECTION') {
+                                data.marketId = String(market.id);
                                 data.marketName = market.name;
+                                data.locationSource = 'FIXED_MARKET';
+                                data.title = data.title || `🛍️ En ce moment à ${market.name}`;
+                                data.subtitle = data.subtitle || `Articles disponibles immédiatement chez les vendeurs de ${market.name}`;
+                            } else if (s.type === 'LOCAL_VENDORS' || s.type === 'LOCAL_VENDORS_SECTION' || s.type === 'VENDOR_SHOWCASE') {
+                                data.marketId = String(market.id);
+                                data.marketName = market.name;
+                                data.locationSource = 'FIXED_MARKET';
+                                data.title = data.title || `🏪 Les Boutiques de ${market.name}`;
+                                data.subtitle = data.subtitle || `Commerçants et artisans installés au marché ${market.name}`;
+                            } else if (s.type === 'TABBED_PRODUCT_GRID') {
+                                data.marketId = String(market.id);
+                                data.marketName = market.name;
+                                data.title = data.title || `🔥 Ça bouge à ${market.name}`;
+                                data.subtitle = data.subtitle || `Les meilleures affaires et nouveautés de ${market.name}`;
+                            } else if (s.type === 'LOCAL_CASCADE_ENGINE') {
+                                data.marketId = String(market.id);
+                                data.marketName = market.name;
+                                data.title = data.title || `🛍️ Tout le Marché de ${market.name}`;
+                                data.subtitle = data.subtitle || `Filtrez par catégorie, prix et boutiques de ${market.name}`;
                             } else if (s.type === 'PRODUCT_GRID') {
-                                data.marketId = market.id;
-                                data.title = data.title || `Sélection du Marché`;
+                                data.marketId = String(market.id);
+                                data.title = data.title || `Sélection de ${market.name}`;
                                 data.subtitle = data.subtitle || `Les derniers articles ajoutés par les vendeurs du marché ${market.name}`;
                             }
 
@@ -197,31 +229,14 @@ export class CMSService {
                     return s;
                 });
             } else {
-                // Fallback to hardcoded generation
-                const marketHeroSection = new PageSection({
-                    id: 'market-hero' as any,
-                    type: 'HERO',
-                    title: market.name,
-                    description: `Bienvenue au marché ${market.name}. Retrouvez l'ensemble des boutiques de ce marché et achetez en direct.`,
-                    layout: 'split',
-                    order: 10,
-                    isActive: true,
-                    dataJson: JSON.stringify({
-                        title: market.name,
-                        subtitle: `Découvrez les commerces, artisans et produits certifiés au sein du marché ${market.name}.`,
-                        backgroundImage: this.getAssetUrl(market.image) || '',
-                        ctaText: 'Explorer les boutiques',
-                        ctaLink: '#boutiques',
-                    }),
-                });
-
+                // Fallback to rich, intelligent default market layout
                 const marketInfoSection = new PageSection({
                     id: 'market-info' as any,
                     type: 'MARKET_INFO',
-                    title: market.name,
-                    description: market.description || '',
+                    title: `🌴 ${market.name}`,
+                    description: market.description || `Marché officiel ${market.name}`,
                     layout: 'default',
-                    order: 15,
+                    order: 10,
                     isActive: true,
                     dataJson: JSON.stringify({
                         id: market.id,
@@ -234,31 +249,115 @@ export class CMSService {
                         image: this.getAssetUrl(market.image),
                         icon: this.getAssetUrl(market.icon),
                         location: market.geoZone ? { id: market.geoZone.id, name: market.geoZone.name, type: market.geoZone.type } : null,
+                        showProducts: false,
                     }),
                 });
 
-                const marketProductsGridSection = new PageSection({
-                    id: 'market-products' as any,
-                    type: 'PRODUCT_GRID',
-                    title: `Produits du marché ${market.name}`,
-                    description: `Sélection de produits vendus par les commerçants du marché ${market.name}.`,
+                const marketCategoriesSection = new PageSection({
+                    id: 'market-categories' as any,
+                    type: 'CATEGORIES',
+                    title: `🚶 Les Allées de ${market.name}`,
+                    description: `Explorez les rayons et univers du marché ${market.name}`,
                     layout: 'grid',
                     order: 20,
                     isActive: true,
                     dataJson: JSON.stringify({
-                        title: `Sélection du Marché`,
-                        subtitle: `Les derniers articles ajoutés par les vendeurs du marché ${market.name}`,
-                        filterType: 'LATEST',
+                        title: `🚶 Les Allées de ${market.name}`,
+                        subtitle: `Que recherchez-vous aujourd'hui au marché ?`,
+                        style: 'pills',
+                        columns: 6,
+                    }),
+                });
+
+                const marketVendorsSection = new PageSection({
+                    id: 'market-vendors' as any,
+                    type: 'LOCAL_VENDORS',
+                    title: `🏪 Les Boutiques de ${market.name}`,
+                    description: `Commerçants et artisans installés au marché ${market.name}`,
+                    layout: 'carousel',
+                    order: 30,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `🏪 Les Boutiques de ${market.name}`,
+                        subtitle: `Achetez directement auprès des vendeurs résidents vérifiés`,
+                        layoutStyle: 'carousel',
                         take: 12,
+                        marketId: String(market.id),
+                        marketName: market.name,
+                        locationSource: 'FIXED_MARKET',
+                    }),
+                });
+
+                const marketLiveProductsSection = new PageSection({
+                    id: 'market-live-products' as any,
+                    type: 'LOCAL_PRODUCTS',
+                    title: `🛍️ En ce moment à ${market.name}`,
+                    description: `Articles disponibles chez les vendeurs de ${market.name}`,
+                    layout: 'grid',
+                    order: 40,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `🛍️ En ce moment à ${market.name}`,
+                        subtitle: `Produits disponibles immédiatement avec livraison express`,
+                        experienceStrategy: 'LOCAL_DISCOVERY',
+                        selectionMode: 'AUTOMATIC',
+                        layout: 'grid-4',
+                        limit: 8,
+                        marketId: String(market.id),
+                        marketName: market.name,
+                        locationSource: 'FIXED_MARKET',
+                    }),
+                });
+
+                const marketTabbedSection = new PageSection({
+                    id: 'market-trending' as any,
+                    type: 'TABBED_PRODUCT_GRID',
+                    title: `🔥 Ça bouge à ${market.name}`,
+                    description: `Sélections populaires et nouveautés du marché`,
+                    layout: 'tabs',
+                    order: 50,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `🔥 Ça bouge à ${market.name}`,
+                        subtitle: `Les meilleures affaires et nouveautés de ${market.name}`,
+                        marketId: String(market.id),
+                        marketName: market.name,
+                        tabs: [
+                            { id: 'trending', label: 'Populaires', strategy: 'TRENDING' },
+                            { id: 'latest', label: 'Nouveautés', strategy: 'LATEST' },
+                            { id: 'promos', label: 'Bonnes Affaires', strategy: 'FLASH_SALE' },
+                        ],
+                        limit: 8,
                         columns: 4,
+                    }),
+                });
+
+                const marketCatalogSection = new PageSection({
+                    id: 'market-catalog' as any,
+                    type: 'LOCAL_CASCADE_ENGINE',
+                    title: `🛍️ Tout le Marché de ${market.name}`,
+                    description: `Grand catalogue complet avec filtres`,
+                    layout: 'full',
+                    order: 60,
+                    isActive: true,
+                    dataJson: JSON.stringify({
+                        title: `🛍️ Tout le Marché de ${market.name}`,
+                        subtitle: `Filtrez par catégorie, prix et boutiques de ${market.name}`,
+                        marketId: String(market.id),
+                        marketName: market.name,
+                        showFilters: true,
+                        pageSize: 24,
                     }),
                 });
 
                 finalSections = [
                     ...layoutSections.filter(s => ['THEME_SETTINGS', 'HEADER_CONF', 'TOP_BAR'].includes(s.type)),
-                    marketHeroSection,
                     marketInfoSection,
-                    marketProductsGridSection,
+                    marketCategoriesSection,
+                    marketVendorsSection,
+                    marketLiveProductsSection,
+                    marketTabbedSection,
+                    marketCatalogSection,
                     ...layoutSections.filter(s => s.type === 'FOOTER_CONF'),
                 ];
             }
@@ -533,6 +632,8 @@ export class CMSService {
             await this.seedFlashDealsSections(ctx, savedPage);
         } else if (savedPage.slug === 'local_discovery') {
             await this.seedLocalDiscoverySections(ctx, savedPage);
+        } else if (savedPage.slug === 'market') {
+            await this.seedMarketSections(ctx, savedPage);
         }
 
         return this.findOne(ctx, savedPage.id) as Promise<Page>;
@@ -708,6 +809,118 @@ export class CMSService {
                 take: 12,
                 showMarketBadge: true,
                 showWhatsappDirect: true,
+            })
+        });
+
+        await sectionsRepo.save([s1, s2, s3, s4, s5, s6]);
+    }
+
+    async seedMarketSections(ctx: RequestContext, page: Page) {
+        const sectionsRepo = this.connection.getRepository(ctx, PageSection);
+        const existingCount = await sectionsRepo.count({ where: { page: { id: page.id } } });
+        if (existingCount > 0) return;
+
+        const s1 = new PageSection({
+            page,
+            type: 'MARKET_INFO',
+            title: '🌴 {{market.name}}',
+            description: 'Identité et ambiance officielle du marché',
+            order: 0,
+            isActive: true,
+            dataJson: JSON.stringify({
+                name: '{{market.name}}',
+                slug: '{{market.slug}}',
+                description: '{{market.description}}',
+                image: '{{market.image}}',
+                icon: '{{market.icon}}',
+                latitude: '{{market.latitude}}',
+                longitude: '{{market.longitude}}',
+                radius: '{{market.radius}}',
+                showProducts: false,
+            })
+        });
+
+        const s2 = new PageSection({
+            page,
+            type: 'CATEGORIES',
+            title: '🚶 Les Allées de {{market.name}}',
+            description: 'Explorez les rayons et univers du marché',
+            order: 1,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: '🚶 Les Allées de {{market.name}}',
+                subtitle: 'Que recherchez-vous aujourd\'hui dans le marché ?',
+                style: 'pills',
+                columns: 6,
+            })
+        });
+
+        const s3 = new PageSection({
+            page,
+            type: 'LOCAL_VENDORS',
+            title: '🏪 Les Boutiques de {{market.name}}',
+            description: 'Commerçants et artisans installés au marché {{market.name}}',
+            order: 2,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: '🏪 Les Boutiques de {{market.name}}',
+                subtitle: 'Achetez directement auprès des vendeurs résidents vérifiés',
+                layoutStyle: 'carousel',
+                take: 12,
+                locationSource: 'FIXED_MARKET',
+            })
+        });
+
+        const s4 = new PageSection({
+            page,
+            type: 'LOCAL_PRODUCTS',
+            title: '🛍️ En ce moment à {{market.name}}',
+            description: 'Articles disponibles chez les vendeurs de ce marché',
+            order: 3,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: '🛍️ En ce moment à {{market.name}}',
+                subtitle: 'Produits disponibles immédiatement avec livraison express',
+                experienceStrategy: 'LOCAL_DISCOVERY',
+                selectionMode: 'AUTOMATIC',
+                layout: 'grid-4',
+                limit: 8,
+                locationSource: 'FIXED_MARKET',
+            })
+        });
+
+        const s5 = new PageSection({
+            page,
+            type: 'TABBED_PRODUCT_GRID',
+            title: '🔥 Ça bouge à {{market.name}}',
+            description: 'Nouveautés, meilleures ventes et promos du marché',
+            order: 4,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: '🔥 Ça bouge à {{market.name}}',
+                subtitle: 'Les meilleures affaires et nouveautés de {{market.name}}',
+                tabs: [
+                    { id: 'trending', label: 'Populaires', filterType: 'TRENDING' },
+                    { id: 'latest', label: 'Nouveautés', filterType: 'LATEST' },
+                    { id: 'promos', label: 'Bonnes Affaires', filterType: 'FLASH_DEALS' },
+                ],
+                limit: 8,
+                columns: 4,
+            })
+        });
+
+        const s6 = new PageSection({
+            page,
+            type: 'LOCAL_CASCADE_ENGINE',
+            title: '🛍️ Tout le Marché de {{market.name}}',
+            description: 'Grand catalogue complet avec filtres',
+            order: 5,
+            isActive: true,
+            dataJson: JSON.stringify({
+                title: '🛍️ Tout le Marché de {{market.name}}',
+                subtitle: 'Filtrez par catégorie, prix et boutiques de {{market.name}}',
+                showFilters: true,
+                pageSize: 24,
             })
         });
 

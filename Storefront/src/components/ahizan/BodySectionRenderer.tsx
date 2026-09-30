@@ -22,6 +22,8 @@ import { LocalVendorsProximitySection } from "@/components/cms/LocalVendorsProxi
 import { LocalMarketsProximitySection } from "@/components/cms/LocalMarketsProximitySection";
 import { LocalNeighborhoodsProximitySection } from "@/components/cms/LocalNeighborhoodsProximitySection";
 import { LocalCascadeEngineSection } from "@/components/cms/LocalCascadeEngineSection";
+import { MarketHeroBanner } from "@/components/cms/MarketHeroBanner";
+import { MarketProductSearch } from "@/components/cms/MarketProductSearch";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Script from "next/script";
 import { useLocation } from "@/contexts/location-context";
@@ -99,6 +101,25 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
     const filteredCats = siteCategories.filter((cat: any) => enabledSlugs.includes(cat.slug) || enabledSlugs.includes(cat.id));
     if (filteredCats.length === 0) return null;
 
+    // Carousel Autoplay
+    React.useEffect(() => {
+        const speed = Number(config.autoplaySpeed || 0);
+        if (config.layout === 'grid' || speed <= 0) return;
+
+        const interval = setInterval(() => {
+            if (scrollContainerRef.current) {
+                const maxScrollLeft = scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth;
+                if (scrollContainerRef.current.scrollLeft >= maxScrollLeft - 10) {
+                    scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    scroll('right');
+                }
+            }
+        }, speed);
+
+        return () => clearInterval(interval);
+    }, [config.layout, config.autoplaySpeed]);
+
     return (
         <section className={`${wrapper} mt-8 md:mt-10`}>
             <div className="flex items-center justify-between mb-4 md:mb-6">
@@ -107,20 +128,20 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
                     {config.subtitle && <p className="text-sm text-slate-500 mt-1">{config.subtitle}</p>}
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => scroll('left')} className="p-2 rounded-full border border-slate-200 hover:bg-slate-100 transition-colors">
+                    <button onClick={() => scroll('left')} className="p-2 rounded-full border border-slate-200 hover:bg-slate-100 transition-colors" aria-label="Précédent">
                         <ChevronLeft className="w-5 h-5 text-slate-600" />
                     </button>
-                    <button onClick={() => scroll('right')} className="p-2 rounded-full border border-slate-200 hover:bg-slate-100 transition-colors">
+                    <button onClick={() => scroll('right')} className="p-2 rounded-full border border-slate-200 hover:bg-slate-100 transition-colors" aria-label="Suivant">
                         <ChevronRight className="w-5 h-5 text-slate-600" />
                     </button>
                 </div>
             </div>
-            <div ref={scrollContainerRef} className="flex gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-4">
+            <div ref={scrollContainerRef} className="flex gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-4 snap-x">
                 {filteredCats.map((cat: any) => {
                     const customImg = catCollectionMedia[cat.slug]?.image || catCollectionMedia[cat.id]?.image;
                     const displayImg = customImg || cat.icon || getAssetUrl(cat.featuredAsset?.source);
                     return (
-                        <Link key={cat.id} href={`/search?category=${cat.slug}`} className="flex-shrink-0 w-36 md:w-44 group">
+                        <Link key={cat.id} href={`/search?category=${cat.slug}`} className="flex-shrink-0 w-36 md:w-44 group snap-start">
                             <div className="aspect-square rounded-2xl bg-slate-100 overflow-hidden mb-3 border border-slate-200/60 group-hover:shadow-md transition-all duration-300">
                                 {displayImg ? (
                                     <img src={displayImg} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -392,6 +413,16 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                     <LocalCascadeEngineSection config={config} />
                 </section>
             );
+        }
+
+        case 'MARKET_HERO_BANNER':
+        case 'MARKET_IDENTITY_HERO': {
+            return <MarketHeroBanner config={config} />;
+        }
+
+        case 'MARKET_SEARCH_BAR':
+        case 'MARKET_PRODUCT_SEARCH': {
+            return <MarketProductSearch config={config} />;
         }
 
         case 'MARKET_INFO':

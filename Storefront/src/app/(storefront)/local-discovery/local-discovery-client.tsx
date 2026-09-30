@@ -93,22 +93,43 @@ export function LocalDiscoveryClient({
 
     // Compute dynamic distance for markets
     const marketsWithDistance = useMemo(() => {
-        return (markets || []).map((m: any) => {
+        const uComm = (selectedLocation?.commune || selectedLocation?.name || '').toLowerCase().trim();
+
+        let list = (markets || []).map((m: any) => {
             let distanceKm: number | null = null;
             if (userLat && userLon && m.centerLatitude && m.centerLongitude) {
                 const d = calculateDistanceKm(userLat, userLon, Number(m.centerLatitude), Number(m.centerLongitude));
                 distanceKm = Math.round(d * 10) / 10;
             }
+            const zoneName = (m.geoZone?.name || m.geoZone?.parent?.name || '').toLowerCase().trim();
+            const isSameCommune = Boolean(uComm && zoneName && (zoneName.includes(uComm) || uComm.includes(zoneName)));
             return {
                 ...m,
-                distanceKm
+                distanceKm,
+                isSameCommune
             };
-        }).sort((a: any, b: any) => {
+        });
+
+        const sameCommune = list.filter((m: any) => m.isSameCommune);
+        if (sameCommune.length > 0) {
+            sameCommune.sort((a: any, b: any) => {
+                if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
+                return (a.name || '').localeCompare(b.name || '');
+            });
+            const others = list.filter((m: any) => !m.isSameCommune).sort((a: any, b: any) => {
+                if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
+                return 0;
+            });
+            return [...sameCommune, ...others];
+        }
+
+        list.sort((a: any, b: any) => {
             if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
             if (a.distanceKm !== null) return -1;
             return 0;
         });
-    }, [markets, userLat, userLon]);
+        return list;
+    }, [markets, userLat, userLon, selectedLocation]);
 
     // Active selected market info
     const currentMarket = useMemo(() => {

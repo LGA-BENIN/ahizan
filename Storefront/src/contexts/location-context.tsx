@@ -122,22 +122,39 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                     id
                     name
                     slug
+                    description
+                    image
+                    icon
                     centerLatitude
                     centerLongitude
                     radiusMeters
+                    geoZone {
+                        id
+                        name
+                        slug
+                        parent { id name }
+                    }
                 }
                 geoZones {
                     id
                     name
                     slug
+                    code
                     type
+                    status
                     centerLatitude
                     centerLongitude
+                    radiusMeters
+                    parent {
+                        id
+                        name
+                        slug
+                    }
                 }
             }
         `;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         try {
             const res = await fetch(apiUrl, {
@@ -152,19 +169,31 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             const fetchedZones = result.data?.geoZones || [];
             if (fetchedMarkets.length > 0) setMarkets(fetchedMarkets);
             if (fetchedZones.length > 0) {
-                const fetchedCities = fetchedZones.filter((z: any) => z.type === 'COMMUNE' || z.type === 'CITY');
-                const fetchedNeighborhoods = fetchedZones.filter((z: any) => z.type === 'NEIGHBORHOOD' || z.type === 'ARRONDISSEMENT');
-                setCities(fetchedCities.length > 0 ? fetchedCities : FALLBACK_CITIES);
-                setNeighborhoods(fetchedNeighborhoods.length > 0 ? fetchedNeighborhoods : FALLBACK_NEIGHBORHOODS);
-            } else {
-                setCities(FALLBACK_CITIES);
-                setNeighborhoods(FALLBACK_NEIGHBORHOODS);
+                const activeZones = fetchedZones.filter((z: any) => z.status !== 'DRAFT' && z.status !== 'ARCHIVED');
+                
+                const isCity = (z: any) => {
+                    const t = (z.type || '').toUpperCase();
+                    return t === 'COMMUNE' || t === 'CITY';
+                };
+                const isNeigh = (z: any) => {
+                    const t = (z.type || '').toUpperCase();
+                    return t === 'NEIGHBORHOOD' || t === 'QUARTIER' || t === 'VILLAGE' || t === 'ARRONDISSEMENT' || (!['COMMUNE', 'CITY', 'DEPARTMENT', 'COUNTRY'].includes(t));
+                };
+
+                const fetchedCities = activeZones.filter(isCity);
+                const fetchedNeighborhoods = activeZones
+                    .filter(isNeigh)
+                    .map((z: any) => ({
+                        ...z,
+                        commune: z.parent?.name || (isCity(z) ? z.name : '')
+                    }));
+
+                if (fetchedCities.length > 0) setCities(fetchedCities);
+                if (fetchedNeighborhoods.length > 0) setNeighborhoods(fetchedNeighborhoods);
             }
         } catch (err) {
             clearTimeout(timeoutId);
-            setCities(FALLBACK_CITIES);
-            setNeighborhoods(FALLBACK_NEIGHBORHOODS);
-            console.warn('Locations fetch timed out or failed, using fast fallback list:', err);
+            console.warn('Locations fetch timed out or failed:', err);
         } finally {
             setLoading(false);
         }
@@ -301,6 +330,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     // 5. Public select/clear with user feedback
     const selectLocation = (loc: LocationData) => {
+        if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
         _applyLocation(loc);
         toast.success(`Position définie sur : ${loc.name}`);
     };
@@ -309,7 +342,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         clearClientCache();
         setSelectedLocation(null);
         localStorage.removeItem('ahizan_client_location');
-        if (watchIdRef.current !== null) {
+        if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
             navigator.geolocation.clearWatch(watchIdRef.current);
             watchIdRef.current = null;
         }
@@ -324,13 +357,25 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         toast.info('Position réinitialisée.');
     };
 
-    // 6. Start silent background GPS watch (only if > 500m movement)
+    // 6. Start silent background GPS watch (only if user explicitly activated GPS mode and > 500m movement)
     const startWatchPosition = () => {
-        if (!navigator.geolocation) return;
+        if (typeof navigator === 'undefined' || !navigator.geolocation) return;
         if (watchIdRef.current !== null) return; // Already watching
 
         watchIdRef.current = navigator.geolocation.watchPosition(
             async (position) => {
+                const stored = localStorage.getItem('ahizan_client_location');
+                const current = stored ? (JSON.parse(stored) as LocationData) : null;
+
+                // CRITICAL: If the user manually chose a COMMUNE, NEIGHBORHOOD or MARKET, never overwrite it!
+                if (current && current.type !== 'GPS') {
+                    if (watchIdRef.current !== null) {
+                        navigator.geolocation.clearWatch(watchIdRef.current);
+                        watchIdRef.current = null;
+                    }
+                    return;
+                }
+
                 const { latitude, longitude } = position.coords;
 
                 // Skip if hasn't moved enough
@@ -348,10 +393,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
                 try {
                     const loc = await reverseGeocode(latitude, longitude);
-                    const stored = localStorage.getItem('ahizan_client_location');
-                    const current = stored ? (JSON.parse(stored) as LocationData) : null;
+                    loc.type = 'GPS';
 
-                    // Only update if the zone actually changed
                     if (!current || current.id !== loc.id || current.name !== loc.name) {
                         _applyLocation(loc);
                         toast.info(`📍 Zone mise à jour : ${loc.name}`, { duration: 4000 });
@@ -370,7 +413,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     // 7. Manual GPS trigger (with resilient 2-stage fallback)
     const useGps = async (): Promise<void> => {
-        if (!navigator.geolocation) {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
             toast.error("La géolocalisation n'est pas supportée par votre navigateur.");
             return;
         }
@@ -383,6 +426,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 const { latitude, longitude } = position.coords;
                 try {
                     const loc = await reverseGeocode(latitude, longitude);
+                    loc.type = 'GPS';
                     _applyLocation(loc);
                     toast.success(`Position détectée : ${loc.name}`, { id: 'gps-locate' });
                     lastAutoUpdateRef.current = { lat: latitude, lon: longitude };
@@ -429,34 +473,42 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
-        // Use window.navigator to avoid TypeScript narrowing issues with 'in' guards
         const nav = window.navigator as Navigator;
         if (!nav.geolocation) return;
 
         const geo = nav.geolocation;
 
         const doReverseAndApply = async (latitude: number, longitude: number, silent = false) => {
+            const stored = localStorage.getItem('ahizan_client_location');
+            const current = stored ? (JSON.parse(stored) as LocationData) : null;
+
+            // If user has a manual location selected, NEVER overwrite with GPS!
+            if (current && current.type !== 'GPS') {
+                return;
+            }
+
             lastAutoUpdateRef.current = { lat: latitude, lon: longitude };
             const loc = await reverseGeocode(latitude, longitude);
-            const stored = localStorage.getItem('ahizan_client_location');
+            loc.type = 'GPS';
 
-            if (!stored) {
+            if (!stored || (current && current.type === 'GPS')) {
                 _applyLocation(loc);
-            } else {
-                const current = JSON.parse(stored) as LocationData;
-                if (current.type === 'GPS' || current.id !== loc.id) {
-                    _applyLocation(loc);
-                    if (!silent) toast.info(`📍 Zone mise à jour : ${loc.name}`, { duration: 4000 });
-                }
+                if (!silent) toast.info(`📍 Zone mise à jour : ${loc.name}`, { duration: 4000 });
+                startWatchPosition();
             }
-            startWatchPosition();
         };
 
         const runAutoGps = (permState: PermissionState) => {
             const stored = localStorage.getItem('ahizan_client_location');
+            const current = stored ? (JSON.parse(stored) as LocationData) : null;
+
+            // If user has a manual selection, do not trigger auto-GPS
+            if (current && current.type !== 'GPS') {
+                return;
+            }
 
             if (permState === 'granted') {
-                // Already granted → silent position fix + watch
+                // Already granted & GPS mode / no selection → silent position fix + watch
                 geo.getCurrentPosition(
                     async (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, true),
                     (err) => console.warn('Silent GPS init failed:', err),
@@ -470,12 +522,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                     { enableHighAccuracy: true, timeout: 15000 }
                 );
             }
-            // 'denied' or has stored location → do nothing, user can change via widget
         };
 
         const tryDirectGps = () => {
             const stored = localStorage.getItem('ahizan_client_location');
-            if (!stored) {
+            const current = stored ? (JSON.parse(stored) as LocationData) : null;
+            if (!stored || current?.type === 'GPS') {
                 geo.getCurrentPosition(
                     async (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, false),
                     (err) => console.info('Auto GPS (no PermAPI) declined:', err.code),
@@ -494,7 +546,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 result.addEventListener('change', () => {
                     setGpsPermission(result.state);
                     if (result.state === 'granted') {
-                        startWatchPosition();
+                        const stored = localStorage.getItem('ahizan_client_location');
+                        const current = stored ? (JSON.parse(stored) as LocationData) : null;
+                        if (!current || current.type === 'GPS') {
+                            startWatchPosition();
+                        }
                     } else if (result.state === 'denied' && watchIdRef.current !== null) {
                         geo.clearWatch(watchIdRef.current);
                         watchIdRef.current = null;
@@ -508,8 +564,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         }
 
         return () => {
-            if (watchIdRef.current !== null) {
-                geo.clearWatch(watchIdRef.current);
+            if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+                navigator.geolocation.clearWatch(watchIdRef.current);
                 watchIdRef.current = null;
             }
         };

@@ -320,6 +320,7 @@ export function GeoZoneManager() {
                     name: editForm.name,
                     slug: editForm.slug,
                     code: editForm.code,
+                    type: editForm.type,
                     status: editForm.status,
                     centerLatitude: editForm.centerLatitude ? parseFloat(editForm.centerLatitude) : null,
                     centerLongitude: editForm.centerLongitude ? parseFloat(editForm.centerLongitude) : null,
@@ -523,9 +524,10 @@ export function GeoZoneManager() {
                                 >
                                     <option value="COUNTRY">Pays</option>
                                     <option value="DEPARTMENT">Département</option>
-                                    <option value="COMMUNE">Commune</option>
+                                    <option value="COMMUNE">Commune / Ville</option>
                                     <option value="ARRONDISSEMENT">Arrondissement</option>
-                                    <option value="QUARTIER">Quartier / Village</option>
+                                    <option value="NEIGHBORHOOD">Quartier / Village</option>
+                                    <option value="QUARTIER">Quartier</option>
                                 </select>
                             </div>
                             <div style={{ flex: 1 }}>
@@ -636,13 +638,19 @@ export function GeoZoneManager() {
                         <div style={{ display: 'flex', gap: '8px' }}>
                             <div style={{ flex: 1 }}>
                                 <label className="label-pro" style={{ fontSize: '0.75rem' }}>Type</label>
-                                <input 
-                                    type="text" 
+                                <select 
                                     className="input-pro" 
-                                    style={{ padding: '6px 10px', fontSize: '0.8rem', background: '#f1f5f9' }}
-                                    value={editForm.type || ''} 
-                                    disabled 
-                                />
+                                    style={{ padding: '6px 10px', fontSize: '0.8rem', height: 'auto' }}
+                                    value={editForm.type || 'NEIGHBORHOOD'} 
+                                    onChange={e => handleEditInputChange('type', e.target.value)}
+                                >
+                                    <option value="COUNTRY">Pays</option>
+                                    <option value="DEPARTMENT">Département</option>
+                                    <option value="COMMUNE">Commune / Ville</option>
+                                    <option value="ARRONDISSEMENT">Arrondissement</option>
+                                    <option value="NEIGHBORHOOD">Quartier / Village</option>
+                                    <option value="QUARTIER">Quartier</option>
+                                </select>
                             </div>
                             <div style={{ flex: 1 }}>
                                 <label className="label-pro" style={{ fontSize: '0.75rem' }}>Status</label>

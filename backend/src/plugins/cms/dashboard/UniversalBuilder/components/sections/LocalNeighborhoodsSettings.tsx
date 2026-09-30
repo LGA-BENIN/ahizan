@@ -14,7 +14,9 @@ const FETCH_GEOZONES_QUERY = `
       id
       name
       slug
+      code
       type
+      status
       parent {
         id
         name
@@ -96,19 +98,26 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
     };
 
     const filteredZones = zonesList.filter(z => {
+        if (z.status === 'ARCHIVED') return false;
+
+        const parentName = z.parent?.name || '';
         const matchesSearch = (z.name || '').toLowerCase().includes(searchFilter.toLowerCase()) ||
-            (z.parent?.name || '').toLowerCase().includes(searchFilter.toLowerCase());
+            parentName.toLowerCase().includes(searchFilter.toLowerCase());
         
         if (config.filterCommune && config.filterCommune !== 'ALL') {
-            const comm = (z.parent?.name || z.commune || '').toLowerCase();
+            const comm = (parentName || z.commune || z.name || '').toLowerCase();
             if (!comm.includes(config.filterCommune.toLowerCase())) return false;
         }
 
+        const upperType = (z.type || '').toUpperCase();
+        const isNeigh = upperType === 'NEIGHBORHOOD' || upperType === 'QUARTIER' || upperType === 'VILLAGE' || upperType === 'ARRONDISSEMENT' || (!['COMMUNE', 'CITY', 'DEPARTMENT', 'COUNTRY'].includes(upperType));
+        const isCity = upperType === 'COMMUNE' || upperType === 'CITY';
+
         if (config.filterType === 'NEIGHBORHOODS') {
-            return matchesSearch && z.type === 'NEIGHBORHOOD';
+            return matchesSearch && isNeigh;
         }
         if (config.filterType === 'CITIES') {
-            return matchesSearch && (z.type === 'COMMUNE' || z.type === 'CITY');
+            return matchesSearch && isCity;
         }
         return matchesSearch;
     });
@@ -249,6 +258,40 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
                     <div>
                         <label className="label-pro">Nombre max</label>
                         <input className="input-pro" type="number" min={2} max={50} value={config.take || 12} onChange={(e) => handleChange('take', parseInt(e.target.value))} />
+                    </div>
+                </div>
+            </div>
+
+            {/* 🎬 Animations & Défilement */}
+            <div className="settings-card">
+                <div className="settings-card-header">🎬 Animations & Défilement Dynamique</div>
+                <div className="grid-3">
+                    <div>
+                        <label className="label-pro">Animation d'apparition</label>
+                        <select className="input-pro" value={config.animationType || 'fade-in'} onChange={(e) => handleChange('animationType', e.target.value)}>
+                            <option value="none">Aucune</option>
+                            <option value="fade-in">Fondu (Fade In)</option>
+                            <option value="slide-up">Glissement vers le haut (Slide Up)</option>
+                            <option value="zoom-in">Zoom In progressif</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Effet au survol (Hover)</label>
+                        <select className="input-pro" value={config.hoverEffect || 'lift'} onChange={(e) => handleChange('hoverEffect', e.target.value)}>
+                            <option value="none">Aucun</option>
+                            <option value="lift">Élévation & Ombre (Lift)</option>
+                            <option value="zoom">Zoom doux (Scale)</option>
+                            <option value="glow">Lueur / Glow</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Défilement auto (Carrousel)</label>
+                        <select className="input-pro" value={config.autoplaySpeed || '0'} onChange={(e) => handleChange('autoplaySpeed', e.target.value)}>
+                            <option value="0">Désactivé (Manuel)</option>
+                            <option value="3000">Rapide (3 secondes)</option>
+                            <option value="5000">Normal (5 secondes)</option>
+                            <option value="8000">Lent (8 secondes)</option>
+                        </select>
                     </div>
                 </div>
             </div>

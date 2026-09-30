@@ -166,11 +166,18 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
 
             {/* Grid & Card Style */}
             <div className="settings-card">
-                <div className="settings-card-header">🎨 Grille et Carte</div>
+                <div className="settings-card-header">🎨 Disposition, Carrousel & Carte</div>
                 <div className="grid-3">
                     <div>
-                        <Label htmlFor="tpg-columns">Colonnes</Label>
-                        <Select id="tpg-columns" value={config.columns} onChange={(e) => handleChange('columns', parseInt(e.target.value))}>
+                        <Label htmlFor="tpg-layout">Format d'affichage</Label>
+                        <Select id="tpg-layout" value={config.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)}>
+                            <option value="grid">Grille Responsive</option>
+                            <option value="carousel">Carrousel Défilant</option>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="tpg-columns">Colonnes (Grille)</Label>
+                        <Select id="tpg-columns" value={config.columns || 5} onChange={(e) => handleChange('columns', parseInt(e.target.value))}>
                             <option value={3}>3 Colonnes</option>
                             <option value={4}>4 Colonnes</option>
                             <option value={5}>5 Colonnes (Ultra-dense)</option>
@@ -179,22 +186,29 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
                     </div>
                     <div>
                         <Label htmlFor="tpg-card-style">Style de carte</Label>
-                        <Select id="tpg-card-style" value={config.cardStyle} onChange={(e) => handleChange('cardStyle', e.target.value)}>
+                        <Select id="tpg-card-style" value={config.cardStyle || 'dense'} onChange={(e) => handleChange('cardStyle', e.target.value)}>
                             <option value="standard">Standard</option>
                             <option value="compact">Compact</option>
                             <option value="dense">Dense (Marketplace)</option>
                             <option value="elevated">Élevé</option>
                         </Select>
                     </div>
-                    <div>
-                        <Label htmlFor="tpg-default-tab">Onglet par défaut</Label>
-                        <Select id="tpg-default-tab" value={config.defaultTabIndex || 0} onChange={(e) => handleChange('defaultTabIndex', parseInt(e.target.value))}>
-                            {tabs.map((t: TabConfig, i: number) => (
-                                <option key={t.id} value={i}>{t.label || `Onglet ${i + 1}`}</option>
-                            ))}
+                </div>
+
+                {config.layout === 'carousel' && (
+                    <div style={{ marginTop: '0.75rem', padding: '10px', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                        <Label htmlFor="tpg-autoplay" style={{ color: '#0369a1', fontWeight: 'bold' }}>
+                            ⏱️ Vitesse de Défilement Automatique (Carrousel)
+                        </Label>
+                        <Select id="tpg-autoplay" value={config.autoplaySpeed || 0} onChange={(e) => handleChange('autoplaySpeed', parseInt(e.target.value) || 0)}>
+                            <option value={0}>Désactivé (Défilement Manuel)</option>
+                            <option value={2500}>Très Rapide (2.5 secondes)</option>
+                            <option value={4000}>Rapide (4 secondes)</option>
+                            <option value={6000}>Normal (6 secondes)</option>
+                            <option value={8000}>Lent (8 secondes)</option>
                         </Select>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Tab List Management */}

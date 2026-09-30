@@ -63,9 +63,17 @@ const GET_LOCAL_CANDIDATE_PRODUCTS = `
             id
             name
             slug
+            code
             type
+            status
             centerLatitude
             centerLongitude
+            radiusMeters
+            parent {
+                id
+                name
+                slug
+            }
         }
         vendors(options: { filter: { status: { eq: "APPROVED" } }, take: 100 }) {
             items {
@@ -115,7 +123,17 @@ export default async function LocalDiscoveryPage({ searchParams }: any) {
         rawItems = data?.search?.items || [];
         markets = data?.markets || [];
         const geoZones = data?.geoZones || [];
-        neighborhoods = geoZones.filter((z: any) => z.type !== 'COMMUNE' && z.type !== 'CITY');
+        const activeZones = geoZones.filter((z: any) => z.status !== 'DRAFT' && z.status !== 'ARCHIVED');
+        const isNeigh = (z: any) => {
+            const t = (z.type || '').toUpperCase();
+            return t === 'NEIGHBORHOOD' || t === 'QUARTIER' || t === 'VILLAGE' || t === 'ARRONDISSEMENT' || (!['COMMUNE', 'CITY', 'DEPARTMENT', 'COUNTRY'].includes(t));
+        };
+        neighborhoods = activeZones
+            .filter(isNeigh)
+            .map((z: any) => ({
+                ...z,
+                commune: z.parent?.name || ''
+            }));
         vendors = data?.vendors?.items || [];
         cmsPage = cmsRes;
     } catch (err) {

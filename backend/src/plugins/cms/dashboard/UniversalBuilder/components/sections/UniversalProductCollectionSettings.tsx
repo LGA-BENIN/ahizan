@@ -17,6 +17,7 @@ const defaults = {
     badgeText: 'Recommandation EMS',
     experienceStrategy: 'LOCAL_DISCOVERY',
     layout: 'carousel',
+    autoplaySpeed: 0,
     columns: 4,
     limit: 8,
     textAlign: 'left',
@@ -596,6 +597,25 @@ export const UniversalProductCollectionSettings = ({ data, onSave }: UniversalPr
                         </select>
                     </div>
                 </div>
+
+                {config.layout === 'carousel' && (
+                    <div className="p-2.5 bg-blue-50/70 rounded-md border border-blue-200">
+                        <label className="block font-bold text-blue-900 mb-1">
+                            ⏱️ Vitesse de Défilement Automatique (Carrousel)
+                        </label>
+                        <select
+                            value={config.autoplaySpeed || 0}
+                            onChange={(e) => handleChange('autoplaySpeed', parseInt(e.target.value, 10) || 0)}
+                            className="w-full p-1.5 border rounded text-xs bg-white text-slate-800 font-medium"
+                        >
+                            <option value={0}>Désactivé (Défilement Manuel)</option>
+                            <option value={2500}>Très Rapide (2.5 secondes)</option>
+                            <option value={4000}>Rapide (4 secondes)</option>
+                            <option value={6000}>Normal (6 secondes)</option>
+                            <option value={8000}>Lent (8 secondes)</option>
+                        </select>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                     <div>

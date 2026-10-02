@@ -10,16 +10,23 @@ import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
 import { priceFromSubunit } from '@/lib/format';
 import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
 
+import { useLocation } from '@/contexts/location-context';
+import { calculateDistanceKm } from '@/lib/vendure/display-engine';
+
 interface FlashDealsClientProps {
     initialProducts: any[];
     cmsPage?: any;
 }
 
 export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientProps) {
+    const { selectedLocation } = useLocation();
+    const userLat = selectedLocation?.latitude;
+    const userLon = selectedLocation?.longitude;
+
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDiscount, setSelectedDiscount] = useState<number>(0);
     const [maxPrice, setMaxPrice] = useState<number>(0);
-    const [sortBy, setSortBy] = useState<'discount_desc' | 'price_asc' | 'price_desc' | 'newest'>('discount_desc');
+    const [sortBy, setSortBy] = useState<'recommended' | 'discount_desc' | 'price_asc' | 'price_desc' | 'newest'>('recommended');
     
     // General catalog fallback search state
     const [catalogResults, setCatalogResults] = useState<any[]>([]);
@@ -106,21 +113,49 @@ export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientP
             });
         }
 
-        // Sorting
-        list.sort((a: any, b: any) => {
-            const discA = Number(a.discountPercentage || a.winningOffer?.discountPercentage || 0);
-            const discB = Number(b.discountPercentage || b.winningOffer?.discountPercentage || 0);
-            const priceA = a.onPromotion && a.promotionalPrice ? a.promotionalPrice : (a.price || 0);
-            const priceB = b.onPromotion && b.promotionalPrice ? b.promotionalPrice : (b.price || 0);
-
-            if (sortBy === 'discount_desc') return discB - discA;
-            if (sortBy === 'price_asc') return priceA - priceB;
-            if (sortBy === 'price_desc') return priceB - priceA;
-            return 0;
+        // Dynamic distance calculation
+        list = list.map(item => {
+            const vLat = Number(item.latitude ?? item.winningOffer?.vendor?.latitude ?? item.vendor?.latitude);
+            const vLon = Number(item.longitude ?? item.winningOffer?.vendor?.longitude ?? item.vendor?.longitude);
+            let dKm: number | null = null;
+            if (userLat && userLon && !isNaN(vLat) && !isNaN(vLon) && vLat !== 0 && vLon !== 0) {
+                dKm = Math.round(calculateDistanceKm(userLat, userLon, vLat, vLon) * 10) / 10;
+            }
+            return {
+                ...item,
+                distanceKm: dKm !== null ? dKm : item.distanceKm,
+            };
         });
 
+        // Sorting
+        if (sortBy === 'recommended') {
+            list.sort((a: any, b: any) => {
+                const scoreA = a.score ?? a.winningOffer?.score ?? (a.distanceKm != null ? (10000 - a.distanceKm * 100) : 0);
+                const scoreB = b.score ?? b.winningOffer?.score ?? (b.distanceKm != null ? (10000 - b.distanceKm * 100) : 0);
+                return scoreB - scoreA;
+            });
+        } else if (sortBy === 'discount_desc') {
+            list.sort((a: any, b: any) => {
+                const discA = Number(a.discountPercentage || a.winningOffer?.discountPercentage || 0);
+                const discB = Number(b.discountPercentage || b.winningOffer?.discountPercentage || 0);
+                return discB - discA;
+            });
+        } else if (sortBy === 'price_asc') {
+            list.sort((a: any, b: any) => {
+                const priceA = a.onPromotion && a.promotionalPrice ? a.promotionalPrice : (a.price || 0);
+                const priceB = b.onPromotion && b.promotionalPrice ? b.promotionalPrice : (b.price || 0);
+                return priceA - priceB;
+            });
+        } else if (sortBy === 'price_desc') {
+            list.sort((a: any, b: any) => {
+                const priceA = a.onPromotion && a.promotionalPrice ? a.promotionalPrice : (a.price || 0);
+                const priceB = b.onPromotion && b.promotionalPrice ? b.promotionalPrice : (b.price || 0);
+                return priceB - priceA;
+            });
+        }
+
         return list;
-    }, [initialProducts, searchTerm, selectedDiscount, maxPrice, sortBy]);
+    }, [initialProducts, searchTerm, selectedDiscount, maxPrice, sortBy, userLat, userLon]);
 
     // 4. Fallback search on general catalog when user types a search query
     useEffect(() => {
@@ -306,6 +341,7 @@ export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientP
                                 onChange={(e: any) => setSortBy(e.target.value)}
                                 className="h-11 px-3 rounded-xl border border-border bg-background text-xs sm:text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
                             >
+                                <option value="recommended">📍 Recommandé (Proximité)</option>
                                 <option value="discount_desc">🔥 Plus grande remise (%)</option>
                                 <option value="price_asc">💰 Prix croissant</option>
                                 <option value="price_desc">💎 Prix décroissant</option>
@@ -346,7 +382,7 @@ export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientP
     };
 
     const renderFlashGrid = (config?: any) => {
-        const take = Number(config?.take) || 40;
+        const take = Number(config?.take) > 0 ? Number(config.take) : 200;
         const columns = Number(config?.columns) || 4;
         const displayItems = filteredFlashProducts.slice(0, take);
 

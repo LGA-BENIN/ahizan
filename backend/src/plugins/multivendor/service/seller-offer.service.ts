@@ -48,12 +48,68 @@ export class SellerOfferService {
             .leftJoinAndSelect('optionGroup.translations', 'optionGroupTranslations')
             .leftJoinAndSelect('variant.product', 'product')
             .leftJoinAndSelect('product.featuredAsset', 'productAsset')
-            .where('offer.productVariantId IN (:...variantIds)', { variantIds: numVariantIds });
+            .where('offer.productVariantId IN (:...variantIds)', { variantIds: numVariantIds })
+            .andWhere('variant.deletedAt IS NULL')
+            .andWhere('product.deletedAt IS NULL');
 
         if (ctx.apiType === 'shop') {
-            qb.andWhere('offer.status = :status', { status: 'approved' });
+            qb.andWhere('offer.status = :status', { status: 'approved' })
+              .andWhere('product.enabled = true')
+              .andWhere('variant.enabled = true');
         }
         const existingOffers = await qb.getMany();
+
+        // Populate vendor fallback coordinates from market/geo_zone if vendor latitude/longitude is null
+        const vendorsWithMissingCoords = existingOffers
+            .map((o: any) => o.vendor)
+            .filter((v: any) => v && (v.latitude == null || v.longitude == null) && (v.physicalMarketId || v.locationId));
+
+        if (vendorsWithMissingCoords.length > 0) {
+            try {
+                const marketIds = Array.from(new Set(vendorsWithMissingCoords.map((v: any) => v.physicalMarketId).filter(Boolean)));
+                const locationIds = Array.from(new Set(vendorsWithMissingCoords.map((v: any) => v.locationId).filter(Boolean)));
+
+                const marketMap = new Map<number, { lat: number; lng: number }>();
+                if (marketIds.length > 0) {
+                    const rawMarkets = await this.connection.rawConnection.query(
+                        `SELECT id, "centerLatitude", "centerLongitude" FROM market WHERE id = ANY($1)`,
+                        [marketIds]
+                    );
+                    for (const m of rawMarkets) {
+                        if (m.centerLatitude != null && m.centerLongitude != null) {
+                            marketMap.set(Number(m.id), { lat: Number(m.centerLatitude), lng: Number(m.centerLongitude) });
+                        }
+                    }
+                }
+
+                const zoneMap = new Map<number, { lat: number; lng: number }>();
+                if (locationIds.length > 0) {
+                    const rawZones = await this.connection.rawConnection.query(
+                        `SELECT id, "centerLatitude", "centerLongitude" FROM geo_zone WHERE id = ANY($1)`,
+                        [locationIds]
+                    );
+                    for (const z of rawZones) {
+                        if (z.centerLatitude != null && z.centerLongitude != null) {
+                            zoneMap.set(Number(z.id), { lat: Number(z.centerLatitude), lng: Number(z.centerLongitude) });
+                        }
+                    }
+                }
+
+                for (const v of vendorsWithMissingCoords) {
+                    if (v.physicalMarketId && marketMap.has(Number(v.physicalMarketId))) {
+                        const coords = marketMap.get(Number(v.physicalMarketId))!;
+                        v.latitude = coords.lat;
+                        v.longitude = coords.lng;
+                    } else if (v.locationId && zoneMap.has(Number(v.locationId))) {
+                        const coords = zoneMap.get(Number(v.locationId))!;
+                        v.latitude = coords.lat;
+                        v.longitude = coords.lng;
+                    }
+                }
+            } catch (err) {
+                // Ignore fallback coordinate error
+            }
+        }
 
         // Fallback for variants that belong to a vendor but don't have an explicit seller_offer row
         const foundVariantIds = new Set(existingOffers.map(o => Number(o.productVariant?.id || (o as any).productVariantId)));
@@ -62,8 +118,8 @@ export class SellerOfferService {
         if (missingIds.length > 0) {
             try {
                 const shopFilter = ctx.apiType === 'shop' 
-                    ? `AND p.enabled = true AND pv.enabled = true AND (pv."customFieldsOfferstatus" = 'APPROVED' OR pv."customFieldsOfferstatus" IS NULL)` 
-                    : '';
+                    ? `AND p.enabled = true AND pv.enabled = true AND p."deletedAt" IS NULL AND pv."deletedAt" IS NULL AND (pv."customFieldsOfferstatus" = 'APPROVED' OR pv."customFieldsOfferstatus" IS NULL)` 
+                    : `AND p."deletedAt" IS NULL AND pv."deletedAt" IS NULL`;
                 const rawRows = await this.connection.rawConnection.query(
                     `SELECT pv.id as "variantId", pv.sku, p.id as "productId", 
                             p."customFieldsVendorid" as "vendorId",

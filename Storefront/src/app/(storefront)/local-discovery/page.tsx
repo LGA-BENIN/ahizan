@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const GET_LOCAL_CANDIDATE_PRODUCTS = `
     query GetLocalCandidateProducts {
-        search(input: { take: 120, skip: 0, groupByProduct: false }) {
+        search(input: { take: 500, skip: 0, groupByProduct: false }) {
             totalItems
             items {
                 productId

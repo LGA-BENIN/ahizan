@@ -162,52 +162,51 @@ const COMMUNE_SUB_ZONES: Record<string, string[]> = {
 };
 
 /**
- * Multi-Signal Scoring Engine:
- * Intelligently evaluates candidate offers based on Strategy, Geography, Pricing, Stock, SLA and Vendor Trust.
+ * Known coordinate centroids for communes when vendor/market GPS is not explicitly set
+ */
+const COMMUNE_CENTROIDS: Record<string, { lat: number; lon: number }> = {
+    cotonou: { lat: 6.3654, lon: 2.4183 },
+    'porto-novo': { lat: 6.4935, lon: 2.6247 },
+    'abomey-calavi': { lat: 6.5109, lon: 2.3303 },
+    parakou: { lat: 9.3371, lon: 2.6303 },
+    ouidah: { lat: 6.3631, lon: 2.0851 },
+    bohicon: { lat: 7.1783, lon: 2.0667 },
+};
+
+/**
+ * Multi-Signal Scoring Engine with Strict Territorial Tiering (Cascade Proximité):
+ * Guarantees that local/nearby sellers ALWAYS rank above distant sellers, regardless of promotions or ratings.
+ * 
+ * TIER 1 (Score 100,000+): Hyper-local / Same Market / Same Micro-Zone (<= 6 km)
+ * TIER 2 (Score 20,000+):  Neighboring Commune / Urban Periphery (6 to 18 km)
+ * TIER 3 (Score 1,000+):   Distant City / Other Region (> 18 km, e.g. Porto-Novo from Cotonou)
+ * TIER 4 (Score 100+):     Neutral / No Location provided
+ * 
+ * Intra-tier signals (Promotions, Price, Rating, SLA) decide ranking WITHIN each geographic tier.
  */
 export function scoreOffer(
     offer: any, 
     context: DisplayEngineContext, 
     avgPriceInGroup: number
 ): number {
-    let score = 100;
     const strategy = context.experienceStrategy || 'LOCAL_DISCOVERY';
-
-    // 1. In Stock Check (Crucial)
-    const stock = Number(offer.stock ?? offer.stockOnHand ?? 1);
-    if (stock <= 0) {
-        if (context.onlyInStock === true) return -1000;
-        score -= 20;
-    } else {
-        score += 25;
-    }
-
-    // 2. Pricing & Promotion Attractiveness
-    const effectivePrice = offer.onPromotion && offer.promotionalPrice ? offer.promotionalPrice : offer.price;
-    if (offer.onPromotion && offer.promotionalPrice && offer.promotionalPrice < offer.price) {
-        const discountPct = Math.round(((offer.price - offer.promotionalPrice) / offer.price) * 100);
-        if (strategy === 'FLASH_SALE' || strategy === 'TRENDING') {
-            score += 50 + Math.min(30, discountPct);
-        } else {
-            score += 25 + Math.min(20, discountPct);
-        }
-    }
-
-    // Relative price attractiveness compared to group
-    if (avgPriceInGroup > 0 && effectivePrice > 0) {
-        const priceRatio = Math.min(1.5, avgPriceInGroup / effectivePrice);
-        score += priceRatio * 20;
-    }
-
-    // 3. Geographic Proximity (PostGIS, GeoEngine, GPS and City / Commune matching)
     const vendor = offer.vendor;
-    if (vendor) {
-        const userLat = context.userLat ?? (context.userLocation?.latitude ? Number(context.userLocation.latitude) : undefined);
-        const userLon = context.userLon ?? (context.userLocation?.longitude ? Number(context.userLocation.longitude) : undefined);
-        const targetMarketId = context.marketId ?? context.userLocation?.marketId;
-        const targetLocationId = context.locationId ?? context.userLocation?.geoZoneId ?? context.userLocation?.id;
-        const userCityName = (context.communeName || context.userLocation?.commune || context.userLocation?.name || '').toLowerCase().trim();
 
+    // -------------------------------------------------------------
+    // STEP 1: GEOGRAPHIC TIER DETERMINATION (Territorial Hierarchy)
+    // -------------------------------------------------------------
+    let tierBaseScore = 100;
+    let geoFineBonus = 0;
+    offer.fallbackLevel = 4;
+    offer.fallbackLabel = '';
+
+    const userLat = context.userLat ?? (context.userLocation?.latitude ? Number(context.userLocation.latitude) : undefined);
+    const userLon = context.userLon ?? (context.userLocation?.longitude ? Number(context.userLocation.longitude) : undefined);
+    const targetMarketId = context.marketId ?? context.userLocation?.marketId;
+    const targetLocationId = context.locationId ?? context.userLocation?.geoZoneId ?? context.userLocation?.id;
+    const userCityName = (context.communeName || context.userLocation?.commune || context.userLocation?.name || '').toLowerCase().trim();
+
+    if (vendor) {
         const vendorMarketId = String(vendor.physicalMarket?.id || vendor.marketId || '');
         const vendorLocationId = String(vendor.location?.id || vendor.locationId || '');
         const vendorMarketName = (vendor.physicalMarket?.name || '').toLowerCase();
@@ -215,61 +214,58 @@ export function scoreOffer(
         const vendorAddress = (vendor.address || '').toLowerCase();
         const vendorZone = (vendor.zone || '').toLowerCase();
 
-        // Check 3.1: Exact Market Match (e.g. Dantokpa, Ganhi, Ouando)
-        if (targetMarketId && vendorMarketId && String(targetMarketId) === vendorMarketId) {
-            score += 70;
-            offer.fallbackLevel = 1;
-            offer.fallbackLabel = vendor.physicalMarket?.name || 'Marché';
-        }
-        // Check 3.2: Exact Zone / Commune / Neighborhood Match
-        else if (targetLocationId && vendorLocationId && String(targetLocationId) === vendorLocationId) {
-            score += 55;
-            offer.fallbackLevel = 1;
-            offer.fallbackLabel = vendor.location?.name || 'Quartier';
-        }
-        // Check 3.3: GPS Proximity Calculation
-        else if (userLat && userLon && vendor.latitude && vendor.longitude) {
-            const distance = calculateDistanceKm(userLat, userLon, Number(vendor.latitude), Number(vendor.longitude));
-            offer.distanceKm = Math.round(distance * 10) / 10;
-            if (distance <= 3) {
-                score += 60;
-                offer.fallbackLevel = 1;
-                offer.fallbackLabel = `À ${offer.distanceKm} km`;
-            } else if (distance <= 8) {
-                score += 45;
-                offer.fallbackLevel = 2;
-                offer.fallbackLabel = `À ${offer.distanceKm} km`;
-            } else if (distance <= 18) {
-                score += 30;
-                offer.fallbackLevel = 3;
-                offer.fallbackLabel = `À ${offer.distanceKm} km`;
-            } else if (distance <= 35) {
-                score += 15;
-                offer.fallbackLevel = 4;
-                offer.fallbackLabel = `À ${offer.distanceKm} km`;
-            } else {
-                score -= 10;
-                offer.fallbackLevel = 5;
+        // Determine effective vendor coordinates with fallbacks
+        let vendorLat: number | undefined = vendor.latitude != null && !isNaN(Number(vendor.latitude)) && Number(vendor.latitude) !== 0
+            ? Number(vendor.latitude)
+            : (vendor.physicalMarket?.centerLatitude != null && !isNaN(Number(vendor.physicalMarket.centerLatitude))
+                ? Number(vendor.physicalMarket.centerLatitude)
+                : (vendor.location?.centerLatitude != null && !isNaN(Number(vendor.location.centerLatitude))
+                    ? Number(vendor.location.centerLatitude)
+                    : undefined));
+
+        let vendorLon: number | undefined = vendor.longitude != null && !isNaN(Number(vendor.longitude)) && Number(vendor.longitude) !== 0
+            ? Number(vendor.longitude)
+            : (vendor.physicalMarket?.centerLongitude != null && !isNaN(Number(vendor.physicalMarket.centerLongitude))
+                ? Number(vendor.physicalMarket.centerLongitude)
+                : (vendor.location?.centerLongitude != null && !isNaN(Number(vendor.location.centerLongitude))
+                    ? Number(vendor.location.centerLongitude)
+                    : undefined));
+
+        // Fallback to commune centroid if city name matches
+        if (vendorLat === undefined || vendorLon === undefined) {
+            for (const [communeKey, centroid] of Object.entries(COMMUNE_CENTROIDS)) {
+                if (vendorLocationName.includes(communeKey) || vendorMarketName.includes(communeKey) || vendorAddress.includes(communeKey) || vendorZone.includes(communeKey)) {
+                    vendorLat = centroid.lat;
+                    vendorLon = centroid.lon;
+                    break;
+                }
             }
         }
-        // Check 3.4: City / Commune & Neighborhood Semantic Match
-        else if (userCityName) {
-            // Check direct city name inclusion or sub-zone dictionary match
-            let isCityMatch = (
+
+        let distanceKm: number | null = null;
+        if (userLat != null && userLon != null && vendorLat != null && vendorLon != null) {
+            const rawDist = calculateDistanceKm(userLat, userLon, vendorLat, vendorLon);
+            distanceKm = Math.round(rawDist * 10) / 10;
+            offer.distanceKm = distanceKm;
+        }
+
+        // Semantic Commune Check
+        let isSameCommune = false;
+        if (userCityName) {
+            isSameCommune = (
                 vendorLocationName.includes(userCityName) ||
                 vendorMarketName.includes(userCityName) ||
                 vendorAddress.includes(userCityName) ||
                 vendorZone.includes(userCityName)
             );
 
-            if (!isCityMatch) {
-                // Check if userCityName maps to a known commune list
+            if (!isSameCommune) {
                 const matchingCommuneKey = Object.keys(COMMUNE_SUB_ZONES).find(k => 
                     userCityName.includes(k) || k.includes(userCityName)
                 );
                 if (matchingCommuneKey) {
                     const subZones = COMMUNE_SUB_ZONES[matchingCommuneKey];
-                    isCityMatch = subZones.some(sz => 
+                    isSameCommune = subZones.some(sz => 
                         vendorZone.includes(sz) || 
                         vendorMarketName.includes(sz) || 
                         vendorLocationName.includes(sz) || 
@@ -277,34 +273,124 @@ export function scoreOffer(
                     );
                 }
             }
+        }
 
-            if (isCityMatch) {
-                score += 50;
+        // Case A: Exact Market Match (e.g. Dantokpa, Ganhi, Ouando)
+        if (targetMarketId && vendorMarketId && String(targetMarketId) === vendorMarketId) {
+            tierBaseScore = 100000;
+            geoFineBonus = 3000;
+            offer.fallbackLevel = 1;
+            offer.fallbackLabel = vendor.physicalMarket?.name || 'Marché local';
+        }
+        // Case B: Exact Location / Neighborhood Match
+        else if (targetLocationId && vendorLocationId && String(targetLocationId) === vendorLocationId) {
+            tierBaseScore = 100000;
+            geoFineBonus = 2000;
+            offer.fallbackLevel = 1;
+            offer.fallbackLabel = vendor.location?.name || 'Quartier';
+        }
+        // Case C: GPS Distance Based Tiering
+        else if (distanceKm !== null) {
+            if (distanceKm <= 1.0) {
+                tierBaseScore = 100000;
+                geoFineBonus = 2500;
+                offer.fallbackLevel = 1;
+                offer.fallbackLabel = `À ${distanceKm} km`;
+            } else if (distanceKm <= 2.5) {
+                tierBaseScore = 100000;
+                geoFineBonus = 2000 - Math.round((distanceKm - 1.0) * 333);
+                offer.fallbackLevel = 1;
+                offer.fallbackLabel = `À ${distanceKm} km`;
+            } else if (distanceKm <= 6.0) {
+                tierBaseScore = 100000;
+                geoFineBonus = 1500 - Math.round((distanceKm - 2.5) * 200);
+                offer.fallbackLevel = 1;
+                offer.fallbackLabel = `À ${distanceKm} km`;
+            } else if (distanceKm <= 18.0) {
+                // Tier 2: Neighboring Communes (6 to 18 km)
+                tierBaseScore = 20000;
+                geoFineBonus = 1000 - Math.round((distanceKm - 6.0) * 75);
                 offer.fallbackLevel = 2;
-                offer.fallbackLabel = vendor.physicalMarket?.name || vendor.zone || vendor.location?.name || userCityName;
+                offer.fallbackLabel = `À ${distanceKm} km`;
+            } else if (distanceKm <= 35.0) {
+                // Tier 3: Distant City (e.g. Porto-Novo from Cotonou)
+                tierBaseScore = 1000;
+                geoFineBonus = 200 - Math.round((distanceKm - 18.0) * 6);
+                offer.fallbackLevel = 3;
+                offer.fallbackLabel = `À ${distanceKm} km — ${vendor.location?.name || 'Région voisine'}`;
+            } else {
+                // Tier 3: Very distant (Parakou, Bohicon, etc.)
+                tierBaseScore = 1000;
+                geoFineBonus = Math.max(0, 50 - Math.round((distanceKm - 35.0) * 0.1));
+                offer.fallbackLevel = 3;
+                offer.fallbackLabel = `À ${distanceKm} km`;
             }
+        }
+        // Case D: Same Commune semantic match (fallback when exact GPS is unavailable)
+        else if (isSameCommune) {
+            tierBaseScore = 100000;
+            geoFineBonus = 1000;
+            offer.fallbackLevel = 1;
+            offer.fallbackLabel = vendor.physicalMarket?.name || vendor.location?.name || userCityName;
+        } else if (userCityName) {
+            // User specified a city, but vendor is in another city
+            tierBaseScore = 1000;
+            geoFineBonus = 0;
+            offer.fallbackLevel = 3;
+            offer.fallbackLabel = vendor.location?.name || vendor.zone || 'Autre région';
         }
     }
 
-    // 4. Delivery SLA (Shorter lead time = higher score)
+    // -------------------------------------------------------------
+    // STEP 2: INTRA-TIER QUALITY & COMMERCIAL SIGNALS (Max ~300 pts)
+    // -------------------------------------------------------------
+    let qualityScore = 0;
+
+    // 1. Stock Status
+    const stock = Number(offer.stock ?? offer.stockOnHand ?? 1);
+    if (stock <= 0) {
+        if (context.onlyInStock === true) return -1000;
+        qualityScore -= 100;
+    } else {
+        qualityScore += 50;
+    }
+
+    // 2. Promotion & Discount Attractiveness
+    const effectivePrice = offer.onPromotion && offer.promotionalPrice ? offer.promotionalPrice : offer.price;
+    if (offer.onPromotion && offer.promotionalPrice && offer.promotionalPrice < offer.price) {
+        const discountPct = Math.round(((offer.price - offer.promotionalPrice) / offer.price) * 100);
+        if (strategy === 'FLASH_SALE' || strategy === 'TRENDING') {
+            qualityScore += 80 + Math.min(50, discountPct);
+        } else {
+            qualityScore += 40 + Math.min(30, discountPct);
+        }
+    }
+
+    // 3. Competitive Price Ratio
+    if (avgPriceInGroup > 0 && effectivePrice > 0) {
+        const priceRatio = Math.min(1.5, avgPriceInGroup / effectivePrice);
+        qualityScore += Math.round(priceRatio * 30);
+    }
+
+    // 4. Delivery SLA Speed
     const deliveryValue = Number(offer.deliveryTimeValue ?? 2);
     const deliveryUnit = offer.deliveryTimeUnit || 'HOURS';
     if (deliveryUnit === 'HOURS' || deliveryUnit === 'h') {
-        if (deliveryValue <= 2) score += 20;
-        else if (deliveryValue <= 6) score += 15;
+        if (deliveryValue <= 2) qualityScore += 40;
+        else if (deliveryValue <= 6) qualityScore += 20;
     } else if (deliveryUnit === 'DAYS' || deliveryUnit === 'j') {
-        if (deliveryValue <= 1) score += 10;
+        if (deliveryValue <= 1) qualityScore += 15;
     }
 
     // 5. Vendor Trust & Rating
     if (vendor?.verificationStatus && context.boostCertifiedVendors !== false) {
-        score += 20;
+        qualityScore += 30;
     }
     if (vendor?.rating && Number(vendor.rating) >= 4.5) {
-        score += 15;
+        qualityScore += 20;
     }
 
-    return score;
+    return tierBaseScore + geoFineBonus + qualityScore;
 }
 
 /**
@@ -375,6 +461,11 @@ function extractOfferCandidates(rawItems: any[]): {
 
     for (const item of rawItems) {
         if (!item) continue;
+
+        // Skip soft-deleted or disabled items
+        if (item.deletedAt || item.product?.deletedAt || item.enabled === false || item.product?.enabled === false) {
+            continue;
+        }
 
         // Skip unapproved items (pending / rejected)
         const approval = item.customFields?.approvalStatus || item.approvalStatus;
@@ -518,9 +609,10 @@ function extractOfferCandidates(rawItems: any[]): {
  * 
  * Implements the operational decision pipeline:
  * 1. Extraction of individual sellable declination offers (e.g. T-shirt Red DALTON 1200, T-shirt Blue DALTON 2200).
- * 2. Multi-signal scoring (Geo proximity, pricing competitiveness, SLA, certified vendor boost).
- * 3. Smart anti-monopoly diversity policy with fair interleaving.
- * 4. Formatting of clean DisplayOfferItems ready for compact card rendering and direct PDP navigation.
+ * 2. Multi-signal scoring with massive territorial hierarchy (100k for Local Tier 1, 20k for Tier 2, 1k for Distant Tier 3).
+ * 3. Strict territorial partition & distant product capping (Max ~10 distant fallback items when local items exist).
+ * 4. Smart anti-monopoly diversity policy with fair interleaving.
+ * 5. Formatting of clean DisplayOfferItems ready for compact card rendering and direct PDP navigation.
  */
 export function processAndResolveDisplayItems(
     rawItems: any[], 
@@ -564,10 +656,33 @@ export function processAndResolveDisplayItems(
         return true;
     });
 
-    // 5. Sort candidates by score descending (highest score first)
+    // 5. Sort candidates strictly by score descending (highest score first)
     eligibleOffers.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-    // 6. Apply Diversity & Anti-Monopoly Policy
+    // 6. Strict Territorial Partition & Distant Product Capping
+    // When local products (Tier 1 >= 100k or Tier 2 >= 20k) exist in user zone,
+    // distant items (Tier 3 < 20k, e.g. Porto-Novo from Cotonou) are strictly capped (max 10 items)
+    // and relegated to the very end of the catalog so they never flood the first pages.
+    const hasLocalOffers = eligibleOffers.some(o => (o.score || 0) >= 20000);
+    const maxDistantFallback = isVendorStore ? Infinity : 10;
+
+    let distantCount = 0;
+    const filteredByTerritoryOffers: any[] = [];
+
+    for (const off of eligibleOffers) {
+        const isDistant = (off.score || 0) < 20000 && (off.fallbackLevel ?? 4) >= 3;
+        if (hasLocalOffers && isDistant && !isVendorStore) {
+            if (distantCount < maxDistantFallback) {
+                filteredByTerritoryOffers.push(off);
+                distantCount++;
+            }
+            // All other distant items (e.g. 90 other Porto-Novo products when user is in Cotonou) are dropped!
+        } else {
+            filteredByTerritoryOffers.push(off);
+        }
+    }
+
+    // 7. Apply Diversity & Anti-Monopoly Policy
     // On vendor store: no diversity limits (all declination offers of this vendor are shown).
     // On marketplace/collections/home: allow multiple distinct declinations per product (e.g. max 2 or 3)
     // while preventing a single vendor from monopolizing the entire grid (max 3 or 4 per vendor).
@@ -585,7 +700,7 @@ export function processAndResolveDisplayItems(
     const overflowOffers: any[] = [];
 
     // Pass 1: Strict diversity quota
-    for (const off of eligibleOffers) {
+    for (const off of filteredByTerritoryOffers) {
         const pCount = productCountMap.get(off.productId) || 0;
         const vCount = sellerCountMap.get(off.vendor?.id || 'main') || 0;
 

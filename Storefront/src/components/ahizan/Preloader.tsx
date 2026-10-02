@@ -23,98 +23,67 @@ export function AhizanPreloader({ config }: { config: any }) {
             }
         } catch (e) {
             setStatus('hidden');
+            return;
         }
-    }, []);
 
-    // 1. Détecter si la page est interactive ou complètement chargée
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        const checkInteractive = () => {
-            return document.readyState === 'complete' || document.readyState === 'interactive';
-        };
-
-        if (checkInteractive()) {
+        // Detect if page is already loaded
+        const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
+        if (isReady) {
             setIsPageLoaded(true);
         } else {
             const handleLoad = () => setIsPageLoaded(true);
             window.addEventListener('DOMContentLoaded', handleLoad);
             window.addEventListener('load', handleLoad);
-            return () => {
-                window.removeEventListener('DOMContentLoaded', handleLoad);
-                window.removeEventListener('load', handleLoad);
-            };
         }
+
+        // Safety timeout to guarantee the preloader disappears smoothly even on slow networks
+        const absoluteSafetyTimer = setTimeout(() => {
+            setIsPageLoaded(true);
+            setStatus(prev => (prev !== 'hidden' && prev !== 'fading' ? 'pulse-final' : prev));
+        }, 1600);
+
+        return () => {
+            clearTimeout(absoluteSafetyTimer);
+        };
     }, []);
 
-    // 2. Gérer le cycle de vie et l'orchestration des états de l'animation
+    // Handle animation sequence and config changes
     useEffect(() => {
-        if (config === null) return;
+        if (config === null || hasRunRef.current) return;
 
-        // Si l'animation a déjà été complétée dans la session, on ne la relance pas
-        if (hasRunRef.current || status === 'hidden') {
-            return;
-        }
+        const type = config?.preloader?.type || 'default';
 
-        if (config?.preloader?.type === 'none') {
+        if (type === 'none') {
             setStatus('hidden');
             hasRunRef.current = true;
             try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
             return;
         }
 
-        if (config?.preloader?.type !== 'default') {
-            // Pour les autres types (image, vidéo, lottie, spinner), on fait un fondu après la durée paramétrée
-            const durationMs = Math.min((config?.preloader?.duration || 1.2) * 1000, 2000);
+        if (type !== 'default') {
+            const durationMs = Math.min((config?.preloader?.duration || 1.0) * 1000, 1800);
             const timer = setTimeout(() => {
                 setStatus('fading');
-                const hideTimer = setTimeout(() => {
+                setTimeout(() => {
                     setStatus('hidden');
                     hasRunRef.current = true;
                     try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
-                }, 400);
+                }, 350);
             }, durationMs);
             return () => clearTimeout(timer);
         }
 
-        // --- TYPE PAR DÉFAUT (Animation A-Z Premium avec logo officiel) ---
-        // Étape A : À 900ms, l'animation initiale est complétée.
+        // Default A-Z animated logo
         const drawingTimer = setTimeout(() => {
-            const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
-            if (isReady) {
-                setStatus('pulse-final');
-            } else {
-                setStatus('looping');
-            }
-        }, 900);
-
-        // Étape B : Timeout de sécurité absolu (UX Resilience)
-        const safetyTimer = setTimeout(() => {
-            setIsPageLoaded(true);
-            setStatus((prev: 'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden') => {
-                if (prev === 'drawing' || prev === 'looping') {
-                    return 'pulse-final';
-                }
-                return prev;
-            });
-        }, 2200);
+            setStatus('pulse-final');
+        }, 850);
 
         return () => {
             clearTimeout(drawingTimer);
-            clearTimeout(safetyTimer);
         };
-    }, [config, status]);
+    }, [config]);
 
-    // Étape C : Si on est en état de pulsation infinie ('looping') et que la page se charge enfin,
-    // on déclenche instantanément la pulsation finale de transition.
-    useEffect(() => {
-        if (status === 'looping' && isPageLoaded) {
-            setStatus('pulse-final');
-        }
-    }, [status, isPageLoaded]);
-
-    // Étape C : La pulsation finale dure 300ms, après quoi on passe au fondu de sortie ('fading'),
-    // puis on masque définitivement le composant du DOM ('hidden').
+    // Handle transitions between states
     useEffect(() => {
         if (status === 'pulse-final') {
             const timer = setTimeout(() => {

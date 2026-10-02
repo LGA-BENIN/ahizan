@@ -262,7 +262,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     if (collectionIds.length > 0) {
                         const searchPromises = collectionIds.map((cId: string) => 
                             fetchWithClientCache(shopApiUrl, searchFlashQuery, { 
-                                input: { collectionId: cId, take: 50, groupByProduct: false } 
+                                input: { collectionId: cId, take: 200, groupByProduct: false } 
                             }).catch(() => null)
                         );
                         const results = await Promise.all(searchPromises);
@@ -298,7 +298,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         }
                     } else if (collectionSlug) {
                         const r = await fetchWithClientCache(shopApiUrl, searchFlashQuery, { 
-                            input: { collectionSlug, take: 50, groupByProduct: false } 
+                            input: { collectionSlug, take: 200, groupByProduct: false } 
                         });
                         const items = r?.search?.items || [];
                         for (const item of items) {

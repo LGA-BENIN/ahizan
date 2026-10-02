@@ -1,4 +1,5 @@
-import { rawQuery } from './raw-api';
+import { getShopApiUrl } from './api-utils';
+import { fetchWithClientCache } from './client-cache';
 import { processAndResolveDisplayItems, DisplayEngineContext } from './display-engine';
 
 const GET_SELLER_OFFERS_FOR_VARIANTS = `
@@ -89,8 +90,8 @@ export async function expandProductsWithSellerOffers(
     if (variantIds.length === 0) return items;
 
     try {
-        const res = await rawQuery(GET_SELLER_OFFERS_FOR_VARIANTS, {
-            variables: { variantIds },
+        const res = await fetchWithClientCache(getShopApiUrl(), GET_SELLER_OFFERS_FOR_VARIANTS, {
+            variantIds,
         });
 
         const offers: any[] = res?.sellerOffersForVariants || [];

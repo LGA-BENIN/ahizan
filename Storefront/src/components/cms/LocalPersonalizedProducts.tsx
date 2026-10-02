@@ -239,35 +239,120 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 const globalVendorsResult = await fetchWithClientCache(shopApiUrl, localQuery, {});
                 vendorsList = globalVendorsResult?.vendors?.items || [];
             }
-            
-            // Build raw product-vendor pairs without variant explosion
+
             const rawVendorProducts: any[] = [];
-            for (const v of vendorsList) {
-                for (const p of (v.products || [])) {
-                    if (p.customFields?.approvalStatus && String(p.customFields.approvalStatus).toLowerCase() !== 'approved') {
-                        continue;
-                    }
-                    rawVendorProducts.push({
-                        ...p,
-                        slug: p.slug || p.translations?.[0]?.slug || String(p.id),
-                        productId: p.id,
-                        vendorId: v.id,
-                        vendorName: v.name,
-                        marketName: v.physicalMarket?.name,
-                        marketId: v.physicalMarket?.id,
-                        locationName: v.location?.name,
-                        locationId: v.location?.id,
-                        customFields: {
-                            ...(p.customFields || {}),
-                            vendor: {
-                                id: v.id,
-                                name: v.name,
-                                physicalMarket: v.physicalMarket,
-                                location: v.location,
+
+            // Also fetch multivendor seller offers to support modern catalog architecture
+            try {
+                const searchCandidateQuery = `
+                    query GetCandidatesForLocal {
+                        search(input: { take: 200, groupByProduct: false }) {
+                            items {
+                                productId
+                                productVariantId
+                                productName
+                                productVariantName
+                                slug
+                                productAsset { id preview }
+                                productVariantAsset { id preview }
+                                priceWithTax {
+                                    __typename
+                                    ... on SinglePrice { value }
+                                    ... on PriceRange { min max }
+                                }
+                                inStock
                             }
                         }
-                    });
+                    }
+                `;
+                const searchRes = await fetchWithClientCache(shopApiUrl, searchCandidateQuery);
+                const sItems = searchRes?.search?.items || [];
+                const variantIds = Array.from(new Set(sItems.map((i: any) => i.productVariantId).filter(Boolean)));
+
+                if (variantIds.length > 0) {
+                    const sellerOffersQuery = `
+                        query GetLocalSellerOffers($variantIds: [ID!]!) {
+                            sellerOffersForVariants(variantIds: $variantIds) {
+                                id
+                                price
+                                stock
+                                onPromotion
+                                promotionalPrice
+                                condition
+                                deliveryTimeValue
+                                deliveryTimeUnit
+                                vendor {
+                                    id
+                                    name
+                                    phoneNumber
+                                    latitude
+                                    longitude
+                                    verificationStatus
+                                    rating
+                                    ratingCount
+                                    logo { preview }
+                                    location { id name }
+                                    physicalMarket { id name }
+                                }
+                                productVariant {
+                                    id
+                                    name
+                                    sku
+                                    featuredAsset { id preview }
+                                    options { id name code group { id name } }
+                                    product {
+                                        id
+                                        name
+                                        slug
+                                        featuredAsset { id preview }
+                                    }
+                                }
+                            }
+                        }
+                    `;
+                    const offersRes = await fetchWithClientCache(shopApiUrl, sellerOffersQuery, { variantIds });
+                    const offers: any[] = offersRes?.sellerOffersForVariants || [];
+
+                    for (const item of sItems) {
+                        const vId = String(item.productVariantId);
+                        const matchingOffers = offers.filter(o => String(o.productVariant?.id) === vId && o.vendor?.id);
+                        for (const off of matchingOffers) {
+                            rawVendorProducts.push({
+                                ...item,
+                                productId: item.productId || off.productVariant?.product?.id,
+                                productName: item.productName || off.productVariant?.product?.name,
+                                productVariantId: vId,
+                                productVariantName: off.productVariant?.name || item.productVariantName,
+                                productVariant: off.productVariant,
+                                sku: off.productVariant?.sku,
+                                vendorId: off.vendor?.id,
+                                vendorName: off.vendor?.name,
+                                marketName: off.vendor?.physicalMarket?.name,
+                                marketId: off.vendor?.physicalMarket?.id,
+                                locationName: off.vendor?.location?.name,
+                                locationId: off.vendor?.location?.id,
+                                latitude: off.vendor?.latitude,
+                                longitude: off.vendor?.longitude,
+                                price: off.price,
+                                promotionalPrice: off.promotionalPrice,
+                                onPromotion: off.onPromotion,
+                                stock: off.stock,
+                                condition: off.condition,
+                                deliveryTimeValue: off.deliveryTimeValue,
+                                deliveryTimeUnit: off.deliveryTimeUnit,
+                                vendor: off.vendor,
+                                options: off.productVariant?.options,
+                                customFields: {
+                                    vendor: off.vendor,
+                                    onPromotion: off.onPromotion,
+                                    promotionalPrice: off.promotionalPrice,
+                                }
+                            });
+                        }
+                    }
                 }
+            } catch (err) {
+                console.warn('Error fetching candidate seller offers for local products:', err);
             }
 
             // Context for Decision Engine

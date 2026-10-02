@@ -24,7 +24,7 @@ const GET_FLASH_CANDIDATE_PRODUCTS = `
         search(input: { 
             collectionSlug: $collectionSlug, 
             collectionId: $collectionId,
-            take: 100, 
+            take: 500, 
             skip: 0, 
             groupByProduct: false 
         }) {
@@ -112,20 +112,20 @@ export default async function FlashDealsPage({ searchParams }: any) {
             communeName: userLocation?.commune || userLocation?.name,
             requirePromotion: false,
             boostCertifiedVendors: true,
-            maxVariantsPerCentralProduct: 3,
+            maxVariantsPerCentralProduct: 4,
+            maxItemsPerVendor: 30,
+            limit: 300,
         });
 
         // Retain items with active promotion or competitive pricing
-        flashProducts = expanded.filter((p: any) => {
+        const promoOnly = expanded.filter((p: any) => {
             const isPromo = Boolean(p.onPromotion || p.winningOffer?.onPromotion);
             const disc = Number(p.discountPercentage || p.winningOffer?.discountPercentage || 0);
             return isPromo || disc > 0 || (p.price && p.promotionalPrice && p.price > p.promotionalPrice);
         });
 
-        // If strict promotion list is small, backfill with top scored candidates
-        if (flashProducts.length < 8 && expanded.length > 0) {
-            flashProducts = expanded.slice(0, 24);
-        }
+        // If promotional list has items, use it; otherwise use full geo-scored expanded list
+        flashProducts = promoOnly.length >= 12 ? promoOnly : expanded;
     } catch (e) {
         console.warn('[FlashDealsPage] expandProducts error:', e);
         flashProducts = rawItems;

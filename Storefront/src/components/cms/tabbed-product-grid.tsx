@@ -7,6 +7,7 @@ import { DenseProductCard } from "@/components/commerce/dense-product-card";
 import { ProductCard } from "@/components/commerce/product-card";
 import { MasterProductCard } from "@/components/commerce/master-product-card";
 import { processAndResolveDisplayItems } from "@/lib/vendure/display-engine";
+import { expandProductsWithSellerOffers } from "@/lib/vendure/seller-offers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -322,16 +323,24 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 }
 
                 const displayContext = {
-                    userLat: selectedLocation?.latitude,
-                    userLon: selectedLocation?.longitude,
+                    userLat: selectedLocation?.latitude ? Number(selectedLocation.latitude) : undefined,
+                    userLon: selectedLocation?.longitude ? Number(selectedLocation.longitude) : undefined,
                     marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
                     locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
+                    communeName: selectedLocation?.commune || selectedLocation?.name,
                 };
-                const resolved = processAndResolveDisplayItems(items, displayContext);
+                const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             } else if (selectionMode === 'PRODUCTS') {
                 const items = await fetchManualProducts();
-                const resolved = processAndResolveDisplayItems(items);
+                const displayContext = {
+                    userLat: selectedLocation?.latitude ? Number(selectedLocation.latitude) : undefined,
+                    userLon: selectedLocation?.longitude ? Number(selectedLocation.longitude) : undefined,
+                    marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
+                    locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
+                    communeName: selectedLocation?.commune || selectedLocation?.name,
+                };
+                const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             } else if (selectionMode === 'HYBRID') {
                 const [collectionItems, manualItems] = await Promise.all([
@@ -348,7 +357,14 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 ]);
                 
                 const items = [...manualItems, ...collectionItems];
-                const resolved = processAndResolveDisplayItems(items);
+                const displayContext = {
+                    userLat: selectedLocation?.latitude ? Number(selectedLocation.latitude) : undefined,
+                    userLon: selectedLocation?.longitude ? Number(selectedLocation.longitude) : undefined,
+                    marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
+                    locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
+                    communeName: selectedLocation?.commune || selectedLocation?.name,
+                };
+                const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             } else {
                 // COLLECTIONS
@@ -360,7 +376,14 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 } else {
                     items = await fetchForCollection();
                 }
-                const resolved = processAndResolveDisplayItems(items);
+                const displayContext = {
+                    userLat: selectedLocation?.latitude ? Number(selectedLocation.latitude) : undefined,
+                    userLon: selectedLocation?.longitude ? Number(selectedLocation.longitude) : undefined,
+                    marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
+                    locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
+                    communeName: selectedLocation?.commune || selectedLocation?.name,
+                };
+                const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
             }
         } catch (err) {

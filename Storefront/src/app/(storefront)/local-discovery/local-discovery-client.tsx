@@ -81,11 +81,11 @@ export function LocalDiscoveryClient({
     const [sortBy, setSortBy] = useState<'distance_asc' | 'rating_desc' | 'price_asc'>('distance_asc');
 
     // Radii & labels from back office CMS configuration
-    const zoneARadius = Number(cascadeConfig?.zoneARadiusKm) || 3;
-    const zoneBRadius = Number(cascadeConfig?.zoneBRadiusKm) || 10;
-    const zoneALabel = cascadeConfig?.zoneALabel || `📍 Zone Immédiate (< ${zoneARadius} km / Votre Marché)`;
-    const zoneBLabel = cascadeConfig?.zoneBLabel || `🛵 Zone Ville & Arrondissement (< ${zoneBRadius} km)`;
-    const zoneCLabel = cascadeConfig?.zoneCLabel || '📦 Zone Élargie & Bénin Entier (Livraison Standard)';
+    const zoneARadius = Number(cascadeConfig?.zoneARadiusKm) || 5;
+    const zoneBRadius = Number(cascadeConfig?.zoneBRadiusKm) || 18;
+    const zoneALabel = cascadeConfig?.zoneALabel || `📍 Zone Immédiate (< ${zoneARadius} km / Vos Boutiques & Marchés Proches)`;
+    const zoneBLabel = cascadeConfig?.zoneBLabel || `🛵 Zone Limitrophe & Communes Voisines (< ${zoneBRadius} km)`;
+    const zoneCLabel = cascadeConfig?.zoneCLabel || '📦 Zone Élargie & Reste du Pays (Livraison Standard)';
 
     // Current user GPS Coordinates
     const userLat = selectedLocation?.latitude;
@@ -204,6 +204,20 @@ export function LocalDiscoveryClient({
                 return (unit === 'HOURS' || unit === 'h') && sla <= 2;
             });
         }
+
+        // Dynamic distance re-scoring based on active selectedLocation
+        list = list.map(item => {
+            const vLat = Number(item.latitude ?? item.winningOffer?.vendor?.latitude ?? item.vendor?.latitude);
+            const vLon = Number(item.longitude ?? item.winningOffer?.vendor?.longitude ?? item.vendor?.longitude);
+            let dKm: number | null = null;
+            if (userLat && userLon && !isNaN(vLat) && !isNaN(vLon) && vLat !== 0 && vLon !== 0) {
+                dKm = Math.round(calculateDistanceKm(userLat, userLon, vLat, vLon) * 10) / 10;
+            }
+            return {
+                ...item,
+                distanceKm: dKm !== null ? dKm : item.distanceKm,
+            };
+        });
 
         // Zone Cascading grouping using CMS configured radii
         const zoneA: any[] = [];

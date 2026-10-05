@@ -24,6 +24,7 @@ import { LocalNeighborhoodsProximitySection } from "@/components/cms/LocalNeighb
 import { LocalCascadeEngineSection } from "@/components/cms/LocalCascadeEngineSection";
 import { MarketHeroBanner } from "@/components/cms/MarketHeroBanner";
 import { MarketProductSearch } from "@/components/cms/MarketProductSearch";
+import { MarketFacetedCatalog } from "@/components/cms/MarketFacetedCatalog";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Script from "next/script";
 import { useLocation } from "@/contexts/location-context";
@@ -421,8 +422,14 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         }
 
         case 'MARKET_SEARCH_BAR':
-        case 'MARKET_PRODUCT_SEARCH': {
-            return <MarketProductSearch config={config} />;
+        case 'MARKET_PRODUCT_SEARCH':
+        case 'MARKET_FACETED_GRID':
+        case 'MARKET_CATALOG': {
+            return (
+                <section className={`${wrapper} mt-4 md:mt-6`}>
+                    <MarketFacetedCatalog config={config} />
+                </section>
+            );
         }
 
         case 'MARKET_INFO':

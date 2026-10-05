@@ -1,78 +1,65 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { MapPin, Store, ShoppingBag, ArrowRight, ChevronLeft, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { 
+    MapPin, 
+    Search, 
+    Sparkles, 
+    Clock, 
+    ShieldCheck, 
+    Truck, 
+    ChevronRight, 
+    ShoppingBag, 
+    X,
+    ArrowRight
+} from "lucide-react";
 import { getAssetUrl, getShopApiUrl } from "@/lib/vendure/api-utils";
 import { fetchWithClientCache } from "@/lib/vendure/client-cache";
+import { Button } from "@/components/ui/button";
 
-const FALLBACK_MARKET_BANNER = "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=1200&auto=format&fit=crop";
-
-interface SlideItem {
-    id?: string;
-    imageUrl: string;
-    title?: string;
-    subtitle?: string;
-    ctaText?: string;
-    ctaLink?: string;
-}
+const CURATED_MARKET_HERO_IMAGES: Record<string, string> = {
+    "1": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=1600&auto=format&fit=crop", // Dantokpa
+    "2": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=1600&auto=format&fit=crop", // PK3
+    "3": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1600&auto=format&fit=crop", // Ganhi
+    "4": "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1600&auto=format&fit=crop", // Cadjèhoun
+    "12": "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1600&auto=format&fit=crop", // Missèbo
+    "14": "https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?q=80&w=1600&auto=format&fit=crop", // Ouando
+    "default": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=1600&auto=format&fit=crop"
+};
 
 interface MarketHeroBannerProps {
     config?: {
-        bgType?: 'DEFAULT_MARKET_IMAGE' | 'CUSTOM_IMAGE' | 'SLIDESHOW' | 'COLOR_GRADIENT';
-        bgImageUrl?: string;
-        bgImage?: string;
-        bgColor?: string;
-        bgGradient?: string;
-        slides?: SlideItem[];
-        autoplaySpeed?: number;
-        overlayOpacity?: number;
-        height?: 'compact' | 'medium' | 'large' | 'full';
-        textAlign?: 'left' | 'center';
-
-        // Content
         title?: string;
         subtitle?: string;
         description?: string;
-        welcomeText?: string;
-
-        // Badges
-        showLocationBadge?: boolean;
-        locationBadgeText?: string;
-        showVendorsBadge?: boolean;
-        vendorsBadgeText?: string;
-        manualVendorsCount?: number;
-        showProductsBadge?: boolean;
-        productsBadgeText?: string;
-        manualProductsCount?: number;
-        showVerifiedBadge?: boolean;
-        verifiedBadgeText?: string;
-
-        // CTA Button
-        showCta?: boolean;
-        ctaText?: string;
-        ctaLink?: string;
-        ctaStyle?: 'solid' | 'glass' | 'outline';
-
-        // Dynamic market context
+        badgeText?: string;
+        locationName?: string;
         marketId?: string;
         marketName?: string;
         marketSlug?: string;
-        marketImage?: string;
+        bgImage?: string;
+        bgImageUrl?: string;
         image?: string;
         bannerImage?: string;
-        marketDescription?: string;
-        marketLocation?: string;
-        locationName?: string;
+        showSearch?: boolean;
+        showStats?: boolean;
+        showLiveBadge?: boolean;
+        manualProductsCount?: number;
+        overlayOpacity?: number;
+        height?: 'compact' | 'medium' | 'large' | 'full';
+        [key: string]: any;
     };
 }
 
 export function MarketHeroBanner({ config = {} }: MarketHeroBannerProps) {
-    const [activeSlide, setActiveSlide] = useState(0);
-    const [vendorsCount, setVendorsCount] = useState<number | null>(config.manualVendorsCount || null);
-    const [productsCount, setProductsCount] = useState<number | null>(config.manualProductsCount || null);
     const [marketInfo, setMarketInfo] = useState<any>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [liveProductsCount, setLiveProductsCount] = useState<number | null>(config.manualProductsCount || null);
+    const [cmsMarketOverrides, setCmsMarketOverrides] = useState<Record<string, { image?: string }>>({});
 
-    // Context / Global market detection
+    // 1. Detect active market context from window or props
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const ahizanMarket = (window as any).ahizan?.market;
@@ -83,36 +70,69 @@ export function MarketHeroBanner({ config = {} }: MarketHeroBannerProps) {
     }, []);
 
     const effectiveMarket = marketInfo || {};
-    const marketName = config.marketName || config.title || effectiveMarket.name || "Ce Marché";
-    const marketLocation = config.marketLocation || config.locationName || effectiveMarket.geoZone?.name || effectiveMarket.location?.name || effectiveMarket.parent?.name || "Bénin";
-    const marketDesc = config.marketDescription || config.description || effectiveMarket.description || "";
+    const effectiveMarketId = String(config.marketId || effectiveMarket.id || "1");
+    const effectiveMarketName = config.marketName || config.title || effectiveMarket.name || "Ce Marché";
+    const effectiveMarketSlug = config.marketSlug || effectiveMarket.slug || "";
+    const effectiveLocationName = config.locationName || effectiveMarket.geoZone?.name || effectiveMarket.location?.name || "Bénin";
+    const effectiveDescription = config.description || config.subtitle || effectiveMarket.description || `Bienvenue au cœur de ${effectiveMarketName}. Commandez directement auprès des commerçants du marché avec livraison express.`;
 
-    // Candidate image resolution
-    const candidateImage = 
-        config.bgImageUrl || 
-        config.bgImage || 
-        config.marketImage || 
-        config.image || 
-        config.bannerImage || 
-        effectiveMarket.image || 
-        effectiveMarket.bgImage || 
-        effectiveMarket.bgImageUrl || 
-        "";
+    // 2. Load CMS Market Overrides from homepage if not already loaded
+    useEffect(() => {
+        const query = `
+            query GetHomeMarketOverrides {
+                page(slug: "home") {
+                    sections {
+                        type
+                        dataJson
+                    }
+                }
+            }
+        `;
+        fetchWithClientCache(getShopApiUrl(), query, {})
+            .then((data: any) => {
+                const sections = data?.page?.sections || [];
+                const marketSection = sections.find((s: any) => (s.type || '').includes('MARKET'));
+                if (marketSection?.dataJson) {
+                    try {
+                        const parsed = typeof marketSection.dataJson === 'string' ? JSON.parse(marketSection.dataJson) : marketSection.dataJson;
+                        if (parsed.marketOverrides) {
+                            setCmsMarketOverrides(parsed.marketOverrides);
+                        }
+                    } catch {}
+                }
+            })
+            .catch(() => {});
+    }, []);
 
-    const bgType = config.bgType || (config.slides && config.slides.length > 0 ? 'SLIDESHOW' : (candidateImage ? 'CUSTOM_IMAGE' : 'DEFAULT_MARKET_IMAGE'));
-    const overlayOpacity = config.overlayOpacity !== undefined ? Number(config.overlayOpacity) : 40;
-    
-    const slides: SlideItem[] = config.slides && config.slides.length > 0 ? config.slides : [
-        { imageUrl: candidateImage || FALLBACK_MARKET_BANNER }
-    ];
+    // 3. Resolve background image strictly following CMS priority
+    const resolvedHeroImageUrl = useMemo(() => {
+        // Priority 1: Direct configuration in this section
+        if (config.bgImageUrl) return config.bgImageUrl.startsWith('http') ? config.bgImageUrl : (getAssetUrl(config.bgImageUrl) || '');
+        if (config.bgImage) return config.bgImage.startsWith('http') ? config.bgImage : (getAssetUrl(config.bgImage) || '');
+        if (config.image) return config.image.startsWith('http') ? config.image : (getAssetUrl(config.image) || '');
+        if (config.bannerImage) return config.bannerImage.startsWith('http') ? config.bannerImage : (getAssetUrl(config.bannerImage) || '');
 
-    // Fetch dynamic live counts of vendors and products for this market
-    const effectiveMarketId = config.marketId || effectiveMarket.id;
+        // Priority 2: "Marchés Populaires du Bénin" CMS Overrides by marketId or slug
+        const override = cmsMarketOverrides[effectiveMarketId] || (effectiveMarketSlug ? cmsMarketOverrides[effectiveMarketSlug] : undefined);
+        if (override?.image) {
+            return override.image.startsWith('http') ? override.image : (getAssetUrl(override.image) || '');
+        }
+
+        // Priority 3: Market's entity image
+        if (effectiveMarket.image) {
+            return effectiveMarket.image.startsWith('http') ? effectiveMarket.image : (getAssetUrl(effectiveMarket.image) || '');
+        }
+
+        // Priority 4: Curated image map for Benin markets
+        return CURATED_MARKET_HERO_IMAGES[effectiveMarketId] || CURATED_MARKET_HERO_IMAGES.default;
+    }, [config, cmsMarketOverrides, effectiveMarketId, effectiveMarketSlug, effectiveMarket.image]);
+
+    // 4. Fetch dynamic count of products available in market
     useEffect(() => {
         if (!effectiveMarketId) return;
 
         const query = `
-            query GetMarketLiveCounts($marketId: ID!) {
+            query GetMarketSearchTotal($marketId: ID!) {
                 vendors(marketId: $marketId, options: { filter: { status: { eq: "APPROVED" } }, take: 100 }) {
                     totalItems
                     items {
@@ -123,219 +143,120 @@ export function MarketHeroBanner({ config = {} }: MarketHeroBannerProps) {
             }
         `;
 
-        fetchWithClientCache(getShopApiUrl(), query, { marketId: String(effectiveMarketId) })
+        fetchWithClientCache(getShopApiUrl(), query, { marketId: effectiveMarketId })
             .then((data: any) => {
                 const vendorItems = data?.vendors?.items || [];
-                const vCount = data?.vendors?.totalItems || vendorItems.length;
-                if (!config.manualVendorsCount) {
-                    setVendorsCount(vCount);
-                }
-                if (!config.manualProductsCount) {
-                    const pCount = vendorItems.reduce((acc: number, v: any) => acc + (v.products?.length || 0), 0);
-                    setProductsCount(pCount > 0 ? pCount : null);
+                const pCount = vendorItems.reduce((acc: number, v: any) => acc + (v.products?.length || 0), 0);
+                if (pCount > 0 && !config.manualProductsCount) {
+                    setLiveProductsCount(pCount);
                 }
             })
             .catch(() => {});
-    }, [effectiveMarketId, config.manualVendorsCount, config.manualProductsCount]);
-
-    // Slideshow autoplay
-    useEffect(() => {
-        if (bgType !== 'SLIDESHOW' || slides.length <= 1) return;
-        const speed = Number(config.autoplaySpeed) || 5000;
-        const timer = setInterval(() => {
-            setActiveSlide(prev => (prev + 1) % slides.length);
-        }, speed);
-        return () => clearInterval(timer);
-    }, [bgType, slides.length, config.autoplaySpeed]);
-
-    // Compact & Elegant Height classes
-    const heightClasses = {
-        compact: 'min-h-[190px] sm:min-h-[220px] md:min-h-[260px]',
-        medium: 'min-h-[240px] sm:min-h-[280px] md:min-h-[320px]',
-        large: 'min-h-[320px] sm:min-h-[380px] md:min-h-[440px]',
-        full: 'min-h-[55vh]',
-    }[config.height || 'medium'];
-
-    const rawTitle = config.title || "🌴 {{market.name}}";
-    const titleText = rawTitle.replace(/\{\{market\.name\}\}/g, marketName);
-
-    const rawSubtitle = config.subtitle || "Le marché officiel de {{market.location}}";
-    const subtitleText = rawSubtitle
-        .replace(/\{\{market\.name\}\}/g, marketName)
-        .replace(/\{\{market\.location\}\}/g, marketLocation);
-
-    const descText = config.description || marketDesc || "";
-
-    const activeImageRaw = bgType === 'SLIDESHOW'
-        ? (slides[activeSlide]?.imageUrl || candidateImage || FALLBACK_MARKET_BANNER)
-        : (candidateImage || FALLBACK_MARKET_BANNER);
-
-    const resolvedImage = getAssetUrl(activeImageRaw) || activeImageRaw;
-
-    const handleCtaClick = (e: React.MouseEvent<HTMLAnchorElement>, href?: string) => {
-        if (href && href.startsWith('#')) {
-            e.preventDefault();
-            const target = document.querySelector(href);
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }
-    };
+    }, [effectiveMarketId, config.manualProductsCount]);
 
     return (
-        <div className="w-full relative overflow-hidden rounded-2xl sm:rounded-3xl my-3 shadow-lg border border-slate-200/50 dark:border-slate-800">
-            <div className={`relative ${heightClasses} flex flex-col justify-end p-4 sm:p-6 md:p-8 text-white`}>
-                
-                {/* Background Layer */}
-                {bgType === 'COLOR_GRADIENT' ? (
-                    <div 
-                        className="absolute inset-0 z-0" 
-                        style={{ 
-                            background: config.bgGradient || config.bgColor || 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #047857 100%)' 
-                        }} 
-                    />
-                ) : (
-                    <>
-                        {resolvedImage && (
-                            <div className="absolute inset-0 z-0 overflow-hidden bg-slate-900">
-                                <img
-                                    src={resolvedImage}
-                                    alt={marketName}
-                                    className="w-full h-full object-cover object-center transition-all duration-700 ease-out"
-                                />
-                            </div>
-                        )}
-                        {/* Gradient Vignette for perfect text readability */}
-                        <div 
-                            className="absolute inset-0 z-0"
-                            style={{
-                                background: `linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, ${overlayOpacity / 100}) 55%, rgba(15, 23, 42, 0.25) 100%)`
-                            }}
-                        />
-                    </>
-                )}
+        <div className="relative w-full overflow-hidden bg-slate-950 text-white shadow-2xl rounded-3xl mb-8">
+            {/* Background Image with Deep Cinematic Gradients */}
+            <div className="absolute inset-0 z-0">
+                <Image 
+                    src={resolvedHeroImageUrl} 
+                    alt={effectiveMarketName}
+                    fill
+                    priority
+                    className="object-cover opacity-35 filter scale-105 transition-transform duration-1000 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/75 to-transparent" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/15 via-transparent to-transparent" />
+            </div>
 
-                {/* Slideshow Navigation Buttons */}
-                {bgType === 'SLIDESHOW' && slides.length > 1 && (
-                    <>
-                        <button 
-                            onClick={() => setActiveSlide((activeSlide - 1 + slides.length) % slides.length)}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md flex items-center justify-center text-white transition-all cursor-pointer"
-                            aria-label="Slide précédente"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button 
-                            onClick={() => setActiveSlide((activeSlide + 1) % slides.length)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md flex items-center justify-center text-white transition-all cursor-pointer"
-                            aria-label="Slide suivante"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12 md:pb-16">
+                {/* Breadcrumbs */}
+                <nav className="flex items-center space-x-2 text-xs md:text-sm text-slate-300/80 mb-6 backdrop-blur-md bg-white/5 py-1.5 px-4 rounded-full w-fit border border-white/10">
+                    <Link href="/" className="hover:text-amber-400 transition-colors">Accueil</Link>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    <Link href="/vendors" className="hover:text-amber-400 transition-colors">Marchés du Bénin</Link>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-amber-400 font-semibold">{effectiveMarketName}</span>
+                </nav>
 
-                        {/* Slide Indicators */}
-                        <div className="absolute top-4 right-4 z-20 flex gap-1 bg-black/40 px-2.5 py-1 rounded-full backdrop-blur-md">
-                            {slides.map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => setActiveSlide(i)}
-                                    className={`h-1.5 rounded-full transition-all cursor-pointer ${i === activeSlide ? 'w-4 bg-white' : 'w-1.5 bg-white/40'}`}
-                                />
-                            ))}
-                        </div>
-                    </>
-                )}
-
-                {/* Content Container */}
-                <div className={`relative z-10 max-w-3xl flex flex-col gap-2.5 sm:gap-3 ${config.textAlign === 'center' ? 'items-center text-center mx-auto' : 'items-start text-left'}`}>
-                    
-                    {/* Welcome / Ambient Tag */}
-                    {config.welcomeText !== "" && (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-[10px] sm:text-xs font-black tracking-wider uppercase text-white shadow-xs">
-                            <Sparkles className="w-3 h-3 text-amber-300" />
-                            {config.welcomeText || "Bienvenue au Cœur du Marché"}
-                        </div>
-                    )}
-
-                    {/* Main Title */}
-                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white uppercase drop-shadow-md leading-tight">
-                        {titleText}
-                    </h1>
-
-                    {/* Subtitle */}
-                    {subtitleText && (
-                        <p className="text-xs sm:text-sm md:text-base text-slate-200 font-medium leading-snug drop-shadow line-clamp-2">
-                            {subtitleText}
-                        </p>
-                    )}
-
-                    {/* Description */}
-                    {descText && (
-                        <p className="text-[11px] sm:text-xs text-slate-300 font-normal leading-relaxed line-clamp-2 max-w-2xl">
-                            {descText}
-                        </p>
-                    )}
-
-                    {/* Badges Bar (Location, Vendors, Products, Verification) */}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 pt-1">
-                        {config.showLocationBadge !== false && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-bold text-slate-100 shadow-xs">
-                                <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                                <span>{config.locationBadgeText || `📍 ${marketName} · ${marketLocation}`}</span>
-                            </div>
-                        )}
-
-                        {config.showVendorsBadge !== false && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-bold text-slate-100 shadow-xs">
-                                <Store className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                                <span>
-                                    {config.vendorsBadgeText 
-                                        ? config.vendorsBadgeText 
-                                        : `${vendorsCount != null ? vendorsCount : '10+'} boutiques résidentes`
-                                    }
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                    <div className="lg:col-span-8 space-y-4">
+                        {/* Badges */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {config.showLiveBadge !== false && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 backdrop-blur-md shadow-sm">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2" />
+                                    Marché Ouvert en Direct
                                 </span>
-                            </div>
-                        )}
-
-                        {config.showProductsBadge !== false && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-md border border-slate-700/60 text-[11px] font-bold text-slate-100 shadow-xs">
-                                <ShoppingBag className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
-                                <span>
-                                    {config.productsBadgeText 
-                                        ? config.productsBadgeText 
-                                        : `${productsCount != null ? productsCount : '100+'} articles disponibles`
-                                    }
+                            )}
+                            {effectiveLocationName && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-slate-200 border border-white/15 backdrop-blur-md">
+                                    <MapPin className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                                    {effectiveLocationName}
                                 </span>
-                            </div>
-                        )}
+                            )}
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 backdrop-blur-md">
+                                <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+                                {config.badgeText || "Pôle Commercial Certifié Ahizan"}
+                            </span>
+                        </div>
 
-                        {config.showVerifiedBadge !== false && (
-                            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/70 backdrop-blur-md border border-emerald-700/50 text-[11px] font-bold text-emerald-300 shadow-xs">
-                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                                <span>{config.verifiedBadgeText || "Vendeurs Vérifiés & Certifiés"}</span>
-                            </div>
-                        )}
+                        {/* Title */}
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
+                            {effectiveMarketName}
+                        </h1>
+
+                        {/* Description */}
+                        <p className="text-base sm:text-lg text-slate-200/90 max-w-3xl leading-relaxed font-normal">
+                            {effectiveDescription}
+                        </p>
                     </div>
 
-                    {/* CTA Exploration Button */}
-                    {config.showCta !== false && (
-                        <div className="pt-2">
-                            <a
-                                href={config.ctaLink || "#boutiques"}
-                                onClick={(e) => handleCtaClick(e, config.ctaLink || "#boutiques")}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-wider transition-all shadow-md hover:shadow-primary/30 no-underline cursor-pointer"
-                            >
-                                <span>{config.ctaText || "Explorer le Marché"}</span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                            </a>
+                    {/* Right Quick Stats Card */}
+                    {config.showStats !== false && (
+                        <div className="lg:col-span-4">
+                            <div className="bg-slate-900/80 backdrop-blur-xl border border-white/15 rounded-3xl p-6 shadow-2xl space-y-5">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4" />
+                                    Disponibilité & Logistique
+                                </h3>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                                        <div className="text-2xl sm:text-3xl font-black text-white">
+                                            {liveProductsCount || '300+'}
+                                        </div>
+                                        <div className="text-xs text-slate-300 mt-1 font-medium">Articles en Rayon</div>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                                        <div className="text-2xl sm:text-3xl font-black text-amber-400">
+                                            30-60m
+                                        </div>
+                                        <div className="text-xs text-slate-300 mt-1 font-medium">Délai Coursier</div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 pt-2 border-t border-white/10 text-xs text-slate-300">
+                                    <div className="flex items-center justify-between">
+                                        <span className="flex items-center gap-2 text-slate-400">
+                                            <Truck className="w-4 h-4 text-emerald-400" />
+                                            Livraison :
+                                        </span>
+                                        <span className="font-bold text-white">Directe depuis {effectiveMarketName}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="flex items-center gap-2 text-slate-400">
+                                            <ShoppingBag className="w-4 h-4 text-amber-400" />
+                                            Panier Groupé :
+                                        </span>
+                                        <span className="font-bold text-emerald-400">1 seule course payée</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
-
                 </div>
-
             </div>
         </div>
     );
 }
-
-export default MarketHeroBanner;

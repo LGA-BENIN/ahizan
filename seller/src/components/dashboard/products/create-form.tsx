@@ -43,6 +43,7 @@ import {
 import { cn } from '@/lib/utils';
 import { priceFromSubunit } from '@/lib/format';
 import CategoryCheckboxTree from './category-checkbox-tree';
+import LocationRequiredModal from './location-required-modal';
 
 interface CreateProductFormProps {
     collectionTree: any[];
@@ -1196,6 +1197,7 @@ export default function CreateProductForm({
 
     return (
         <div className={cn("max-w-4xl mx-auto space-y-6", className)}>
+            <LocationRequiredModal />
 
             {/* Live Draft Status and Quick Return Indicator */}
             {lastSavedTime && (

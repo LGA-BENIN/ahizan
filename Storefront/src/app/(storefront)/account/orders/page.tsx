@@ -33,6 +33,9 @@ export default async function OrdersPage(props: any) {
                 options: {
                     take: ITEMS_PER_PAGE,
                     skip,
+                    sort: {
+                        createdAt: 'DESC',
+                    },
                     filter: {
                         state: {
                             notEq: 'AddingItems',

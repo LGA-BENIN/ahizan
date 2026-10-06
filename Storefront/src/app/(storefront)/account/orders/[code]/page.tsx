@@ -51,10 +51,13 @@ export default async function OrderDetailPage(props: any) {
         try { vMap = typeof vsStr === 'string' ? JSON.parse(vsStr) : vsStr; } catch(e) {}
     }
 
+    const isOrderAdvanced = order.state === 'Shipped' || order.state === 'Delivered' || order.state === 'Cancelled' || ['shipped', 'delivered', 'in_transit'].includes(order.customFields?.adminStatus || (order as any).customFieldsAdminstatus);
+
     const getLineStatus = (line: any) => {
         const vStatus = line.customFields?.sellerStatus || 'pending';
-        if (vStatus === 'cancelled') return { text: '❌ Annulé par le client', color: 'bg-rose-100 text-rose-800 border-rose-200' };
-        if (vStatus === 'confirmed') return { text: '✅ Confirmé par le vendeur', color: 'bg-green-100 text-green-800 border-green-200' };
+        if (vStatus === 'cancelled' || line.quantity === 0) return { text: '❌ Annulé par le client', color: 'bg-rose-100 text-rose-800 border-rose-200' };
+        if (isOrderAdvanced && (vStatus === 'refused' || vStatus === 'reassigning' || vStatus === 'pending')) return { text: '❌ Annulé (Non inclus)', color: 'bg-rose-100 text-rose-800 border-rose-200' };
+        if (vStatus === 'confirmed' || vStatus === 'approved' || vStatus === 'ready_for_pickup') return { text: '✅ Confirmé par le vendeur', color: 'bg-green-100 text-green-800 border-green-200' };
         if (vStatus === 'refused' || vStatus === 'reassigning') return { text: '⏳ En cours de réassignation', color: 'bg-amber-100 text-amber-800 border-amber-200' };
         if (vStatus === 'reassigned_to_other') return { text: '❌ Annulé (Réassigné)', color: 'bg-red-100 text-red-800 border-red-200' };
         return { text: '⏳ En attente de confirmation', color: 'bg-blue-100 text-blue-800 border-blue-200' };
@@ -96,7 +99,12 @@ export default async function OrderDetailPage(props: any) {
                                 linesByVendorMap[vId] = { vendor: lineVendor, lines: [], total: 0 };
                             }
                             linesByVendorMap[vId].lines.push(line);
-                            linesByVendorMap[vId].total += (line.linePriceWithTax || (line.listPrice * line.quantity) || 0);
+                            
+                            const vStatus = line.customFields?.sellerStatus || 'pending';
+                            const isLineCancelled = vStatus === 'cancelled' || line.quantity === 0 || (isOrderAdvanced && (vStatus === 'refused' || vStatus === 'reassigning' || vStatus === 'pending'));
+                            if (!isLineCancelled) {
+                                linesByVendorMap[vId].total += (line.linePriceWithTax || ((line.unitPriceWithTax || line.listPrice || 0) * line.quantity) || 0);
+                            }
                         });
                         const vendorGroups = Object.values(linesByVendorMap);
 
@@ -149,10 +157,11 @@ export default async function OrderDetailPage(props: any) {
                                                         const prodSlug = line.productVariant?.product?.slug || '';
                                                         const imgUrl = line.productVariant?.product?.featuredAsset?.preview || line.productVariant?.featuredAsset?.preview;
                                                         const sku = line.productVariant?.sku || 'N/A';
-                                                        const isCancelled = line.customFields?.sellerStatus === 'cancelled';
+                                                        const vStatus = line.customFields?.sellerStatus || 'pending';
+                                                        const isLineCancelled = vStatus === 'cancelled' || line.quantity === 0 || (isOrderAdvanced && (vStatus === 'refused' || vStatus === 'reassigning' || vStatus === 'pending'));
 
                                                         return (
-                                                            <div key={line.id} className={`flex gap-4 items-center ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
+                                                            <div key={line.id} className={`flex gap-4 items-center ${isLineCancelled ? 'opacity-60 grayscale' : ''}`}>
                                                                 <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 border">
                                                                     {imgUrl ? (
                                                                         <Image
@@ -168,12 +177,12 @@ export default async function OrderDetailPage(props: any) {
                                                                         {prodSlug ? (
                                                                             <Link
                                                                                 href={`/product/${prodSlug}`}
-                                                                                className={`text-sm font-medium hover:underline line-clamp-1 ${isCancelled ? 'line-through' : ''}`}
+                                                                                className={`text-sm font-medium hover:underline line-clamp-1 ${isLineCancelled ? 'line-through text-muted-foreground' : ''}`}
                                                                             >
                                                                                 {prodName}
                                                                             </Link>
                                                                         ) : (
-                                                                            <span className={`text-sm font-medium line-clamp-1 ${isCancelled ? 'line-through' : ''}`}>{prodName}</span>
+                                                                            <span className={`text-sm font-medium line-clamp-1 ${isLineCancelled ? 'line-through text-muted-foreground' : ''}`}>{prodName}</span>
                                                                         )}
                                                                         {statusBadge && (
                                                                             <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge.color}`}>
@@ -181,18 +190,32 @@ export default async function OrderDetailPage(props: any) {
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    {line.productVariant?.name && line.productVariant?.name !== prodName && (
-                                                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                                                            {line.productVariant.name}
-                                                                        </p>
-                                                                    )}
-                                                                    <p className="text-xs text-muted-foreground">
-                                                                        SKU: {sku}
-                                                                    </p>
+                                                                    {/* Variant options and details */}
+                                                                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                                                                        {line.productVariant?.options && line.productVariant.options.length > 0 ? (
+                                                                            line.productVariant.options.map((opt: any) => (
+                                                                                <span
+                                                                                    key={opt.id}
+                                                                                    className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700"
+                                                                                >
+                                                                                    {opt.group?.name ? `${opt.group.name}: ` : ''}{opt.name}
+                                                                                </span>
+                                                                            ))
+                                                                        ) : line.productVariant?.name && line.productVariant?.name !== prodName ? (
+                                                                            <span className="text-xs text-muted-foreground font-semibold">
+                                                                                {line.productVariant.name}
+                                                                            </span>
+                                                                        ) : null}
+                                                                        {sku !== 'N/A' && (
+                                                                            <span className="text-[10px] text-muted-foreground font-mono">
+                                                                                REF: {sku}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                                 <div className="text-right flex-shrink-0">
-                                                                    <p className={`text-sm font-bold ${isCancelled ? 'line-through' : ''}`}>
-                                                                        <Price value={line.linePriceWithTax || (line.listPrice * line.quantity) || 0} currencyCode={order.currencyCode}/>
+                                                                    <p className={`text-sm font-bold ${isLineCancelled ? 'line-through text-muted-foreground' : ''}`}>
+                                                                        <Price value={isLineCancelled && line.quantity === 0 ? 0 : (line.linePriceWithTax || ((line.unitPriceWithTax || line.listPrice || 0) * line.quantity) || 0)} currencyCode={order.currencyCode}/>
                                                                     </p>
                                                                     <p className="text-xs text-muted-foreground">
                                                                         Qté : {line.quantity} × <Price value={line.unitPriceWithTax || line.listPrice || 0} currencyCode={order.currencyCode}/>

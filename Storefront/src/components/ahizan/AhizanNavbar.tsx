@@ -216,12 +216,12 @@ export function AhizanNavbar({
     if (isStickySetting) {
         if (stickyStyleSetting === 'transparent-to-solid') {
             positionClass = isScrolled
-                ? `fixed ${topOffset} left-0 w-full z-[100] transition-all duration-300`
-                : `absolute ${topOffset} left-0 w-full z-[100] transition-all duration-300`;
+                ? `fixed ${topOffset} left-0 w-full z-40 transition-all duration-300`
+                : `absolute ${topOffset} left-0 w-full z-40 transition-all duration-300`;
             shadowClass = (headerShadowSetting && isScrolled) ? "shadow-sm" : "";
         } else {
             // 'solid' or 'shrink'
-            positionClass = `sticky ${topOffset} z-[100] w-full`;
+            positionClass = `sticky ${topOffset} z-40 w-full`;
             shadowClass = headerShadowSetting ? "shadow-sm" : "";
         }
     }
@@ -426,6 +426,34 @@ export function AhizanNavbar({
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
                                 />
+                            </div>
+                        )}
+
+                        {/* Row 3: Mobile Navigation Chips (from CMS Page Builder) */}
+                        {menuItems && menuItems.length > 0 && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+                                {menuItems.map((item: any, idx: number) => {
+                                    const isPill = item.style === 'pill';
+                                    const isRect = item.style === 'rectangle';
+                                    const hasStyle = isPill || isRect;
+
+                                    return (
+                                        <Link
+                                            key={idx}
+                                            href={item.link || '#'}
+                                            className={`font-semibold shrink-0 text-[11px] px-2.5 py-1 rounded-full transition-all flex items-center justify-center whitespace-nowrap ${
+                                                hasStyle
+                                                    ? `shadow-xs font-bold ${isPill ? 'rounded-full' : 'rounded-md'}`
+                                                    : item.isHighlighted
+                                                    ? 'bg-red-50 text-red-600 border border-red-200 font-bold'
+                                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                            }`}
+                                            style={hasStyle ? { backgroundColor: item.bgColor || '#e31837', color: item.textColor || '#ffffff' } : undefined}
+                                        >
+                                            {item.label}
+                                        </Link>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

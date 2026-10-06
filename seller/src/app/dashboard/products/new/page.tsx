@@ -4,16 +4,22 @@ import { getAuthToken } from '@/lib/auth';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import NewProductClient from './new-product-client';
+import { isVendorLocationValid } from '@/lib/vendor-location';
+import { unstable_noStore as noStore } from 'next/cache';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function NewProductPage() {
+    noStore();
     const token = await getAuthToken();
 
     const [{ data: collectionsData }, { data: vendorData }] = await Promise.all([
-        query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
+        query(GetCollectionsTreeQuery, {}, { token, useAuthToken: true }).catch((err) => {
             console.error('[NewProductPage] Failed to fetch collections:', err);
             return { data: null };
         }),
-        query(GetMyVendorFullProfileQuery, {}, { token }).catch((err) => {
+        query(GetMyVendorFullProfileQuery, {}, { token, useAuthToken: true }).catch((err) => {
             console.error('[NewProductPage] Failed to fetch vendor profile:', err);
             return { data: null };
         })
@@ -21,12 +27,7 @@ export default async function NewProductPage() {
     const collectionTree = (collectionsData as any)?.cmsCollectionsTree || [];
     const vendorProfile = (vendorData as any)?.myVendorProfile || null;
 
-    const hasLocation = Boolean(
-        (vendorProfile?.latitude && vendorProfile?.longitude) ||
-        vendorProfile?.location?.id ||
-        vendorProfile?.physicalMarket?.id ||
-        (vendorProfile?.address && vendorProfile.address.trim().length > 3)
-    );
+    const hasLocation = isVendorLocationValid(vendorProfile);
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

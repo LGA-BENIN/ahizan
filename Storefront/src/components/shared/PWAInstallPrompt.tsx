@@ -119,18 +119,12 @@ export function PWAInstallPrompt() {
     return (
         <div className="fixed bottom-20 left-4 right-4 md:bottom-5 md:left-auto md:right-5 md:w-[380px] z-50 bg-white dark:bg-slate-900 border border-red-100 dark:border-slate-800 shadow-2xl rounded-2xl p-3.5 flex gap-3.5 items-center animate-in slide-in-from-bottom-5 text-slate-900 dark:text-white">
             {/* App Icon */}
-            <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden shadow-sm border border-red-200 bg-white flex items-center justify-center">
+            <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden shadow-sm border border-red-100 dark:border-slate-800 bg-white flex items-center justify-center p-1">
                 <img
-                    src="/icons/icon-96x96.png"
+                    src="/icons/icon-192x192.png"
                     alt="Ahizan"
-                    className="w-10 h-10 object-contain"
-                    onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                    }}
+                    className="w-full h-full object-contain"
                 />
-                <div className="w-10 h-10 rounded-lg bg-[#e31837] flex items-center justify-center text-white font-black text-xs">
-                    AHZ
-                </div>
             </div>
 
             {/* Text */}

@@ -244,9 +244,15 @@ export function NotificationBell({
             return;
         }
 
-        setIsOpen(prev => !prev);
-        if (!isOpen && authToken) {
-            fetchNotifications();
+        const willOpen = !isOpen;
+        setIsOpen(willOpen);
+        if (willOpen && authToken) {
+            fetchNotifications().then(() => {
+                markAllRead();
+            });
+            if (unreadCount > 0) {
+                markAllRead();
+            }
         }
     };
 

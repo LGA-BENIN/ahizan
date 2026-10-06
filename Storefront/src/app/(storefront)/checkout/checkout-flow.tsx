@@ -35,14 +35,25 @@ export default function CheckoutFlow() {
       }
     }
 
-    if (order.shippingAddress?.streetLine1 && order.shippingAddress?.country) {
+    const hasRealShippingAddress = Boolean(
+      order.shippingAddress?.streetLine1 &&
+      order.shippingAddress.streetLine1.trim().length >= 3 &&
+      order.shippingAddress?.country &&
+      order.shippingAddress.streetLine1 !== 'temp' &&
+      order.shippingAddress.streetLine1 !== 'Default' &&
+      order.shippingAddress?.city
+    );
+
+    if (hasRealShippingAddress) {
       if (!isGuest || completed.has('contact')) {
         completed.add('shipping');
         current = 'delivery';
       }
+    } else {
+      current = isGuest && !completed.has('contact') ? 'contact' : 'shipping';
     }
 
-    if (order.shippingLines && order.shippingLines.length > 0) {
+    if (order.shippingLines && order.shippingLines.length > 0 && hasRealShippingAddress) {
       if (completed.has('shipping')) {
         completed.add('delivery');
         current = 'payment';

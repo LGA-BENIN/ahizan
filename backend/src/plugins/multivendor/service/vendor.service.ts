@@ -467,9 +467,19 @@ export class VendorService implements OnApplicationBootstrap {
                 return matchesVendor;
             });
 
-            // Recalculate totals and vendor-specific commission for this vendor's lines only
-            const vendorSubTotal = vendorLines.reduce((sum: number, l: any) => sum + (l.linePrice || 0), 0);
-            const vendorTotalWithTax = vendorLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || 0), 0);
+            // Recalculate totals and vendor-specific commission strictly for this vendor's ACTIVE VALID lines only
+            const isOrderAdvanced = ['Shipped', 'Delivered', 'Cancelled'].includes(order.state) ||
+                ['shipped', 'delivered', 'cancelled', 'in_transit'].includes(order.customFields?.adminStatus || '') ||
+                ['shipped', 'delivered', 'cancelled', 'in_transit'].includes(vendorSpecific?.adminStatus || '');
+
+            const validVendorLines = vendorLines.filter((l: any) => {
+                const s = l.customFields?.sellerStatus || (l as any).customFieldsSellerstatus || 'pending';
+                if (s === 'refused' || s === 'rejected' || s === 'reassigning' || s === 'reassigned_to_other' || s === 'cancelled' || s === 'customer_cancelled') return false;
+                if (isOrderAdvanced && s === 'pending') return false;
+                return Number(l.quantity) > 0;
+            });
+            const vendorSubTotal = validVendorLines.reduce((sum: number, l: any) => sum + (l.linePrice || ((l.unitPrice || 0) * l.quantity) || 0), 0);
+            const vendorTotalWithTax = validVendorLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || ((l.unitPriceWithTax || 0) * l.quantity) || 0), 0);
             const commissionRate = (order.customFields?.commissionRate !== undefined && order.customFields?.commissionRate !== null)
                 ? Number(order.customFields.commissionRate)
                 : 10;
@@ -611,8 +621,19 @@ export class VendorService implements OnApplicationBootstrap {
         } catch (e) {}
 
         const vendorSpecific = vMap[String(vendorId)];
-        const vendorSubTotal = vendorLines.reduce((sum: number, l: any) => sum + (l.linePrice || 0), 0);
-        const vendorTotalWithTax = vendorLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || 0), 0);
+
+        const isOrderAdvanced = ['Shipped', 'Delivered', 'Cancelled'].includes(order.state) ||
+            ['shipped', 'delivered', 'cancelled', 'in_transit'].includes((order.customFields as any)?.adminStatus || '') ||
+            ['shipped', 'delivered', 'cancelled', 'in_transit'].includes(vendorSpecific?.adminStatus || '');
+
+        const validVendorLines = vendorLines.filter((l: any) => {
+            const s = l.customFields?.sellerStatus || (l as any).customFieldsSellerstatus || 'pending';
+            if (s === 'refused' || s === 'rejected' || s === 'reassigning' || s === 'reassigned_to_other' || s === 'cancelled' || s === 'customer_cancelled') return false;
+            if (isOrderAdvanced && s === 'pending') return false;
+            return Number(l.quantity) > 0;
+        });
+        const vendorSubTotal = validVendorLines.reduce((sum: number, l: any) => sum + (l.linePrice || ((l.unitPrice || 0) * l.quantity) || 0), 0);
+        const vendorTotalWithTax = validVendorLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || ((l.unitPriceWithTax || 0) * l.quantity) || 0), 0);
         const commissionRate = ((order.customFields as any)?.commissionRate !== undefined && (order.customFields as any)?.commissionRate !== null)
             ? Number((order.customFields as any).commissionRate)
             : 10;
@@ -738,7 +759,7 @@ export class VendorService implements OnApplicationBootstrap {
                           AND (p."customFieldsVendorid" = $1 OR (p."customFieldsVendorid" IS NULL AND ol."sellerChannelId" = $2))
                       )
                   )
-                  AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other', 'cancelled')
+                  AND COALESCE(ol."customFieldsSellerstatus", 'pending') IN ('confirmed', 'approved', 'ready_for_pickup')
                   AND ol.quantity > 0
                   AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
                 ORDER BY o.id DESC
@@ -844,6 +865,19 @@ export class VendorService implements OnApplicationBootstrap {
             }
         } catch (e) {}
 
+        const currentAdminStatus = rawOrder[0].customFieldsAdminstatus || '';
+        const currentNativeState = rawOrder[0].state || '';
+
+        // Strict Status Hierarchy Lockout:
+        if (statusType === 'sellerStatus') {
+            if (['shipped', 'in_transit', 'delivered', 'cancelled'].includes(currentAdminStatus) || ['Shipped', 'Delivered', 'Cancelled'].includes(currentNativeState)) {
+                throw new Error("Impossible de modifier le statut : cette commande est déjà expédiée, en cours de livraison ou clôturée.");
+            }
+            if (vendorId && vMap[String(vendorId)]?.sellerStatus === 'reassigned_to_other') {
+                throw new Error("Impossible de modifier le statut : cette commande a déjà été réassignée à un autre vendeur.");
+            }
+        }
+
         // Collect all vendor IDs present in this order via reliable raw SQL
         const vendorIds = new Set<string>();
         if (rawOrder[0].customFieldsVendorid) {
@@ -871,6 +905,7 @@ export class VendorService implements OnApplicationBootstrap {
             vMap[String(vendorId)] = {
                 ...(vMap[String(vendorId)] || {}),
                 [statusType]: newStatus,
+                updatedAt: new Date().toISOString()
             };
         } else {
             const vIdList = Array.from(vendorIds);
@@ -878,6 +913,7 @@ export class VendorService implements OnApplicationBootstrap {
                 vMap[vId] = {
                     ...(vMap[vId] || {}),
                     [statusType]: newStatus,
+                    updatedAt: new Date().toISOString()
                 };
             }
         }
@@ -888,26 +924,36 @@ export class VendorService implements OnApplicationBootstrap {
         let aggregateAdminStatus = rawOrder[0].customFieldsAdminstatus || 'pending';
 
         if (vIdList.length > 0) {
-            const sellerStatuses = vIdList.map(id => vMap[id]?.sellerStatus || 'pending');
-            if (sellerStatuses.every(s => s === 'confirmed' || s === 'approved')) {
-                aggregateSellerStatus = 'confirmed';
-            } else if (sellerStatuses.some(s => s === 'reassigning' || s === 'refused')) {
-                aggregateSellerStatus = 'reassigning';
-            } else {
-                aggregateSellerStatus = 'pending';
-            }
+            // Only consider ACTIVE vendors (exclude vendors whose items were reassigned to others)
+            const activeVendorIds = vIdList.filter(id => vMap[id]?.sellerStatus !== 'reassigned_to_other');
+            
+            if (activeVendorIds.length > 0) {
+                const activeSellerStatuses = activeVendorIds.map(id => vMap[id]?.sellerStatus || 'pending');
+                if (activeSellerStatuses.every(s => s === 'ready_for_pickup')) {
+                    aggregateSellerStatus = 'ready_for_pickup';
+                } else if (activeSellerStatuses.every(s => s === 'confirmed' || s === 'approved' || s === 'ready_for_pickup')) {
+                    aggregateSellerStatus = 'confirmed';
+                } else if (activeSellerStatuses.some(s => s === 'reassigning' || s === 'refused')) {
+                    aggregateSellerStatus = 'reassigning';
+                } else {
+                    aggregateSellerStatus = 'pending';
+                }
 
-            const adminStatuses = vIdList.map(id => vMap[id]?.adminStatus || 'pending');
-            if (adminStatuses.every(s => s === 'delivered')) {
-                aggregateAdminStatus = 'delivered';
-            } else if (adminStatuses.every(s => s === 'cancelled')) {
-                aggregateAdminStatus = 'cancelled';
-            } else if (adminStatuses.some(s => s === 'in_transit')) {
-                aggregateAdminStatus = 'in_transit';
-            } else if (adminStatuses.some(s => s === 'shipped')) {
-                aggregateAdminStatus = 'shipped';
+                const adminStatuses = activeVendorIds.map(id => vMap[id]?.adminStatus || 'pending');
+                if (adminStatuses.every(s => s === 'delivered')) {
+                    aggregateAdminStatus = 'delivered';
+                } else if (adminStatuses.every(s => s === 'cancelled')) {
+                    aggregateAdminStatus = 'cancelled';
+                } else if (adminStatuses.some(s => s === 'in_transit')) {
+                    aggregateAdminStatus = 'in_transit';
+                } else if (adminStatuses.some(s => s === 'shipped')) {
+                    aggregateAdminStatus = 'shipped';
+                } else {
+                    aggregateAdminStatus = 'pending';
+                }
             } else {
-                aggregateAdminStatus = 'pending';
+                aggregateSellerStatus = 'cancelled';
+                aggregateAdminStatus = 'cancelled';
             }
         } else {
             if (statusType === 'sellerStatus') aggregateSellerStatus = newStatus;
@@ -962,6 +1008,49 @@ export class VendorService implements OnApplicationBootstrap {
                 }
             } catch (err3) {
                 console.error('[updateVendorOrderStatus] Failed to cascade sellerStatus to lines:', err3);
+            }
+        }
+
+        // Dispatch notifications for ready_for_pickup
+        if (statusType === 'sellerStatus' && (newStatus === 'ready_for_pickup' || newStatus === 'shipped')) {
+            try {
+                const orderRows = await this.connection.rawConnection.query(
+                    `SELECT o.code, c."userId" as customer_user_id, v.name as vendor_name 
+                     FROM "order" o 
+                     LEFT JOIN customer c ON o."customerId" = c.id
+                     LEFT JOIN vendor v ON v.id = $2::int
+                     WHERE o.id = $1::int LIMIT 1`,
+                    [Number(orderId), Number(vendorId || 0)]
+                );
+                if (orderRows && orderRows.length > 0) {
+                    const info = orderRows[0];
+                    const vName = info.vendor_name || 'Boutique Vendeur';
+                    const oCode = info.code || orderId;
+
+                    // 1. Alert SuperAdmins via in-app & push
+                    await this.notificationsService.notifySuperAdmins(ctx, {
+                        eventType: 'ORDER_READY_FOR_PICKUP',
+                        title: '📦 Colis prêt pour ramassage',
+                        body: `Le vendeur "${vName}" a préparé la commande #${oCode}. Le colis est prêt pour collecte logistique.`,
+                        actionUrl: `/admin/orders`,
+                        channels: ['IN_APP', 'PUSH']
+                    });
+
+                    // 2. Alert Customer
+                    if (info.customer_user_id) {
+                        await this.notificationsService.notify(ctx, {
+                            userId: String(info.customer_user_id),
+                            eventType: 'ORDER_PREPARED',
+                            title: '📦 Colis prêt chez le vendeur !',
+                            body: `Votre article chez "${vName}" (Commande #${oCode}) est prêt et en attente de collecte par nos livreurs.`,
+                            actionUrl: `/account/orders/${oCode}`,
+                            targetRole: 'CUSTOMER',
+                            channels: ['IN_APP', 'PUSH']
+                        });
+                    }
+                }
+            } catch (notifErr) {
+                console.error('[updateVendorOrderStatus] Failed to send ready_for_pickup notification:', notifErr);
             }
         }
 
@@ -1028,7 +1117,57 @@ export class VendorService implements OnApplicationBootstrap {
             [resolvedStatus, Number(lineId)]
         );
 
-        // 4. Check all lines for this vendor in the order to aggregate the vendor suborder status
+        // 4. Send real-time notification to the customer about this line decision
+        try {
+            const lineInfo = await this.connection.rawConnection.query(
+                `SELECT o.code, c."userId" as customer_user_id, pt.name as product_name, v.name as vendor_name
+                 FROM order_line ol
+                 INNER JOIN "order" o ON ol."orderId" = o.id
+                 LEFT JOIN customer c ON o."customerId" = c.id
+                 LEFT JOIN product_variant pv ON ol."productVariantId" = pv.id
+                 LEFT JOIN product p ON pv."productId" = p.id
+                 LEFT JOIN product_translation pt ON pt."baseId" = p.id AND pt."languageCode" = 'fr'
+                 LEFT JOIN vendor v ON v.id = $2::int
+                 WHERE ol.id = $1::int LIMIT 1`,
+                [Number(lineId), Number(vendorId || 0)]
+            );
+
+            if (lineInfo && lineInfo.length > 0) {
+                const info = lineInfo[0];
+                const custUserId = info.customer_user_id ? String(info.customer_user_id) : null;
+                const prodName = info.product_name || 'Votre article';
+                const vName = info.vendor_name || 'Le vendeur partenaire';
+                const oCode = info.code || '';
+
+                if (custUserId) {
+                    if (newStatus === 'confirmed' || newStatus === 'approved') {
+                        await this.notificationsService.notify(ctx, {
+                            userId: custUserId,
+                            eventType: 'ORDER_LINE_CONFIRMED',
+                            title: '✅ Article confirmé',
+                            body: `Votre article "${prodName}" a été validé par ${vName} et est en cours de préparation (Commande #${oCode}).`,
+                            actionUrl: `/account/orders/${oCode}`,
+                            targetRole: 'CUSTOMER',
+                            channels: ['IN_APP', 'PUSH']
+                        });
+                    } else if (newStatus === 'refused' || newStatus === 'rejected') {
+                        await this.notificationsService.notify(ctx, {
+                            userId: custUserId,
+                            eventType: 'ORDER_LINE_REASSIGNING',
+                            title: '🔄 Réassignation en cours',
+                            body: `L'article "${prodName}" est pris en charge par nos équipes pour réassignation auprès d'un vendeur partenaire (Commande #${oCode}).`,
+                            actionUrl: `/account/orders/${oCode}`,
+                            targetRole: 'CUSTOMER',
+                            channels: ['IN_APP', 'PUSH']
+                        });
+                    }
+                }
+            }
+        } catch (lineNotifErr) {
+            console.error('[updateVendorOrderLineStatus] Line notification error:', lineNotifErr);
+        }
+
+        // 5. Check all lines for this vendor in the order to aggregate the vendor suborder status
         const allVendorLines = await this.connection.rawConnection.query(
             `SELECT ol.id, ol."customFieldsSellerstatus"
              FROM order_line ol
@@ -1064,7 +1203,7 @@ export class VendorService implements OnApplicationBootstrap {
             newVendorStatus = 'reassigning';
         }
 
-        // 5. Update the vendor suborder status by calling existing method (without cascading)
+        // 6. Update the vendor suborder status by calling existing method (without cascading)
         await this.updateVendorOrderStatus(ctx, line.orderId, vendorId, 'sellerStatus', newVendorStatus, false);
 
         return true;
@@ -1226,7 +1365,7 @@ export class VendorService implements OnApplicationBootstrap {
                         COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid", v.id) as vendor_id,
                         ol."customFieldsSellerstatus" as seller_status,
                         ol.quantity,
-                        COALESCE(ol."linePriceWithTax", ol."listPrice" * ol."quantity", 0) as line_total
+                        COALESCE(ol."proratedLinePriceWithTax", ol."listPrice" * ol."quantity", 0) as line_total
                  FROM order_line ol
                  JOIN product_variant pv ON ol."productVariantId" = pv.id
                  JOIN product p ON pv."productId" = p.id
@@ -1344,6 +1483,24 @@ export class VendorService implements OnApplicationBootstrap {
                 );
             } catch (err2) {
                 console.error('[continueOrderWithoutReassignedItems] Error updating order:', err2);
+            }
+
+            // 6. Notify Super Admins
+            try {
+                const custRows = await this.connection.rawConnection.query(
+                    `SELECT c."firstName", c."lastName", c."emailAddress" FROM customer c WHERE c.id = $1 LIMIT 1`,
+                    [order.customerId]
+                );
+                const custName = custRows && custRows[0] ? `${custRows[0].firstName || ''} ${custRows[0].lastName || ''}`.trim() || custRows[0].emailAddress : 'Le client';
+                await this.notificationsService.notifySuperAdmins(ctx, {
+                    eventType: 'ORDER_LINE_CANCELLED_BY_CUSTOMER',
+                    title: '🚫 Article annulé par le client',
+                    body: `${custName} a choisi de continuer la commande #${order.code} sans l'article refusé. L'article est retiré de la commande.`,
+                    actionUrl: `/admin/orders`,
+                    channels: ['IN_APP', 'PUSH']
+                });
+            } catch (notifErr) {
+                console.warn('[continueOrderWithoutReassignedItems] Admin notification error:', notifErr);
             }
 
             return true;
@@ -1475,7 +1632,8 @@ export class VendorService implements OnApplicationBootstrap {
                         title: 'Nouvelle Vente (Réassignation) !',
                         body: `Félicitations ! Une commande #${order.code} vous a été réassignée.`,
                         actionUrl: `/dashboard/orders`,
-                        channels: ['IN_APP', 'PUSH']
+                        channels: ['IN_APP', 'PUSH'],
+                        targetRole: 'VENDOR'
                     });
                 }
             } catch (notifErr: any) {
@@ -2578,6 +2736,27 @@ export class VendorService implements OnApplicationBootstrap {
                     }
                 }
 
+                // Copy option group assignments and variant option associations to preserve size/color/etc.
+                try {
+                    await this.connection.rawConnection.query(`
+                        INSERT INTO product_option_groups_product_product ("productId", "productOptionGroupId")
+                        SELECT $1, "productOptionGroupId"
+                        FROM product_option_groups_product_product
+                        WHERE "productId" = $2
+                        ON CONFLICT DO NOTHING
+                    `, [createdProduct.id, orig.productId]).catch(() => null);
+
+                    await this.connection.rawConnection.query(`
+                        INSERT INTO product_variant_options_product_option ("productVariantId", "productOptionId")
+                        SELECT $1, "productOptionId"
+                        FROM product_variant_options_product_option
+                        WHERE "productVariantId" = $2
+                        ON CONFLICT DO NOTHING
+                    `, [createdVariant.id, orig.variantId]).catch(() => null);
+                } catch (optErr) {
+                    console.warn('[reassignOrderLineToProduct] Option copy note:', optErr);
+                }
+
                 this.eventBus.publish(new ProductEvent(ctx, createdProduct, 'created', { id: createdProduct.id }));
             }
 
@@ -2709,7 +2888,8 @@ export class VendorService implements OnApplicationBootstrap {
                             title: 'Nouvelle Vente (Réassignation) !',
                             body: `Félicitations ! Une commande #${order.code} vous a été réassignée.`,
                             actionUrl: `/dashboard/orders`,
-                            channels: ['IN_APP', 'PUSH']
+                            channels: ['IN_APP', 'PUSH'],
+                            targetRole: 'VENDOR'
                         });
                     }
                 } catch (notifErr: any) {
@@ -4976,7 +5156,7 @@ export class VendorService implements OnApplicationBootstrap {
                       AND (p."customFieldsVendorid" = $1 OR (p."customFieldsVendorid" IS NULL AND ol."sellerChannelId" = $2))
                   )
               )
-              AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other', 'cancelled')
+              AND COALESCE(ol."customFieldsSellerstatus", 'pending') IN ('confirmed', 'approved', 'ready_for_pickup')
               AND o.state IN ('PaymentSettled', 'PaymentAuthorized', 'Shipped', 'Delivered')
             ORDER BY o."createdAt" ASC
         `, [vendorNumericId, vendorChannelId]);
@@ -5013,7 +5193,7 @@ export class VendorService implements OnApplicationBootstrap {
                               AND (p."customFieldsVendorid" = $2 OR (p."customFieldsVendorid" IS NULL AND ol."sellerChannelId" = $3))
                           )
                       )
-                      AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other', 'cancelled')
+                      AND COALESCE(ol."customFieldsSellerstatus", 'pending') IN ('confirmed', 'approved', 'ready_for_pickup')
                 `, [ord.id, vendorNumericId, vendorChannelId]);
 
                 const gross = Number(lineSums[0]?.gross || 0);
@@ -5242,7 +5422,7 @@ export class VendorService implements OnApplicationBootstrap {
                        AND (p."customFieldsVendorid" = $1 OR (p."customFieldsVendorid" IS NULL AND ol."sellerChannelId" = $2))
                    )
                )
-               AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other', 'cancelled')
+               AND COALESCE(ol."customFieldsSellerstatus", 'pending') IN ('confirmed', 'approved', 'ready_for_pickup')
                AND ol.quantity > 0
                AND o.state IN ('PaymentAuthorized', 'PaymentSettled', 'Shipped', 'Delivered')
              GROUP BY o.id, o."createdAt", o.state

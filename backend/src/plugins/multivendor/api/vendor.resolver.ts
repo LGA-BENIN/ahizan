@@ -243,6 +243,25 @@ export class VendorResolver {
             throw new Error('You do not have permission to update this order');
         }
 
+        // Strict Status Hierarchy Lockout:
+        // If order is shipped, in_transit, delivered, or cancelled, seller cannot modify status
+        const orderAdminStatus = (order.customFields as any)?.adminStatus || '';
+        const orderNativeState = order.state || '';
+        if (['shipped', 'in_transit', 'delivered', 'cancelled'].includes(orderAdminStatus) || ['Shipped', 'Delivered', 'Cancelled'].includes(orderNativeState)) {
+            throw new Error("Cette commande est déjà expédiée, livrée ou clôturée. Les modifications sont verrouillées.");
+        }
+
+        // Check if this vendor was reassigned to another vendor
+        let vStatusesMap: Record<string, any> = {};
+        try {
+            const rawVS = (order.customFields as any)?.vendorStatuses;
+            if (rawVS) vStatusesMap = typeof rawVS === 'string' ? JSON.parse(rawVS) : rawVS;
+        } catch (_) {}
+
+        if (vStatusesMap[String(vendor.id)]?.sellerStatus === 'reassigned_to_other') {
+            throw new Error("Cette commande a été réassignée à un autre vendeur et ne peut plus être modifiée.");
+        }
+
         // Must be a valid seller state
         const validStatuses = [
             'pending',
@@ -282,6 +301,27 @@ export class VendorResolver {
             throw new Error('No vendor profile found for this user');
         }
         
+        // Strict Lockout check on line
+        const rawLineCheck = await (this.vendorService as any).connection.rawConnection.query(`
+            SELECT ol.id, ol."orderId", ol."customFieldsSellerstatus", o."customFieldsAdminstatus", o.state as "orderState"
+            FROM order_line ol
+            INNER JOIN "order" o ON ol."orderId" = o.id
+            WHERE ol.id = $1::int LIMIT 1
+        `, [Number(lineId)]);
+
+        if (!rawLineCheck || rawLineCheck.length === 0) {
+            throw new Error('Order line not found');
+        }
+
+        const lineData = rawLineCheck[0];
+        if (['shipped', 'in_transit', 'delivered', 'cancelled'].includes(lineData.customFieldsAdminstatus) || ['Shipped', 'Delivered', 'Cancelled'].includes(lineData.orderState)) {
+            throw new Error("Cette commande est déjà expédiée, livrée ou clôturée. Les modifications sont verrouillées.");
+        }
+
+        if (lineData.customFieldsSellerstatus === 'reassigned_to_other') {
+            throw new Error("Cet article a déjà été réassigné à un autre vendeur.");
+        }
+
         // Must be a valid seller state
         const validStatuses = [
             'pending',

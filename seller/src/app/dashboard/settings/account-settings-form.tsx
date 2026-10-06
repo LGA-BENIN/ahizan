@@ -11,9 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save, CreditCard, Landmark, ChevronDown } from 'lucide-react';
+import { Store, Shield, Globe, MapPin, Palette, Contact, Eye, CheckCircle2, RefreshCw, UploadCloud, Save, CreditCard, Landmark, ChevronDown, Share2, Copy, ExternalLink, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { encodeId } from '@/lib/hash-utils';
 
 interface AccountSettingsFormProps {
     vendor: any;
@@ -81,6 +82,8 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
 
     // Payment Method selection state
     const [paymentMethod, setPaymentMethod] = useState<string>(vendor?.paymentMethod || 'CASH');
+    const [isCopied, setIsCopied] = useState(false);
+    const shopUrl = vendor?.id ? `${process.env.NODE_ENV === 'production' ? 'https://ahizan.com' : 'http://localhost:3001'}/vendor/${encodeId(vendor.id)}` : '';
 
     const mapRef = useRef<any>(null);
     const markerRef = useRef<any>(null);
@@ -887,12 +890,71 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                                             )}
                                         />
                                     </button>
-                                </div>
-                                <div className="p-4 bg-tertiary/5 text-tertiary rounded-xl border border-tertiary/10 text-xs leading-relaxed font-medium">
                                     Votre boutique est actuellement en ligne. Toutes les modifications textuelles et réseaux s'appliqueront instantanément au profil public.
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Share Shop URL Card */}
+                        {shopUrl && (
+                            <Card className="border border-primary/20 bg-primary/5 rounded-2xl overflow-hidden shadow-xs">
+                                <CardHeader className="p-5 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Share2 className="w-4 h-4 text-primary" />
+                                        <h3 className="text-xs font-black uppercase tracking-wider text-primary">Lien de votre boutique</h3>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-5 pt-0 space-y-3">
+                                    <p className="text-[11px] text-muted-foreground leading-snug">
+                                        Partagez ce lien direct et sécurisé à vos clients pour leur permettre de visiter votre boutique et acheter vos produits :
+                                    </p>
+                                    <div className="p-2.5 bg-background border border-border/80 rounded-xl flex items-center justify-between gap-2">
+                                        <span className="text-xs font-mono font-medium text-foreground truncate select-all">{shopUrl}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(shopUrl).then(() => {
+                                                    setIsCopied(true);
+                                                    toast.success("Lien de la boutique copié !");
+                                                    setTimeout(() => setIsCopied(false), 2000);
+                                                });
+                                            }}
+                                            className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
+                                            title="Copier le lien"
+                                        >
+                                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                        </button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <a
+                                            href={shopUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex-1 py-2 px-3 text-center text-xs font-bold bg-primary text-white rounded-xl shadow-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                            Visiter la boutique
+                                        </a>
+                                        {typeof navigator !== 'undefined' && 'share' in navigator && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    navigator.share({
+                                                        title: vendor?.name || 'Ma Boutique Ahizan',
+                                                        text: `Découvrez la boutique officielle ${vendor?.name} sur Ahizan !`,
+                                                        url: shopUrl,
+                                                    }).catch(() => {});
+                                                }}
+                                                className="py-2 px-3 text-xs font-bold bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all flex items-center justify-center"
+                                                title="Partager"
+                                            >
+                                                <Share2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         </aside>
 

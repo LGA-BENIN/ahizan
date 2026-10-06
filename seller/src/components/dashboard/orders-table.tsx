@@ -220,6 +220,27 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
         });
     };
 
+    // Helper to calculate the accurate vendor-specific total excluding refused/reassigning/cancelled items and pending items when order is advanced
+    const getVendorOrderTotal = (order: any) => {
+        const lines = order.lines || [];
+        const isOrderAdvanced = order.state === 'Shipped' || order.state === 'Delivered' || order.state === 'Cancelled' ||
+            ['shipped', 'in_transit', 'delivered', 'cancelled'].includes(order.customFields?.adminStatus || '');
+
+        if (lines.length > 0) {
+            const validLines = lines.filter((l: any) => {
+                const s = l.customFields?.sellerStatus || 'pending';
+                if (s === 'refused' || s === 'rejected' || s === 'reassigning' || s === 'reassigned_to_other' || s === 'cancelled' || s === 'customer_cancelled') return false;
+                if (isOrderAdvanced && s === 'pending') return false;
+                return Number(l.quantity) > 0;
+            });
+            if (validLines.length > 0) {
+                return validLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || ((l.unitPriceWithTax || 0) * l.quantity) || 0), 0);
+            }
+            return 0;
+        }
+        return order.totalWithTax || 0;
+    };
+
     // Client-side CSV export function
     const exportToCSV = () => {
         if (filteredOrders.length === 0) {
@@ -227,13 +248,13 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
             return;
         }
         
-        const headers = ['ID Commande', 'Client', 'Email', 'Date', 'Total (FCFA)', 'Devise', 'Statut Vendeur', 'Statut Général'];
+        const headers = ['ID Commande', 'Client', 'Email', 'Date', 'Total Vendeur (FCFA)', 'Devise', 'Statut Vendeur', 'Statut Général'];
         const rows = filteredOrders.map(o => [
             o.code,
             `${o.customer?.firstName || ''} ${o.customer?.lastName || ''}`,
             o.customer?.emailAddress || '',
             new Date(o.updatedAt).toLocaleDateString('fr-FR'),
-            Number(o.totalWithTax || 0).toFixed(0),
+            Number(getVendorOrderTotal(o)).toFixed(0),
             o.currencyCode || 'XOF',
             o.customFields?.sellerStatus || 'pending',
             o.state
@@ -280,11 +301,14 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
     };
 
     const getStatusLabel = (state: string, sellerStatus?: string) => {
-        if (sellerStatus === 'confirmed') return 'Validé';
-        if (sellerStatus === 'refused') return 'Refusé';
+        if (sellerStatus === 'ready_for_pickup') return 'Prêt pour ramassage';
+        if (sellerStatus === 'confirmed' || sellerStatus === 'approved') return 'En préparation';
+        if (sellerStatus === 'refused' || sellerStatus === 'rejected') return 'Refusé';
+        if (sellerStatus === 'reassigning') return 'En réassignation';
+        if (sellerStatus === 'reassigned_to_other') return 'Réassigné';
         
         switch (state) {
-            case 'PaymentSettled': return 'Payé';
+            case 'PaymentSettled': return 'À préparer (Nouvelle)';
             case 'Shipped': return 'Expédié';
             case 'Delivered': return 'Livré';
             case 'Cancelled': return 'Annulé';
@@ -408,7 +432,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                     <SlaCountdown createdAt={order.createdAt || order.updatedAt} sellerStatus={order.customFields?.sellerStatus} />
                                                 </td>
                                                 <td className="px-6 py-5 whitespace-nowrap text-right font-bold text-foreground text-sm">
-                                                    {formatPrice(order.totalWithTax, order.currencyCode)}
+                                                    {formatPrice(getVendorOrderTotal(order), order.currencyCode)}
                                                 </td>
                                                 <td className="px-6 py-5 whitespace-nowrap">
                                                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-transparent ${getStatusStyles(order.state, order.customFields?.sellerStatus)}`}>

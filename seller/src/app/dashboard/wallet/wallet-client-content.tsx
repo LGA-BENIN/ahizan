@@ -51,6 +51,27 @@ export default function WalletClientContent({
 
     const currencyCode = 'XOF';
     
+    // Helper to calculate the accurate vendor-specific total excluding refused/reassigning/cancelled items and pending items when order is advanced
+    const getVendorOrderTotal = (order: any) => {
+        const lines = order.lines || [];
+        const isOrderAdvanced = order.state === 'Shipped' || order.state === 'Delivered' || order.state === 'Cancelled' ||
+            ['shipped', 'in_transit', 'delivered', 'cancelled'].includes(order.customFields?.adminStatus || '');
+
+        if (lines.length > 0) {
+            const validLines = lines.filter((l: any) => {
+                const s = l.customFields?.sellerStatus || 'pending';
+                if (s === 'refused' || s === 'rejected' || s === 'reassigning' || s === 'reassigned_to_other' || s === 'cancelled' || s === 'customer_cancelled') return false;
+                if (isOrderAdvanced && s === 'pending') return false;
+                return Number(l.quantity) > 0;
+            });
+            if (validLines.length > 0) {
+                return validLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || ((l.unitPriceWithTax || 0) * l.quantity) || 0), 0);
+            }
+            return 0;
+        }
+        return order.totalWithTax || 0;
+    };
+
     // Check if seller has filled their mobile money phone number
     const paymentPhone = vendor?.mobileMoneyNumber;
     const hasPaymentPhone = Boolean(paymentPhone && String(paymentPhone).trim().length >= 4);
@@ -101,7 +122,7 @@ export default function WalletClientContent({
 
         const headers = ["ID Commande", "Code", "Date", "Montant Brut (FCFA)", "Commission (FCFA)", "Gain Net (FCFA)", "Statut Vendeur", "Statut Paiement"];
         const rows = orders.map((o: any) => {
-            const total = Number(o.totalWithTax || 0);
+            const total = Number(getVendorOrderTotal(o));
             const rate = Number(o.customFields?.commissionRate ?? 10);
             const commission = (typeof o.customFields?.commissionAmount === 'number' && o.customFields.commissionAmount < total)
                 ? Number(o.customFields.commissionAmount)
@@ -271,7 +292,7 @@ export default function WalletClientContent({
                                         <tbody className="divide-y divide-border">
                                             {orders.map((o: any) => {
                                                 const status = o.customFields?.paymentStatus || 'PENDING';
-                                                const total = o.totalWithTax || 0;
+                                                const total = getVendorOrderTotal(o);
                                                 const rate = Number(o.customFields?.commissionRate ?? 10);
                                                 const commission = (typeof o.customFields?.commissionAmount === 'number' && o.customFields.commissionAmount < total)
                                                     ? Number(o.customFields.commissionAmount)
@@ -519,21 +540,27 @@ export default function WalletClientContent({
                         <div className="space-y-3">
                             <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Articles concernés</h4>
                             <div className="space-y-2">
-                                {(selectedOrder.lines || []).map((line: any) => (
-                                    <div key={line.id} className="flex justify-between items-center p-3 bg-muted/10 border border-border rounded-xl text-xs">
-                                        <div>
-                                            <p className="font-bold text-foreground">{line.productVariant?.name}</p>
-                                            <p className="text-muted-foreground">Quantité: {line.quantity}</p>
+                                {(selectedOrder.lines || []).map((line: any) => {
+                                    const isOrderAdv = selectedOrder.state === 'Shipped' || selectedOrder.state === 'Delivered' || selectedOrder.state === 'Cancelled' ||
+                                        ['shipped', 'in_transit', 'delivered', 'cancelled'].includes(selectedOrder.customFields?.adminStatus || '');
+                                    const s = line.customFields?.sellerStatus || 'pending';
+                                    const isExcl = s === 'refused' || s === 'rejected' || s === 'reassigning' || s === 'reassigned_to_other' || s === 'cancelled' || s === 'customer_cancelled' || (isOrderAdv && s === 'pending');
+                                    return (
+                                        <div key={line.id} className={`flex justify-between items-center p-3 border border-border rounded-xl text-xs ${isExcl ? 'opacity-60 bg-muted/5' : 'bg-muted/10'}`}>
+                                            <div>
+                                                <p className={`font-bold ${isExcl ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{line.productVariant?.name}</p>
+                                                <p className="text-muted-foreground">Quantité: {isExcl ? 0 : line.quantity} {isExcl && <span className="text-red-500 font-semibold">(Non validé / Exclu)</span>}</p>
+                                            </div>
+                                            <p className={`font-black ${isExcl ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{formatPrice(isExcl ? 0 : line.linePriceWithTax, currencyCode)}</p>
                                         </div>
-                                        <p className="font-black text-foreground">{formatPrice(line.linePriceWithTax, currencyCode)}</p>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
 
                         {/* Commission Breakdown */}
                         {(() => {
-                            const modalTotal = selectedOrder.totalWithTax || 0;
+                            const modalTotal = getVendorOrderTotal(selectedOrder);
                             const modalRate = Number(selectedOrder.customFields?.commissionRate ?? 10);
                             const modalComm = (typeof selectedOrder.customFields?.commissionAmount === 'number' && selectedOrder.customFields.commissionAmount < modalTotal)
                                 ? Number(selectedOrder.customFields.commissionAmount)

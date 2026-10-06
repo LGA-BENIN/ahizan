@@ -6,7 +6,7 @@ import {
     MapPin, Calendar, Package, Star, CheckCircle2, 
     MessageSquare, Globe, Facebook, Instagram, Phone, 
     Mail, FileText, Truck, Grid, List, Search, Heart, 
-    Sparkles, ArrowUpDown, Store
+    Sparkles, ArrowUpDown, Store, Share2
 } from 'lucide-react';
 import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 import { toast } from 'sonner';
@@ -214,6 +214,25 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
         setIsChatOpen(true);
     };
 
+    // Share action
+    const handleShareClick = async () => {
+        const shareUrl = typeof window !== 'undefined' ? window.location.href : `https://ahizan.com/vendor/${vendor.id}`;
+        if (typeof navigator !== 'undefined' && 'share' in navigator) {
+            try {
+                await navigator.share({
+                    title: `${vendor.name} - Boutique Officielle | Ahizan`,
+                    text: `Découvrez la boutique officielle ${vendor.name} sur Ahizan :`,
+                    url: shareUrl,
+                });
+                return;
+            } catch (err) {}
+        }
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            await navigator.clipboard.writeText(shareUrl);
+            toast.success("Lien de la boutique copié dans le presse-papiers !");
+        }
+    };
+
     return (
         <main className="flex-grow pb-16 bg-slate-50/50 dark:bg-slate-900/50">
             {/* Header Banner */}
@@ -260,6 +279,10 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                     </span>
                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 hidden sm:inline"></span>
                                     <span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{productsList.length}</span> {productsList.length === 1 ? 'Produit' : 'Produits'}
+                                    </span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 hidden sm:inline"></span>
+                                    <span>
                                         <span className="font-bold text-slate-800 dark:text-slate-200">{followersCountValue}</span> {followersCountValue === 1 ? 'Follower' : 'Followers'}
                                     </span>
                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 hidden sm:inline"></span>
@@ -276,11 +299,11 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                 )}
                             </div>
                             
-                            {/* Follow and Chat Action Buttons */}
-                            <div className="flex gap-3 w-full md:w-auto mt-3 md:mt-0 flex-shrink-0">
+                            {/* Follow, Chat and Share Action Buttons */}
+                            <div className="flex gap-2.5 w-full md:w-auto mt-3 md:mt-0 flex-shrink-0 flex-wrap sm:flex-nowrap">
                                 <button 
                                     onClick={handleFollowToggle}
-                                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 font-bold rounded-xl transition-all shadow-sm text-sm ${
+                                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 font-bold rounded-xl transition-all shadow-sm text-sm ${
                                         isFollowed 
                                         ? "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-200"
                                         : "bg-primary hover:bg-red-700 text-white"
@@ -291,10 +314,18 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                 </button>
                                 <button 
                                     onClick={handleChatClick}
-                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-all shadow-sm text-sm"
+                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-all shadow-sm text-sm"
                                 >
                                     <MessageSquare className="h-4 w-4 text-slate-400" />
                                     Discuter
+                                </button>
+                                <button 
+                                    onClick={handleShareClick}
+                                    className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition-all shadow-sm text-sm"
+                                    title="Partager la boutique"
+                                >
+                                    <Share2 className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                                    Partager
                                 </button>
                             </div>
                         </div>

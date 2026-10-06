@@ -934,6 +934,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                 }
                                 
                                 const statusMetaMap: Record<string, { label: string; color: string; bg: string; border: string }> = {
+                                    ready_for_pickup: { label: '📦 Colis prêt pour ramassage', color: '#047857', bg: '#ecfdf5', border: '#a7f3d0' },
                                     confirmed: { label: '✅ Approuvé par le vendeur', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
                                     approved: { label: '✅ Approuvé par le vendeur', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
                                     refused: { label: '❌ Rejeté par le vendeur', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
@@ -1011,11 +1012,12 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                         <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             {so.lines.map((line: any) => {
                                                 const lineStatus = line.customFields?.sellerStatus || 'pending';
-                                                const isConfirmed = lineStatus === 'confirmed' || lineStatus === 'approved';
-                                                const isRefused = lineStatus === 'refused' || lineStatus === 'rejected';
-                                                const isReassigned = lineStatus === 'reassigned_to_other';
-                                                const isReassigning = lineStatus === 'reassigning';
-                                                const isPending = !isConfirmed && !isRefused && !isReassigned && !isReassigning;
+                                                const isCancelled = lineStatus === 'cancelled' || line.quantity === 0;
+                                                const isConfirmed = !isCancelled && (lineStatus === 'confirmed' || lineStatus === 'approved');
+                                                const isRefused = !isCancelled && (lineStatus === 'refused' || lineStatus === 'rejected');
+                                                const isReassigned = !isCancelled && lineStatus === 'reassigned_to_other';
+                                                const isReassigning = !isCancelled && lineStatus === 'reassigning';
+                                                const isPending = !isCancelled && !isConfirmed && !isRefused && !isReassigned && !isReassigning;
 
                                                 return (
                                                     <div 
@@ -1026,9 +1028,9 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                             gap: '14px', 
                                                             padding: '10px 14px', 
                                                             borderRadius: '12px', 
-                                                            background: isReassigned ? '#f8fafc' : '#ffffff', 
-                                                            border: isRefused ? '1px solid #fecaca' : isConfirmed ? '1px solid #bbf7d0' : '1px solid #f1f5f9',
-                                                            opacity: isReassigned ? 0.6 : 1
+                                                            background: isCancelled ? '#fff1f2' : isReassigned ? '#f8fafc' : '#ffffff', 
+                                                            border: isCancelled ? '1px solid #fecdd3' : isRefused ? '1px solid #fecaca' : isConfirmed ? '1px solid #bbf7d0' : '1px solid #f1f5f9',
+                                                            opacity: (isReassigned || isCancelled) ? 0.6 : 1
                                                         }}
                                                     >
                                                         <img 
@@ -1039,9 +1041,14 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                         
                                                         <div style={{ flex: 1, textAlign: 'left' }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{line.productVariant?.name}</span>
+                                                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', textDecoration: isCancelled ? 'line-through' : 'none' }}>{line.productVariant?.name}</span>
                                                                 
                                                                 {/* Status Badge */}
+                                                                {isCancelled && (
+                                                                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                                                                        🚫 Annulé par le client
+                                                                    </span>
+                                                                )}
                                                                 {isConfirmed && (
                                                                     <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0' }}>
                                                                         ✅ Approuvé
@@ -1084,7 +1091,11 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
 
                                                         {/* Reassign Action logic strictly complying with user rule */}
                                                         <div style={{ minWidth: '150px', textAlign: 'right' }}>
-                                                            {isConfirmed ? (
+                                                            {isCancelled ? (
+                                                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#991b1b', background: '#fee2e2', padding: '4px 8px', borderRadius: '6px', border: '1px solid #fecaca', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                                    🚫 Non réassignable
+                                                                </span>
+                                                            ) : isConfirmed ? (
                                                                 <span 
                                                                     title="Cet article a été approuvé par le vendeur." 
                                                                     style={{ 

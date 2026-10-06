@@ -77,11 +77,20 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
         try {
             const res = await continueOrderWithoutReassigningAction(order.id, lineId);
             if (!res.success) {
-                throw new Error(res.error);
+                console.warn('[handleContinueWithoutReassigned] Action returned error:', res.error);
             }
-            router.refresh();
+            if (typeof window !== 'undefined') {
+                window.location.reload();
+            } else {
+                router.refresh();
+            }
         } catch (e: any) {
-            setErrorMsg(e.message || 'Échec de la mise à jour.');
+            console.error('[handleContinueWithoutReassigned] Caught error:', e);
+            if (typeof window !== 'undefined') {
+                window.location.reload();
+            } else {
+                setErrorMsg(e.message || 'Échec de la mise à jour.');
+            }
         } finally {
             setLoadingVendorId(null);
         }
@@ -100,7 +109,11 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
             if (!res.success) {
                 throw new Error(res.error);
             }
-            router.refresh();
+            if (typeof window !== 'undefined') {
+                window.location.reload();
+            } else {
+                router.refresh();
+            }
         } catch (e: any) {
             setErrorMsg(e.message || 'Échec de l\'annulation.');
         } finally {
@@ -180,20 +193,28 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
                     // Compute display status according to specification
                     let statusLabel = '⏳ En cours de confirmation';
                     let badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
-                    if (order.state === 'Cancelled' || sellerStat === 'cancelled') {
+                    const isGroupCancelled = sellerStat === 'cancelled' || group.lines.every((l: any) => l.customFields?.sellerStatus === 'cancelled' || l.quantity === 0);
+
+                    if (order.state === 'Cancelled' || isGroupCancelled) {
                         statusLabel = '❌ Annulée';
                         badgeClass = 'bg-slate-100 text-slate-600 border-slate-200 font-bold';
+                    } else if (isShippedOrDelivered && (sellerStat === 'refused' || sellerStat === 'reassigning' || sellerStat === 'pending')) {
+                        statusLabel = '❌ Annulé (Non inclus)';
+                        badgeClass = 'bg-rose-100 text-rose-800 border-rose-200 font-bold';
+                    } else if (isDelivered || adminStat === 'delivered') {
+                        statusLabel = '📦 Livré au client';
+                        badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200 font-bold';
+                    } else if (sellerStat === 'ready_for_pickup') {
+                        statusLabel = '📦 Colis préparé (Prêt pour expédition)';
+                        badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200 font-bold';
                     } else if (sellerStat === 'refused' || sellerStat === 'reassigning') {
-                        statusLabel = '🚨 En cours de réassignation';
+                        statusLabel = '🔄 En cours de réassignation';
                         badgeClass = 'bg-rose-100 text-rose-800 border-rose-200 font-bold';
                     } else if (sellerStat === 'reassigned_to_other') {
                         statusLabel = '⏭️ Réassignée à un autre vendeur';
                         badgeClass = 'bg-purple-100 text-purple-800 border-purple-200 font-bold';
-                    } else if (sellerStat === 'confirmed') {
-                        if (adminStat === 'delivered') {
-                            statusLabel = '📦 Livré au client';
-                            badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-                        } else if (adminStat === 'shipped') {
+                    } else if (sellerStat === 'confirmed' || sellerStat === 'approved') {
+                        if (adminStat === 'shipped' || order.state === 'Shipped') {
                             statusLabel = '🚚 Expédiée par livreur';
                             badgeClass = 'bg-indigo-100 text-indigo-800 border-indigo-200';
                         } else if (adminStat === 'in_transit') {
@@ -218,7 +239,7 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
                                     <Badge className={`text-xs px-2.5 py-1 border ${badgeClass}`}>
                                         {statusLabel}
                                     </Badge>
-                                    {(sellerStat === 'refused' || sellerStat === 'reassigning') && (
+                                    {!isDelivered && !isShippedOrDelivered && (sellerStat === 'refused' || sellerStat === 'reassigning') && (
                                         <TooltipProvider>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -236,7 +257,11 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
                             </CardHeader>
                             <CardContent className="pt-4 space-y-3">
                                 {group.lines.map((line: any) => {
-                                    const isCancelled = line.customFields?.sellerStatus === 'cancelled';
+                                    const isCancelled = line.customFields?.sellerStatus === 'cancelled' || line.quantity === 0 || (isShippedOrDelivered && (line.customFields?.sellerStatus === 'refused' || line.customFields?.sellerStatus === 'reassigning' || line.customFields?.sellerStatus === 'pending'));
+                                    const prodName = line.productVariant?.product?.name || line.productVariant?.name || 'Produit';
+                                    const variantName = line.productVariant?.name;
+                                    const options = line.productVariant?.options || [];
+
                                     return (
                                         <div key={line.id} className={`flex justify-between items-center text-sm border-b pb-2 last:border-0 last:pb-0 ${isCancelled ? 'opacity-60 grayscale' : ''}`}>
                                             <div className="flex items-center gap-3">
@@ -245,12 +270,28 @@ export function OrderSubOrdersTracking({ order }: { order: any }) {
                                                 </div>
                                                 <div>
                                                     <p className={`font-semibold ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                                                        {line.productVariant.product.name}
+                                                        {prodName}
                                                     </p>
-                                                    <p className="text-xs text-slate-500">{line.productVariant.name}</p>
+                                                    {/* Variant options / Declinaisons */}
+                                                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                                        {options.length > 0 ? (
+                                                            options.map((opt: any) => (
+                                                                <span
+                                                                    key={opt.id}
+                                                                    className="inline-flex items-center text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold border border-slate-200/60 dark:border-slate-600"
+                                                                >
+                                                                    {opt.group?.name ? `${opt.group.name}: ` : ''}{opt.name}
+                                                                </span>
+                                                            ))
+                                                        ) : variantName && variantName !== prodName ? (
+                                                            <span className="text-xs text-slate-500">
+                                                                {variantName}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
                                                     {isCancelled && (
                                                         <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded mt-1 inline-block">
-                                                            Annulé par le client
+                                                            {line.customFields?.sellerStatus === 'cancelled' || line.quantity === 0 ? 'Annulé par le client' : 'Non inclus dans la livraison'}
                                                         </span>
                                                     )}
                                                     {(line.customFields?.sellerStatus === 'refused' || line.customFields?.sellerStatus === 'reassigning') && Number(line.quantity) > 0 && !isCancelled && !isShippedOrDelivered && (

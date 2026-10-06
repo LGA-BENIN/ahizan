@@ -121,7 +121,7 @@ async function StorefrontMainContent({
                     </MobileMenuHeader>
 
                     {/* Global mobile category sidebar - available on all pages */}
-                    <MobileCategorySidebar categories={collections} />
+                    <MobileCategorySidebar categories={collections} menuItems={headerConfig?.menuItems} />
 
                     <main className={`flex-grow w-full mx-auto ${(headerConfig?.mobileNavStyle === 'bottom' || headerConfig?.mobileNavStyle === 'both' || !headerConfig?.mobileNavStyle) ? 'pb-16 lg:pb-0' : ''}`}>
                         {children}

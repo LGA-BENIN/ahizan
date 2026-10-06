@@ -67,8 +67,12 @@ export class SettlementService {
                 continue;
             }
 
-            // Filter out cancelled or zero-quantity lines
-            const activeLines = lines.filter((l: any) => (l.quantity > 0) && (l as any).cancelled !== true);
+            // Filter out unconfirmed, cancelled, refused, reassigned or zero-quantity lines
+            const activeLines = lines.filter((l: any) => {
+                const s = (l.customFields as any)?.sellerStatus || (l as any).customFieldsSellerstatus || 'pending';
+                const isConfirmed = s === 'confirmed' || s === 'approved' || s === 'ready_for_pickup';
+                return l.quantity > 0 && isConfirmed && (l as any).cancelled !== true;
+            });
             if (activeLines.length === 0) continue;
 
             const grossAmount = activeLines.reduce((sum, l) => sum + (l.linePriceWithTax || l.unitPriceWithTax * l.quantity), 0);

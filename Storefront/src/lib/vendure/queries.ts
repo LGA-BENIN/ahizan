@@ -247,6 +247,16 @@ export const GetActiveOrderQuery = graphql(`
                     id
                     name
                     sku
+                    options {
+                        id
+                        code
+                        name
+                        group {
+                            id
+                            code
+                            name
+                        }
+                    }
                     product {
                         id
                         name
@@ -365,6 +375,16 @@ export const GetActiveOrderForCheckoutQuery = graphql(`
                     id
                     name
                     sku
+                    options {
+                        id
+                        code
+                        name
+                        group {
+                            id
+                            code
+                            name
+                        }
+                    }
                     product {
                         id
                         name
@@ -500,6 +520,17 @@ export const GetCustomerOrdersQuery = graphql(`
                         productVariant {
                             id
                             name
+                            sku
+                            options {
+                                id
+                                code
+                                name
+                                group {
+                                    id
+                                    code
+                                    name
+                                }
+                            }
                             product {
                                 id
                                 name
@@ -620,6 +651,16 @@ export const GetOrderDetailQuery = graphql(`
                     id
                     name
                     sku
+                    options {
+                        id
+                        code
+                        name
+                        group {
+                            id
+                            code
+                            name
+                        }
+                    }
                     product {
                         id
                         name

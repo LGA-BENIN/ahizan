@@ -33,7 +33,11 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
 
     const lines = order.lines || [];
     const fulfillments = order.fulfillments || [];
-    const isShippedOrDelivered = order.state === 'Shipped' || order.state === 'Delivered' || fulfillments.length > 0;
+    const adminStatus = order.customFields?.adminStatus || '';
+    const isOrderCancelled = order.state === 'Cancelled' || adminStatus === 'cancelled';
+    const isOrderTerminal = order.state === 'Shipped' || order.state === 'Delivered' || ['shipped', 'in_transit', 'delivered', 'cancelled'].includes(adminStatus) || fulfillments.length > 0;
+    const isLocked = isOrderTerminal || isOrderCancelled;
+    const isShippedOrDelivered = isLocked;
 
     // Calculate line counts and statuses for active seller lines
     const activeSellerLines = lines.filter((l: any) => (l.customFields?.sellerStatus || 'pending') !== 'reassigned_to_other');
@@ -50,11 +54,15 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
     const canMarkReady = confirmedLines.length > 0 && pendingLines.length === 0;
     const isReadyForPickup = order.customFields?.sellerStatus === 'ready_for_pickup';
     
-    // Validate All button is shown only if there are pending lines and NO rejected lines
-    const showValidateAll = !hasRejectedLines && hasPendingLines;
+    // Validate All button is shown only if there are pending lines and NO rejected lines and order is not locked
+    const showValidateAll = !hasRejectedLines && hasPendingLines && !isLocked;
 
     // Handle individual line status updates
     const handleUpdateLineStatus = async (lineId: string, status: 'confirmed' | 'refused') => {
+        if (isLocked) {
+            toast.error("Cette commande est déjà en cours de livraison, livrée ou clôturée.");
+            return;
+        }
         setLoading(true);
         try {
             const res = await updateOrderLineSellerStatusAction(lineId, status);
@@ -136,8 +144,14 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         }
     };
 
-    // Calculate vendor-specific subtotal from active lines
-    const sellerSubTotal = lines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || (l.unitPriceWithTax * l.quantity) || 0), 0);
+    // Calculate vendor-specific subtotal ONLY from active/valid lines (exclude refused, reassigning, reassigned_to_other, cancelled, and unconfirmed items when order is locked/advanced)
+    const validLines = lines.filter((l: any) => {
+        const s = l.customFields?.sellerStatus || 'pending';
+        if (s === 'refused' || s === 'rejected' || s === 'reassigning' || s === 'reassigned_to_other' || s === 'cancelled' || s === 'customer_cancelled') return false;
+        if (isLocked && s === 'pending') return false;
+        return Number(l.quantity) > 0;
+    });
+    const sellerSubTotal = validLines.reduce((sum: number, l: any) => sum + (l.linePriceWithTax || ((l.unitPriceWithTax || 0) * l.quantity) || 0), 0);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 print:m-0 print:p-0">
@@ -175,7 +189,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     <Button variant="outline" size="sm" onClick={handlePrintPackingSlip} className="font-bold gap-2">
                         <Printer className="w-4 h-4" /> Imprimer le bordereau
                     </Button>
-                    {showValidateAll && !isShippedOrDelivered && (
+                    {showValidateAll && (
                         <Button 
                             variant="outline" 
                             size="sm" 
@@ -186,7 +200,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                             <Check className="w-4 h-4" /> Tout valider ({pendingLines.length})
                         </Button>
                     )}
-                    {canMarkReady && !isReadyForPickup && !isShippedOrDelivered && (
+                    {canMarkReady && !isReadyForPickup && !isLocked && (
                         <Button 
                             variant="default" 
                             size="sm" 
@@ -197,13 +211,26 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                             <Boxes className="w-4 h-4" /> Colis prêt pour ramassage ({confirmedLines.length} article{confirmedLines.length > 1 ? 's' : ''})
                         </Button>
                     )}
-                    {isReadyForPickup && (
+                    {isReadyForPickup && !isLocked && (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
                             <Clock className="w-4 h-4 animate-spin text-amber-600" /> Prêt pour ramassage
                         </span>
                     )}
                 </div>
             </div>
+
+            {/* Lockout Banner if order is Shipped, In Transit, Delivered, or Cancelled */}
+            {isLocked && (
+                <div className="bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-start gap-3 text-slate-700 dark:text-slate-200 print:hidden">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-500" />
+                    <div className="text-sm">
+                        <p className="font-bold">Commande clôturée ou en cours d'acheminement</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Cette commande est {adminStatus === 'delivered' || order.state === 'Delivered' ? 'livrée au client' : isOrderCancelled ? 'annulée' : 'en cours de livraison'}. Les statuts et la préparation des articles sont verrouillés.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Rejection Alert Banner if any lines are rejected/reassigning */}
             {hasRejectedLines && (
@@ -212,7 +239,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     <div className="text-sm">
                         <p className="font-bold">Articles en cours de réassignation</p>
                         <p className="text-xs text-amber-700 mt-0.5">
-                            Certains articles de cette commande ont été refusés. Les équipes d'Ahizan les réassignent actuellement à d'autres vendeurs. Vos articles validés restent confirmés.
+                            Certains articles de cette commande ont été refusés. Les équipes d'Ahizan les réassignent actuellement à d'autres vendeurs. Vos articles validés restent confirmés et seuls les articles validés sont comptabilisés dans votre solde.
                         </p>
                     </div>
                 </div>
@@ -273,11 +300,11 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     </h2>
                     <div className="space-y-3">
                         <div className="flex justify-between items-center py-2 border-b border-border/50">
-                            <span className="text-xs font-bold text-muted-foreground uppercase">Sous-total (Mes articles)</span>
+                            <span className="text-xs font-bold text-muted-foreground uppercase">Sous-total (Mes articles validés)</span>
                             <span className="text-sm font-bold">{formatPrice(sellerSubTotal)}</span>
                         </div>
                         <div className="pt-2 flex justify-between items-center">
-                            <span className="text-sm font-black text-brand-navy uppercase">Total articles</span>
+                            <span className="text-sm font-black text-brand-navy uppercase">Total à percevoir</span>
                             <span className="text-2xl font-serif font-black text-brand-navy underline decoration-brand-red decoration-4 transition-all">{formatPrice(sellerSubTotal)}</span>
                         </div>
                     </div>
@@ -305,8 +332,9 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                         <tbody className="divide-y divide-border bg-card">
                             {lines.map((line: any) => {
                                 const status = line.customFields?.sellerStatus || 'pending';
+                                const isExcluded = status === 'refused' || status === 'rejected' || status === 'reassigning' || status === 'reassigned_to_other' || status === 'cancelled' || status === 'customer_cancelled' || (isLocked && status === 'pending');
                                 return (
-                                    <tr key={line.id} className="group hover:bg-muted/10 transition-colors">
+                                    <tr key={line.id} className={`group hover:bg-muted/10 transition-colors ${isExcluded ? 'opacity-60 bg-muted/5' : ''}`}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-4">
                                                 {line.productVariant?.featuredAsset?.preview ? (
@@ -321,24 +349,33 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                                                     </div>
                                                 )}
                                                 <div>
-                                                    <p className="text-sm font-black text-foreground group-hover:text-brand-navy transition-colors">{line.productVariant?.name}</p>
+                                                    <p className={`text-sm font-black transition-colors ${isExcluded ? 'text-muted-foreground line-through' : 'text-foreground group-hover:text-brand-navy'}`}>{line.productVariant?.name}</p>
                                                     {line.productVariant?.sku && (
                                                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{line.productVariant.sku}</p>
+                                                    )}
+                                                    {line.productVariant?.options && line.productVariant.options.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                            {line.productVariant.options.map((opt: any) => (
+                                                                <span key={opt.id} className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-muted text-muted-foreground border border-border">
+                                                                    {opt.group?.name ? `${opt.group.name}: ` : ''}{opt.name}
+                                                                </span>
+                                                            ))}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right text-sm font-bold text-foreground">
-                                            {formatPrice(status === 'reassigned_to_other' ? 0 : line.unitPriceWithTax)}
+                                            {formatPrice(isExcluded ? 0 : line.unitPriceWithTax)}
                                         </td>
                                         <td className="px-6 py-4 text-center text-sm font-black text-muted-foreground">
-                                            {status === 'reassigned_to_other' ? 0 : line.quantity}
+                                            {isExcluded ? 0 : line.quantity}
                                         </td>
                                         <td className="px-6 py-4 text-right text-sm font-black text-brand-navy">
-                                            {formatPrice(status === 'reassigned_to_other' ? 0 : line.linePriceWithTax)}
+                                            {formatPrice(isExcluded ? 0 : line.linePriceWithTax)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                                            {status === 'pending' ? (
+                                            {status === 'pending' && !isLocked ? (
                                                 <div className="flex justify-center items-center gap-2">
                                                     <Button 
                                                         onClick={() => handleUpdateLineStatus(line.id, 'confirmed')}
@@ -358,6 +395,11 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                                                         Refuser
                                                     </Button>
                                                 </div>
+                                            ) : status === 'pending' && isLocked ? (
+                                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted border border-border text-muted-foreground rounded-full text-xs font-black uppercase tracking-wider">
+                                                    <Clock className="w-3.5 h-3.5" />
+                                                    Non traité (Clôturé)
+                                                </span>
                                             ) : status === 'confirmed' || status === 'approved' ? (
                                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 border border-green-200 text-green-700 rounded-full text-xs font-black uppercase tracking-wider">
                                                     <CheckCircle2 className="w-3.5 h-3.5" />

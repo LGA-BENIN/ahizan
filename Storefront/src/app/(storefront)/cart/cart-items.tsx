@@ -141,11 +141,22 @@ export async function CartItems({activeOrder}: { activeOrder: ActiveOrder | null
                                                 </p>
                                             </div>
                                         </div>
-                                        {line.productVariant.name !== line.productVariant.product.name && (
-                                            <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-wider">
-                                                Option: {line.productVariant.name}
-                                            </p>
-                                        )}
+                                        {/* Variant Options / Declinaisons */}
+                                        {((line.productVariant as any).options && (line.productVariant as any).options.length > 0) ? (
+                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                {(line.productVariant as any).options.map((opt: any) => (
+                                                    <span key={opt.id} className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                                        {opt.group?.name ? `${opt.group.name}: ` : ''}{opt.name}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : line.productVariant.name !== line.productVariant.product.name ? (
+                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                                    {line.productVariant.name}
+                                                </span>
+                                            </div>
+                                        ) : null}
                                         <p className="text-[10px] font-black text-muted-foreground/60 mt-1 uppercase tracking-widest">
                                             SKU: {line.productVariant.sku}
                                         </p>

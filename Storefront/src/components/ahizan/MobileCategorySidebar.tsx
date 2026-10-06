@@ -6,7 +6,7 @@ import { Smartphone, ChevronRight, X, Download } from "lucide-react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
 
-export function MobileCategorySidebar({ categories = [] }: { categories?: any[] }) {
+export function MobileCategorySidebar({ categories = [], menuItems = [] }: { categories?: any[]; menuItems?: any[] }) {
     const { mobileMenuOpen, setMobileMenuOpen, expandedMobileCat, setExpandedMobileCat, logoUrl, promoConfig } = useMobileMenu();
     const [hoveredCat, setHoveredCat] = useState<any>(null);
 
@@ -58,7 +58,46 @@ export function MobileCategorySidebar({ categories = [] }: { categories?: any[] 
                     </button>
                 </div>
                 <div className="flex flex-col w-full h-[calc(100%-73px)] relative">
-                    <div className="px-5 py-3 border-b border-border/40 bg-muted/5">
+                    {/* CMS Navigation Menu Items Section (Mobile) */}
+                    {menuItems && menuItems.length > 0 && (
+                        <div className="border-b border-border/40 bg-slate-50/50 py-2.5 px-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-2 block mb-1.5">Navigation</span>
+                            <div className="flex flex-col gap-1">
+                                {menuItems.map((item: any, idx: number) => {
+                                    const isPill = item.style === 'pill';
+                                    const isRect = item.style === 'rectangle';
+                                    const hasCustomStyle = isPill || isRect;
+
+                                    return (
+                                        <Link
+                                            key={idx}
+                                            href={item.link || '#'}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className={`px-3 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-between ${
+                                                hasCustomStyle
+                                                    ? 'shadow-xs font-bold'
+                                                    : item.isHighlighted
+                                                    ? 'bg-red-50 text-red-600 font-bold border border-red-100'
+                                                    : 'text-slate-800 hover:bg-slate-100'
+                                            }`}
+                                            style={hasCustomStyle ? {
+                                                backgroundColor: item.bgColor || '#e31837',
+                                                color: item.textColor || '#ffffff',
+                                                borderRadius: isPill ? '9999px' : '8px'
+                                            } : undefined}
+                                        >
+                                            <span className="truncate">{item.label}</span>
+                                            {item.isHighlighted && !hasCustomStyle && (
+                                                <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                                            )}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="px-5 py-2.5 border-b border-border/40 bg-muted/5">
                         <span className="text-[10px] font-black uppercase tracking-widest text-black">Catégories</span>
                     </div>
                     <div className="flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40 py-2">

@@ -234,8 +234,16 @@ export function NotificationBell({
             {/* Bell Button */}
             <button
                 onClick={() => {
-                    setIsOpen(prev => !prev);
-                    if (!isOpen) fetchNotifications();
+                    const willOpen = !isOpen;
+                    setIsOpen(willOpen);
+                    if (willOpen) {
+                        fetchNotifications().then(() => {
+                            markAllRead();
+                        });
+                        if (unreadCount > 0) {
+                            markAllRead();
+                        }
+                    }
                 }}
                 className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-muted transition-colors focus:outline-none cursor-pointer flex items-center justify-center"
                 aria-label="Notifications"

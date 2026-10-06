@@ -14,10 +14,15 @@ const serwist = new Serwist({
     concurrency: 10,
     cleanupOutdatedCaches: true,
   },
-  navigationPreload: true,
+  navigationPreload: false,
   runtimeCaching: [
     {
       matcher: ({ url }) => url.hostname === "nominatim.openstreetmap.org",
+      handler: new NetworkOnly(),
+    },
+    // Bypass service worker for HTML page navigations (direct network)
+    {
+      matcher: ({ request }) => request.mode === "navigate",
       handler: new NetworkOnly(),
     },
     // Bypass service worker caching for GraphQL Shop API
@@ -49,8 +54,9 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
 
 self.addEventListener("fetch", (event: FetchEvent) => {
   const url = new URL(event.request.url);
-  // Bypass SW event handling for shop-api, admin-api, SSE notification streams, and POST/mutations
+  // Bypass SW event handling for navigations, shop-api, admin-api, SSE notification streams, and POST/mutations
   if (
+    event.request.mode === "navigate" ||
     url.pathname.includes("/shop-api") || 
     url.pathname.includes("/admin-api") || 
     url.pathname.includes("/notifications/stream") ||

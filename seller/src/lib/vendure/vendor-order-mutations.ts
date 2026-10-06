@@ -176,6 +176,14 @@ export const GetMyVendorOrderQuery = `
                     id
                     name
                     sku
+                    options {
+                        id
+                        name
+                        group {
+                            id
+                            name
+                        }
+                    }
                     featuredAsset {
                         preview
                     }

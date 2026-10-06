@@ -362,6 +362,10 @@ const GET_SELLER_OFFERS_FOR_PRODUCT = `
             onPromotion
             promotionalPrice
             featuredAssetId
+            featuredAsset {
+                id
+                preview
+            }
             status
             rejectionReason
             vendor {
@@ -375,6 +379,10 @@ const GET_SELLER_OFFERS_FOR_PRODUCT = `
                 id
                 name
                 sku
+                featuredAsset {
+                    id
+                    preview
+                }
                 options {
                     id
                     name
@@ -2443,13 +2451,41 @@ export function ProductListComponent() {
                                                                                         }}
                                                                                     >
                                                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-                                                                                            {/* Vendor Identity & Variant */}
+                                                                                            {/* Vendor Identity & Variant & Photo */}
                                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                                                                {offer.vendor?.logo?.preview ? (
-                                                                                                    <img src={offer.vendor.logo.preview} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
-                                                                                                ) : (
-                                                                                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px' }}>🏪</div>
-                                                                                                )}
+                                                                                                {(() => {
+                                                                                                    const offerImg = offer.featuredAsset?.preview || offer.productVariant?.featuredAsset?.preview || product.featuredAsset?.preview;
+                                                                                                    const hasCustomVendorPhoto = !!offer.featuredAsset?.preview;
+                                                                                                    return (
+                                                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                                                                                            {offerImg ? (
+                                                                                                                <div style={{ position: 'relative' }}>
+                                                                                                                    <a href={offerImg} target="_blank" rel="noopener noreferrer" title="Cliquer pour voir la photo en grand">
+                                                                                                                        <img 
+                                                                                                                            src={offerImg} 
+                                                                                                                            alt="Photo offre" 
+                                                                                                                            style={{ width: '46px', height: '46px', borderRadius: '8px', objectFit: 'cover', border: hasCustomVendorPhoto ? '2px solid #10b981' : '1px solid #cbd5e1', background: '#ffffff' }} 
+                                                                                                                        />
+                                                                                                                    </a>
+                                                                                                                    {hasCustomVendorPhoto && (
+                                                                                                                        <span style={{ position: 'absolute', bottom: '-4px', right: '-4px', background: '#059669', color: '#ffffff', fontSize: '9px', fontWeight: 800, padding: '1px 3px', borderRadius: '4px', lineHeight: 1 }} title="Photo spécifique soumise par le vendeur">
+                                                                                                                            📸
+                                                                                                                        </span>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            ) : (
+                                                                                                                <div style={{ width: '46px', height: '46px', borderRadius: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8', border: '1px dashed #cbd5e1' }}>
+                                                                                                                    📦
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                            {offer.vendor?.logo?.preview ? (
+                                                                                                                <img src={offer.vendor.logo.preview} alt="" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #e2e8f0' }} title={`Boutique: ${offer.vendor?.name}`} />
+                                                                                                            ) : (
+                                                                                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' }} title="Vendeur">🏪</div>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                    );
+                                                                                                })()}
                                                                                                 <div>
                                                                                                     {(() => {
                                                                                                         const optNames = (offer.productVariant?.options || []).map((o: any) => o.name || o.code).filter(Boolean).join(' • ');
@@ -2458,11 +2494,16 @@ export function ProductListComponent() {
                                                                                                         const cleanVariantName = optNames ? `${product.name} – ${optNames}` : (rawVariantName || product.name);
 
                                                                                                         return (
-                                                                                                            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>
-                                                                                                                {offer.vendor?.name || 'Vendeur Marchand'}
-                                                                                                                <span style={{ fontWeight: 600, color: '#64748b', fontSize: '11px', marginLeft: '6px' }}>
+                                                                                                            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                                                                                <span>{offer.vendor?.name || 'Vendeur Marchand'}</span>
+                                                                                                                <span style={{ fontWeight: 600, color: '#64748b', fontSize: '11px' }}>
                                                                                                                     • {cleanVariantName}
                                                                                                                 </span>
+                                                                                                                {offer.featuredAsset?.preview && (
+                                                                                                                    <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: '9px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px' }}>
+                                                                                                                        Photo Vendeur
+                                                                                                                    </span>
+                                                                                                                )}
                                                                                                             </div>
                                                                                                         );
                                                                                                     })()}
@@ -2578,6 +2619,14 @@ export function ProductListComponent() {
                                                                                                     )}
                                                                                                     <button
                                                                                                         type="button"
+                                                                                                        onClick={() => setSelectedDeclinationForDetails({ ...offer, product })}
+                                                                                                        style={{ padding: '6px 10px', borderRadius: '6px', background: '#f8fafc', color: '#334155', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                                                        title="Voir la photo et tous les détails complets de cette offre"
+                                                                                                    >
+                                                                                                        <span>👁️</span> Détails &amp; Photo
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        type="button"
                                                                                                         onClick={() => {
                                                                                                             const variantId = offer.productVariant?.id;
                                                                                                             if (!variantId) {
@@ -2669,14 +2718,18 @@ export function ProductListComponent() {
                                                                     )}
                                                                 </div>
 
-                                                                {/* 2. BASE VARIANTS OVERVIEW */}
-                                                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                                                                    <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#64748b', marginBottom: '8px' }}>
-                                                                        🧬 Déclinaisons / Variantes du Produit ({product.variants?.length || 0})
+                                                                {/* 2. BASE VARIANTS OVERVIEW (CENTRAL CATALOG STRUCTURE) */}
+                                                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                                                                        <div style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <span>🧬</span> Déclinaisons du Catalogue Central ({product.variants?.length || 0})
+                                                                        </div>
+                                                                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                            Structure officielle Ahizan (les prix, stocks et photos réelles appartiennent aux offres vendeurs ci-dessus).
+                                                                        </span>
                                                                     </div>
                                                                     <div style={{ display: 'grid', gap: '8px' }}>
                                                                         {product.variants?.map((v, vIdx) => {
-                                                                            const vPrice = v.price ? Math.round(v.price) : null;
                                                                             const initialOpts = (v.options || []).map((o: any) => ({
                                                                                 groupName: o.group?.name || 'Option',
                                                                                 valueName: o.name || o.code
@@ -2699,17 +2752,9 @@ export function ProductListComponent() {
                                                                                     }}
                                                                                 >
                                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                                                        {v.featuredAsset?.preview ? (
-                                                                                            <img 
-                                                                                                src={v.featuredAsset.preview} 
-                                                                                                alt="" 
-                                                                                                style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #cbd5e1' }} 
-                                                                                            />
-                                                                                        ) : (
-                                                                                            <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#64748b' }}>
-                                                                                                #{vIdx + 1}
-                                                                                            </div>
-                                                                                        )}
+                                                                                        <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: '#4338ca', border: '1px solid #c7d2fe', flexShrink: 0 }} title="Déclinaison Catalogue Central">
+                                                                                            🏷️
+                                                                                        </div>
                                                                                         <div>
                                                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                                                                                 <span style={{ color: '#0f172a', fontWeight: 800 }}>{v.name || product.name}</span>
@@ -2719,9 +2764,9 @@ export function ProductListComponent() {
                                                                                                             <span
                                                                                                                 key={oIdx}
                                                                                                                 style={{
-                                                                                                                    background: '#e0e7ff',
-                                                                                                                    color: '#3730a3',
-                                                                                                                    border: '1px solid #c7d2fe',
+                                                                                                                    background: '#eff6ff',
+                                                                                                                    color: '#1d4ed8',
+                                                                                                                    border: '1px solid #bfdbfe',
                                                                                                                     padding: '1px 6px',
                                                                                                                     borderRadius: '4px',
                                                                                                                     fontSize: '10px',
@@ -2734,12 +2779,9 @@ export function ProductListComponent() {
                                                                                                     </div>
                                                                                                 )}
                                                                                             </div>
-                                                                                            <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
-                                                                                                <span>SKU: <strong style={{ color: '#334155', fontFamily: 'monospace' }}>{v.sku || 'N/A'}</strong></span>
-                                                                                                <span>Prix base: <strong style={{ color: vPrice ? '#166534' : '#64748b' }}>{vPrice ? `${vPrice.toLocaleString('fr-FR')} FCFA` : 'Sur offre'}</strong></span>
-                                                                                                {v.stockOnHand !== undefined && (
-                                                                                                    <span>Stock: <strong style={{ color: v.stockOnHand > 0 ? '#16a34a' : '#dc2626' }}>{v.stockOnHand} unité(s)</strong></span>
-                                                                                                )}
+                                                                                            <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '10px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                                                                                <span>SKU Catalogue : <strong style={{ color: '#334155', fontFamily: 'monospace' }}>{v.sku || 'N/A'}</strong></span>
+                                                                                                <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Prix, stock &amp; photos portés par les offres</span>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -3519,25 +3561,56 @@ export function ProductListComponent() {
                                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px'
                                                 }}
                                             >
-                                                <div style={{ flex: 1, minWidth: '240px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <strong style={{ fontSize: '13px', color: '#0f172a' }}>
-                                                            {item.name || item.productVariant?.name || `Déclinaison #${idx + 1}`}
-                                                        </strong>
-                                                        <code style={{ fontSize: '10px', color: '#0284c7', background: '#f0f9ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                                                            {item.sku || item.productVariant?.sku || 'SKU N/A'}
-                                                        </code>
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                                        <span>Vendeur : <strong>{item.vendor?.name || reviewProduct.customFields?.vendor?.name || 'Vendeur'}</strong></span>
-                                                        <span>Stock : <strong style={{ color: (item.stock || item.stockOnHand || 0) > 0 ? '#16a34a' : '#dc2626' }}>{item.stock ?? item.stockOnHand ?? 1} unités</strong></span>
-                                                        <span>Expédition : <strong>{item.deliveryTimeValue ? `${item.deliveryTimeValue} ${item.deliveryTimeUnit || 'jours'}` : '24-48h'}</strong></span>
-                                                    </div>
-                                                    {item.rejectionReason && (
-                                                        <div style={{ fontSize: '10px', color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '4px', marginTop: '4px' }}>
-                                                            ⚠️ Motif : {item.rejectionReason}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '240px' }}>
+                                                    {(() => {
+                                                        const declImg = item.featuredAsset?.preview || item.productVariant?.featuredAsset?.preview || item.product?.featuredAsset?.preview;
+                                                        const hasCustomVendorPhoto = !!item.featuredAsset?.preview;
+                                                        return declImg ? (
+                                                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                                                                <a href={declImg} target="_blank" rel="noopener noreferrer" title="Cliquer pour voir l'image en grand">
+                                                                    <img 
+                                                                        src={declImg} 
+                                                                        alt="" 
+                                                                        style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: hasCustomVendorPhoto ? '2px solid #10b981' : '1px solid #cbd5e1', background: '#f8fafc' }} 
+                                                                    />
+                                                                </a>
+                                                                {hasCustomVendorPhoto && (
+                                                                    <span style={{ position: 'absolute', bottom: '-4px', right: '-4px', background: '#059669', color: '#ffffff', fontSize: '8px', fontWeight: 800, padding: '1px 3px', borderRadius: '3px', lineHeight: 1 }} title="Photo personnalisée vendeur">
+                                                                        📸
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#94a3b8', border: '1px dashed #cbd5e1', flexShrink: 0 }}>
+                                                                #{idx + 1}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                            <strong style={{ fontSize: '13px', color: '#0f172a' }}>
+                                                                {item.name || item.productVariant?.name || `Déclinaison #${idx + 1}`}
+                                                            </strong>
+                                                            <code style={{ fontSize: '10px', color: '#0284c7', background: '#f0f9ff', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                                {item.sku || item.productVariant?.sku || 'SKU N/A'}
+                                                            </code>
+                                                            {item.featuredAsset?.preview && (
+                                                                <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: '9px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px' }}>
+                                                                    Photo Vendeur
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                    )}
+                                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                                            <span>Vendeur : <strong>{item.vendor?.name || reviewProduct.customFields?.vendor?.name || 'Vendeur'}</strong></span>
+                                                            <span>Stock : <strong style={{ color: (item.stock || item.stockOnHand || 0) > 0 ? '#16a34a' : '#dc2626' }}>{item.stock ?? item.stockOnHand ?? 1} unités</strong></span>
+                                                            <span>Expédition : <strong>{item.deliveryTimeValue ? `${item.deliveryTimeValue} ${item.deliveryTimeUnit || 'jours'}` : '24-48h'}</strong></span>
+                                                        </div>
+                                                        {item.rejectionReason && (
+                                                            <div style={{ fontSize: '10px', color: '#991b1b', background: '#fef2f2', padding: '3px 8px', borderRadius: '4px', marginTop: '4px' }}>
+                                                                ⚠️ Motif : {item.rejectionReason}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -4480,6 +4553,58 @@ export function ProductListComponent() {
                                         ))}
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Photo de la Déclinaison */}
+                            <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        🖼️ Photo de la Déclinaison
+                                    </div>
+                                    {selectedDeclinationForDetails.featuredAsset?.preview ? (
+                                        <span style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>
+                                            📸 Photo personnalisée Vendeur
+                                        </span>
+                                    ) : (
+                                        <span style={{ background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px' }}>
+                                            🏷️ Photo globale standard
+                                        </span>
+                                    )}
+                                </div>
+                                {(() => {
+                                    const previewUrl = selectedDeclinationForDetails.featuredAsset?.preview || selectedDeclinationForDetails.productVariant?.featuredAsset?.preview || selectedDeclinationForDetails.product?.featuredAsset?.preview;
+                                    if (!previewUrl) {
+                                        return (
+                                            <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '12px', background: '#ffffff', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                                                Aucune photo spécifique définie pour cette déclinaison (utilise la photo de la fiche mère).
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                            <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                                                <img
+                                                    src={previewUrl}
+                                                    alt="Aperçu déclinaison"
+                                                    style={{ width: '84px', height: '84px', objectFit: 'contain', borderRadius: '8px', border: selectedDeclinationForDetails.featuredAsset?.preview ? '2px solid #10b981' : '1px solid #cbd5e1', background: '#f8fafc', cursor: 'pointer' }}
+                                                />
+                                            </a>
+                                            <div>
+                                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>
+                                                    {selectedDeclinationForDetails.featuredAsset?.preview ? 'Photo soumise spécifiquement par le vendeur pour cette déclinaison' : 'Photo standard issue du catalogue'}
+                                                </div>
+                                                <a
+                                                    href={previewUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{ fontSize: '11px', color: '#2563eb', fontWeight: 700, marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                >
+                                                    🔍 Ouvrir en haute résolution ↗
+                                                </a>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* Vendeur & Boutique */}

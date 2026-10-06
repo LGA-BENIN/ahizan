@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, BellDot, Check, CheckCheck, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { Bell, BellDot, BellOff, Lock, Sparkles, Check, CheckCheck, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface Notification {
@@ -39,6 +39,14 @@ export function NotificationBell({
     const [isLoading, setIsLoading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
+
+    const [permissionState, setPermissionState] = useState<'default' | 'granted' | 'denied'>('default');
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            setPermissionState(Notification.permission);
+        }
+    }, [isOpen]);
 
     // Sync unread notification count with PWA App Badge
     useEffect(() => {
@@ -229,11 +237,23 @@ export function NotificationBell({
                     setIsOpen(prev => !prev);
                     if (!isOpen) fetchNotifications();
                 }}
-                className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-muted transition-colors focus:outline-none"
+                className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-muted transition-colors focus:outline-none cursor-pointer flex items-center justify-center"
                 aria-label="Notifications"
+                title={
+                    permissionState === 'denied'
+                        ? 'Notifications commandes bloquées — Cliquez pour débloquer 🔒'
+                        : permissionState === 'default'
+                            ? 'Activer les alertes commandes push'
+                            : 'Notifications'
+                }
             >
                 {unreadCount > 0 ? (
                     <BellDot className="h-5 w-5" style={{ color: iconColor }} />
+                ) : permissionState === 'denied' ? (
+                    <div className="relative">
+                        <BellOff className="h-5 w-5 text-amber-500" />
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+                    </div>
                 ) : (
                     <Bell className="h-5 w-5" style={{ color: iconColor }} />
                 )}
@@ -246,7 +266,53 @@ export function NotificationBell({
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-card rounded-2xl shadow-2xl border border-gray-100 dark:border-border z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 top-full mt-2 w-[calc(100vw-24px)] max-w-[380px] sm:w-96 bg-white dark:bg-card rounded-2xl shadow-2xl border border-gray-100 dark:border-border z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                    {/* Blocked / Recovery Alert Banner */}
+                    {permissionState === 'denied' && (
+                        <div className="bg-gradient-to-r from-red-500/10 via-amber-500/10 to-primary/10 border-b border-red-100 dark:border-red-900/30 p-3 flex items-start gap-2.5 text-left">
+                            <Lock className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-900 dark:text-foreground">Notifications de commandes bloquées 🔒</p>
+                                <p className="text-[11px] text-gray-600 dark:text-muted-foreground mt-0.5">
+                                    Votre navigateur bloque les alertes. Vous risquez de manquer des nouvelles commandes.
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        setIsOpen(false);
+                                        window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
+                                    }}
+                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-red-600 text-white rounded-lg text-[11px] font-bold hover:bg-red-700 transition-colors shadow-sm"
+                                >
+                                    <Lock className="w-3 h-3" />
+                                    Guide de déblocage 🔒
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Default (Not yet granted) Prompt Banner */}
+                    {permissionState === 'default' && (
+                        <div className="bg-blue-50/80 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/30 p-3 flex items-start gap-2.5 text-left">
+                            <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-900 dark:text-foreground">Activez les alertes commandes 🔔</p>
+                                <p className="text-[11px] text-gray-600 dark:text-muted-foreground mt-0.5">
+                                    Soyez averti instantanément sur votre téléphone ou PC à chaque vente.
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        setIsOpen(false);
+                                        window.dispatchEvent(new CustomEvent('ahizan:open-push-prompt'));
+                                    }}
+                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary/90 transition-colors shadow-sm"
+                                >
+                                    <Bell className="w-3 h-3" />
+                                    Activer les alertes
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-border">
                         <span className="font-semibold text-sm text-gray-900 dark:text-foreground">
@@ -330,6 +396,20 @@ export function NotificationBell({
                                 </div>
                             ))
                         )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-100 dark:border-border px-4 py-2.5 flex items-center justify-between text-xs text-gray-500 dark:text-muted-foreground bg-gray-50/50 dark:bg-muted/30">
+                        <span>Alertes Push</span>
+                        <button
+                            onClick={() => {
+                                setIsOpen(false);
+                                window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
+                            }}
+                            className="text-primary hover:underline font-medium flex items-center gap-1"
+                        >
+                            Guide / Débloquer 🔒
+                        </button>
                     </div>
                 </div>
             )}

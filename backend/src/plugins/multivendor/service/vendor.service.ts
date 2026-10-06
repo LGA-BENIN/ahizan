@@ -2972,7 +2972,7 @@ export class VendorService implements OnApplicationBootstrap {
             }
 
             rawOffers = await this.connection.rawConnection.query(`
-                SELECT id, "productVariantId", price, stock, sku, "onPromotion", "promotionalPrice", status, "rejectionReason"
+                SELECT id, "productVariantId", price, stock, sku, "onPromotion", "promotionalPrice", status, "rejectionReason", "featuredAssetId"
                 FROM seller_offer
                 WHERE "vendorId" = $1
             `, [vendorId]);
@@ -2984,8 +2984,19 @@ export class VendorService implements OnApplicationBootstrap {
 
         // 2. Load full products with all relations
         let products: Product[] = [];
+        const offerAssetMap = new Map<string, any>();
         try {
             const adminCtx = await this.getSuperAdminContext(ctx);
+            
+            // Load offer featured assets if any
+            const offerAssetIds = Array.from(new Set((rawOffers || []).map((o: any) => o.featuredAssetId).filter(Boolean)));
+            if (offerAssetIds.length > 0) {
+                const assets = await this.connection.getRepository(adminCtx, Asset).findByIds(offerAssetIds);
+                for (const a of assets) {
+                    offerAssetMap.set(String(a.id), a);
+                }
+            }
+
             products = await this.connection.getRepository(adminCtx, Product)
                 .createQueryBuilder('product')
                 .leftJoinAndSelect('product.translations', 'translations')
@@ -3092,6 +3103,12 @@ export class VendorService implements OnApplicationBootstrap {
                     (v as any).listPrice = offerPrice;
                     (v as any).stockOnHand = offerStock;
                     if (offer.sku) v.sku = offer.sku;
+
+                    if (offer.featuredAssetId && offerAssetMap.has(String(offer.featuredAssetId))) {
+                        const offerAsset = offerAssetMap.get(String(offer.featuredAssetId));
+                        v.featuredAsset = offerAsset;
+                        (v as any).featuredAssetId = String(offer.featuredAssetId);
+                    }
                     
                     v.customFields = {
                         ...(v.customFields || {}),
@@ -3101,6 +3118,11 @@ export class VendorService implements OnApplicationBootstrap {
                         rejectionReason: offer.rejectionReason,
                     } as any;
                 }
+            }
+
+            // For non-owners, if the first variant has a custom offer photo, make it the product thumbnail on vendor view
+            if (!isOwner && p.variants.length > 0 && p.variants[0].featuredAsset) {
+                p.featuredAsset = p.variants[0].featuredAsset;
             }
 
             resultProducts.push(p);

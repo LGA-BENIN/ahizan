@@ -42,6 +42,7 @@ export interface WinningOffer {
     };
     productVariant?: any;
     selectedVariant?: any;
+    featuredAsset?: any;
     distanceKm?: number;
     stock?: number;
     sku?: string;
@@ -476,13 +477,10 @@ function extractOfferCandidates(rawItems: any[]): {
         const prodId = String(item.productId || item.product?.id || item.id || '');
         if (!prodId) continue;
 
-        const rawAsset = item.productVariantAsset
-            || item.featuredAsset
-            || item.productAsset
-            || item.product?.featuredAsset
-            || item.product?.productAsset
-            || item.assets?.[0]
-            || item.product?.assets?.[0];
+        const rawAsset = item.featuredAsset?.preview ? item.featuredAsset
+            : (item.productVariantAsset?.preview ? item.productVariantAsset
+            : (item.productAsset?.preview ? item.productAsset
+            : (item.featuredAsset || item.product?.featuredAsset || item.product?.productAsset || item.assets?.[0] || item.product?.assets?.[0])));
 
         if (!productMap.has(prodId)) {
             productMap.set(prodId, {
@@ -504,7 +502,7 @@ function extractOfferCandidates(rawItems: any[]): {
                 id: item.productVariantId || item.id,
                 name: item.productVariantName || item.productVariant?.name || item.declinationName || item.variantName || item.name,
                 priceWithTax: item.priceWithTax?.value ?? item.priceWithTax ?? item.price ?? 0,
-                featuredAsset: item.productVariantAsset || item.featuredAsset || rawAsset,
+                featuredAsset: item.featuredAsset || item.productVariantAsset || rawAsset,
                 customFields: item.customFields,
                 options: item.options || variantObj?.options,
                 sku: item.sku || variantObj?.sku,
@@ -545,7 +543,7 @@ function extractOfferCandidates(rawItems: any[]): {
             };
 
             const vendorId = String(vendorInfo.id || 'main');
-            const vrAsset = vr.featuredAsset?.preview ? vr.featuredAsset : (vr.assets?.[0]?.preview ? vr.assets[0] : rawAsset);
+            const vrAsset = (item.featuredAsset?.preview ? item.featuredAsset : (item.productVariantAsset?.preview ? item.productVariantAsset : (vr.featuredAsset?.preview ? vr.featuredAsset : rawAsset)));
             const rawPrice = vr.price ?? item.price ?? vr.priceWithTax?.value ?? vr.priceWithTax?.min ?? item.priceWithTax?.value ?? item.priceWithTax?.min ?? (typeof vr.priceWithTax === 'number' ? vr.priceWithTax : (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0));
             const vrPrice = Number(rawPrice) || 0;
             const onPromotion = Boolean(vr.customFields?.onPromotion ?? item.onPromotion ?? false);
@@ -760,9 +758,9 @@ export function processAndResolveDisplayItems(
             declinationName: off.declinationName,
             productVariantName: off.productVariantName,
             slug: prod.slug || off.slug,
-            featuredAsset: off.featuredAsset || prod.featuredAsset,
-            productAsset: prod.productAsset || off.featuredAsset,
-            productVariantAsset: off.productVariantAsset || off.featuredAsset,
+            featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || prod.featuredAsset,
+            productAsset: off.featuredAsset || off.productVariant?.featuredAsset || prod.productAsset,
+            productVariantAsset: off.featuredAsset || off.productVariantAsset || prod.featuredAsset,
             collections: prod.collections,
             facetValueIds: prod.facetValueIds,
 

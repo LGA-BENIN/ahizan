@@ -13,6 +13,10 @@ const GET_SELLER_OFFERS_FOR_VARIANTS = `
             condition
             deliveryTimeValue
             deliveryTimeUnit
+            featuredAsset {
+                id
+                preview
+            }
             vendor {
                 id
                 name
@@ -106,10 +110,18 @@ export async function expandProductsWithSellerOffers(
 
             if (matchingOffers.length > 0) {
                 for (const offer of matchingOffers) {
+                    const offerImage = offer.featuredAsset?.preview;
+                    const variantImage = offer.productVariant?.featuredAsset?.preview;
+                    const prodImage = offer.productVariant?.product?.featuredAsset?.preview;
+                    const displayImage = offerImage || variantImage || prodImage || item.productAsset || item.productPreview;
+
                     rawItemsWithOffers.push({
                         ...item,
                         productId: item.productId || item.product?.id || item.id,
                         productName: item.productName || item.name,
+                        productAsset: displayImage,
+                        productPreview: displayImage,
+                        featuredAsset: offer.featuredAsset || offer.productVariant?.featuredAsset || item.featuredAsset,
                         productVariantId: vId,
                         productVariantName: offer.productVariant?.name || item.productVariantName,
                         productVariant: offer.productVariant || item.productVariant,

@@ -142,6 +142,7 @@ export function MarketProductSearch({ config = {} }: MarketProductSearchProps) {
                                     condition
                                     deliveryTimeValue
                                     deliveryTimeUnit
+                                    featuredAsset { id preview }
                                     vendor {
                                         id
                                         name
@@ -188,7 +189,7 @@ export function MarketProductSearch({ config = {} }: MarketProductSearchProps) {
                                     productVariantName: off.productVariant?.name || item.productVariantName,
                                     productVariant: off.productVariant,
                                     slug: item.slug || off.productVariant?.product?.slug,
-                                    featuredAsset: off.productVariant?.featuredAsset || item.productVariantAsset || item.productAsset,
+                                    featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || item.productVariantAsset || item.productAsset,
                                     sku: off.productVariant?.sku,
                                     vendorId: off.vendor?.id,
                                     vendorName: off.vendor?.name,

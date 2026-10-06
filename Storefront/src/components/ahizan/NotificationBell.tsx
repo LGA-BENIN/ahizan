@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, BellDot, Check, CheckCheck, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { Bell, BellDot, BellOff, Lock, Check, CheckCheck, ExternalLink, Loader2, Trash2, AlertTriangle, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -38,8 +38,17 @@ export function NotificationBell({
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [permissionState, setPermissionState] = useState<'default' | 'granted' | 'denied'>('default');
     const dropdownRef = useRef<HTMLDivElement>(null);
     const eventSourceRef = useRef<EventSource | null>(null);
+    const router = useRouter();
+
+    // Check browser notification permission
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            setPermissionState(Notification.permission);
+        }
+    }, [isOpen]);
 
     // Sync unread notification count with PWA App Badge
     useEffect(() => {
@@ -61,11 +70,12 @@ export function NotificationBell({
     // ────────────────────────────────────────────
 
     const gqlFetch = useCallback(async (query: string, variables?: any) => {
+        if (!authToken) return null;
         const res = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                Authorization: `Bearer ${authToken}`,
             },
             body: JSON.stringify({ query, variables }),
         });
@@ -76,7 +86,7 @@ export function NotificationBell({
         if (!authToken) return;
         setIsLoading(true);
         try {
-            const { data } = await gqlFetch(`
+            const result = await gqlFetch(`
                 query {
                     myNotifications(take: 20, portal: "storefront") {
                         unreadCount
@@ -86,9 +96,9 @@ export function NotificationBell({
                     }
                 }
             `);
-            if (data?.myNotifications) {
-                setNotifications(data.myNotifications.items || []);
-                setUnreadCount(data.myNotifications.unreadCount || 0);
+            if (result?.data?.myNotifications) {
+                setNotifications(result.data.myNotifications.items || []);
+                setUnreadCount(result.data.myNotifications.unreadCount || 0);
             }
         } finally {
             setIsLoading(false);
@@ -140,8 +150,11 @@ export function NotificationBell({
                 try {
                     const payload = JSON.parse(event.data);
                     
-                    // Ignore notifications belonging to the seller dashboard portal
                     if (payload.actionUrl && payload.actionUrl.startsWith('/dashboard')) {
+                        return;
+                    }
+
+                    if (payload.targetRole === 'VENDOR') {
                         return;
                     }
 
@@ -172,16 +185,27 @@ export function NotificationBell({
                 if (es) {
                     es.close();
                 }
-                // Reconnect in 5 seconds
                 reconnectTimeout = setTimeout(connect, 5000);
             };
         }
 
         connect();
 
-        return () => {
+        const handleUnload = () => {
             if (es) {
                 es.close();
+                es = null;
+            }
+        };
+        window.addEventListener('pagehide', handleUnload);
+        window.addEventListener('beforeunload', handleUnload);
+
+        return () => {
+            window.removeEventListener('pagehide', handleUnload);
+            window.removeEventListener('beforeunload', handleUnload);
+            if (es) {
+                es.close();
+                es = null;
             }
             clearTimeout(reconnectTimeout);
         };
@@ -192,7 +216,9 @@ export function NotificationBell({
     // ────────────────────────────────────────────
 
     useEffect(() => {
-        fetchNotifications();
+        if (authToken) {
+            fetchNotifications();
+        }
     }, [authToken]);
 
     useEffect(() => {
@@ -205,11 +231,24 @@ export function NotificationBell({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    if (!authToken) return null;
+    const handleBellClick = () => {
+        // If notifications are blocked and user is guest, trigger recovery modal directly
+        if (!authToken && permissionState === 'denied') {
+            window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
+            return;
+        }
 
-    // ────────────────────────────────────────────
-    // Render
-    // ────────────────────────────────────────────
+        // If default and guest, prompt to activate
+        if (!authToken && permissionState === 'default') {
+            window.dispatchEvent(new CustomEvent('ahizan:open-push-prompt'));
+            return;
+        }
+
+        setIsOpen(prev => !prev);
+        if (!isOpen && authToken) {
+            fetchNotifications();
+        }
+    };
 
     const formatDate = (iso: string) => {
         const d = new Date(iso);
@@ -221,24 +260,37 @@ export function NotificationBell({
         return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     };
 
-    const router = useRouter();
-
     return (
         <div ref={dropdownRef} className="relative" style={style}>
             {/* Bell Button */}
             <button
-                onClick={() => {
-                    setIsOpen(prev => !prev);
-                    if (!isOpen) fetchNotifications();
-                }}
-                className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none"
+                onClick={handleBellClick}
+                className="relative p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer flex items-center justify-center"
                 aria-label="Notifications"
+                title={
+                    permissionState === 'denied'
+                        ? 'Notifications bloquées par votre navigateur — Cliquez pour réactiver 🔒'
+                        : permissionState === 'default'
+                            ? 'Activer les notifications push'
+                            : 'Notifications'
+                }
             >
                 {unreadCount > 0 ? (
-                    <BellDot className="h-5 w-5" style={{ color: iconColor }} />
+                    <BellDot className="h-4.5 w-4.5 sm:h-5 sm:w-5" style={{ color: iconColor }} />
+                ) : permissionState === 'denied' ? (
+                    <div className="relative">
+                        <BellOff className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-amber-600" />
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+                    </div>
+                ) : permissionState === 'default' && !authToken ? (
+                    <div className="relative">
+                        <Bell className="h-4.5 w-4.5 sm:h-5 sm:w-5" style={{ color: iconColor }} />
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full animate-ping" />
+                    </div>
                 ) : (
-                    <Bell className="h-5 w-5" style={{ color: iconColor }} />
+                    <Bell className="h-4.5 w-4.5 sm:h-5 sm:w-5" style={{ color: iconColor }} />
                 )}
+
                 {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 min-w-[16px] h-4 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 bg-red-500">
                         {unreadCount > 99 ? '99+' : unreadCount}
@@ -248,7 +300,53 @@ export function NotificationBell({
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 top-full mt-2 w-[calc(100vw-24px)] max-w-[380px] sm:w-96 bg-white rounded-3xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                    {/* Blocked / Recovery Alert Banner */}
+                    {permissionState === 'denied' && (
+                        <div className="bg-gradient-to-r from-red-500/10 via-amber-500/10 to-primary/10 border-b border-red-100 p-3 flex items-start gap-2.5 text-left">
+                            <Lock className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-900">Notifications bloquées 🔒</p>
+                                <p className="text-[11px] text-gray-600 mt-0.5">
+                                    Votre navigateur bloque les alertes. Vous ne recevrez pas les notifications en temps réel.
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        setIsOpen(false);
+                                        window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
+                                    }}
+                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-red-600 text-white rounded-lg text-[11px] font-bold hover:bg-red-700 transition-colors shadow-sm"
+                                >
+                                    <Lock className="w-3 h-3" />
+                                    Guide de déblocage 🔒
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Default (Not yet granted) Prompt Banner */}
+                    {permissionState === 'default' && (
+                        <div className="bg-blue-50/80 border-b border-blue-100 p-3 flex items-start gap-2.5 text-left">
+                            <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-gray-900">Activez les notifications push 🔔</p>
+                                <p className="text-[11px] text-gray-600 mt-0.5">
+                                    Recevez des alertes en direct pour vos commandes, livraisons et promotions.
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        setIsOpen(false);
+                                        window.dispatchEvent(new CustomEvent('ahizan:open-push-prompt'));
+                                    }}
+                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary/90 transition-colors shadow-sm"
+                                >
+                                    <Bell className="w-3 h-3" />
+                                    Activer les notifications
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                         <span className="font-semibold text-sm text-gray-900">
@@ -275,6 +373,23 @@ export function NotificationBell({
                         {isLoading ? (
                             <div className="flex items-center justify-center py-10">
                                 <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                            </div>
+                        ) : !authToken ? (
+                            <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
+                                    <Bell className="h-6 w-6 text-primary" />
+                                </div>
+                                <p className="text-sm font-semibold text-gray-900">Connectez-vous</p>
+                                <p className="text-xs text-gray-500 mt-1 max-w-xs">
+                                    Connectez-vous à votre compte pour suivre vos commandes et recevoir vos notifications personnalisées.
+                                </p>
+                                <Link
+                                    href="/sign-in"
+                                    onClick={() => setIsOpen(false)}
+                                    className="mt-3 px-4 py-1.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 transition-colors"
+                                >
+                                    Se connecter
+                                </Link>
                             </div>
                         ) : notifications.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 text-gray-400">
@@ -342,18 +457,33 @@ export function NotificationBell({
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-gray-100 px-4 py-2.5">
-                        <Link
-                            href="/account/notifications"
-                            className="flex items-center justify-center gap-1.5 text-xs text-primary font-medium hover:underline"
-                            onClick={() => setIsOpen(false)}
+                    <div className="border-t border-gray-100 px-4 py-2.5 flex items-center justify-between bg-gray-50/50">
+                        {authToken ? (
+                            <Link
+                                href="/account/notifications"
+                                className="flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+                                onClick={() => setIsOpen(false)}
+                            >
+                                Voir tout
+                                <ExternalLink className="h-3 w-3" />
+                            </Link>
+                        ) : (
+                            <span className="text-[11px] text-gray-400">Ahizan Notifications</span>
+                        )}
+                        <button
+                            onClick={() => {
+                                setIsOpen(false);
+                                window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
+                            }}
+                            className="text-xs text-gray-500 hover:text-primary font-semibold transition-colors flex items-center gap-1 cursor-pointer"
                         >
-                            Voir toutes les notifications
-                            <ExternalLink className="h-3 w-3" />
-                        </Link>
+                            <Lock className="w-3 h-3" />
+                            Débloquer / Guide 🔒
+                        </button>
                     </div>
                 </div>
             )}
         </div>
     );
 }
+

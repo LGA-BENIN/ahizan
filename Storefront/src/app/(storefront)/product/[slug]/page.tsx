@@ -416,6 +416,11 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                         condition
                         deliveryTimeValue
                         deliveryTimeUnit
+                        featuredAsset {
+                            id
+                            preview
+                            source
+                        }
                         vendor {
                             id
                             name
@@ -443,6 +448,11 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                             id
                             name
                             sku
+                            featuredAsset {
+                                id
+                                preview
+                                source
+                            }
                         }
                     }
                 }

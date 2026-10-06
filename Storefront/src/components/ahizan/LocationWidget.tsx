@@ -76,32 +76,35 @@ export function LocationWidget({ variant = 'desktop' }: { variant?: 'desktop' | 
                 <button
                     onClick={handleTriggerClick}
                     disabled={gpsLoading}
+                    title={selectedLocation ? selectedLocation.name : 'Choisir ma zone de livraison'}
                     className={isMobile
-                        ? "flex items-center gap-1 px-2 py-0.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-primary/60 transition-all text-slate-700 dark:text-slate-200 focus:outline-none disabled:opacity-70 cursor-pointer overflow-hidden flex-shrink-0 max-w-[130px]"
-                        : "flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-primary/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all text-slate-700 dark:text-slate-200 focus:outline-none disabled:opacity-70 max-w-[160px] min-h-[34px] leading-tight overflow-hidden cursor-pointer"
+                        ? "flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 hover:border-primary/60 transition-all text-slate-700 dark:text-slate-200 focus:outline-none disabled:opacity-70 cursor-pointer overflow-hidden shrink min-w-0 max-w-[80px] sm:max-w-[120px]"
+                        : "flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 hover:border-primary/60 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all text-slate-700 dark:text-slate-200 focus:outline-none disabled:opacity-70 max-w-[140px] min-h-[34px] leading-tight overflow-hidden flex-shrink-0 cursor-pointer"
                     }
                 >
                     {gpsLoading ? (
                         <div className="flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                            <span className="text-[10px] font-semibold truncate">Loc...</span>
+                            <span className="w-2.5 h-2.5 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />
+                            <span className="text-[10px] font-semibold truncate hidden min-[340px]:inline-block">Loc...</span>
                         </div>
                     ) : (
                         isMobile ? (
-                            <>
-                                <MapPin className="w-3 h-3 text-slate-600 dark:text-slate-300 flex-shrink-0" />
-                                <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[85px] leading-none">
+                            <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+                                <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                                <span 
+                                    className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-200 truncate whitespace-nowrap overflow-hidden text-ellipsis min-w-0 max-w-[45px] sm:max-w-[75px] leading-none hidden min-[330px]:inline-block"
+                                    title={selectedLocation ? selectedLocation.name : 'Ma zone'}
+                                >
                                     {selectedLocation
                                         ? selectedLocation.name
                                         : 'Ma zone'}
                                 </span>
-                                <ChevronDown className="w-2.5 h-2.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
-                            </>
+                            </div>
                         ) : (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                                 <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 line-clamp-2 break-words text-left leading-tight max-w-[110px]">
-                                    {selectedLocation ? selectedLocation.name : 'Choisir ma zone'}
+                                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[95px] text-left">
+                                    {selectedLocation ? selectedLocation.name : 'Ma zone'}
                                 </span>
                             </div>
                         )

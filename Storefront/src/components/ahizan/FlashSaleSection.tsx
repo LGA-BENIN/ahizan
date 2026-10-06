@@ -414,6 +414,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     condition
                                     deliveryTimeValue
                                     deliveryTimeUnit
+                                    featuredAsset { id preview }
                                     vendor {
                                         id
                                         name
@@ -461,6 +462,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                         productVariantId: vId,
                                         productVariantName: off.productVariant?.name || item.productVariantName,
                                         productVariant: off.productVariant || item.productVariant,
+                                        featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || item.featuredAsset,
                                         sku: off.productVariant?.sku || item.sku,
                                         vendorId: off.vendor?.id,
                                         vendorName: off.vendor?.name,

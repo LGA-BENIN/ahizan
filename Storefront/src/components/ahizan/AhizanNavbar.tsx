@@ -103,12 +103,21 @@ export function AhizanNavbar({
     }, []);
 
     const handleInstallClick = async () => {
-        if (!deferredPrompt) return;
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`PWA Install Choice: ${outcome}`);
-        setDeferredPrompt(null);
-        setIsInstallable(false);
+        const promptEvent = deferredPrompt || (window as any).deferredPrompt;
+        if (promptEvent) {
+            try {
+                await promptEvent.prompt();
+                const { outcome } = await promptEvent.userChoice;
+                console.log(`PWA Install Choice: ${outcome}`);
+                if (outcome === 'accepted') {
+                    setDeferredPrompt(null);
+                    (window as any).deferredPrompt = null;
+                    setIsInstallable(false);
+                }
+            } catch (err) {
+                console.error("Error triggering native PWA prompt:", err);
+            }
+        }
     };
 
     useEffect(() => {
@@ -312,87 +321,88 @@ export function AhizanNavbar({
                             </div>
 
                             {/* Right: Action icons — always fixed width, never shrink */}
-                            {showTopIconsOnMobile && (
-                                <div className="flex items-center gap-0.5 flex-shrink-0">
-                                    {isInstallable && !isStandalone && (
-                                        <button
-                                            onClick={handleInstallClick}
-                                            className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-primary animate-pulse flex items-center justify-center"
-                                            aria-label="Installer l'application"
-                                        >
-                                            <Download className="h-4.5 w-4.5" />
-                                        </button>
-                                    )}
-                                    {showAccountIcon && (
-                                        isLoggedIn ? (
-                                            <DropdownMenu modal={false}>
-                                                <DropdownMenuTrigger asChild>
-                                                    <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer">
-                                                        <UserRoundCheck className="h-4.5 w-4.5" />
-                                                    </button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
-                                                    {fullName && (
-                                                        <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-                                                            {fullName}
-                                                        </DropdownMenuLabel>
-                                                    )}
-                                                    <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
-                                                        <Link href="/account/profile" className="flex items-center gap-3 w-full font-bold">
-                                                            Profil
-                                                        </Link>
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
-                                                        <Link href="/account/orders" className="flex items-center gap-3 w-full font-bold">
-                                                            Mes Commandes
-                                                        </Link>
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator className="my-2 border-t border-border" />
-                                                    <DropdownMenuItem
-                                                        onClick={async () => {
-                                                            await logoutAction();
-                                                        }}
-                                                        className="rounded-lg py-2.5 cursor-pointer text-destructive focus:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 w-full font-bold"
-                                                    >
-                                                        Déconnexion
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        ) : (
-                                            <Link href="/sign-in" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                                                <UserRound className="h-4.5 w-4.5" />
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                                {isInstallable && !isStandalone && (
+                                    <button
+                                        onClick={handleInstallClick}
+                                        className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors flex items-center justify-center cursor-pointer shrink-0"
+                                        aria-label="Installer l'application"
+                                        title="Installer l'application"
+                                    >
+                                        <Download className="w-4.5 h-4.5 text-primary" />
+                                    </button>
+                                )}
+                                <NotificationBell
+                                    apiUrl={SHOP_API_URL}
+                                    authToken={customer?.authToken}
+                                    userId={customer?.userId}
+                                    sseBaseUrl={SSE_BASE_URL}
+                                    iconColor={currentTextColor}
+                                />
+                                {showTopIconsOnMobile && (
+                                    <>
+                                        {showAccountIcon && (
+                                            isLoggedIn ? (
+                                                <DropdownMenu modal={false}>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none cursor-pointer">
+                                                            <UserRoundCheck className="h-4.5 w-4.5" />
+                                                        </button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent className="w-56 mt-2 p-2 rounded-2xl shadow-2xl border border-border/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-white z-[9999] animate-in fade-in slide-in-from-top-4 duration-200" align="end">
+                                                        {fullName && (
+                                                            <DropdownMenuLabel className="px-3 py-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                                                                {fullName}
+                                                            </DropdownMenuLabel>
+                                                        )}
+                                                        <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
+                                                            <Link href="/account/profile" className="flex items-center gap-3 w-full font-bold">
+                                                                Profil
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem asChild className="rounded-lg py-2.5 cursor-pointer hover:bg-muted focus:bg-muted">
+                                                            <Link href="/account/orders" className="flex items-center gap-3 w-full font-bold">
+                                                                Mes Commandes
+                                                            </Link>
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator className="my-2 border-t border-border" />
+                                                        <DropdownMenuItem
+                                                            onClick={async () => {
+                                                                await logoutAction();
+                                                            }}
+                                                            className="rounded-lg py-2.5 cursor-pointer text-destructive focus:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20 flex items-center gap-3 w-full font-bold"
+                                                        >
+                                                            Déconnexion
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            ) : (
+                                                <Link href="/sign-in" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                                                    <UserRound className="h-4.5 w-4.5" />
+                                                </Link>
+                                            )
+                                        )}
+                                        {false && showWishlistIcon && (
+                                            <Link href="/account/wishlist" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                                                <Heart className="h-4.5 w-4.5" />
                                             </Link>
-                                        )
-                                    )}
-                                    {false && showWishlistIcon && (
-                                        <Link href="/account/wishlist" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                                            <Heart className="h-4.5 w-4.5" />
-                                        </Link>
-                                    )}
-                                    {isLoggedIn && (
-                                        <NotificationBell
-                                            apiUrl={SHOP_API_URL}
-                                            authToken={customer?.authToken}
-                                            userId={customer?.userId}
-                                            sseBaseUrl={SSE_BASE_URL}
-                                            iconColor={currentTextColor}
-                                        />
-                                    )}
-                                    {showCartIcon && (
-                                        <Link href="/cart" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors relative">
-                                            <ShoppingCart className="h-4.5 w-4.5" />
-                                            {cartCount > 0 && (
-                                                <span
-                                                    className="absolute -top-0.5 -right-0.5 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center"
-                                                    style={{ backgroundColor: cartBadgeColor }}
-                                                >
-                                                    {cartCount}
-                                                </span>
-                                            )}
-                                        </Link>
-                                    )}
-                                </div>
-                            )}
+                                        )}
+                                        {showCartIcon && (
+                                            <Link href="/cart" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors relative">
+                                                <ShoppingCart className="h-4.5 w-4.5" />
+                                                {cartCount > 0 && (
+                                                    <span
+                                                        className="absolute -top-0.5 -right-0.5 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                                                        style={{ backgroundColor: cartBadgeColor }}
+                                                    >
+                                                        {cartCount}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {/* Geolocation selector on Mobile removed - now under logo */}
@@ -512,16 +522,18 @@ export function AhizanNavbar({
                         <div className="flex-grow"></div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-4 xl:gap-8 shrink-0">
-                            {isInstallable && !isStandalone && (
+                        <div className="flex items-center gap-3 md:gap-4 xl:gap-6 shrink-0">
+                            {!isStandalone && (
                                 <button
                                     onClick={handleInstallClick}
-                                    className="flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity text-primary cursor-pointer border border-border px-3 py-1.5 rounded-full hover:bg-muted"
+                                    className="flex items-center gap-1.5 text-xs font-bold hover:bg-primary/15 transition-all text-primary cursor-pointer border border-primary/20 bg-primary/10 px-3 py-1.5 rounded-full shadow-xs shrink-0"
+                                    title="Installer l'application Ahizan sur votre appareil"
                                 >
-                                    <Download className="h-4 w-4 animate-bounce" />
-                                    <span className="hidden xl:inline">Installer l'application</span>
+                                    <Download className="h-3.5 w-3.5 animate-bounce text-primary" />
+                                    <span>Installer l'app</span>
                                 </button>
                             )}
+
                             {showVendorLink && (
                                 <Link href={vendorLinkUrl} className="font-medium text-sm hidden md:block hover:opacity-80 transition-opacity" style={{ color: cartBadgeColor }}>
                                     {vendorLinkText}
@@ -586,20 +598,18 @@ export function AhizanNavbar({
                                 )
                             )}
 
+                            <NotificationBell
+                                apiUrl={SHOP_API_URL}
+                                authToken={customer?.authToken}
+                                userId={customer?.userId}
+                                sseBaseUrl={SSE_BASE_URL}
+                                iconColor={currentTextColor}
+                            />
+
                             {false && showWishlistIcon && (
                                 <Link href="/account/wishlist" className="flex items-center gap-2 hover:opacity-80 transition-opacity hidden sm:flex">
                                     <Heart className="h-5 w-5" />
                                 </Link>
-                            )}
-
-                            {isLoggedIn && (
-                                <NotificationBell
-                                    apiUrl={SHOP_API_URL}
-                                    authToken={customer?.authToken}
-                                    userId={customer?.userId}
-                                    sseBaseUrl={SSE_BASE_URL}
-                                    iconColor={currentTextColor}
-                                />
                             )}
 
                             {showCartIcon && (

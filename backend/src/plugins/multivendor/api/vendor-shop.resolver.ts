@@ -95,7 +95,8 @@ export class VendorShopResolver {
         @Ctx() ctx: RequestContext,
         @Args('collectionId') collectionId?: string,
     ): Promise<any[]> {
-        const repo = this.connection.getRepository(ctx, 'ProductOptionGroup' as any);
+        const adminCtx = await this.vendorService.getSuperAdminContext(ctx);
+        const repo = this.connection.getRepository(adminCtx, ProductOptionGroup);
         const allGroups = await repo.find({
             relations: ['translations', 'options', 'options.translations'],
         });
@@ -103,7 +104,7 @@ export class VendorShopResolver {
         let allowedGroupIds: string[] | null = null;
         if (collectionId) {
             try {
-                const collectionRepo = this.connection.getRepository(ctx, 'Collection' as any);
+                const collectionRepo = this.connection.getRepository(adminCtx, Collection);
                 const allCollections = await collectionRepo.find({
                     relations: ['parent'],
                 });
@@ -228,8 +229,8 @@ export class VendorShopResolver {
             ],
         };
 
-        // Filter out soft-deleted groups and test/temporary groups
-        let groups = allGroups.filter((g: any) => g.deletedAt === null && !g.code.startsWith('auto-') && !g.code.startsWith('temp-'));
+        // Filter out soft-deleted groups and test/temporary groups, and exclude unwanted groups like 'genre'
+        let groups = allGroups.filter((g: any) => g.deletedAt === null && !g.code.startsWith('auto-') && !g.code.startsWith('temp-') && g.code.toLowerCase().trim() !== 'genre');
 
         if (allowedGroupIds && allowedGroupIds.length > 0) {
             groups = groups.filter((g: any) => allowedGroupIds!.includes(String(g.id)));
@@ -245,66 +246,85 @@ export class VendorShopResolver {
             return false;
         };
 
-        const result = groups.map((g: any) => {
-            const gCode = g.code.toLowerCase();
+        const canonicalGroupKeyMap: Record<string, string> = {
+            'capacite': 'capacite',
+            'capacit-stockage': 'capacite',
+            'capacit-de-stockage': 'capacite',
+            'dimentions': 'dimentions',
+            'dimensions': 'dimentions',
+            'taille-d-cran': 'taille-d-cran',
+            'ecran': 'taille-d-cran',
+        };
+
+        const groupedCanonicalMap = new Map<string, { id: string; code: string; name: string; options: Map<string, { id: string; code: string; name: string }> }>();
+
+        for (const g of groups) {
+            const rawCode = g.code.toLowerCase().trim();
+            const canonCode = canonicalGroupKeyMap[rawCode] || rawCode;
+            const groupName = canonCode === 'capacite' ? 'Capacité / Stockage' : resolveName(g, g.code);
             const dbOptions = (g.options || []).filter((o: any) => o.deletedAt === null);
 
-            const optionsMap = new Map<string, { id: string; code: string; name: string }>();
+            if (!groupedCanonicalMap.has(canonCode)) {
+                const optionsMap = new Map<string, { id: string; code: string; name: string }>();
 
-            // 1. Add canonical defaults if available
-            if (canonicalDefaults[gCode]) {
-                for (const def of canonicalDefaults[gCode]) {
-                    // Try finding existing option in DB
-                    const matched = dbOptions.find((o: any) => 
-                        o.code.toLowerCase() === def.code || 
-                        resolveName(o, o.code).toLowerCase().trim() === def.name.toLowerCase().trim()
-                    );
-                    optionsMap.set(def.name.toLowerCase().trim(), {
-                        id: matched ? String(matched.id) : `canon_${gCode}_${def.code}`,
-                        code: def.code,
-                        name: def.name,
-                    });
+                // Add canonical defaults if available
+                if (canonicalDefaults[canonCode]) {
+                    for (const def of canonicalDefaults[canonCode]) {
+                        const matched = dbOptions.find((o: any) => 
+                            o.code.toLowerCase() === def.code || 
+                            resolveName(o, o.code).toLowerCase().trim() === def.name.toLowerCase().trim()
+                        );
+                        optionsMap.set(def.name.toLowerCase().trim(), {
+                            id: matched ? String(matched.id) : `canon_${canonCode}_${def.code}`,
+                            code: def.code,
+                            name: def.name,
+                        });
+                    }
                 }
+
+                groupedCanonicalMap.set(canonCode, {
+                    id: String(g.id),
+                    code: canonCode,
+                    name: groupName,
+                    options: optionsMap,
+                });
             }
 
-            // 2. Add valid DB options that are not noisy composites
+            const targetGroup = groupedCanonicalMap.get(canonCode)!;
+
+            // Merge valid DB options into the canonical group
             for (const o of dbOptions) {
                 const optName = resolveName(o, o.code).trim();
                 const key = optName.toLowerCase();
-                if (!optionsMap.has(key) && !isNoisyCompositeOption(optName, gCode)) {
-                    optionsMap.set(key, {
+                if (!targetGroup.options.has(key) && !isNoisyCompositeOption(optName, canonCode)) {
+                    targetGroup.options.set(key, {
                         id: String(o.id),
                         code: o.code,
                         name: optName,
                     });
                 }
             }
+        }
 
-            return {
-                id: String(g.id),
-                code: g.code,
-                name: resolveName(g, g.code),
-                options: Array.from(optionsMap.values()),
-            };
-        });
+        const result = Array.from(groupedCanonicalMap.values()).map(g => ({
+            id: g.id,
+            code: g.code,
+            name: g.name,
+            options: Array.from(g.options.values()),
+        }));
 
         // Sort by predefined standard priority order
         const priorityOrder = [
             'taille',
             'pointure',
             'taille-d-cran',
-            'ecran',
             'dimentions',
-            'dimensions',
             'capacite',
-            'capacit-stockage',
-            'capacit-de-stockage',
             'volume',
             'poids',
             'grammage-gm',
             'couleur',
             'matiere',
-            'genre',
         ];
         result.sort((a, b) => {
             const codeA = a.code.toLowerCase().trim();
@@ -1549,6 +1569,7 @@ export class VendorShopResolver {
                     deliveryTimeValue,
                     deliveryTimeUnit,
                     condition,
+                    featuredAssetId: originalInput.featuredAssetId,
                 });
             }
 

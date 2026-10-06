@@ -197,6 +197,7 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                     condition
                                     deliveryTimeValue
                                     deliveryTimeUnit
+                                    featuredAsset { id preview }
                                     status
                                     vendor {
                                         id
@@ -258,7 +259,7 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                     productVariantName: off.productVariant?.name || item.productVariantName,
                                     productVariant: off.productVariant,
                                     slug: item.slug || off.productVariant?.product?.slug,
-                                    featuredAsset: off.productVariant?.featuredAsset || item.productVariantAsset || item.productAsset,
+                                    featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || item.productVariantAsset || item.productAsset,
                                     sku: off.productVariant?.sku,
                                     vendorId: off.vendor?.id,
                                     vendorName: off.vendor?.name,

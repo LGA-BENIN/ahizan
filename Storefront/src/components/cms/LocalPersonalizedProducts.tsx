@@ -281,6 +281,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                                 condition
                                 deliveryTimeValue
                                 deliveryTimeUnit
+                                featuredAsset { id preview }
                                 vendor {
                                     id
                                     name
@@ -324,6 +325,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                                 productVariantId: vId,
                                 productVariantName: off.productVariant?.name || item.productVariantName,
                                 productVariant: off.productVariant,
+                                featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || item.featuredAsset,
                                 sku: off.productVariant?.sku,
                                 vendorId: off.vendor?.id,
                                 vendorName: off.vendor?.name,

@@ -101,7 +101,11 @@ export function DenseProductCard({
     const price = getPrice(product);
     const maxPrice = getMaxPrice(product);
     const defaultImage = themeSettings?.defaultProductImage;
-    const imageUrl = product.productVariantAsset?.preview || product.productAsset?.preview || defaultImage;
+    const imageUrl = product.winningOffer?.featuredAsset?.preview 
+        || product.featuredAsset?.preview 
+        || product.productVariantAsset?.preview 
+        || product.productAsset?.preview 
+        || defaultImage;
     const pName = product.productName || product.name || "Produit";
     const vName = product.productVariantName || "";
 

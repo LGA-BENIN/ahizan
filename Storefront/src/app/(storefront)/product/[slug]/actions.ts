@@ -55,6 +55,10 @@ export async function getSellerOffersForVariant(variantId: string) {
           deliveryTimeValue
           deliveryTimeUnit
           condition
+          featuredAsset {
+            id
+            preview
+          }
           vendor {
             id
             name
@@ -92,6 +96,10 @@ export async function getSellerOffersForProductVariants(variantIds: string[]) {
           condition
           deliveryTimeValue
           deliveryTimeUnit
+          featuredAsset {
+            id
+            preview
+          }
           vendor {
             id
             name

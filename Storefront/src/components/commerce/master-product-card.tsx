@@ -74,11 +74,12 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
 
     // Image resolution
     const defaultImage = themeSettings?.defaultProductImage;
-    const rawAsset = initialVariant?.featuredAsset?.preview 
-        || initialVariant?.productVariantAsset?.preview 
-        || item.productVariantAsset?.preview 
+    const rawAsset = winningOffer?.featuredAsset?.preview 
         || item.featuredAsset?.preview 
+        || item.productVariantAsset?.preview 
         || item.productAsset?.preview 
+        || initialVariant?.featuredAsset?.preview 
+        || initialVariant?.productVariantAsset?.preview 
         || item.assets?.[0]?.preview 
         || item.imageUrl 
         || null;

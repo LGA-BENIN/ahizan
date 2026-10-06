@@ -871,6 +871,7 @@ export const adminApiExtensions = `
             collectionIds: [ID!]
             facetValueIds: [ID!]
             approveVendorOffer: Boolean
+            selectedImages: [AdminReviewProductImageInput!]
             optionGroups: [OptionGroupInput!]
             variantsMatrix: [AdminVariantMatrixInput!]
         ): Product!

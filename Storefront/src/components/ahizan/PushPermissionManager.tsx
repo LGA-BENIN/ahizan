@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, X, BellOff } from 'lucide-react';
+import { Bell, X, BellOff, Lock, RefreshCw, Smartphone, Laptop, CheckCircle2, ChevronRight, AlertCircle, Sparkles } from 'lucide-react';
 
 const PENDING_SUB_KEY = 'ahizan-push-pending-sub';
+const RECOVERY_DISMISSED_KEY = 'ahizan-push-recovery-dismissed';
 
 interface Props {
     authToken?: string;
@@ -58,13 +59,66 @@ async function subscribeToPushMutation(
     });
 }
 
+type DevicePlatform = 'android' | 'ios' | 'desktop';
+
 export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPublicKey: initialVapidPublicKey, delaySeconds, maxPerDay, intervalMinutes }: Props) {
-    const [show, setShow] = useState(false);
+    const [showPrompt, setShowPrompt] = useState(false);
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+    const [isPermissionDenied, setIsPermissionDenied] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<'idle' | 'success' | 'denied'>('idle');
     const [vapidKey, setVapidKey] = useState(initialVapidPublicKey || '');
+    const [activeTab, setActiveTab] = useState<DevicePlatform>('android');
 
     const isLoggedIn = !!authToken;
+
+    // Detect device platform
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const ua = navigator.userAgent.toLowerCase();
+        if (/iphone|ipad|ipod/.test(ua)) {
+            setActiveTab('ios');
+        } else if (/android/.test(ua)) {
+            setActiveTab('android');
+        } else {
+            setActiveTab('desktop');
+        }
+    }, []);
+
+    // Check permission state on mount & listen to recovery trigger events
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const checkPermissionState = () => {
+            if ('Notification' in window) {
+                const isDenied = Notification.permission === 'denied';
+                setIsPermissionDenied(isDenied);
+            }
+        };
+
+        checkPermissionState();
+
+        const handleOpenRecovery = () => {
+            setShowRecoveryModal(true);
+        };
+
+        const handleOpenPrompt = () => {
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+                if (Notification.permission === 'denied') {
+                    setShowRecoveryModal(true);
+                } else {
+                    setShowPrompt(true);
+                }
+            }
+        };
+
+        window.addEventListener('ahizan:open-push-recovery', handleOpenRecovery);
+        window.addEventListener('ahizan:open-push-prompt', handleOpenPrompt);
+        return () => {
+            window.removeEventListener('ahizan:open-push-recovery', handleOpenRecovery);
+            window.removeEventListener('ahizan:open-push-prompt', handleOpenPrompt);
+        };
+    }, []);
 
     // Fetch VAPID public key dynamically from the backend for ALL users if not already set
     useEffect(() => {
@@ -95,24 +149,21 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
 
     // Show the prompt for ALL users (logged in or not) based on CMS timing/frequency settings
     useEffect(() => {
-        if (!('Notification' in window)) {
-            console.log('[PushPermissionManager] Not showing: Browser does not support Notification API');
-            return;
-        }
-        if (!('serviceWorker' in navigator)) {
-            console.log('[PushPermissionManager] Not showing: Browser does not support Service Workers');
-            return;
-        }
+        if (!('Notification' in window)) return;
+        if (!('serviceWorker' in navigator)) return;
         
         const isForceTest = typeof window !== 'undefined' && window.location.search.includes('test_push=true');
-        console.log('[PushPermissionManager] Current notification permission:', Notification.permission, isForceTest ? '(Force test mode active)' : '');
         
-        if (!isForceTest && Notification.permission !== 'default') {
-            console.log('[PushPermissionManager] Not showing: Notification permission is not "default" (already allowed or blocked)');
+        if (Notification.permission === 'denied') {
+            setIsPermissionDenied(true);
             return;
         }
 
-        // Check cooldown & daily limit (applies to ALL users unless in force test mode)
+        if (!isForceTest && Notification.permission !== 'default') {
+            return;
+        }
+
+        // Check cooldown & daily limit
         if (!isForceTest) {
             try {
                 const rawStats = localStorage.getItem('ahizan-push-stats');
@@ -125,7 +176,6 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                     if (stats.lastDismissed) {
                         const elapsedMin = (now - stats.lastDismissed) / (60 * 1000);
                         if (elapsedMin < intervalMin) {
-                            console.log(`[PushPermissionManager] Dismissed recently. Cooldown remaining: ${Math.round(intervalMin - elapsedMin)}m`);
                             return;
                         }
                     }
@@ -135,7 +185,6 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                     const oneDayAgo = now - 24 * 60 * 60 * 1000;
                     const dailyShows = (stats.dismissedTimes || []).filter((t: number) => t > oneDayAgo);
                     if (dailyShows.length >= maxTimes) {
-                        console.log(`[PushPermissionManager] Exceeded daily show limit (${dailyShows.length}/${maxTimes}).`);
                         return;
                     }
                 }
@@ -146,8 +195,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
 
         // Delay before showing the banner
         const delayLimit = isForceTest ? 500 : (delaySeconds !== undefined ? delaySeconds : 3) * 1000;
-        console.log(`[PushPermissionManager] Scheduling prompt in ${delayLimit / 1000}s...`);
-        const timer = setTimeout(() => setShow(true), delayLimit);
+        const timer = setTimeout(() => setShowPrompt(true), delayLimit);
         return () => clearTimeout(timer);
     }, [delaySeconds, maxPerDay, intervalMinutes]);
 
@@ -176,7 +224,6 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                     });
                 }
                 await subscribeToPushMutation(shopApiUrl, authToken, subscription);
-                console.log('[PushPermissionManager] Silent push subscription updated successfully.');
             } catch (e) {
                 console.error('[PushPermissionManager] Silent push registration failed:', e);
             }
@@ -185,7 +232,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
         registerPushSilently();
     }, [authToken, vapidKey, shopApiUrl]);
 
-    // For logged-in users: sync any pending subscription stored in localStorage from a previous non-logged-in session
+    // For logged-in users: sync any pending subscription stored in localStorage
     useEffect(() => {
         if (!authToken || !vapidKey) return;
         if (Notification.permission !== 'granted') return;
@@ -195,8 +242,6 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                 const pendingRaw = localStorage.getItem(PENDING_SUB_KEY);
                 if (!pendingRaw) return;
 
-                // We have a pending subscription from when user wasn't logged in
-                // Re-subscribe and sync to backend
                 const registration = await navigator.serviceWorker.ready;
                 let subscription = await registration.pushManager.getSubscription();
                 if (!subscription) {
@@ -207,7 +252,6 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                 }
                 await subscribeToPushMutation(shopApiUrl, authToken, subscription);
                 localStorage.removeItem(PENDING_SUB_KEY);
-                console.log('[PushPermissionManager] Synced pending push subscription to backend.');
             } catch (e) {
                 console.error('[PushPermissionManager] Failed to sync pending subscription:', e);
             }
@@ -216,7 +260,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
         syncPending();
     }, [authToken, vapidKey, shopApiUrl]);
 
-    const handleDismiss = () => {
+    const handleDismissPrompt = () => {
         try {
             const now = Date.now();
             const rawStats = localStorage.getItem('ahizan-push-stats');
@@ -225,13 +269,12 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
             stats.dismissedTimes.push(now);
             stats.lastDismissed = now;
             
-            // Keep only last 24 hours
             const oneDayAgo = now - 24 * 60 * 60 * 1000;
             stats.dismissedTimes = stats.dismissedTimes.filter((t: number) => t > oneDayAgo);
             
             localStorage.setItem('ahizan-push-stats', JSON.stringify(stats));
         } catch { /* ignore */ }
-        setShow(false);
+        setShowPrompt(false);
     };
 
     const handleSubscribe = async () => {
@@ -240,7 +283,12 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
                 setStatus('denied');
-                setTimeout(() => setShow(false), 2000);
+                setIsPermissionDenied(true);
+                setTimeout(() => {
+                    setShowPrompt(false);
+                    // Automatically open recovery helper when user clicks Deny/Block
+                    setShowRecoveryModal(true);
+                }, 1200);
                 return;
             }
 
@@ -263,108 +311,317 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                 });
 
                 if (isLoggedIn && authToken) {
-                    // Logged-in: sync to backend immediately
                     await subscribeToPushMutation(shopApiUrl, authToken, subscription);
                 } else {
-                    // Not logged in: store subscription info in localStorage for later sync
                     const subJson = subscription.toJSON();
                     localStorage.setItem(PENDING_SUB_KEY, JSON.stringify({
                         endpoint: subJson.endpoint,
                         keys: subJson.keys,
                         timestamp: Date.now(),
                     }));
-                    console.log('[PushPermissionManager] Stored push subscription locally (user not logged in).');
                 }
             }
 
             setStatus('success');
-            setTimeout(() => setShow(false), 2500);
+            setTimeout(() => setShowPrompt(false), 2500);
         } catch (e) {
             console.error('[PushPermissionManager] subscribe failed:', e);
-            handleDismiss();
+            handleDismissPrompt();
         } finally {
             setIsLoading(false);
         }
     };
 
-    if (!show) return null;
-
     return (
-        <div
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-md"
-            role="dialog"
-            aria-label="Activer les notifications push"
-        >
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    {status === 'denied'
-                        ? <BellOff className="w-5 h-5 text-red-500" />
-                        : status === 'success'
-                            ? <Bell className="w-5 h-5 text-green-500" />
-                            : <Bell className="w-5 h-5 text-primary" />
-                    }
+        <>
+            {/* Standard Prompt Banner */}
+            {showPrompt && (
+                <div
+                    className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-md"
+                    role="dialog"
+                    aria-label="Activer les notifications push"
+                >
+                    <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                            {status === 'denied'
+                                ? <BellOff className="w-5 h-5 text-red-500" />
+                                : status === 'success'
+                                    ? <Bell className="w-5 h-5 text-green-500" />
+                                    : <Bell className="w-5 h-5 text-primary" />
+                            }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            {status === 'success' ? (
+                                <>
+                                    <p className="text-sm font-semibold text-gray-900">Notifications activées</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        {isLoggedIn
+                                            ? 'Vous recevrez des alertes pour vos commandes et livraisons.'
+                                            : 'Vous recevrez des alertes sur les promotions et nouveautés. Connectez-vous pour un suivi personnalisé.'
+                                        }
+                                    </p>
+                                </>
+                            ) : status === 'denied' ? (
+                                <>
+                                    <p className="text-sm font-semibold text-red-600">Notifications bloquées</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        Ouverture du guide de déblocage...
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                        Activez les notifications
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        {isLoggedIn
+                                            ? 'Soyez informé de vos commandes, livraisons et promotions en temps réel.'
+                                            : 'Recevez les meilleures offres et promotions en temps réel.'
+                                        }
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-3">
+                                        <button
+                                            onClick={handleSubscribe}
+                                            disabled={isLoading}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 transition disabled:opacity-60"
+                                        >
+                                            {isLoading
+                                                ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                : <Bell className="w-3 h-3" />
+                                            }
+                                            {isLoading ? 'Activation...' : 'Activer'}
+                                        </button>
+                                        <button
+                                            onClick={handleDismissPrompt}
+                                            className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition"
+                                        >
+                                            Pas maintenant
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        {status === 'idle' && (
+                            <button
+                                onClick={handleDismissPrompt}
+                                className="text-gray-300 hover:text-gray-500 transition shrink-0 mt-0.5"
+                                aria-label="Fermer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                    {status === 'success' ? (
-                        <>
-                            <p className="text-sm font-semibold text-gray-900">Notifications activées</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                                {isLoggedIn
-                                    ? 'Vous recevrez des alertes pour vos commandes et livraisons.'
-                                    : 'Vous recevrez des alertes sur les promotions et nouveautés. Connectez-vous pour un suivi personnalisé.'
-                                }
+            )}
+
+            {/* HELPER DE RÉCUPÉRATION (SI BLOQUÉ DENIED) */}
+            {showRecoveryModal && (
+                <div 
+                    className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => setShowRecoveryModal(false)}
+                >
+                    <div 
+                        className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Modal Header */}
+                        <div className="relative bg-gradient-to-r from-red-500 via-amber-500 to-primary p-6 text-white text-left">
+                            <button 
+                                onClick={() => setShowRecoveryModal(false)}
+                                className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
+                                aria-label="Fermer"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3">
+                                <Lock className="w-6 h-6 text-white" />
+                            </div>
+                            <h3 className="text-xl font-bold tracking-tight">Notifications bloquées</h3>
+                            <p className="text-white/90 text-xs mt-1">
+                                Votre navigateur a bloqué les notifications. Voici comment les réactiver en 3 étapes simples :
                             </p>
-                        </>
-                    ) : status === 'denied' ? (
-                        <>
-                            <p className="text-sm font-semibold text-gray-900">Notifications refusées</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                                Vous pouvez les activer depuis les paramètres de votre navigateur.
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <p className="text-sm font-semibold text-gray-900">
-                                Activez les notifications
-                            </p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                                {isLoggedIn
-                                    ? 'Soyez informé de vos commandes, livraisons et promotions en temps réel.'
-                                    : 'Recevez les meilleures offres et promotions en temps réel.'
-                                }
-                            </p>
-                            <div className="flex items-center gap-2 mt-3">
+                        </div>
+
+                        {/* Platform Selector Tabs */}
+                        <div className="flex border-b border-gray-100 bg-gray-50/70 p-1.5 gap-1">
+                            <button
+                                onClick={() => setActiveTab('android')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                                    activeTab === 'android'
+                                        ? 'bg-white text-primary shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                }`}
+                            >
+                                <Smartphone className="w-3.5 h-3.5" />
+                                Android / Chrome
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('ios')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                                    activeTab === 'ios'
+                                        ? 'bg-white text-primary shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                }`}
+                            >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                iPhone / Safari
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('desktop')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+                                    activeTab === 'desktop'
+                                        ? 'bg-white text-primary shadow-sm'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                }`}
+                            >
+                                <Laptop className="w-3.5 h-3.5" />
+                                Ordinateur / Mac
+                            </button>
+                        </div>
+
+                        {/* Guide Content */}
+                        <div className="p-6 text-left space-y-4">
+                            {activeTab === 'android' && (
+                                <div className="space-y-3.5">
+                                    <div className="flex items-start gap-3 bg-amber-50/60 border border-amber-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            1
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Appuyez sur l'icône de cadenas 🔒</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Dans la barre d'adresse en haut de l'écran, touchez l'icône 🔒 ou les paramètres du site à gauche de l'URL.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 bg-blue-50/60 border border-blue-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            2
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Ouvrez « Autorisations »</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Appuyez sur <strong>Autorisations</strong> ou <strong>Paramètres du site</strong>, puis trouvez <strong>Notifications</strong>.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            3
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Basculez sur « Autoriser » 🟢</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Activez le commutateur, puis cliquez sur le bouton <strong>Actualiser</strong> ci-dessous.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'ios' && (
+                                <div className="space-y-3.5">
+                                    <div className="flex items-start gap-3 bg-amber-50/60 border border-amber-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            1
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Ouvrez les Réglages ⚙️</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Sur votre iPhone, ouvrez l'application <strong>Réglages</strong> principale.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 bg-blue-50/60 border border-blue-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            2
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Sélectionnez « Safari » ou « Ahizan »</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Faites défiler vers le bas, appuyez sur <strong>Notifications</strong> puis cherchez <strong>Safari</strong> ou l'application installée.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            3
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Activez « Autoriser les notifications » 🟢</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Basculez l'interrupteur sur vert et revenez sur votre page.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'desktop' && (
+                                <div className="space-y-3.5">
+                                    <div className="flex items-start gap-3 bg-amber-50/60 border border-amber-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            1
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Cliquez sur le cadenas 🔒 dans l'URL</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                En haut à gauche de la barre d'adresse de votre navigateur (Chrome, Edge, Firefox, Brave), cliquez sur l'icône 🔒 ou réglages.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 bg-blue-50/60 border border-blue-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            2
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Activez « Notifications »</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Positionnez l'option <strong>Notifications</strong> sur <strong>Autoriser</strong> ou cochez le curseur bleu.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 bg-emerald-50/60 border border-emerald-200/60 p-3 rounded-2xl">
+                                        <div className="w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 font-bold text-xs">
+                                            3
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-900">Rechargez la page 🔄</p>
+                                            <p className="text-[11px] text-gray-600 mt-0.5">
+                                                Cliquez sur le bouton ci-dessous pour actualiser et valider la connexion.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="pt-2 flex items-center gap-3">
                                 <button
-                                    onClick={handleSubscribe}
-                                    disabled={isLoading}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 transition disabled:opacity-60"
+                                    onClick={() => window.location.reload()}
+                                    className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-primary text-white text-xs font-bold rounded-2xl shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all active:scale-[0.98]"
                                 >
-                                    {isLoading
-                                        ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        : <Bell className="w-3 h-3" />
-                                    }
-                                    {isLoading ? 'Activation...' : 'Activer'}
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    Actualiser la page
                                 </button>
                                 <button
-                                    onClick={handleDismiss}
-                                    className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition"
+                                    onClick={() => setShowRecoveryModal(false)}
+                                    className="py-3 px-4 bg-gray-100 text-gray-700 text-xs font-semibold rounded-2xl hover:bg-gray-200 transition-colors"
                                 >
-                                    Pas maintenant
+                                    Fermer
                                 </button>
                             </div>
-                        </>
-                    )}
+                        </div>
+                    </div>
                 </div>
-                {status === 'idle' && (
-                    <button
-                        onClick={handleDismiss}
-                        className="text-gray-300 hover:text-gray-500 transition shrink-0 mt-0.5"
-                        aria-label="Fermer"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                )}
-            </div>
-        </div>
+            )}
+        </>
     );
 }
+

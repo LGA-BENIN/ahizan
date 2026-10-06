@@ -381,8 +381,9 @@ export class SellerOfferService {
                 try {
                     const numAssetId = Number(savedOffer.featuredAssetId);
                     if (!isNaN(numAssetId)) {
+                        // Only set on product_variant if it currently has no image, to avoid overwriting other vendors or official images
                         await pvRepo.query(
-                            `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2`,
+                            `UPDATE product_variant SET "featuredAssetId" = $1 WHERE id = $2 AND ("featuredAssetId" IS NULL OR "featuredAssetId" = 0)`,
                             [numAssetId, numVariantId]
                         );
                     }

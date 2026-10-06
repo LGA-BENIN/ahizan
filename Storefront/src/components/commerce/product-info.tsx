@@ -392,11 +392,17 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
     // Dispatch variant change event to synchronize image carousel and components
     useEffect(() => {
         if (selectedVariant && typeof window !== 'undefined') {
+            const activeFeaturedAsset = currentVendorOffer?.featuredAsset || (selectedVariant as any)?.featuredAsset;
             window.dispatchEvent(new CustomEvent('ahizan:variant-changed', {
-                detail: { variant: selectedVariant }
+                detail: { 
+                    variant: {
+                        ...selectedVariant,
+                        featuredAsset: activeFeaturedAsset,
+                    }
+                }
             }));
         }
-    }, [selectedVariant]);
+    }, [selectedVariant, currentVendorOffer]);
 
     const handleOptionChange = (groupId: string, optionId: string) => {
         const nextOptions = {
@@ -1079,7 +1085,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                 productTitle={product.name}
                 variantName={declinationSuffix}
                 price={activePrice || 0}
-                imagePreview={(selectedVariant as any)?.featuredAsset?.preview || (product as any)?.featuredAsset?.preview}
+                imagePreview={currentVendorOffer?.featuredAsset?.preview || (selectedVariant as any)?.featuredAsset?.preview || (product as any)?.featuredAsset?.preview}
                 vendorName={activeVendor?.name}
             />
         </div>

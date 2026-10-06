@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { TransactionalConnection, RequestContext, User } from '@vendure/core';
 import { Subject, Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
-import { Like } from 'typeorm';
+import { Like, In } from 'typeorm';
 import { NotificationLog } from './entities/notification-log.entity';
 import { PushSubscription } from './entities/push-subscription.entity';
 
@@ -100,6 +100,7 @@ export class NotificationsService {
                 body: payload.body,
                 actionUrl: payload.actionUrl,
                 iconUrl: payload.iconUrl,
+                targetRole: payload.targetRole,
                 data: payload.data,
                 channels: channels,
                 timestamp: new Date().toISOString(),
@@ -252,20 +253,14 @@ export class NotificationsService {
             }
         }
 
-        // Deactivate all other active subscriptions for this user and portal to prevent duplicate notifications
-        const { Not } = require('typeorm');
-        await repo.update(
-            { userId, portal, isActive: true, endpoint: Not(subscription.endpoint) },
-            { isActive: false }
-        );
-
-        // Check if already exists (update) 
+        // Check if already exists (update endpoint registration)
         let existing = await repo.findOne({ where: { endpoint: subscription.endpoint } });
         if (existing) {
             existing.userId = userId;
             existing.p256dh = subscription.p256dh;
             existing.auth = subscription.auth;
             existing.portal = portal;
+            if (subscription.userAgent) existing.userAgent = subscription.userAgent;
             existing.isActive = true;
             return repo.save(existing);
         }
@@ -308,12 +303,21 @@ export class NotificationsService {
 
         webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey);
 
-        const isSellerNotification = payload.actionUrl?.startsWith('/dashboard');
-        const targetPortal = isSellerNotification ? 'seller' : 'storefront';
+        // Find all active subscriptions for this user matching the target portal/role
+        const where: any = { userId: payload.userId, isActive: true };
+        if (payload.targetRole === 'VENDOR') {
+            where.portal = 'seller';
+        } else if (payload.targetRole === 'CUSTOMER') {
+            where.portal = In(['storefront', 'shop', 'customer']);
+        }
 
         const subscriptions = await this.connection.getRepository(ctx, PushSubscription).find({
-            where: { userId: payload.userId, isActive: true, portal: targetPortal },
+            where,
         });
+
+        if (!subscriptions || subscriptions.length === 0) {
+            return;
+        }
 
         const pushPayload = JSON.stringify({
             title: payload.title,
@@ -335,9 +339,10 @@ export class NotificationsService {
                         { lastUsedAt: new Date() },
                     );
                 } catch (e: unknown) {
-                    this.logger.error(`Web push to endpoint failed: ${(e as any)?.message}`);
-                    // Mark as inactive if subscription is gone (410 status)
-                    if ((e as any).statusCode === 410) {
+                    const status = (e as any)?.statusCode;
+                    this.logger.error(`Web push to endpoint failed (status: ${status}): ${(e as any)?.message}`);
+                    // Mark as inactive ONLY if subscription was expired or unsubscribed by push service (404/410)
+                    if (status === 410 || status === 404) {
                         await this.connection.getRepository(ctx, PushSubscription).update(
                             { id: sub.id },
                             { isActive: false },

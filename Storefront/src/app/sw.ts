@@ -49,8 +49,13 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
 
 self.addEventListener("fetch", (event: FetchEvent) => {
   const url = new URL(event.request.url);
-  // Bypass SW event handling for shop-api and admin-api to eliminate idle tab cold-start delays
-  if (url.pathname.includes("/shop-api") || url.pathname.includes("/admin-api")) {
+  // Bypass SW event handling for shop-api, admin-api, SSE notification streams, and POST/mutations
+  if (
+    url.pathname.includes("/shop-api") || 
+    url.pathname.includes("/admin-api") || 
+    url.pathname.includes("/notifications/stream") ||
+    event.request.method !== "GET"
+  ) {
     return;
   }
   serwist.handleFetch(event);

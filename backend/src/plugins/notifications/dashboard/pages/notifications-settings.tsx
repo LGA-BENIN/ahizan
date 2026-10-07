@@ -85,7 +85,8 @@ function WebPushDeviceCard({ addToast }: { addToast: (msg: string, type: 'succes
                 endpoint,
                 p256dh,
                 auth,
-                userAgent: navigator.userAgent
+                userAgent: navigator.userAgent,
+                portal: 'admin'
             });
 
             setIsSubscribed(true);

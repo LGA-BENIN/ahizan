@@ -11,7 +11,7 @@ export default async function MessagesPage() {
     const initialConversations = await getConversationsAction();
     
     return (
-        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6 h-[calc(100vh-80px)] flex flex-col">
+        <div className="flex-1 space-y-2 sm:space-y-4 p-2 sm:p-4 md:p-8 pt-2 sm:pt-6 h-[calc(100vh-70px)] md:h-[calc(100vh-80px)] flex flex-col">
             <MessagesClient initialConversations={initialConversations} />
         </div>
     );

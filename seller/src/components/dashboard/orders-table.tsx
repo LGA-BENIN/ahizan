@@ -393,19 +393,17 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                     <th className="px-6 py-4">Date</th>
                                     <th className="px-6 py-4">SLA (30 min)</th>
                                     <th className="px-6 py-4 text-right">Montant</th>
-                                    <th className="px-6 py-4">Statut</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-6 py-4 text-right">Statut</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {filteredOrders.length > 0 ? (
                                     filteredOrders.map((order: any) => {
-                                        const vendorId = order.customFields?.assignedVendor?.id || order.customFields?.vendor?.id || '1';
                                         return (
                                             <tr 
                                                 key={order.id} 
                                                 onClick={() => router.push(`/dashboard/orders/${order.id}`)}
-                                                className="cursor-pointer transition-all hover:bg-muted/20 border-l-4 border-transparent"
+                                                className="cursor-pointer transition-all hover:bg-muted/20 border-l-4 border-transparent hover:border-primary"
                                             >
                                                 <td className="px-6 py-5 whitespace-nowrap font-mono text-xs text-primary font-bold">
                                                     {order.code}
@@ -434,7 +432,7 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                 <td className="px-6 py-5 whitespace-nowrap text-right font-bold text-foreground text-sm">
                                                     {formatPrice(getVendorOrderTotal(order), order.currencyCode)}
                                                 </td>
-                                                <td className="px-6 py-5 whitespace-nowrap">
+                                                <td className="px-6 py-5 whitespace-nowrap text-right">
                                                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border border-transparent ${getStatusStyles(order.state, order.customFields?.sellerStatus)}`}>
                                                         {getStatusLabel(order.state, order.customFields?.sellerStatus)}
                                                     </span>
@@ -442,54 +440,12 @@ export default function OrdersTable({ initialOrders }: OrdersTableProps) {
                                                         {order.lines?.filter((l: any) => l.customFields?.sellerStatus === 'confirmed').length || 0} / {order.lines?.length || 0} validés
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center justify-end gap-1.5">
-                                                        <button 
-                                                            onClick={() => {
-                                                                toast.success('Bordereau envoyé à l\'impression');
-                                                                window.print();
-                                                            }}
-                                                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg border border-transparent hover:border-border transition-all" 
-                                                            title="Imprimer le bordereau"
-                                                        >
-                                                            <Printer className="w-4 h-4" />
-                                                        </button>
-                                                        {order.customFields?.sellerStatus !== 'confirmed' && order.customFields?.sellerStatus !== 'refused' && (
-                                                            <>
-                                                                <button 
-                                                                    onClick={() => handleMarkReadyForPickup(order.id, vendorId)}
-                                                                    className="px-2.5 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1 transition-all"
-                                                                    title="Prêt pour collecte coursier"
-                                                                    disabled={isPending}
-                                                                >
-                                                                    <Truck className="w-3.5 h-3.5" /> Prêt collecte
-                                                                </button>
-                                                                <button 
-                                                                    onClick={() => handleRefuseOrder(order.id)}
-                                                                    className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg border border-transparent hover:border-border transition-all"
-                                                                    title="Refuser la commande (Déclenche le remplacement)"
-                                                                    disabled={isPending}
-                                                                >
-                                                                    <X className="w-4 h-4" />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                        <button 
-                                                            onClick={() => handleDeleteOrder(order.id)}
-                                                            className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-500/10 rounded-lg border border-transparent hover:border-red-500/20 transition-all"
-                                                            title="Supprimer définitivement la commande"
-                                                            disabled={isPending}
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
                                             </tr>
                                         );
                                     })
                                 ) : (
                                     <tr>
-                                        <td colSpan={7} className="p-16 text-center text-muted-foreground">
+                                        <td colSpan={6} className="p-16 text-center text-muted-foreground">
                                             <p className="text-sm font-medium">Aucune commande correspondante.</p>
                                         </td>
                                     </tr>

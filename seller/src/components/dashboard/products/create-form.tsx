@@ -521,11 +521,7 @@ export default function CreateProductForm({
         }
     };
 
-    // State for crop modal for variant images
-    const [variantCropModalOpen, setVariantCropModalOpen] = useState(false);
-    const [variantCropSrc, setVariantCropSrc] = useState<string>('');
     const [variantCropIndex, setVariantCropIndex] = useState<number | null>(null);
-    const [variantCropFileName, setVariantCropFileName] = useState<string>('variant.jpg');
     const [isUploadingVariantImage, setIsUploadingVariantImage] = useState<number | null>(null);
     const variantFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -536,53 +532,42 @@ export default function CreateProductForm({
         }
     };
 
-    const handleVariantFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setVariantCropFileName(file.name);
-        const reader = new FileReader();
-        reader.onload = () => {
-            setVariantCropSrc(reader.result as string);
-            setVariantCropModalOpen(true);
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-    };
-
-    const handleVariantCropComplete = async (croppedBlob: Blob) => {
-        if (variantCropIndex === null) return;
+    const handleVariantFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []) as File[];
+        if (files.length === 0 || variantCropIndex === null) return;
         const targetIndex = variantCropIndex;
-        setVariantCropModalOpen(false);
         setIsUploadingVariantImage(targetIndex);
+
         try {
-            const file = new File([croppedBlob], variantCropFileName, { type: 'image/jpeg' });
-            const formData = new FormData();
-            formData.append('file', file);
-            const res = await uploadFileAction(formData);
-            if (res.success && res.asset) {
-                const newAsset: UploadedAsset = { id: res.asset.id, preview: res.asset.preview };
-                setVariants(prev => prev.map((v, i) => {
-                    if (i !== targetIndex) return v;
-                    const existingAssets = v.assets || (v.featuredAssetId ? [{ id: v.featuredAssetId, preview: v.featuredAssetPreview || '' }] : []);
-                    const updatedAssets = [...existingAssets, newAsset];
-                    const newFeaturedId = v.featuredAssetId || newAsset.id;
-                    const newFeaturedPreview = v.featuredAssetPreview || newAsset.preview;
-                    return {
-                        ...v,
-                        assets: updatedAssets,
-                        featuredAssetId: newFeaturedId,
-                        featuredAssetPreview: newFeaturedPreview
-                    };
-                }));
-                toast.success("Photo ajoutée à la déclinaison");
-            } else {
-                toast.error(res.error || "Erreur lors du téléversement");
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) continue;
+                const formData = new FormData();
+                formData.append('file', file);
+                const res = await uploadFileAction(formData);
+                if (res.success && res.asset) {
+                    const newAsset: UploadedAsset = { id: res.asset.id, preview: res.asset.preview };
+                    setVariants(prev => prev.map((v, i) => {
+                        if (i !== targetIndex) return v;
+                        const existingAssets = v.assets || (v.featuredAssetId ? [{ id: v.featuredAssetId, preview: v.featuredAssetPreview || '' }] : []);
+                        const updatedAssets = [...existingAssets, newAsset];
+                        const newFeaturedId = v.featuredAssetId || newAsset.id;
+                        const newFeaturedPreview = v.featuredAssetPreview || newAsset.preview;
+                        return {
+                            ...v,
+                            assets: updatedAssets,
+                            featuredAssetId: newFeaturedId,
+                            featuredAssetPreview: newFeaturedPreview
+                        };
+                    }));
+                }
             }
+            toast.success("Photo(s) ajoutée(s) à la déclinaison");
         } catch (err) {
             toast.error("Échec du téléversement de l'image");
         } finally {
             setIsUploadingVariantImage(null);
             setVariantCropIndex(null);
+            if (variantFileInputRef.current) variantFileInputRef.current.value = '';
         }
     };
 
@@ -2101,7 +2086,7 @@ export default function CreateProductForm({
                                                                         <img 
                                                                             src={asset.preview} 
                                                                             alt={`Visuel ${v.name}`} 
-                                                                            className="w-full h-full object-cover select-none" 
+                                                                            className="w-full h-full object-contain select-none" 
                                                                         />
 
                                                                         {/* Starred Badge */}
@@ -2309,16 +2294,6 @@ export default function CreateProductForm({
                 accept="image/*"
                 className="hidden"
             />
-
-            {/* Variant Image Crop Modal */}
-            <ImageCropModal
-                isOpen={variantCropModalOpen}
-                imageSrc={variantCropSrc}
-                onClose={() => setVariantCropModalOpen(false)}
-                onCropComplete={handleVariantCropComplete}
-                aspectRatio={1}
-            />
-
         </div>
     );
 }

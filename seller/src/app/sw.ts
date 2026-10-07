@@ -56,7 +56,8 @@ self.addEventListener("push", (event: PushEvent) => {
 
 self.addEventListener("notificationclick", (event: NotificationEvent) => {
   event.notification.close();
-  const targetUrl: string = event.notification.data?.url || "/";
+  const rawUrl: string = event.notification.data?.url || "/dashboard/orders";
+  const targetUrl = rawUrl.startsWith("http") ? rawUrl : new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
     (self as any).clients
@@ -65,6 +66,12 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
         for (const client of clientList) {
           if (client.url === targetUrl && "focus" in client) {
             return client.focus();
+          }
+        }
+        for (const client of clientList) {
+          if ("focus" in client && "navigate" in client) {
+            client.focus();
+            return (client as any).navigate(targetUrl);
           }
         }
         if ((self as any).clients.openWindow) {

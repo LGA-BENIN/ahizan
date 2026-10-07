@@ -24,6 +24,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - STOREFRONT_URL=https://ahizan.com
+      - SELLER_URL=https://seller.ahizan.com
+      - ADMIN_URL=https://administrator.ahizan.com
       - ASSET_URL_PREFIX=https://api.ahizan.com/assets/
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
@@ -80,6 +82,7 @@ services:
     environment:
       - VENDURE_SHOP_API_URL=http://ahizan_backend:3000/shop-api
       - NEXT_PUBLIC_VENDURE_SHOP_API_URL=https://api.ahizan.com/shop-api
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${VAPID_VAPID_PUBLIC_KEY:-${VAPID_PUBLIC_KEY}}
     labels:
       - "VIRTUAL_HOST=seller.ahizan.com"
       - "VIRTUAL_PORT=3000"

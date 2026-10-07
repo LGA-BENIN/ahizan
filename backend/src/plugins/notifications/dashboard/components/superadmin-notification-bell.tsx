@@ -31,9 +31,29 @@ const urlBase64ToUint8Array = (base64String: string) => {
 const getAuthHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (typeof window === 'undefined') return headers;
-    const token = localStorage.getItem('vendure-auth-token') || 
-                  localStorage.getItem('auth_token') || 
-                  sessionStorage.getItem('vendure-auth-token');
+    
+    // Check possible localStorage and sessionStorage keys
+    let token: string | null = null;
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('vendure-auth-token') || key.includes('authToken') || key.includes('token') || key.includes('auth_token'))) {
+                const val = localStorage.getItem(key);
+                if (val && !val.startsWith('{')) {
+                    token = val;
+                    break;
+                }
+            }
+        }
+    } catch (_) {}
+
+    if (!token) {
+        token = localStorage.getItem('vendure-auth-token') || 
+                localStorage.getItem('auth_token') || 
+                localStorage.getItem('vendure_auth_token') ||
+                sessionStorage.getItem('vendure-auth-token');
+    }
+
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -69,8 +89,8 @@ const registerSuperadminPush = async () => {
                 credentials: 'include',
                 body: JSON.stringify({
                     query: `
-                        mutation($endpoint: String!, $p256dh: String!, $auth: String!, $userAgent: String) {
-                            subscribeToPush(endpoint: $endpoint, p256dh: $p256dh, auth: $auth, userAgent: $userAgent) {
+                        mutation($endpoint: String!, $p256dh: String!, $auth: String!, $userAgent: String, $portal: String) {
+                            subscribeToPush(endpoint: $endpoint, p256dh: $p256dh, auth: $auth, userAgent: $userAgent, portal: $portal) {
                                 success
                             }
                         }
@@ -80,6 +100,7 @@ const registerSuperadminPush = async () => {
                         p256dh: subJson.keys.p256dh,
                         auth: subJson.keys.auth,
                         userAgent: navigator.userAgent,
+                        portal: 'admin',
                     },
                 }),
             });

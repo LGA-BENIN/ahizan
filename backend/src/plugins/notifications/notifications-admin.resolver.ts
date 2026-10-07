@@ -133,7 +133,7 @@ export const notificationsAdminApiExtensions = gql`
             contentHtml: String!
             selectedEmails: [String!]
         ): BulkEmailResult!
-        subscribeToPush(endpoint: String!, p256dh: String!, auth: String!, userAgent: String): PushSubscriptionResult!
+        subscribeToPush(endpoint: String!, p256dh: String!, auth: String!, userAgent: String, portal: String): PushSubscriptionResult!
         unsubscribeFromPush(endpoint: String!): PushSubscriptionResult!
         testSmtpConnection(email: String!): Boolean!
         testSmtpConnectionDirect(
@@ -303,6 +303,7 @@ export class NotificationsAdminResolver {
         @Args('p256dh') p256dh: string,
         @Args('auth') auth: string,
         @Args('userAgent') userAgent?: string,
+        @Args('portal') portal?: string,
     ) {
         if (!ctx.activeUserId) return { success: false };
         await this.notificationsService.savePushSubscription(ctx, ctx.activeUserId.toString(), {
@@ -310,6 +311,7 @@ export class NotificationsAdminResolver {
             p256dh,
             auth,
             userAgent,
+            portal: portal || 'admin',
         });
         return { success: true };
     }

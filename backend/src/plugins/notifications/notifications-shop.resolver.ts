@@ -38,7 +38,7 @@ export const notificationsShopApiExtensionsV2 = gql`
         markNotificationsRead: Boolean!
         markNotificationRead(id: ID!): Boolean!
         deleteNotification(id: ID!): Boolean!
-        subscribeToPush(endpoint: String!, p256dh: String!, auth: String!, userAgent: String): PushSubscriptionResult!
+        subscribeToPush(endpoint: String!, p256dh: String!, auth: String!, userAgent: String, portal: String): PushSubscriptionResult!
         unsubscribeFromPush(endpoint: String!): PushSubscriptionResult!
     }
 `;
@@ -123,13 +123,29 @@ export class NotificationsShopResolverV2 {
         @Args('p256dh') p256dh: string,
         @Args('auth') auth: string,
         @Args('userAgent') userAgent?: string,
+        @Args('portal') portal?: string,
     ) {
         if (!ctx.activeUserId) return { success: false };
+
+        let resolvedPortal = portal;
+        if (!resolvedPortal) {
+            const origin = (ctx.req?.headers?.origin as string) || '';
+            const referer = (ctx.req?.headers?.referer as string) || '';
+            if (origin.includes('seller') || origin.includes(':3002') || referer.includes('seller') || referer.includes(':3002')) {
+                resolvedPortal = 'seller';
+            } else if (origin.includes('administrator') || origin.includes('admin') || referer.includes('admin')) {
+                resolvedPortal = 'admin';
+            } else {
+                resolvedPortal = 'storefront';
+            }
+        }
+
         await this.notificationsService.savePushSubscription(ctx, ctx.activeUserId.toString(), {
             endpoint,
             p256dh,
             auth,
             userAgent,
+            portal: resolvedPortal,
         });
         return { success: true };
     }

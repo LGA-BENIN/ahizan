@@ -42,8 +42,8 @@ async function subscribeToPushMutation(
         credentials: 'include',
         body: JSON.stringify({
             query: `
-                mutation($endpoint: String!, $p256dh: String!, $auth: String!, $userAgent: String) {
-                    subscribeToPush(endpoint: $endpoint, p256dh: $p256dh, auth: $auth, userAgent: $userAgent) {
+                mutation($endpoint: String!, $p256dh: String!, $auth: String!, $userAgent: String, $portal: String) {
+                    subscribeToPush(endpoint: $endpoint, p256dh: $p256dh, auth: $auth, userAgent: $userAgent, portal: $portal) {
                         success
                     }
                 }
@@ -53,6 +53,7 @@ async function subscribeToPushMutation(
                 p256dh: keys.p256dh,
                 auth: keys.auth,
                 userAgent: navigator.userAgent,
+                portal: 'seller',
             },
         }),
     });

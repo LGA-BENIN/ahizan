@@ -116,29 +116,61 @@ export class NotificationsService {
     }
 
     /**
-     * Notify all active SuperAdmin administrators (In-App & Push).
+     * Notify SuperAdmin administrators (In-App & Push).
+     * Rule: In-app SSE is sent live to connected tabs, DB log is always written for history,
+     * and Web Push is dispatched to all registered superadmin devices.
      */
     async notifySuperAdmins(
         ctx: RequestContext,
         payload: Omit<NotificationPayload, 'userId' | 'targetRole'>
     ): Promise<void> {
         try {
-            const superAdminUsers: { id: string }[] = await this.connection.rawConnection.query(`
-                SELECT DISTINCT u.id 
-                FROM "user" u
-                INNER JOIN user_roles_role urr ON urr."userId" = u.id
-                INNER JOIN role r ON r.id = urr."roleId"
-                WHERE r.code = '__super_admin_role__' OR r.code = 'superadmin' OR u.identifier = 'superadmin'
-            `);
+            const adminUserIds = new Set<string>();
 
-            for (const adminUser of superAdminUsers) {
-                if (adminUser.id) {
-                    await this.notify(ctx, {
-                        ...payload,
-                        userId: adminUser.id.toString(),
-                        targetRole: 'ADMIN',
-                    });
+            // 1. Query users with superadmin/admin roles
+            try {
+                const superAdminUsers: { id: string }[] = await this.connection.rawConnection.query(`
+                    SELECT DISTINCT u.id 
+                    FROM "user" u
+                    LEFT JOIN user_roles_role urr ON urr."userId" = u.id
+                    LEFT JOIN role r ON r.id = urr."roleId"
+                    WHERE r.code = '__super_admin_role__' 
+                       OR r.code = 'superadmin' 
+                       OR r.code = '__administrator_role__'
+                       OR r.code = 'administrator'
+                       OR u.identifier = 'superadmin'
+                `);
+                for (const u of superAdminUsers) {
+                    if (u?.id) adminUserIds.add(u.id.toString());
                 }
+            } catch (err: any) {
+                this.logger.warn(`Could not query admin roles: ${err?.message || err}`);
+            }
+
+            // 2. Query all active push subscriptions for the admin portal
+            try {
+                const adminPushSubs: { userId: string }[] = await this.connection.rawConnection.query(`
+                    SELECT DISTINCT "userId" 
+                    FROM push_subscription 
+                    WHERE LOWER(portal) IN ('admin', 'dashboard') AND "isActive" = true AND "userId" IS NOT NULL
+                `);
+                for (const s of adminPushSubs) {
+                    if (s?.userId) adminUserIds.add(s.userId.toString());
+                }
+            } catch (_) {}
+
+            // Fallback: if no admin IDs found, at least notify active user if in admin context
+            if (adminUserIds.size === 0 && ctx.activeUserId) {
+                adminUserIds.add(ctx.activeUserId.toString());
+            }
+
+            for (const userId of adminUserIds) {
+                await this.notify(ctx, {
+                    ...payload,
+                    userId,
+                    targetRole: 'ADMIN',
+                    channels: payload.channels || ['IN_APP', 'PUSH'],
+                });
             }
         } catch (err: any) {
             this.logger.error(`Failed to notify superadmins: ${err?.message || err}`);
@@ -237,17 +269,24 @@ export class NotificationsService {
     ): Promise<PushSubscription> {
         const repo = this.connection.getRepository(ctx, PushSubscription);
 
-        let portal = subscription.portal;
+        let portal = (subscription.portal || '').toLowerCase().trim();
         if (!portal) {
-            const origin = ctx.req?.headers.origin || '';
-            const referer = ctx.req?.headers.referer || '';
+            const origin = ((ctx.req?.headers?.origin as string) || '').toLowerCase();
+            const referer = ((ctx.req?.headers?.referer as string) || '').toLowerCase();
             if (
                 origin.includes('seller') || 
-                origin.includes('localhost:3002') || 
+                origin.includes(':3002') || 
                 referer.includes('seller') || 
-                referer.includes('localhost:3002')
+                referer.includes(':3002')
             ) {
                 portal = 'seller';
+            } else if (
+                origin.includes('administrator') || 
+                origin.includes('admin') || 
+                referer.includes('administrator') ||
+                referer.includes('admin')
+            ) {
+                portal = 'admin';
             } else {
                 portal = 'storefront';
             }
@@ -303,32 +342,69 @@ export class NotificationsService {
 
         webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey);
 
-        // Find all active subscriptions for this user matching the target portal/role
-        const where: any = { userId: payload.userId, isActive: true };
+        // Find active subscriptions for this user
+        let subscriptions = await this.connection.getRepository(ctx, PushSubscription).find({
+            where: { userId: payload.userId, isActive: true },
+        });
+
+        // Target the appropriate subscriptions based on role/portal
         if (payload.targetRole === 'VENDOR') {
-            where.portal = 'seller';
+            subscriptions = subscriptions.filter((s: any) => {
+                const p = (s.portal || '').toLowerCase();
+                return p === 'seller' || p === 'vendor' || !p;
+            });
         } else if (payload.targetRole === 'CUSTOMER') {
-            where.portal = In(['storefront', 'shop', 'customer']);
+            subscriptions = subscriptions.filter((s: any) => {
+                const p = (s.portal || '').toLowerCase();
+                return p === 'storefront' || p === 'shop' || p === 'customer' || !p;
+            });
+        } else if (payload.targetRole === 'ADMIN') {
+            subscriptions = subscriptions.filter((s: any) => {
+                const p = (s.portal || '').toLowerCase();
+                return p === 'admin' || p === 'dashboard' || p === 'superadmin' || !p;
+            });
         }
 
-        const subscriptions = await this.connection.getRepository(ctx, PushSubscription).find({
-            where,
-        });
+        // Deduplicate subscriptions by endpoint
+        const uniqueSubsMap = new Map<string, any>();
+        for (const sub of subscriptions) {
+            if (sub.endpoint && !uniqueSubsMap.has(sub.endpoint)) {
+                uniqueSubsMap.set(sub.endpoint, sub);
+            }
+        }
+        subscriptions = Array.from(uniqueSubsMap.values());
 
         if (!subscriptions || subscriptions.length === 0) {
             return;
         }
 
+        // Resolve absolute URL for the destination portal
+        const sellerBase = process.env.SELLER_URL || (process.env.CORS_ORIGINS?.includes('seller.ahizan.com') ? 'https://seller.ahizan.com' : 'http://localhost:3002');
+        const adminBase = process.env.ADMIN_URL || (process.env.CORS_ORIGINS?.includes('administrator.ahizan.com') ? 'https://administrator.ahizan.com' : 'http://localhost:3000');
+        const storefrontBase = process.env.STOREFRONT_URL || (process.env.CORS_ORIGINS?.includes('https://ahizan.com') ? 'https://ahizan.com' : 'http://localhost:3001');
+
+        let targetUrl = payload.actionUrl || '/';
+        if (targetUrl.startsWith('/')) {
+            if (payload.targetRole === 'VENDOR') {
+                targetUrl = `${sellerBase}${targetUrl}`;
+            } else if (payload.targetRole === 'ADMIN') {
+                const adminPath = targetUrl.startsWith('/admin') ? targetUrl : `/admin${targetUrl}`;
+                targetUrl = `${adminBase}${adminPath}`;
+            } else if (payload.targetRole === 'CUSTOMER') {
+                targetUrl = `${storefrontBase}${targetUrl}`;
+            }
+        }
+
         const pushPayload = JSON.stringify({
             title: payload.title,
             body: payload.body,
-            icon: payload.iconUrl || '/icon.png',
-            url: payload.actionUrl || '/',
+            icon: payload.iconUrl || (payload.targetRole === 'VENDOR' ? '/icons/seller-icon-192x192-white.png' : '/icons/icon-192x192-white.png'),
+            url: targetUrl,
             data: payload.data,
         });
 
-        await Promise.allSettled(
-            subscriptions.map(async (sub) => {
+        const results = await Promise.allSettled(
+            subscriptions.map(async (sub: any) => {
                 try {
                     await webpush.sendNotification(
                         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -351,6 +427,9 @@ export class NotificationsService {
                 }
             })
         );
+
+        const succeeded = results.filter((r: any) => r.status === 'fulfilled').length;
+        this.logger.log(`Web push dispatched for ${payload.targetRole || 'USER'} ${payload.userId}: ${succeeded}/${subscriptions.length} devices reached`);
     }
 
     // ─────────────────────────────────────────────

@@ -223,43 +223,17 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
         setVariantOffers(prev => prev.filter(v => v.id !== id));
     };
 
-    // Handle variant image crop & upload
-    const [cropState, setCropState] = useState<{
-        variantId: string;
-        imageSrc: string;
-        file: File;
-    } | null>(null);
-
-    const handleVariantFileChange = (variantId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleVariantFileChange = async (variantId: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith('image/')) {
             toast.error('Veuillez sélectionner un fichier image');
             return;
         }
-        const reader = new FileReader();
-        reader.onload = () => {
-            setCropState({
-                variantId,
-                imageSrc: reader.result as string,
-                file,
-            });
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-    };
-
-    const handleCropComplete = async (croppedBlob: Blob) => {
-        if (!cropState) return;
-        const variantId = cropState.variantId;
-        const sourceFile = cropState.file;
         setUploadingVariantId(variantId);
-        setCropState(null);
-
         try {
-            const croppedFile = new File([croppedBlob], sourceFile.name, { type: 'image/jpeg' });
             const formData = new FormData();
-            formData.append('file', croppedFile);
+            formData.append('file', file);
             const res = await uploadFileAction(formData);
 
             if (res.success && res.asset) {
@@ -268,7 +242,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                         ? { ...v, featuredAssetId: res.asset.id, featuredAssetPreview: res.asset.preview } 
                         : v
                 ));
-                toast.success('Visuel de la déclinaison cadré et mis à jour');
+                toast.success('Visuel de la déclinaison mis à jour');
             } else {
                 toast.error(res.error || 'Erreur lors du téléversement');
             }
@@ -276,6 +250,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
             toast.error(err.message || 'Erreur lors du téléversement');
         } finally {
             setUploadingVariantId(null);
+            e.target.value = '';
         }
     };
 
@@ -1091,21 +1066,6 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                     )}
                 </Button>
             </div>
-
-            {/* Variant Image Crop Modal */}
-            {cropState && (
-                <ImageCropModal
-                    isOpen={!!cropState}
-                    imageSrc={cropState.imageSrc}
-                    onClose={() => setCropState(null)}
-                    onCropComplete={handleCropComplete}
-                    onSkipCropping={() => {
-                        const file = cropState.file;
-                        handleCropComplete(file);
-                    }}
-                />
-            )}
-
         </form>
     );
 }

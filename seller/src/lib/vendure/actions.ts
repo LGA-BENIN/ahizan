@@ -508,4 +508,95 @@ export async function getMyWithdrawals() {
     }
 }
 
+export async function getPendingVendorOrdersAction() {
+    const token = await getAuthToken();
+    if (!token) return [];
+    try {
+        const result = await query(
+            `query GetPendingOrdersForVendor {
+                myVendorOrders(options: { take: 20, sort: { createdAt: DESC } }) {
+                    items {
+                        id
+                        code
+                        state
+                        totalWithTax
+                        currencyCode
+                        createdAt
+                        customFields {
+                            sellerStatus
+                            adminStatus
+                        }
+                        lines {
+                            id
+                            linePriceWithTax
+                            unitPriceWithTax
+                            quantity
+                            productVariant {
+                                name
+                            }
+                            customFields {
+                                sellerStatus
+                            }
+                        }
+                    }
+                    totalItems
+                }
+            }`,
+            undefined,
+            { token, useAuthToken: true }
+        );
+
+        const rawOrders = (result.data as any)?.myVendorOrders?.items || [];
+        
+        // Filter orders awaiting seller action
+        const pendingOrders = rawOrders.filter((order: any) => {
+            if (!order || order.state === 'AddingItems' || order.state === 'ArrangingPayment' || order.state === 'Cancelled') {
+                return false;
+            }
+            if (order.state === 'Shipped' || order.state === 'Delivered') {
+                return false;
+            }
+            const sStatus = order.customFields?.sellerStatus;
+            if (sStatus === 'confirmed' || sStatus === 'ready_for_pickup' || sStatus === 'refused' || sStatus === 'reassigned_to_other' || sStatus === 'cancelled') {
+                return false;
+            }
+            // Check lines
+            const lines = order.lines || [];
+            if (lines.length === 0) return true;
+            return lines.some((l: any) => {
+                const ls = l.customFields?.sellerStatus;
+                return !ls || ls === 'pending';
+            });
+        });
+
+        return pendingOrders.map((order: any) => {
+            const lines = order.lines || [];
+            const validLines = lines.filter((l: any) => {
+                const ls = l.customFields?.sellerStatus;
+                return !ls || ls === 'pending';
+            });
+            const vendorTotal = validLines.reduce((sum: number, l: any) => {
+                return sum + (l.linePriceWithTax || ((l.unitPriceWithTax || 0) * (l.quantity || 1)) || 0);
+            }, 0) || order.totalWithTax || 0;
+
+            return {
+                id: order.id,
+                code: order.code,
+                createdAt: order.createdAt,
+                currencyCode: order.currencyCode || 'XOF',
+                totalWithTax: vendorTotal,
+                itemCount: validLines.length || lines.length || 1,
+                itemsSummary: validLines
+                    .map((l: any) => l.productVariant?.name)
+                    .filter(Boolean)
+                    .slice(0, 3),
+            };
+        });
+    } catch (err) {
+        console.error('[getPendingVendorOrdersAction] Error:', err);
+        return [];
+    }
+}
+
+
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Search, MessageSquare, Loader2, User, RefreshCw, Mail, Info, Pencil, Trash2, Paperclip, Image, X, CornerUpLeft } from 'lucide-react';
+import { Send, Search, MessageSquare, Loader2, User, RefreshCw, Mail, Info, Pencil, Trash2, Paperclip, Image, X, CornerUpLeft, ChevronLeft } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -374,7 +374,7 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
             <div className="flex flex-1 overflow-hidden h-full">
                 
                 {/* Left Panel: Conversations List */}
-                <div className="w-full md:w-[340px] border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col h-full flex-shrink-0">
+                <div className={`w-full md:w-[340px] border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col h-full flex-shrink-0 ${activeConversation ? 'hidden md:flex' : 'flex'}`}>
                     {/* Panel Header */}
                     <div className="p-4 border-b border-slate-150 dark:border-slate-850 space-y-3">
                         <div className="flex justify-between items-center">
@@ -464,7 +464,7 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
                 </div>
 
                 {/* Right Panel: Conversation Details & Chat History */}
-                <div className="flex-grow flex flex-col h-full bg-slate-50/20 dark:bg-slate-900/10">
+                <div className={`flex-grow flex flex-col h-full bg-slate-50/20 dark:bg-slate-900/10 ${activeConversation ? 'flex' : 'hidden md:flex'}`}>
                     {!activeConversation ? (
                         /* Empty State */
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400">
@@ -482,14 +482,25 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
                         /* Chat Active View */
                         <div className="flex-1 flex flex-col h-full overflow-hidden">
                             {/* Chat Header */}
-                            <div className="px-6 py-3.5 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
-                                <div className="min-w-0">
-                                    <h3 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight truncate">
-                                        {activeConversation.customer.firstName ? `${activeConversation.customer.firstName} ${activeConversation.customer.lastName}` : "Client Anonyme"}
-                                    </h3>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-semibold">
-                                        <Mail className="h-3.5 w-3.5 text-slate-400" />
-                                        <span className="truncate">{activeConversation.customer.emailAddress || "Aucun email"}</span>
+                            <div className="px-4 sm:px-6 py-3.5 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveConversation(null)}
+                                        className="p-1.5 -ml-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition md:hidden shrink-0"
+                                        aria-label="Retour aux discussions"
+                                        title="Retour"
+                                    >
+                                        <ChevronLeft className="h-5 w-5" />
+                                    </button>
+                                    <div className="min-w-0">
+                                        <h3 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight truncate">
+                                            {activeConversation.customer.firstName ? `${activeConversation.customer.firstName} ${activeConversation.customer.lastName}` : "Client Anonyme"}
+                                        </h3>
+                                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-semibold">
+                                            <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                            <span className="truncate">{activeConversation.customer.emailAddress || "Aucun email"}</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
@@ -499,7 +510,7 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
                             </div>
 
                             {/* Chat Messages Stream */}
-                            <div className="flex-grow overflow-y-auto p-6 space-y-4 bg-slate-50/40 dark:bg-slate-900/20">
+                            <div className="flex-grow overflow-y-auto p-3.5 sm:p-6 space-y-4 bg-slate-50/40 dark:bg-slate-900/20">
                                 {isHistoryLoading ? (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
                                         <Loader2 className="h-7 w-7 animate-spin text-primary" />
@@ -530,7 +541,7 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
                                                      key={msg.id} 
                                                      className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}
                                                  >
-                                                     <div className="flex flex-col max-w-[75%] sm:max-w-[70%] animate-in fade-in duration-200">
+                                                     <div className="flex flex-col max-w-[85%] sm:max-w-[70%] animate-in fade-in duration-200">
                                                          {msg.sender === 'SUPERADMIN' && (
                                                              <span className="text-[10px] text-amber-600 dark:text-amber-450 font-extrabold mb-1 ml-1 uppercase tracking-wide flex items-center gap-1 select-none">
                                                                  <Info className="h-3 w-3" /> Message de l'administrateur
@@ -740,7 +751,7 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
                             {/* Chat Input Footer */}
                             <form 
                                 onSubmit={handleSendReply}
-                                className="p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex gap-2 items-center"
+                                className="p-2.5 sm:p-4 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex gap-2 items-center"
                             >
                                 {/* File upload button */}
                                 <input
@@ -774,13 +785,13 @@ export function MessagesClient({ initialConversations }: MessagesClientProps) {
                                 <Button
                                     type="submit"
                                     disabled={(!replyText.trim() && !uploadedFile) || isSending || isHistoryLoading}
-                                    className="h-10 px-4 bg-primary hover:bg-red-700 text-white font-bold rounded-xl text-xs flex gap-2 items-center shadow-md shadow-primary/20 transition-all shrink-0"
+                                    className="h-10 px-3 sm:px-4 bg-primary hover:bg-red-700 text-white font-bold rounded-xl text-xs flex gap-1.5 sm:gap-2 items-center shadow-md shadow-primary/20 transition-all shrink-0"
                                 >
                                     {isSending ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                         <>
-                                            <span>Envoyer</span>
+                                            <span className="hidden sm:inline">Envoyer</span>
                                             <Send className="h-3.5 w-3.5" />
                                         </>
                                     )}

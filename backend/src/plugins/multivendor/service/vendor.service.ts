@@ -1631,7 +1631,7 @@ export class VendorService implements OnApplicationBootstrap {
                         eventType: 'VENDOR_EVENT',
                         title: 'Nouvelle Vente (Réassignation) !',
                         body: `Félicitations ! Une commande #${order.code} vous a été réassignée.`,
-                        actionUrl: `/dashboard/orders`,
+                        actionUrl: `/dashboard/orders/${order.id}`,
                         channels: ['IN_APP', 'PUSH'],
                         targetRole: 'VENDOR'
                     });
@@ -2887,7 +2887,7 @@ export class VendorService implements OnApplicationBootstrap {
                             eventType: 'VENDOR_EVENT',
                             title: 'Nouvelle Vente (Réassignation) !',
                             body: `Félicitations ! Une commande #${order.code} vous a été réassignée.`,
-                            actionUrl: `/dashboard/orders`,
+                            actionUrl: `/dashboard/orders/${order.id}`,
                             channels: ['IN_APP', 'PUSH'],
                             targetRole: 'VENDOR'
                         });
@@ -3067,7 +3067,7 @@ export class VendorService implements OnApplicationBootstrap {
                             eventType: 'VENDOR_EVENT',
                             title: notifTitle,
                             body: notifBody,
-                            actionUrl: `/dashboard/orders`,
+                            actionUrl: `/dashboard/orders/${order.id}`,
                             channels: ['IN_APP', 'PUSH'],
                             targetRole: 'VENDOR'
                         });

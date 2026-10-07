@@ -404,240 +404,290 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
     private subscribeToOrderEvents() {
         this.eventBus.ofType(OrderStateTransitionEvent).subscribe(async (event) => {
             const settings = await this.smsService.getSettings();
-            if (!settings?.channelsConfig) return;
-
             const { order, fromState, toState } = event;
 
-            // ── Acheteur : Commande Confirmée ──
+            // ── 1. ACHETEUR : Commande Confirmée ──
             if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
-                // Skip duplicate notification if transition is PaymentAuthorized -> PaymentSettled
-                if (fromState === 'PaymentAuthorized' && toState === 'PaymentSettled') {
-                    return;
-                }
-
-                // Strict DB Deduplication: Do not process order if already notified in last 120 seconds
                 try {
-                    const dupCheck: { count: string }[] = await this.connection.rawConnection.query(`
-                        SELECT count(*)::int as count 
-                        FROM notification_log 
-                        WHERE body LIKE $1 AND "createdAt" > NOW() - INTERVAL '120 seconds'
-                    `, [`%${order.code}%`]);
-                    if (dupCheck && parseInt(dupCheck[0]?.count, 10) > 0) {
-                        return;
+                    let shouldNotifyBuyer = true;
+                    // Skip buyer duplicate notification if transition is PaymentAuthorized -> PaymentSettled
+                    if (fromState === 'PaymentAuthorized' && toState === 'PaymentSettled') {
+                        shouldNotifyBuyer = false;
                     }
-                } catch (dupErr) {}
-                let buyerUserId = order.customer?.user?.id;
-                let isGuest = !buyerUserId;
 
-                if (!buyerUserId && order.customer?.id) {
-                    const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
-                        where: { id: order.customer.id },
-                        relations: ['user']
-                    });
-                    buyerUserId = customer?.user?.id;
-                    if (!customer?.user) {
-                        isGuest = true;
+                    // Strict DB Deduplication for Buyer: Do not process if already notified in last 120s
+                    if (shouldNotifyBuyer) {
+                        try {
+                            const dupCheck: { count: string }[] = await this.connection.rawConnection.query(`
+                                SELECT count(*)::int as count 
+                                FROM notification_log 
+                                WHERE "targetRole" = 'CUSTOMER' AND body LIKE $1 AND "createdAt" > NOW() - INTERVAL '120 seconds'
+                            `, [`%${order.code}%`]);
+                            if (dupCheck && parseInt(dupCheck[0]?.count, 10) > 0) {
+                                shouldNotifyBuyer = false;
+                            }
+                        } catch (dupErr) {}
                     }
-                }
 
-                // Determine if we should use GuestOrderConfirmed or OrderConfirmed
-                const guestConfig = settings.channelsConfig?.GuestOrderConfirmed;
-                const standardConfig = settings.channelsConfig?.OrderConfirmed;
-                const config = (isGuest && guestConfig?.enabled) ? guestConfig : standardConfig;
+                    if (shouldNotifyBuyer && settings?.channelsConfig) {
+                        let buyerUserId = order.customer?.user?.id;
+                        let isGuest = !buyerUserId;
 
-                if (config?.enabled) {
-                    const phone = order.customer?.phoneNumber;
-                    const email = order.customer?.emailAddress || '';
-                    const sfUrl = process.env.STOREFRONT_URL || 'https://ahizan.com';
-                    const trackUrl = `${sfUrl}/track-order?code=${order.code}&email=${encodeURIComponent(email)}`;
-                    const signupUrl = `${process.env.AUTH_URL || 'https://auth.ahizan.com'}/register?email=${encodeURIComponent(email)}&notice=track-order&redirectTo=${encodeURIComponent(`${sfUrl}/account/orders/${order.code}`)}`;
-                    const vars = { 
-                        orderCode: order.code, 
-                        firstName: order.customer?.firstName || '',
-                        lastName: order.customer?.lastName || '',
-                        email: email,
-                        trackUrl: trackUrl,
-                        signupUrl: trackUrl,
-                        signupLink: trackUrl,
-                    };
-
-                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
-                        const content = this.smsService.interpolate(config.smsTemplate, vars);
-                        await this.smsService.sendSms(phone, content, settings);
-                    }
-                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
-                        const subject = this.smsService.interpolate(config.emailSubject || 'Commande Confirmée', vars);
-                        const content = this.smsService.interpolate(config.emailTemplate, vars);
-                        await this.smsService.sendTransactionalEmail(email, subject, content, settings);
-                    }
-                }
-
-                // In-App/Push notification to Buyer if registered
-                if (buyerUserId) {
-                    let buyerChannels: ('IN_APP' | 'PUSH')[] = ['IN_APP', 'PUSH'];
-                    try {
-                        const vRows: { user_id: string }[] = await this.connection.rawConnection.query(`
-                            SELECT DISTINCT v."userId" as user_id
-                            FROM order_line ol
-                            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
-                            INNER JOIN product p ON pv."productId" = p.id
-                            INNER JOIN vendor v ON (p."customFieldsVendorid" = v.id OR ol."sellerChannelId" = v."channelId")
-                            WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1)) AND v."userId" IS NOT NULL
-                        `, [order.id]);
-                        const vUserIds = vRows.map(v => v.user_id?.toString()).filter(Boolean);
-                        if (vUserIds.includes(buyerUserId.toString())) {
-                            buyerChannels = ['IN_APP'];
+                        if (!buyerUserId && order.customer?.id) {
+                            const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
+                                where: { id: order.customer.id },
+                                relations: ['user']
+                            });
+                            buyerUserId = customer?.user?.id;
+                            if (!customer?.user) {
+                                isGuest = true;
+                            }
                         }
-                    } catch (e) {}
 
-                    await this.sendInAppAndPushNotification(
-                        event.ctx,
-                        buyerUserId.toString(),
-                        `Commande Confirmée`,
-                        `Votre commande ${order.code} a été confirmée avec succès.`,
-                        `/account/orders/${order.code}`,
-                        undefined,
-                        'BUYER_EVENT',
-                        buyerChannels,
-                        'CUSTOMER',
-                    );
+                        // Determine if we should use GuestOrderConfirmed or OrderConfirmed
+                        const guestConfig = settings.channelsConfig?.GuestOrderConfirmed;
+                        const standardConfig = settings.channelsConfig?.OrderConfirmed;
+                        const config = (isGuest && guestConfig?.enabled) ? guestConfig : standardConfig;
+
+                        if (config?.enabled) {
+                            const phone = order.customer?.phoneNumber;
+                            const email = order.customer?.emailAddress || '';
+                            const sfUrl = process.env.STOREFRONT_URL || 'https://ahizan.com';
+                            const trackUrl = `${sfUrl}/track-order?code=${order.code}&email=${encodeURIComponent(email)}`;
+                            const signupUrl = `${process.env.AUTH_URL || 'https://auth.ahizan.com'}/register?email=${encodeURIComponent(email)}&notice=track-order&redirectTo=${encodeURIComponent(`${sfUrl}/account/orders/${order.code}`)}`;
+                            const vars = { 
+                                orderCode: order.code, 
+                                firstName: order.customer?.firstName || '',
+                                lastName: order.customer?.lastName || '',
+                                email: email,
+                                trackUrl: trackUrl,
+                                signupUrl: trackUrl,
+                                signupLink: trackUrl,
+                            };
+
+                            if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                                const content = this.smsService.interpolate(config.smsTemplate, vars);
+                                await this.smsService.sendSms(phone, content, settings);
+                            }
+                            if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                                const subject = this.smsService.interpolate(config.emailSubject || 'Commande Confirmée', vars);
+                                const content = this.smsService.interpolate(config.emailTemplate, vars);
+                                await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                            }
+                        }
+
+                        // In-App & Web Push notification to Buyer
+                        if (buyerUserId) {
+                            await this.sendInAppAndPushNotification(
+                                event.ctx,
+                                buyerUserId.toString(),
+                                `Commande Confirmée`,
+                                `Votre commande ${order.code} a été confirmée avec succès.`,
+                                `/account/orders/${order.code}`,
+                                undefined,
+                                'BUYER_EVENT',
+                                ['IN_APP', 'PUSH'],
+                                'CUSTOMER',
+                            );
+                        }
+                    }
+                } catch (buyerErr: any) {
+                    this.logger.error(`Erreur notification acheteur sur commande #${order.code}: ${buyerErr?.message || buyerErr}`);
                 }
+            }
 
-                // ── Notification Push & In-App aux SuperAdmins sur chaque vente ──
+            // ── 2. SUPERADMIN : Notification Push & In-App sur chaque vente ──
+            if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled') {
                 try {
-                    const formattedTotal = Number(order.totalWithTax).toLocaleString('fr-FR');
-                    await this.notificationsService.notifySuperAdmins(event.ctx, {
-                        eventType: 'NEW_ORDER_ADMIN',
-                        title: `Nouvelle vente ! 🎉`,
-                        body: `Commande #${order.code} d'un montant de ${formattedTotal} FCFA enregistrée sur la plateforme.`,
-                        actionUrl: `/orders/${order.id}`,
-                        channels: ['IN_APP', 'PUSH'],
-                    });
+                    // Check if superadmins were already notified for this order recently
+                    let shouldNotifyAdmin = true;
+                    if (fromState === 'PaymentAuthorized' && toState === 'PaymentSettled') {
+                        shouldNotifyAdmin = false;
+                    }
+                    if (shouldNotifyAdmin) {
+                        try {
+                            const adminDup = await this.connection.rawConnection.query(`
+                                SELECT count(*)::int as count 
+                                FROM notification_log 
+                                WHERE "targetRole" = 'ADMIN' AND body LIKE $1 AND "createdAt" > NOW() - INTERVAL '120 seconds'
+                            `, [`%${order.code}%`]);
+                            if (adminDup && parseInt(adminDup[0]?.count, 10) > 0) {
+                                shouldNotifyAdmin = false;
+                            }
+                        } catch (_) {}
+                    }
+
+                    if (shouldNotifyAdmin) {
+                        const formattedTotal = Number(order.totalWithTax).toLocaleString('fr-FR');
+                        await this.notificationsService.notifySuperAdmins(event.ctx, {
+                            eventType: 'NEW_ORDER_ADMIN',
+                            title: `Nouvelle vente ! 🎉`,
+                            body: `Commande #${order.code} d'un montant de ${formattedTotal} FCFA enregistrée sur la plateforme.`,
+                            actionUrl: `/orders/${order.id}`,
+                            channels: ['IN_APP', 'PUSH'],
+                        });
+                    }
                 } catch (adminErr: any) {
-                    this.logger.error(`Erreur notification superadmin sur vente #${order.code}: ${adminErr.message}`);
+                    this.logger.error(`Erreur notification superadmin sur vente #${order.code}: ${adminErr?.message || adminErr}`);
                 }
             }
 
-            // ── Acheteur : Commande Annulée ──
+            // ── 3. ACHETEUR : Commande Annulée ──
             if (toState === 'Cancelled') {
-                const config = settings.channelsConfig?.OrderCancelled;
-                const phone = order.customer?.phoneNumber;
-                const email = order.customer?.emailAddress;
-                const vars = { orderCode: order.code, firstName: order.customer?.firstName || '' };
-
-                if (config?.enabled) {
-                    if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
-                        const content = this.smsService.interpolate(config.smsTemplate, vars);
-                        await this.smsService.sendSms(phone, content, settings);
-                    }
-                    if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
-                        const subject = this.smsService.interpolate(config.emailSubject || 'Commande Annulée', vars);
-                        const content = this.smsService.interpolate(config.emailTemplate, vars);
-                        await this.smsService.sendTransactionalEmail(email, subject, content, settings);
-                    }
-                } else if (phone) {
-                    const content = `Votre commande ${order.code} a été annulée. Contactez-nous pour plus d'informations.`;
-                    await this.smsService.sendSms(phone, content, settings);
-                }
-
-                // In-App/Push notification to Buyer
-                let buyerUserId = order.customer?.user?.id;
-                if (!buyerUserId && order.customer?.id) {
-                    const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
-                        where: { id: order.customer.id },
-                        relations: ['user']
-                    });
-                    buyerUserId = customer?.user?.id;
-                }
-                if (buyerUserId) {
-                    await this.sendInAppAndPushNotification(
-                        event.ctx,
-                        buyerUserId.toString(),
-                        `Commande Annulée`,
-                        `Votre commande ${order.code} a été annulée.`,
-                        `/account/orders/${order.code}`,
-                        undefined,
-                        'BUYER_EVENT',
-                        undefined,
-                        'CUSTOMER',
-                    );
-                }
-            }
-
-            // ── Vendeur : Notification de Nouvelle Vente ──
-            if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled' || toState === 'ArrangingPayment') {
-                let buyerUserIdForVendorCheck: string | undefined;
                 try {
-                    let bUid = order.customer?.user?.id;
-                    if (!bUid && order.customer?.id) {
-                        const cust = await this.connection.rawConnection.getRepository(Customer).findOne({
+                    if (settings?.channelsConfig) {
+                        const config = settings.channelsConfig?.OrderCancelled;
+                        const phone = order.customer?.phoneNumber;
+                        const email = order.customer?.emailAddress;
+                        const vars = { orderCode: order.code, firstName: order.customer?.firstName || '' };
+
+                        if (config?.enabled) {
+                            if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
+                                const content = this.smsService.interpolate(config.smsTemplate, vars);
+                                await this.smsService.sendSms(phone, content, settings);
+                            }
+                            if ((config.channel === 'EMAIL' || config.channel === 'BOTH') && email && config.emailTemplate) {
+                                const subject = this.smsService.interpolate(config.emailSubject || 'Commande Annulée', vars);
+                                const content = this.smsService.interpolate(config.emailTemplate, vars);
+                                await this.smsService.sendTransactionalEmail(email, subject, content, settings);
+                            }
+                        } else if (phone) {
+                            const content = `Votre commande ${order.code} a été annulée. Contactez-nous pour plus d'informations.`;
+                            await this.smsService.sendSms(phone, content, settings);
+                        }
+                    }
+
+                    // In-App/Push notification to Buyer
+                    let buyerUserId = order.customer?.user?.id;
+                    if (!buyerUserId && order.customer?.id) {
+                        const customer = await this.connection.rawConnection.getRepository(Customer).findOne({
                             where: { id: order.customer.id },
                             relations: ['user']
                         });
-                        bUid = cust?.user?.id;
+                        buyerUserId = customer?.user?.id;
                     }
-                    if (bUid) buyerUserIdForVendorCheck = bUid.toString();
-                } catch (_) {}
+                    if (buyerUserId) {
+                        await this.sendInAppAndPushNotification(
+                            event.ctx,
+                            buyerUserId.toString(),
+                            `Commande Annulée`,
+                            `Votre commande ${order.code} a été annulée.`,
+                            `/account/orders/${order.code}`,
+                            undefined,
+                            'BUYER_EVENT',
+                            undefined,
+                            'CUSTOMER',
+                        );
+                    }
+                } catch (cancelErr: any) {
+                    this.logger.error(`Erreur notification annulation sur commande #${order.code}: ${cancelErr?.message || cancelErr}`);
+                }
+            }
 
+            // ── 4. VENDEURS : Notification de Nouvelle Vente ──
+            if (toState === 'PaymentAuthorized' || toState === 'PaymentSettled' || toState === 'ArrangingPayment') {
                 try {
                     let vendorRows: { vendor_id: string; vendor_name: string; phone_number: string; email: string; user_id: string; channel_id: string }[] = [];
-                try {
-                    vendorRows = await this.connection.rawConnection.query(`
-                        SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id, v."channelId" as channel_id
-                        FROM order_line ol
-                        INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
-                        INNER JOIN product p ON pv."productId" = p.id
-                        INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid")
-                        WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
-                          AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
-                          AND v.id IS NOT NULL
-                    `, [order.id]);
-                } catch (err1) {
                     try {
                         vendorRows = await this.connection.rawConnection.query(`
                             SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id, v."channelId" as channel_id
                             FROM order_line ol
                             INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
                             INNER JOIN product p ON pv."productId" = p.id
-                            INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorId", p."customFieldsVendorId")
-                            WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
-                              AND COALESCE(ol."customFieldsSellerStatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
-                              AND v.id IS NOT NULL
-                        `, [order.id]);
-                    } catch (err2: any) {
-                        console.error('[notification-event.subscriber] Failed to fetch vendorRows:', err2?.message || err2);
-                    }
-                }
-
-                const config = settings.channelsConfig?.NewOrderVendor;
-
-                for (const v of vendorRows) {
-                    // CRITICAL: If this vendor IS the buyer (same userId), skip seller alert
-                    if (buyerUserIdForVendorCheck && v.user_id && v.user_id.toString() === buyerUserIdForVendorCheck) {
-                        continue;
-                    }
-
-                    // Extract items specific to this vendor
-                    let vendorItems: { product_name: string; quantity: number; line_price: number }[] = [];
-                    try {
-                        vendorItems = await this.connection.rawConnection.query(`
-                            SELECT 
-                                COALESCE(pvt.name, pt.name, 'Article') as product_name,
-                                ol.quantity,
-                                (ol."listPrice" * ol.quantity) as line_price
-                            FROM order_line ol
-                            INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
-                            LEFT JOIN product_variant_translation pvt ON pvt."baseId" = pv.id
-                            INNER JOIN product p ON pv."productId" = p.id
-                            LEFT JOIN product_translation pt ON pt."baseId" = p.id
-                            INNER JOIN vendor v ON v.id = COALESCE(ol."customFieldsAssignedvendorid", p."customFieldsVendorid")
+                            LEFT JOIN vendor v ON (
+                                v.id = ol."customFieldsAssignedvendorid" 
+                                OR v.id = p."customFieldsVendorid"
+                                OR (ol."sellerChannelId" IS NOT NULL AND v."channelId" = ol."sellerChannelId")
+                            )
                             WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
                               AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
-                              AND v.id = $2
-                        `, [order.id, v.vendor_id]);
-                    } catch (errItem1: any) {
-                        console.error('[notification-event.subscriber] Failed to fetch vendorItems:', errItem1?.message || errItem1);
+                              AND v.id IS NOT NULL
+                        `, [order.id]);
+                    } catch (err1) {
+                        try {
+                            vendorRows = await this.connection.rawConnection.query(`
+                                SELECT DISTINCT v.id as vendor_id, v.name as vendor_name, v."phoneNumber" as phone_number, v.email, v."userId" as user_id, v."channelId" as channel_id
+                                FROM order_line ol
+                                INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                                INNER JOIN product p ON pv."productId" = p.id
+                                LEFT JOIN vendor v ON (
+                                    v.id = ol."customFieldsAssignedvendorId" 
+                                    OR v.id = p."customFieldsVendorId"
+                                    OR (ol."sellerChannelId" IS NOT NULL AND v."channelId" = ol."sellerChannelId")
+                                )
+                                WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                                  AND COALESCE(ol."customFieldsSellerStatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                                  AND v.id IS NOT NULL
+                            `, [order.id]);
+                        } catch (err2: any) {
+                            console.error('[notification-event.subscriber] Failed to fetch vendorRows:', err2?.message || err2);
+                        }
                     }
+
+                    const config = settings?.channelsConfig?.NewOrderVendor;
+
+                    for (const v of vendorRows) {
+                        // Per-vendor deduplication: check if this vendor user was already notified for this order in last 90s
+                        if (v.user_id) {
+                            try {
+                                const vDup = await this.connection.rawConnection.query(`
+                                    SELECT count(*)::int as count 
+                                    FROM notification_log 
+                                    WHERE "userId" = $1 AND "targetRole" = 'VENDOR' AND body LIKE $2 AND "createdAt" > NOW() - INTERVAL '90 seconds'
+                                `, [v.user_id.toString(), `%${order.code}%`]);
+                                if (vDup && parseInt(vDup[0]?.count, 10) > 0) {
+                                    continue;
+                                }
+                            } catch (_) {}
+                        }
+
+                        // Extract items specific to this vendor
+                        let vendorItems: { product_name: string; quantity: number; line_price: number }[] = [];
+                        try {
+                            vendorItems = await this.connection.rawConnection.query(`
+                                SELECT 
+                                    COALESCE(pvt.name, pt.name, 'Article') as product_name,
+                                    ol.quantity,
+                                    (ol."listPrice" * ol.quantity) as line_price
+                                FROM order_line ol
+                                INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                                LEFT JOIN product_variant_translation pvt ON pvt."baseId" = pv.id
+                                INNER JOIN product p ON pv."productId" = p.id
+                                LEFT JOIN product_translation pt ON pt."baseId" = p.id
+                                LEFT JOIN vendor v ON (
+                                    v.id = ol."customFieldsAssignedvendorid" 
+                                    OR v.id = p."customFieldsVendorid"
+                                    OR (ol."sellerChannelId" IS NOT NULL AND v."channelId" = ol."sellerChannelId")
+                                )
+                                WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                                  AND COALESCE(ol."customFieldsSellerstatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                                  AND v.id = $2
+                            `, [order.id, v.vendor_id]);
+                        } catch (errItem1: any) {
+                            try {
+                                vendorItems = await this.connection.rawConnection.query(`
+                                    SELECT 
+                                        COALESCE(pvt.name, pt.name, 'Article') as product_name,
+                                        ol.quantity,
+                                        (ol."listPrice" * ol.quantity) as line_price
+                                    FROM order_line ol
+                                    INNER JOIN product_variant pv ON ol."productVariantId" = pv.id
+                                    LEFT JOIN product_variant_translation pvt ON pvt."baseId" = pv.id
+                                    INNER JOIN product p ON pv."productId" = p.id
+                                    LEFT JOIN product_translation pt ON pt."baseId" = p.id
+                                    LEFT JOIN vendor v ON (
+                                        v.id = ol."customFieldsAssignedvendorId" 
+                                        OR v.id = p."customFieldsVendorId"
+                                        OR (ol."sellerChannelId" IS NOT NULL AND v."channelId" = ol."sellerChannelId")
+                                    )
+                                    WHERE (ol."orderId" = $1 OR ol."orderId" IN (SELECT id FROM "order" WHERE "aggregateOrderId" = $1))
+                                      AND COALESCE(ol."customFieldsSellerStatus", 'pending') NOT IN ('refused', 'reassigned_to_other')
+                                      AND v.id = $2
+                                `, [order.id, v.vendor_id]);
+                            } catch (errItem2: any) {
+                                console.error('[notification-event.subscriber] Failed to fetch vendorItems:', errItem2?.message || errItem2);
+                            }
+                        }
 
                         const vendorTotal = vendorItems.reduce((acc, curr) => acc + parseInt(curr.line_price as any || '0', 10), 0);
                         const formattedVendorTotal = Number(vendorTotal).toLocaleString('fr-FR');
@@ -662,7 +712,7 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                         const phone = v.phone_number;
                         const email = v.email;
 
-                        if (config?.enabled) {
+                        if (settings && config?.enabled) {
                             if ((config.channel === 'SMS' || config.channel === 'BOTH') && phone && config.smsTemplate) {
                                 const content = this.smsService.interpolate(config.smsTemplate, vars);
                                 await this.smsService.sendSms(phone, content, settings);
@@ -681,20 +731,19 @@ export class NotificationEventSubscriber implements OnApplicationBootstrap {
                                 v.user_id.toString(),
                                 `Nouvelle Vente ! 🎉`,
                                 `Félicitations ! Vous avez reçu une commande #${order.code} d'un montant de ${formattedVendorTotal} FCFA.`,
-                                `/dashboard/orders`,
+                                `/dashboard/orders/${order.id}`,
                                 undefined,
                                 'VENDOR_EVENT',
-                                undefined,
+                                ['IN_APP', 'PUSH'],
                                 'VENDOR',
                                 v.channel_id ? parseInt(v.channel_id, 10) : undefined,
                             );
                         }
                     }
                 } catch (e: any) {
-                    this.logger.error(`Failed to notify sellers for order ${order.code}: ${e.message}`);
+                    this.logger.error(`Failed to notify sellers for order ${order.code}: ${e?.message || e}`);
                 }
             }
-
         });
     }
 

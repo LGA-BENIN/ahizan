@@ -42,6 +42,7 @@ import { Input } from '@/components/ui/input';
 import { ThemeToggle } from './theme-toggle';
 import { NotificationBell } from './NotificationBell';
 import { PushPermissionManager } from './PushPermissionManager';
+import { PendingOrdersWakeupModal } from './PendingOrdersWakeupModal';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -376,7 +377,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                             <PushPermissionManager
                                 authToken={vendor?.authToken}
                                 userId={String(vendor?.userId)}
-                                shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_ADMIN_API_URL || 'https://api.ahizan.com/admin-api'}
+                                shopApiUrl={process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api'}
                                 vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''}
                             />
                         )}
@@ -435,6 +436,7 @@ export function DashboardLayout({ children, vendor, dashboardConfig }: Dashboard
                         </div>
                     </div>
                 </main>
+                <PendingOrdersWakeupModal />
             </div>
         </div>
     );

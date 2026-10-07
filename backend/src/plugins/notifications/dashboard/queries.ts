@@ -80,12 +80,14 @@ export const SUBSCRIBE_TO_PUSH = gql`
         $p256dh: String!
         $auth: String!
         $userAgent: String
+        $portal: String
     ) {
         subscribeToPush(
             endpoint: $endpoint
             p256dh: $p256dh
             auth: $auth
             userAgent: $userAgent
+            portal: $portal
         ) {
             success
         }

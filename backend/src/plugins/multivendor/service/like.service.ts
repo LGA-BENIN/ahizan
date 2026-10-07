@@ -3,12 +3,14 @@ import { TransactionalConnection, RequestContext, Customer, Product, ID, Transla
 import { VendorLike } from '../entities/vendor-like.entity';
 import { ProductLike } from '../entities/product-like.entity';
 import { Vendor } from '../entities/vendor.entity';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 @Injectable()
 export class LikeService {
     constructor(
         private connection: TransactionalConnection,
-        private translator: TranslatorService
+        private translator: TranslatorService,
+        private notificationsService: NotificationsService,
     ) {}
 
     /**
@@ -31,7 +33,10 @@ export class LikeService {
             return false;
         } else {
             // Like: create relationship
-            const customer = await this.connection.getRepository(ctx, Customer).findOne({ where: { id: numericCustomerId } });
+            const customer = await this.connection.getRepository(ctx, Customer).findOne({ 
+                where: { id: numericCustomerId },
+                relations: ['user']
+            });
             const product = await this.connection.getRepository(ctx, Product).findOne({ where: { id: numericProductId } });
 
             if (!customer || !product || product.deletedAt || product.enabled === false) {
@@ -44,6 +49,36 @@ export class LikeService {
             });
 
             await this.connection.getRepository(ctx, ProductLike).save(newLike);
+
+            // Notify vendor
+            try {
+                const rawVendor = await this.connection.rawConnection.query(
+                    `SELECT v.id, v.name, v."userId" 
+                     FROM product p 
+                     LEFT JOIN vendor v ON (p."customFieldsVendorid" = v.id OR v."channelId" = (
+                         SELECT "channelId" FROM product_channels_channel WHERE "productId" = p.id LIMIT 1
+                     ))
+                     WHERE p.id = $1 LIMIT 1`,
+                    [numericProductId]
+                );
+
+                if (rawVendor && rawVendor[0] && rawVendor[0].userId) {
+                    const likerName = customer?.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : 'Un client';
+                    const pTitle = (product as any).name || 'votre article';
+                    await this.notificationsService.notify(ctx, {
+                        userId: String(rawVendor[0].userId),
+                        eventType: 'PRODUCT_LIKED',
+                        title: '❤️ Nouveau coup de cœur sur un produit !',
+                        body: `${likerName} a ajouté "${pTitle}" à ses favoris.`,
+                        actionUrl: '/dashboard/products',
+                        channels: ['IN_APP', 'PUSH'],
+                        targetRole: 'VENDOR',
+                    }).catch(e => console.warn('[LikeService] Product like notification error:', e));
+                }
+            } catch (notifErr) {
+                console.warn('[LikeService] Failed to dispatch product like notification:', notifErr);
+            }
+
             return true;
         }
     }
@@ -68,8 +103,14 @@ export class LikeService {
             return false;
         } else {
             // Like
-            const customer = await this.connection.getRepository(ctx, Customer).findOne({ where: { id: numericCustomerId } });
-            const vendor = await this.connection.getRepository(ctx, Vendor).findOne({ where: { id: numericVendorId } });
+            const customer = await this.connection.getRepository(ctx, Customer).findOne({ 
+                where: { id: numericCustomerId },
+                relations: ['user']
+            });
+            const vendor = await this.connection.getRepository(ctx, Vendor).findOne({ 
+                where: { id: numericVendorId },
+                relations: ['user']
+            });
 
             if (!customer || !vendor) {
                 throw new Error(`Customer or Vendor not found to create like`);
@@ -81,6 +122,25 @@ export class LikeService {
             });
 
             await this.connection.getRepository(ctx, VendorLike).save(newLike);
+
+            // Notify vendor
+            try {
+                if (vendor.user?.id) {
+                    const followerName = customer?.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : 'Un client';
+                    await this.notificationsService.notify(ctx, {
+                        userId: String(vendor.user.id),
+                        eventType: 'VENDOR_FOLLOWED',
+                        title: '🌟 Nouvel abonné à votre boutique !',
+                        body: `${followerName} vient de s'abonner à votre boutique "${vendor.name}".`,
+                        actionUrl: '/dashboard/likes',
+                        channels: ['IN_APP', 'PUSH'],
+                        targetRole: 'VENDOR',
+                    }).catch(e => console.warn('[LikeService] Vendor follow notification error:', e));
+                }
+            } catch (notifErr) {
+                console.warn('[LikeService] Failed to dispatch vendor follow notification:', notifErr);
+            }
+
             return true;
         }
     }

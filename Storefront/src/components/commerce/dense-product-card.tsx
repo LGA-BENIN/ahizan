@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Star, Heart, Loader2 } from "lucide-react";
+import { ShoppingCart, Star, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { useThemeSettings } from '@/components/providers/theme-provider';
 import { getAssetUrl, getPromoPriceInfo } from '@/lib/vendure/api-utils';
 import { useState, useEffect, useTransition } from "react";
@@ -23,12 +23,13 @@ interface DenseProductCardProps {
 }
 
 function formatCFA(price: number): string {
-    return new Intl.NumberFormat('fr-FR', {
+    const formatted = new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency: 'XOF',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
     }).format(price);
+    return formatted.replace(/[\s\u202F]/g, '\u00A0');
 }
 
 function getPrice(product: any): number {
@@ -100,12 +101,13 @@ export function DenseProductCard({
 
     const price = getPrice(product);
     const maxPrice = getMaxPrice(product);
-    const defaultImage = themeSettings?.defaultProductImage;
-    const imageUrl = product.winningOffer?.featuredAsset?.preview 
+    const rawAsset = product.winningOffer?.featuredAsset?.preview 
         || product.featuredAsset?.preview 
         || product.productVariantAsset?.preview 
         || product.productAsset?.preview 
-        || defaultImage;
+        || null;
+    const resolvedAsset = getAssetUrl(rawAsset);
+    const imageUrl = (resolvedAsset && !resolvedAsset.includes('whatsapp-image')) ? resolvedAsset : null;
     const pName = product.productName || product.name || "Produit";
     const vName = product.productVariantName || "";
 
@@ -189,7 +191,7 @@ export function DenseProductCard({
                 className="group bg-card rounded-lg border border-border/30 overflow-hidden hover:shadow-md transition-all duration-200"
             >
                 {/* Image */}
-                <div className={`${aspectClass} relative bg-muted/10 overflow-hidden`}>
+                <div className={`${aspectClass} relative bg-slate-50 dark:bg-slate-900/50 overflow-hidden`}>
                     {imageUrl ? (
                         <img
                             src={getAssetUrl(imageUrl)}
@@ -197,8 +199,11 @@ export function DenseProductCard({
                             className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                         />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                            Pas d&apos;image
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-850 text-slate-400 p-2">
+                            <ShoppingBag className="w-6 h-6 text-slate-300 dark:text-slate-600 stroke-[1.25] mb-1" />
+                            <span className="text-[9px] font-medium text-slate-400 line-clamp-1 text-center">
+                                {displayName}
+                            </span>
                         </div>
                     )}
     

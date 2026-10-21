@@ -2,10 +2,9 @@
 
 import React, { useRef } from 'react';
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, ChevronLeft, ChevronRight, Building2, Compass } from 'lucide-react';
+import { MapPin, Navigation, ChevronLeft, ChevronRight, Compass } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context';
 import { interpolateLocalVariables } from '@/lib/cms/interpolation';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
@@ -25,10 +24,9 @@ interface LocalNeighborhoodsProximitySectionProps {
 }
 
 export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighborhoodsProximitySectionProps) {
-    const { selectedLocation, neighborhoods, selectLocation } = useLocation();
+    const { selectedLocation, neighborhoods } = useLocation();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Focus strictly on authentic neighborhoods & villages from GeoEngine
     const isNeighborhoodType = (item: any) => {
         const t = (item.type || '').toUpperCase();
         return t === 'NEIGHBORHOOD' || t === 'QUARTIER' || t === 'VILLAGE' || t === 'ARRONDISSEMENT' || (!['COMMUNE', 'CITY', 'DEPARTMENT', 'COUNTRY'].includes(t));
@@ -38,7 +36,6 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
         ? neighborhoods.filter(isNeighborhoodType) 
         : [];
 
-    // Filter by specific commune if configured
     if (config.filterCommune && config.filterCommune !== 'ALL') {
         const commTarget = config.filterCommune.toLowerCase().trim();
         rawList = rawList.filter((item: any) => {
@@ -48,13 +45,11 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
         });
     }
 
-    // Filter by manual IDs if configured
     if (Array.isArray(config.selectedZoneIds) && config.selectedZoneIds.length > 0) {
         const allowed = config.selectedZoneIds.map(String);
         rawList = rawList.filter((item: any) => allowed.includes(String(item.id)));
     }
 
-    // Sort neighborhoods by real proximity to the user's active position
     if (selectedLocation?.latitude && selectedLocation?.longitude) {
         const uLat = Number(selectedLocation.latitude);
         const uLon = Number(selectedLocation.longitude);
@@ -84,10 +79,9 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
         }
     };
 
-    const layout = config.layout || 'grid';
+    const layout = config.layout || 'carousel';
     const columns = config.columns || 4;
 
-    // Carousel Autoplay
     React.useEffect(() => {
         const speed = Number(config.autoplaySpeed || 0);
         if (layout !== 'carousel' || speed <= 0) return;
@@ -107,8 +101,8 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
     }, [layout, config.autoplaySpeed]);
 
     const title = interpolateLocalVariables(config.title || 'Quartiers du Bénin', selectedLocation);
-    const subtitle = interpolateLocalVariables(config.subtitle || 'Découvrez les offres et boutiques situées directement dans votre quartier ou rue voisine.', selectedLocation);
-    const badgeText = interpolateLocalVariables(config.badgeText || 'Quartiers Proches', selectedLocation);
+    const subtitle = interpolateLocalVariables(config.subtitle || 'Sélectionnez votre zone (Cotonou, Calavi, Porto-Novo, Parakou...) pour explorer les commerces locaux.', selectedLocation);
+    const badgeText = interpolateLocalVariables(config.badgeText || 'ZONES DESSERVIES', selectedLocation);
 
     const gridColsClass = {
         2: 'grid-cols-1 sm:grid-cols-2',
@@ -143,14 +137,14 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
                 />
             )}
 
-            <div className="container mx-auto px-4 relative z-10">
+            <div className="max-w-[1720px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 relative z-10">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                     <div className="space-y-2 max-w-2xl">
                         {badgeText && (
                             <Badge
                                 variant="outline"
-                                className="px-3 py-1 font-semibold uppercase tracking-wider text-xs rounded-full border shadow-sm"
+                                className="px-3 py-1 font-bold uppercase tracking-wider text-xs rounded-full border shadow-2xs"
                                 style={{
                                     borderColor: config.badgeColor || '#2563eb',
                                     color: config.badgeColor || '#2563eb',
@@ -162,15 +156,15 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
                             </Badge>
                         )}
                         <h2
-                            className="text-2xl md:text-3xl font-extrabold tracking-tight"
-                            style={{ color: config.titleColor || '#0f172a' }}
+                            className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white"
+                            style={{ color: config.titleColor || undefined }}
                         >
                             {title}
                         </h2>
                         {subtitle && (
                             <p
-                                className="text-sm md:text-base opacity-85 leading-relaxed"
-                                style={{ color: config.subtitleColor || '#475569' }}
+                                className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed"
+                                style={{ color: config.subtitleColor || undefined }}
                             >
                                 {subtitle}
                             </p>
@@ -183,10 +177,10 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="font-medium rounded-full border-slate-300 bg-white/90 hover:bg-white shadow-sm text-xs md:text-sm px-4 cursor-pointer"
+                                    className="font-bold rounded-full border-slate-300 bg-white hover:bg-slate-50 text-slate-900 shadow-2xs text-xs px-5 py-2.5 cursor-pointer flex items-center gap-2"
                                 >
-                                    {config.viewAllText || 'Toutes les zones'}
-                                    <Navigation className="w-3.5 h-3.5 ml-1.5 text-blue-600" />
+                                    <span>{config.viewAllText || 'Toutes les zones'}</span>
+                                    <Navigation className="w-3.5 h-3.5 text-blue-600" />
                                 </Button>
                             </Link>
                         )}
@@ -196,10 +190,9 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
                 {/* Items Presentation */}
                 {layout === 'carousel' ? (
                     <div className="relative group/carousel">
-                        {/* Flanking Navigation Arrows (Flash Sale style) */}
                         <button 
                             onClick={() => scroll('left')}
-                            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-3 sm:-ml-4 z-20 bg-white dark:bg-slate-800 shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center cursor-pointer"
+                            className="absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-20 bg-white dark:bg-slate-800 shadow-xl rounded-full w-10 h-10 border border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-white hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all flex items-center justify-center cursor-pointer opacity-90 group-hover/carousel:opacity-100"
                             aria-label="Défiler vers la gauche"
                         >
                             <ChevronLeft className="w-5 h-5" />
@@ -207,7 +200,7 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
 
                         <button 
                             onClick={() => scroll('right')}
-                            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-3 sm:-mr-4 z-20 bg-white dark:bg-slate-800 shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center cursor-pointer"
+                            className="absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-20 bg-white dark:bg-slate-800 shadow-xl rounded-full w-10 h-10 border border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-white hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all flex items-center justify-center cursor-pointer opacity-90 group-hover/carousel:opacity-100"
                             aria-label="Défiler vers la droite"
                         >
                             <ChevronRight className="w-5 h-5" />
@@ -215,24 +208,15 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
 
                         <div
                             ref={scrollContainerRef}
-                            className="flex gap-4 overflow-x-auto pb-4 pt-1 snap-x scrollbar-none no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth"
+                            className="flex gap-4 sm:gap-5 overflow-x-auto pb-4 pt-1 snap-x scrollbar-none no-scrollbar -mx-2 px-2 scroll-smooth"
                         >
-                            {displayItems.map((item) => (
-                                <div key={item.id} className="min-w-[200px] sm:min-w-[240px] max-w-[280px] flex-shrink-0 snap-start">
+                            {displayItems.map((item, index) => (
+                                <div key={item.id || index} className="min-w-[220px] sm:min-w-[260px] max-w-[280px] flex-shrink-0 snap-start">
                                     <NeighborhoodCard
                                         item={item}
+                                        index={index}
                                         config={config}
                                         isSelected={selectedLocation?.id === String(item.id) || selectedLocation?.name === item.name}
-                                        onSelect={() => selectLocation({
-                                            id: String(item.id),
-                                            name: item.name,
-                                            latitude: item.centerLatitude || 6.3654,
-                                            longitude: item.centerLongitude || 2.4183,
-                                            type: item.type || 'NEIGHBORHOOD',
-                                            commune: item.commune,
-                                            neighborhood: item.name,
-                                            geoZoneId: String(item.id)
-                                        })}
                                     />
                                 </div>
                             ))}
@@ -240,20 +224,13 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
                     </div>
                 ) : (
                     <div className={`grid gap-4 ${gridColsClass}`}>
-                        {displayItems.map((item) => (
+                        {displayItems.map((item, index) => (
                             <NeighborhoodCard
-                                key={item.id}
+                                key={item.id || index}
                                 item={item}
+                                index={index}
                                 config={config}
                                 isSelected={selectedLocation?.id === String(item.id) || selectedLocation?.name === item.name}
-                                onSelect={() => selectLocation({
-                                    id: String(item.id),
-                                    name: item.name,
-                                    latitude: item.centerLatitude || 6.3654,
-                                    longitude: item.centerLongitude || 2.4183,
-                                    type: item.type || 'NEIGHBORHOOD',
-                                    geoZoneId: String(item.id)
-                                })}
                             />
                         ))}
                     </div>
@@ -263,78 +240,105 @@ export function LocalNeighborhoodsProximitySection({ config = {} }: LocalNeighbo
     );
 }
 
+const NEIGHBORHOOD_GRADIENTS = [
+    'from-slate-900 via-indigo-950 to-slate-900',
+    'from-slate-900 via-blue-950 to-slate-900',
+    'from-slate-900 via-sky-950 to-slate-900',
+    'from-slate-900 via-emerald-950 to-slate-900',
+    'from-slate-900 via-violet-950 to-slate-900',
+];
+
 function NeighborhoodCard({
     item,
+    index = 0,
     config,
     isSelected,
-    onSelect,
 }: {
     item: any;
+    index?: number;
     config: any;
     isSelected: boolean;
-    onSelect: () => void;
 }) {
-    const isCity = item.type === 'COMMUNE';
-    const hoverEffect = config?.hoverEffect || 'lift';
-    const animationType = config?.animationType || 'fade-in';
+    const targetUrl = item.slug ? `/${item.slug}` : `/local-discovery?tab=neighborhoods`;
+    const subtitleText = item.commune || item.parent?.name ? `Quartier • ${item.commune || item.parent?.name}` : 'Quartier';
+    
+    // Resolve image from geoZone image or icon or banner
+    let imageUrl: string | null = null;
+    if (item.image) {
+        const raw = String(item.image);
+        imageUrl = raw.startsWith('http') ? raw : (getAssetUrl(raw) || raw);
+    } else if (item.banner) {
+        const raw = String(item.banner);
+        imageUrl = raw.startsWith('http') ? raw : (getAssetUrl(raw) || raw);
+    }
 
-    const hoverClass = {
-        lift: 'hover:-translate-y-1.5 hover:shadow-xl',
-        zoom: 'hover:scale-105 hover:shadow-lg',
-        glow: 'hover:ring-2 hover:ring-blue-500/40 hover:shadow-lg',
-        none: 'hover:shadow-md'
-    }[hoverEffect as 'lift' | 'zoom' | 'glow' | 'none'] || 'hover:-translate-y-1.5 hover:shadow-xl';
+    let iconUrl: string | null = null;
+    if (item.icon) {
+        const raw = String(item.icon);
+        iconUrl = raw.startsWith('http') ? raw : (getAssetUrl(raw) || raw);
+    }
 
-    const animClass = {
-        'fade-in': 'animate-in fade-in duration-500',
-        'slide-up': 'animate-in fade-in slide-in-from-bottom-4 duration-500',
-        'zoom-in': 'animate-in fade-in zoom-in-95 duration-500',
-        'none': ''
-    }[animationType as 'fade-in' | 'slide-up' | 'zoom-in' | 'none'] || '';
+    const gradient = NEIGHBORHOOD_GRADIENTS[index % NEIGHBORHOOD_GRADIENTS.length];
 
     return (
-        <Card
-            onClick={onSelect}
-            className={`group cursor-pointer overflow-hidden transition-all duration-300 rounded-xl border backdrop-blur-sm ${hoverClass} ${animClass} ${
-                isSelected
-                    ? 'ring-2 ring-blue-600 shadow-md border-blue-500 bg-blue-50/70 dark:bg-blue-950/40'
-                    : 'border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90'
-            }`}
-            style={{
-                backgroundColor: isSelected ? undefined : config.cardBgColor,
-                borderColor: isSelected ? '#2563eb' : config.cardBorderColor,
-            }}
-        >
-            <CardContent className="p-4 flex items-center gap-3.5">
-                <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 shadow-sm ${
-                        isSelected
-                            ? 'bg-blue-600 text-white'
-                            : isCity
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                    }`}
-                >
-                    {isCity ? <Building2 className="w-5 h-5" /> : <MapPin className="w-5 h-5" />}
-                </div>
+        <Link href={targetUrl} className="block no-underline">
+            <div
+                className={`group relative overflow-hidden rounded-3xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                    isSelected
+                        ? 'ring-2 ring-blue-600 shadow-lg border-blue-500'
+                        : 'border-slate-200/80 dark:border-slate-800 shadow-sm'
+                }`}
+                style={{
+                    minHeight: '200px',
+                    backgroundColor: config.cardBgColor || '#0f172a',
+                }}
+            >
+                {/* Background: Actual Uploaded Photo or Elegant Modern Gradient */}
+                {imageUrl ? (
+                    <div
+                        className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                        style={{ backgroundImage: `url('${imageUrl}')` }}
+                    />
+                ) : (
+                    <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`}>
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+                    </div>
+                )}
 
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                        <h4
-                            className="font-bold text-sm truncate group-hover:text-blue-600 transition-colors"
-                            style={{ color: config.cardTextColor }}
-                        >
-                            {item.name}
-                        </h4>
-                        {isSelected && (
-                            <span className="inline-block w-2 h-2 rounded-full bg-blue-600 shrink-0" title="Zone active" />
+                {/* Dark Vignette Overlay for Crisp Legibility */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20" />
+
+                {/* Top Badges */}
+                <div className="relative z-10 p-4 flex items-center justify-between">
+                    <div className="w-8 h-8 rounded-full bg-white/95 backdrop-blur-md text-blue-600 flex items-center justify-center shadow-md border border-white/40">
+                        {iconUrl ? (
+                            <img src={iconUrl} alt="" className="w-4 h-4 object-contain rounded-full" />
+                        ) : (
+                            <MapPin className="w-4 h-4 text-blue-600" />
                         )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 capitalize truncate mt-0.5">
-                        {isCity ? 'Commune / Ville' : 'Quartier / Arrondissement'}
-                    </p>
+
+                    {item.distanceKm !== undefined && (
+                        <span className="bg-black/60 backdrop-blur-md text-white text-[11px] font-bold px-2.5 py-1 rounded-full border border-white/20 shadow-2xs">
+                            ~ {item.distanceKm} km
+                        </span>
+                    )}
                 </div>
-            </CardContent>
-        </Card>
+
+                {/* Bottom Details */}
+                <div className="relative z-10 p-4 pt-10 mt-auto flex flex-col justify-end">
+                    <h4 className="font-black text-base sm:text-lg text-white truncate drop-shadow-md group-hover:text-blue-300 transition-colors">
+                        {item.name}
+                    </h4>
+                    <div className="flex items-center justify-between mt-1 text-xs text-slate-300">
+                        <span className="truncate font-medium">{subtitleText}</span>
+                        <span className="text-blue-400 font-bold flex items-center gap-1 shrink-0 group-hover:translate-x-1 transition-transform">
+                            Découvrir &rarr;
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </Link>
     );
 }

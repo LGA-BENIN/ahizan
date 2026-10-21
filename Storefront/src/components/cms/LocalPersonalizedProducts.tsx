@@ -6,7 +6,7 @@ import { getShopApiUrl } from '@/lib/vendure/api-utils';
 import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 import { MasterProductCard } from '@/components/commerce/master-product-card';
 import { processAndResolveDisplayItems } from '@/lib/vendure/display-engine';
-import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context';
 
 import { fetchWithClientCache, clearClientCache } from '@/lib/vendure/client-cache';
@@ -101,7 +101,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     }, [config?.layout, config?.autoplaySpeed]);
 
     const displayTitle = config?.title !== undefined && config?.title !== null ? config.title : "Produits à Proximité";
-    const displayIcon = config?.icon ?? '🛍️';
+    const displayIcon = config?.icon || '';
     const displaySubtitle = config?.subtitle || '';
     const displayBadgeText = config?.badgeText || '';
     const rawLimit = config?.limit ?? config?.take ?? config?.maxProducts ?? config?.count;
@@ -229,7 +229,35 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 }
             `;
 
-            let resultLocal = await fetchWithClientCache(shopApiUrl, localQuery, variables);
+            const candidateTake = Math.min(Math.max((limit || 8) * 6, 48), 80);
+            const searchCandidateQuery = `
+                query GetCandidatesForLocal($take: Int!) {
+                    search(input: { take: $take, groupByProduct: false }) {
+                        items {
+                            productId
+                            productVariantId
+                            productName
+                            productVariantName
+                            slug
+                            productAsset { id preview }
+                            productVariantAsset { id preview }
+                            priceWithTax {
+                                __typename
+                                ... on SinglePrice { value }
+                                ... on PriceRange { min max }
+                            }
+                            inStock
+                        }
+                    }
+                }
+            `;
+
+            // Execute local vendor query and search candidate query in parallel
+            const [resultLocal, searchRes] = await Promise.all([
+                fetchWithClientCache(shopApiUrl, localQuery, variables),
+                fetchWithClientCache(shopApiUrl, searchCandidateQuery, { take: candidateTake }).catch(() => null)
+            ]);
+
             let vendorsList = resultLocal?.vendors?.items || [];
 
             // Progressive Proximity Fallback:
@@ -242,30 +270,8 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
 
             const rawVendorProducts: any[] = [];
 
-            // Also fetch multivendor seller offers to support modern catalog architecture
+            // Multivendor seller offers to support modern catalog architecture
             try {
-                const searchCandidateQuery = `
-                    query GetCandidatesForLocal {
-                        search(input: { take: 200, groupByProduct: false }) {
-                            items {
-                                productId
-                                productVariantId
-                                productName
-                                productVariantName
-                                slug
-                                productAsset { id preview }
-                                productVariantAsset { id preview }
-                                priceWithTax {
-                                    __typename
-                                    ... on SinglePrice { value }
-                                    ... on PriceRange { min max }
-                                }
-                                inStock
-                            }
-                        }
-                    }
-                `;
-                const searchRes = await fetchWithClientCache(shopApiUrl, searchCandidateQuery);
                 const sItems = searchRes?.search?.items || [];
                 const variantIds = Array.from(new Set(sItems.map((i: any) => i.productVariantId).filter(Boolean)));
 
@@ -320,8 +326,9 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                         for (const off of matchingOffers) {
                             rawVendorProducts.push({
                                 ...item,
-                                productId: item.productId || off.productVariant?.product?.id,
-                                productName: item.productName || off.productVariant?.product?.name,
+                                productId: off.productVariant?.product?.id || item.productId,
+                                productName: off.productVariant?.product?.name || item.productName,
+                                slug: off.productVariant?.product?.slug || item.slug,
                                 productVariantId: vId,
                                 productVariantName: off.productVariant?.name || item.productVariantName,
                                 productVariant: off.productVariant,
@@ -549,7 +556,6 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
 
         if (typeof window !== 'undefined') {
             const handleLocationChanged = () => {
-                clearClientCache();
                 fetchLocalProducts();
             };
             window.addEventListener('ahizan_location_changed', handleLocationChanged);
@@ -626,100 +632,59 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     }
 
     return (
-        <section className="py-3 md:py-5 max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12 font-sans animate-in fade-in duration-500">
-            {headerStyle === 'standard' && (
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <div className={`flex flex-col ${alignClass} gap-1`}>
-                        {displayBadgeText && displayBadgeText.trim() !== '' && (
-                            <span 
-                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase shadow-sm w-fit"
-                                style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                            >
-                                {displayBadgeText}
-                            </span>
-                        )}
+        <section className="py-3 md:py-5 max-w-[1720px] mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8 font-sans animate-in fade-in duration-500">
+            {/* Modern Transparent Header Style (Matching Image 2 Reference) */}
+            <div className="flex items-center justify-between mb-4 md:mb-5 gap-3 pb-1 w-full">
+                <div className={`flex items-center flex-wrap gap-2 sm:gap-3.5 min-w-0 flex-1 ${alignClass}`}>
+                    <div className="flex items-center flex-wrap gap-2 sm:gap-2.5">
                         {displayTitle && displayTitle.trim() !== '' && (
-                            <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
-                                {displayIcon && <span>{displayIcon}</span>} {displayTitle}
-                            </h2>
-                        )}
-                        {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
-                    </div>
-                    <Link 
-                        href="/local-discovery"
-                        className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
-                    >
-                        <span>VOIR TOUT</span>
-                        <ChevronRight className="w-4 h-4" />
-                    </Link>
-                </div>
-            )}
-            {headerStyle === 'bordered' && (
-                <div className="mb-4 p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                        {displayBadgeText && displayBadgeText.trim() !== '' && (
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-primary/10 text-primary">{displayBadgeText}</span>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center text-red-600 shrink-0">
+                                    <MapPin className="w-4 h-4 stroke-[2]" />
+                                </div>
+                                <h2 
+                                    className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight"
+                                    style={{ color: titleColor || undefined }}
+                                >
+                                    {(displayTitle || 'Près de chez vous').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || 'Près de chez vous'}
+                                </h2>
                             </div>
                         )}
-                        {displayTitle && displayTitle.trim() !== '' && (
-                            <h2 className="text-xl md:text-2xl font-black text-foreground flex items-center gap-2" style={{ color: titleColor || undefined }}>
-                                {displayIcon && <span>{displayIcon}</span>} {displayTitle}
-                            </h2>
-                        )}
-                        {displaySubtitle && displaySubtitle.trim() !== '' && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5" style={{ color: subtitleColor || undefined }}>{displaySubtitle}</p>}
-                    </div>
-                    <Link 
-                        href="/local-discovery"
-                        className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
-                    >
-                        <span>VOIR TOUT</span>
-                        <ChevronRight className="w-4 h-4" />
-                    </Link>
-                </div>
-            )}
-            {(headerStyle === 'smart_cart' || !['standard', 'bordered'].includes(headerStyle)) && (
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <div className={`flex flex-col ${alignClass} gap-1`}>
-                        {displayBadgeText && displayBadgeText.trim() !== '' && (
-                            <div 
-                                className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm w-fit"
-                                style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                            >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                <span>{displayBadgeText}</span>
-                            </div>
-                        )}
-                        {displayTitle && displayTitle.trim() !== '' && (
-                            <h2 
-                                className="text-xl md:text-2xl font-black tracking-tight uppercase leading-tight mt-1 flex items-center gap-2"
-                                style={{ color: titleColor || undefined }}
-                            >
-                                {displayIcon && <span>{displayIcon}</span>} {displayTitle}
-                            </h2>
-                        )}
+
                         {displaySubtitle && displaySubtitle.trim() !== '' && (
-                            <p 
-                                className="font-medium text-xs sm:text-sm mt-0.5 max-w-2xl text-muted-foreground"
+                            <span 
+                                className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5 leading-tight"
                                 style={{ color: subtitleColor || undefined }}
                             >
-                                {displaySubtitle}
-                            </p>
-                        )}
-                        {(displayTitle || displayBadgeText) && (
-                            <div className="h-1 w-12 bg-primary mt-1.5 rounded-full" style={{ backgroundColor: badgeBgColor }} />
+                                <span className="text-gray-300 dark:text-gray-600 font-extrabold hidden sm:inline">•</span>
+                                <span>{(displaySubtitle).replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}</span>
+                            </span>
                         )}
                     </div>
 
-                    <Link 
-                        href="/local-discovery"
-                        className="text-xs font-black text-primary hover:underline flex items-center gap-1 shrink-0 py-1"
-                    >
-                        <span>VOIR TOUT</span>
-                        <ChevronRight className="w-4 h-4" />
-                    </Link>
+                    {displayBadgeText && displayBadgeText.trim() !== '' && (
+                        <div 
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold tracking-wide shadow-2xs border transition-all shrink-0"
+                            style={{ 
+                                backgroundColor: badgeBgColor || '#e0f2fe', 
+                                color: badgeTextColor || '#0369a1',
+                                borderColor: 'rgba(2, 132, 199, 0.2)'
+                            }}
+                        >
+                            <MapPin className="w-3.5 h-3.5 shrink-0" />
+                            <span>{displayBadgeText}</span>
+                        </div>
+                    )}
                 </div>
-            )}
+
+                <Link 
+                    href="/local-discovery"
+                    className="group inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-bold shadow-2xs hover:shadow-xs transition-all shrink-0 cursor-pointer ml-auto"
+                >
+                    <span>Voir tout</span>
+                    <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+            </div>
 
             {loading ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">

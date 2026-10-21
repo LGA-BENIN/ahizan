@@ -188,18 +188,27 @@ export class GeoResolver {
     }
 
     @ResolveField()
-    boundary(@Parent() zone: GeoZone): any {
-        if (!zone.boundary) {
+    async boundary(@Parent() zone: GeoZone): Promise<any> {
+        if (zone.boundary) {
+            if (typeof zone.boundary === 'string') {
+                try {
+                    return JSON.parse(zone.boundary);
+                } catch (e) {
+                    return null;
+                }
+            }
+            return zone.boundary;
+        }
+        if (!zone.id) return null;
+        try {
+            const raw: any = await this.geoService.connection.rawConnection.query(
+                `SELECT ST_AsGeoJSON(boundary)::json as boundary FROM geo_zone WHERE id = $1`,
+                [zone.id]
+            );
+            return raw?.[0]?.boundary || null;
+        } catch {
             return null;
         }
-        if (typeof zone.boundary === 'string') {
-            try {
-                return JSON.parse(zone.boundary);
-            } catch (e) {
-                return null;
-            }
-        }
-        return zone.boundary;
     }
 }
 

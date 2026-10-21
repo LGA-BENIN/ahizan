@@ -383,8 +383,41 @@ export default async function CustomCmsPage({ params }: any) {
         }
     }
 
+    const jsonLd = marketData ? {
+        '@context': 'https://schema.org',
+        '@type': 'ShoppingCenter',
+        name: marketData.name,
+        description: marketData.description,
+        image: marketData.image,
+        geo: marketData.centerLatitude && marketData.centerLongitude ? {
+            '@type': 'GeoCoordinates',
+            latitude: Number(marketData.centerLatitude),
+            longitude: Number(marketData.centerLongitude),
+        } : undefined,
+        address: {
+            '@type': 'PostalAddress',
+            addressLocality: marketData.geoZone?.name || 'Bénin',
+            addressCountry: 'BJ',
+        },
+    } : (neighborhoodData ? {
+        '@context': 'https://schema.org',
+        '@type': 'Place',
+        name: neighborhoodData.name,
+        address: {
+            '@type': 'PostalAddress',
+            addressLocality: neighborhoodData.name,
+            addressCountry: 'BJ',
+        },
+    } : null);
+
     return (
         <div className="min-h-screen">
+            {jsonLd && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+                />
+            )}
             <AhizanContextExposer 
                 page={page} 
                 market={marketData} 

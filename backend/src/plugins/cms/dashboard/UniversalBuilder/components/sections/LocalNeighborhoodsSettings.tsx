@@ -17,6 +17,9 @@ const FETCH_GEOZONES_QUERY = `
       code
       type
       status
+      image
+      icon
+      banner
       parent {
         id
         name
@@ -25,21 +28,36 @@ const FETCH_GEOZONES_QUERY = `
   }
 `;
 
+const UPDATE_GEOZONE_MUTATION = `
+  mutation UpdateGeoZonePhoto($id: ID!, $input: UpdateGeoZoneInput!) {
+    updateGeoZone(id: $id, input: $input) {
+      id
+      name
+      image
+      icon
+      banner
+    }
+  }
+`;
+
 export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsSettingsProps) => {
     const [config, setConfig] = useState(data);
     const [zonesList, setZonesList] = useState<any[]>([]);
     const [searchFilter, setSearchFilter] = useState('');
+    const [editingZoneId, setEditingZoneId] = useState<string>('');
+    const [zoneUploadStatus, setZoneUploadStatus] = useState<string>('');
     useAutoSave(config, onSave);
 
     useEffect(() => {
         const defaults = {
-            title: 'Quartiers & Villages du Bénin',
+            title: 'Quartiers du Bénin',
             subtitle: 'Découvrez les offres et boutiques situées directement dans votre quartier ou rue voisine.',
             badgeText: 'Quartiers Proches',
-            filterType: 'NEIGHBORHOODS', // 'NEIGHBORHOODS' | 'ALL' | 'CITIES'
+            filterType: 'NEIGHBORHOODS', // 'NEIGHBORHOODS' | 'ALL'
             filterCommune: 'ALL', // 'ALL' | 'Cotonou' | 'Porto-Novo' | 'Abomey-Calavi'
             selectionMode: 'ALL', // 'ALL' | 'CUSTOM'
             selectedZoneIds: [],
+            cardStyle: 'image', // 'image' | 'compact'
             layout: 'grid',
             columns: 4,
             take: 12,
@@ -52,7 +70,7 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
             cardBorderColor: '#e2e8f0',
             cardTextColor: '#0f172a',
             showAllLink: true,
-            viewAllText: 'Toutes les zones',
+            viewAllText: 'Tous les quartiers',
             bgImage: '',
             bgImageOverlayOpacity: 40,
             gradientBackground: '',
@@ -60,17 +78,39 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
         setConfig({ ...defaults, ...data });
     }, [data]);
 
-    useEffect(() => {
+    const loadGeoZones = () => {
         fetchGraphQL(FETCH_GEOZONES_QUERY)
             .then((res: any) => {
                 if (res?.geoZones) {
                     setZonesList(res.geoZones);
+                    if (!editingZoneId && res.geoZones.length > 0) {
+                        setEditingZoneId(res.geoZones[0].id);
+                    }
                 }
             })
             .catch(() => {});
+    };
+
+    useEffect(() => {
+        loadGeoZones();
     }, []);
 
     const handleChange = (field: string, value: any) => setConfig((prev: any) => ({ ...prev, [field]: value }));
+
+    const handleUpdateZoneImage = async (zoneId: string, imageField: 'image' | 'icon' | 'banner', url: string) => {
+        setZoneUploadStatus('Enregistrement de la photo...');
+        try {
+            await fetchGraphQL(UPDATE_GEOZONE_MUTATION, {
+                id: zoneId,
+                input: { [imageField]: url }
+            });
+            setZonesList(prev => prev.map(z => z.id === zoneId ? { ...z, [imageField]: url } : z));
+            setZoneUploadStatus('✅ Photo du quartier mise à jour !');
+            setTimeout(() => setZoneUploadStatus(''), 3000);
+        } catch (e: any) {
+            setZoneUploadStatus(`❌ Erreur: ${e.message}`);
+        }
+    };
 
     const insertToken = (field: string, token: string) => {
         const currentVal = config[field] || '';
@@ -121,6 +161,8 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
         }
         return matchesSearch;
     });
+
+    const activeSelectedZone = zonesList.find(z => z.id === editingZoneId) || filteredZones[0] || null;
 
     return (
         <div className="stack-lg" style={{ width: "100%", height: "100%", maxHeight: "calc(100vh - 200px)", overflowY: "auto", paddingBottom: "2rem" }}>
@@ -234,10 +276,67 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
                 )}
             </div>
 
+            {/* 📸 Gestion des Photos & Icônes des Quartiers */}
+            <div className="settings-card" style={{ borderLeft: '4px solid #10b981', background: '#f0fdf4' }}>
+                <div className="settings-card-header" style={{ color: '#047857', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>📸 Photos de Couverture & Icônes des Quartiers</span>
+                    {zoneUploadStatus && (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: zoneUploadStatus.includes('❌') ? '#ef4444' : '#059669' }}>
+                            {zoneUploadStatus}
+                        </span>
+                    )}
+                </div>
+                <p style={{ fontSize: '12px', color: '#065f46', margin: '4px 0 12px 0' }}>
+                    Sélectionnez un quartier pour lui associer une vraie photo de couverture (carte illustrée) ou une icône personnalisée :
+                </p>
+
+                <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0', marginBottom: '12px' }}>
+                    <div style={{ marginBottom: '10px' }}>
+                        <label className="label-pro" style={{ color: '#065f46' }}>Choisir le Quartier à éditer</label>
+                        <select 
+                            className="input-pro" 
+                            value={editingZoneId || (activeSelectedZone?.id || '')} 
+                            onChange={(e) => setEditingZoneId(e.target.value)}
+                        >
+                            {zonesList.map((z: any) => (
+                                <option key={z.id} value={z.id}>
+                                    {z.name} {z.parent?.name ? `(${z.parent.name})` : ''} {z.image ? '🖼️ Photo active' : '⚠️ Sans photo'}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {activeSelectedZone && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <FileUploadField
+                                label={`Photo de Couverture pour "${activeSelectedZone.name}"`}
+                                value={activeSelectedZone.image || ''}
+                                onChange={(url) => handleUpdateZoneImage(activeSelectedZone.id, 'image', url)}
+                                placeholder="Uploader une photo pour ce quartier..."
+                            />
+
+                            <FileUploadField
+                                label={`Icône / Logo pour "${activeSelectedZone.name}" (Optionnel)`}
+                                value={activeSelectedZone.icon || ''}
+                                onChange={(url) => handleUpdateZoneImage(activeSelectedZone.id, 'icon', url)}
+                                placeholder="Uploader une icône ou badge..."
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Disposition & Affichage */}
             <div className="settings-card">
                 <div className="settings-card-header">📐 Disposition & Grille</div>
-                <div className="grid-3">
+                <div className="grid-2" style={{ marginBottom: '1rem' }}>
+                    <div>
+                        <label className="label-pro">Style des Cartes Quartiers</label>
+                        <select className="input-pro" value={config.cardStyle || 'image'} onChange={(e) => handleChange('cardStyle', e.target.value)}>
+                            <option value="image">🖼️ Cartes avec Photo de Couverture (Recommandé)</option>
+                            <option value="compact">🏷️ Cartes Compactes (Pillule)</option>
+                        </select>
+                    </div>
                     <div>
                         <label className="label-pro">Type d'affichage</label>
                         <select className="input-pro" value={config.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)}>
@@ -245,6 +344,9 @@ export const LocalNeighborhoodsSettings = ({ data, onSave }: LocalNeighborhoodsS
                             <option value="carousel">Carrousel horizontal défilant</option>
                         </select>
                     </div>
+                </div>
+
+                <div className="grid-2">
                     <div>
                         <label className="label-pro">Colonnes (sur grand écran)</label>
                         <select className="input-pro" value={config.columns || 4} onChange={(e) => handleChange('columns', parseInt(e.target.value))}>

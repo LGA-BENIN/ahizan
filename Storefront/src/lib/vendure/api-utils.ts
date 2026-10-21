@@ -12,15 +12,15 @@ export function getShopApiUrl(): string {
         }
         return `${window.location.protocol}//${hostname}:3000/shop-api`;
     }
-    return process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 
-           process.env.VENDURE_SHOP_API_URL || 
+    return process.env.VENDURE_SHOP_API_URL || 
+           process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 
            'http://127.0.0.1:3000/shop-api';
 }
 
 export function getBaseUrl(): string {
-    const shopApiUrl = getShopApiUrl();
-    // Remove /shop-api to get the base URL for REST endpoints or assets
-    return shopApiUrl.replace(/\/shop-api\/?$/, '');
+    // For images and public assets, always resolve to the public URL accessible by browsers
+    const publicUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
+    return publicUrl.replace(/\/shop-api\/?$/, '');
 }
 
 export function getBannerApiUrl(endpoint: string): string {

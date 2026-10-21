@@ -3,45 +3,64 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Store, ShieldCheck, MapPin, Heart, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Store, MapPin, ArrowRight, ChevronLeft, ChevronRight, Star, ShieldCheck } from 'lucide-react';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
 import { fetchWithClientCache } from '@/lib/vendure/client-cache';
 import { useLocation } from '@/contexts/location-context';
 import { interpolateLocalVariables } from '@/lib/cms/interpolation';
 import { encodeId } from '@/lib/hash-utils';
+import { calculateDistanceKm } from '@/lib/vendure/display-engine';
 
 const FALLBACK_VENDORS = [
     {
         id: "1",
-        name: "Maison Bénin Style",
-        category: "Mode & Vêtements",
+        name: "La Boutique (La Grâce)",
+        category: "Mode & Accessoires",
         locationName: "Cotonou",
         verificationStatus: "VERIFIED",
-        rating: 4.9,
+        rating: 4.8,
+        ratingCount: 24,
+        distanceKm: 0.9,
     },
     {
         id: "2",
-        name: "Artisanat Béninois",
+        name: "Wawa Créations",
         category: "Art & Décoration",
-        locationName: "Porto-Novo",
+        locationName: "Cotonou",
         verificationStatus: "VERIFIED",
-        rating: 4.8,
+        rating: 4.7,
+        ratingCount: 15,
+        distanceKm: 1.2,
     },
     {
         id: "3",
-        name: "Beauté Naturelle",
-        category: "Beauté & Soins",
-        locationName: "Abomey-Calavi",
+        name: "Winner Service Shop",
+        category: "Beauté, Cosmétiques & Soins",
+        locationName: "Cotonou",
         verificationStatus: "VERIFIED",
-        rating: 5.0,
+        rating: 4.5,
+        ratingCount: 12,
+        distanceKm: 1.5,
     },
     {
         id: "4",
-        name: "Tech Bénin",
-        category: "Électronique",
+        name: "Kali Merveille",
+        category: "Électronique & Multimédia",
+        locationName: "Cotonou",
+        verificationStatus: "VERIFIED",
+        rating: 4.2,
+        ratingCount: 8,
+        distanceKm: 2.1,
+    },
+    {
+        id: "5",
+        name: "Dantokpa Épicerie",
+        category: "Épicerie & Vivres",
         locationName: "Cotonou",
         verificationStatus: "VERIFIED",
         rating: 4.9,
+        ratingCount: 41,
+        distanceKm: 2.5,
     }
 ];
 
@@ -58,7 +77,7 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
 
     const scroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
-            const amount = scrollContainerRef.current.clientWidth * 0.8;
+            const amount = scrollContainerRef.current.clientWidth * 0.75;
             scrollContainerRef.current.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
         }
     };
@@ -66,7 +85,7 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
     // Carousel Autoplay
     useEffect(() => {
         const speed = Number(config.autoplaySpeed || 0);
-        if (config.layoutStyle !== 'carousel' || speed <= 0) return;
+        if (config.layoutStyle === 'split-ice-blue' || speed <= 0) return;
 
         const interval = setInterval(() => {
             if (scrollContainerRef.current) {
@@ -89,7 +108,7 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
         const variables: any = {
             options: {
                 filter: { status: { eq: 'APPROVED' } },
-                take: Number(config.take || 8),
+                take: Number(config.take || 12),
             }
         };
 
@@ -104,20 +123,27 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
         if (effectiveMarketId) {
             variables.marketId = String(effectiveMarketId);
         }
+        const effectiveLocationId = config.locationId || (selectedLocation?.type !== 'GPS' ? (selectedLocation?.geoZoneId || selectedLocation?.id) : undefined);
+        if (effectiveLocationId) {
+            variables.locationId = String(effectiveLocationId);
+        }
 
         const query = `
-            query GetLocalVendors($options: VendorListOptions, $latitude: Float, $longitude: Float, $marketId: ID, $radiusKm: Float) {
-                vendors(options: $options, latitude: $latitude, longitude: $longitude, marketId: $marketId, radiusKm: $radiusKm) {
+            query GetLocalVendors($options: VendorListOptions, $latitude: Float, $longitude: Float, $marketId: ID, $locationId: ID, $radiusKm: Float) {
+                vendors(options: $options, latitude: $latitude, longitude: $longitude, marketId: $marketId, locationId: $locationId, radiusKm: $radiusKm) {
                     items {
                         id
                         name
                         phoneNumber
+                        latitude
+                        longitude
                         logo { preview }
+                        coverImage { preview }
                         verificationStatus
                         rating
                         ratingCount
-                        location { id name }
-                        physicalMarket { id name }
+                        location { id name centerLatitude centerLongitude }
+                        physicalMarket { id name centerLatitude centerLongitude }
                         products { id }
                     }
                 }
@@ -129,8 +155,7 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
                 if (isMounted) {
                     let items = data?.vendors?.items || [];
                     if (items.length === 0) {
-                        // Fallback to all approved vendors if strictly filtered had 0
-                        fetchWithClientCache(getShopApiUrl(), query, { options: { filter: { status: { eq: 'APPROVED' } }, take: Number(config.take || 8) } })
+                        fetchWithClientCache(getShopApiUrl(), query, { options: { filter: { status: { eq: 'APPROVED' } }, take: Number(config.take || 12) } })
                             .then((fallbackData: any) => {
                                 if (isMounted) {
                                     const allItems = fallbackData?.vendors?.items || [];
@@ -160,13 +185,20 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
         return () => { isMounted = false; };
     }, [selectedLocation, config.take, config.radiusKm]);
 
-    const title = interpolateLocalVariables(config.title || 'Soutenez les boutiques locales du Bénin', selectedLocation, { distance: config.radiusKm });
-    const subtitle = interpolateLocalVariables(
-        config.subtitle || 'Découvrez des boutiques de confiance, près de chez vous. Mode, artisanat, beauté, maison, électronique et bien plus encore.',
+    const title = interpolateLocalVariables(
+        config.title || 'Découvrez & soutenez les boutiques locales à proximité', 
         selectedLocation, 
         { distance: config.radiusKm }
     );
-    const badgeText = interpolateLocalVariables(config.badgeText || 'Nos boutiques', selectedLocation);
+    const subtitle = interpolateLocalVariables(
+        config.subtitle || 'Explorez des commerces de confiance près de chez vous : mode, artisanat, beauté, électronique, alimentation... et faites-vous livrer rapidement.',
+        selectedLocation, 
+        { distance: config.radiusKm }
+    );
+    const badgeText = interpolateLocalVariables(config.badgeText || 'Nos boutiques partenaires', selectedLocation);
+    const locationBadgeText = selectedLocation?.name 
+        ? `${selectedLocation.name}, Bénin` 
+        : (config.defaultCity || 'Cotonou, Bénin');
 
     if (!loading && vendors.length === 0 && config.hideWhenEmpty) {
         return null;
@@ -174,211 +206,106 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
 
     const displayVendors = vendors.length > 0 ? vendors : FALLBACK_VENDORS;
 
-    const layoutStyle = config.layoutStyle || 'split-ice-blue';
-    const showPillars = config.showPillars !== false;
-    const pillar1 = config.pillar1Text || 'Boutiques vérifiées';
-    const pillar2 = config.pillar2Text || 'Proches de vous';
-    const pillar3 = config.pillar3Text || 'Produits locaux et authentiques';
-
-    // Standard Grid or Carousel Layout (if admin opted for standard full-width layout)
-    if (layoutStyle === 'grid' || layoutStyle === 'carousel') {
-        const columns = config.columns || 4;
-        const gridColsClass = {
-            2: 'grid-cols-1 sm:grid-cols-2',
-            3: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3',
-            4: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
-            5: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5',
-        }[columns as 2 | 3 | 4 | 5] || 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
-
-        return (
-            <section className="w-full my-6 md:my-10 px-4 container mx-auto">
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-3">
-                    <div>
-                        {badgeText && (
-                            <div 
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold shadow-xs mb-2"
-                                style={{
-                                    backgroundColor: config.badgeBgColor || '#0B1E3B',
-                                    color: config.badgeTextColor || '#ffffff',
-                                }}
-                            >
-                                <Store className="w-3.5 h-3.5" />
-                                <span>{badgeText}</span>
+    return (
+        <section className="w-full my-6 md:my-10 max-w-[1720px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+            {/* SECTION HEADER */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
+                <div>
+                    {/* Top Badge */}
+                    {badgeText && (
+                        <div 
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold shadow-xs mb-2.5"
+                            style={{
+                                backgroundColor: config.badgeBgColor || '#0B1E3B',
+                                color: config.badgeTextColor || '#ffffff',
+                            }}
+                        >
+                            <Store className="w-3.5 h-3.5" />
+                            <span>{badgeText}</span>
+                        </div>
+                    )}
+                    
+                    {/* Title + Location Pill */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center text-red-600 shrink-0">
+                            <Store className="w-4 h-4 stroke-[2]" />
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-white" style={{ color: config.titleColor || undefined }}>
+                            {(title || 'Boutiques Officielles').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                        </h2>
+                        {locationBadgeText && (
+                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+                                <MapPin className="w-3.5 h-3.5 text-red-600" />
+                                <span>{locationBadgeText}</span>
                             </div>
                         )}
-                        <h2 className="text-2xl md:text-3xl font-black tracking-tight" style={{ color: config.titleColor || '#0B1E3B' }}>
-                            {title}
-                        </h2>
-                        {subtitle && (
-                            <p className="text-xs sm:text-sm mt-1 text-slate-600 dark:text-slate-400 max-w-2xl" style={{ color: config.subtitleColor || undefined }}>
-                                {subtitle}
-                            </p>
-                        )}
                     </div>
-                    {config.showAllLink !== false && (
-                        <Link href="/vendors">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="font-semibold rounded-full border-slate-300 bg-white hover:bg-slate-50 shadow-xs text-xs px-4 cursor-pointer"
-                            >
-                                <span>{config.viewAllText || 'Toutes les boutiques'}</span>
-                                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                            </Button>
-                        </Link>
+
+                    {/* Subtitle */}
+                    {subtitle && (
+                        <p className="text-xs sm:text-sm mt-1 text-gray-500 dark:text-gray-400 max-w-2xl leading-relaxed" style={{ color: config.subtitleColor || undefined }}>
+                            {subtitle.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                        </p>
                     )}
                 </div>
 
-                {layoutStyle === 'carousel' ? (
-                    <div className="relative group/carousel">
-                        {/* Flanking Navigation Arrows (Flash Sale style) */}
-                        <button 
-                            onClick={() => scroll('left')}
-                            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-3 sm:-ml-4 z-20 bg-white dark:bg-slate-800 shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center cursor-pointer"
-                            aria-label="Défiler vers la gauche"
+                {/* View All Button */}
+                {config.showAllLink !== false && (
+                    <Link href="/vendors" className="shrink-0 self-start md:self-end">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="font-bold rounded-full border-slate-300 bg-white hover:bg-slate-50 text-slate-900 shadow-xs text-xs px-5 py-2.5 cursor-pointer flex items-center gap-2 hover:border-slate-400 transition-all"
                         >
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-
-                        <button 
-                            onClick={() => scroll('right')}
-                            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-3 sm:-mr-4 z-20 bg-white dark:bg-slate-800 shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center cursor-pointer"
-                            aria-label="Défiler vers la droite"
-                        >
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-
-                        <div ref={scrollContainerRef} className="flex gap-4 overflow-x-auto scrollbar-none scroll-smooth pb-2 -mx-1 px-1">
-                            {displayVendors.map((vendor, index) => (
-                                <div key={vendor.id || index} className="min-w-[200px] sm:min-w-[240px] max-w-[280px] flex-shrink-0">
-                                    <VendorCard vendor={vendor} index={index} config={config} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    <div className={`grid ${gridColsClass} gap-4`}>
-                        {displayVendors.map((vendor, index) => (
-                            <VendorCard key={vendor.id || index} vendor={vendor} index={index} config={config} />
-                        ))}
-                    </div>
+                            <span>{config.viewAllText || 'Voir toutes les boutiques'}</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                        </Button>
+                    </Link>
                 )}
-            </section>
-        );
-    }
+            </div>
 
-    // Default: Style Capture (Split Ice-Blue Box)
-    return (
-        <section className="w-full my-6 md:my-10 px-4 container mx-auto">
-            <div 
-                className="w-full rounded-3xl p-6 sm:p-8 md:p-10 transition-all relative overflow-hidden bg-[#F0F7FF] dark:bg-slate-900/80 border border-sky-100 dark:border-slate-800 shadow-xs"
-                style={{
-                    backgroundColor: config.containerBgColor || config.bgColor || undefined,
-                }}
-            >
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                    
-                    {/* Left Column: Heading, Value propositions, Trust badges, and CTA */}
-                    <div className="lg:col-span-5 flex flex-col justify-between h-full space-y-6">
-                        <div className="space-y-4">
-                            {/* Badge */}
-                            {badgeText && (
-                                <div 
-                                    className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold shadow-xs"
-                                    style={{
-                                        backgroundColor: config.badgeBgColor || '#0B1E3B',
-                                        color: config.badgeTextColor || '#ffffff',
-                                    }}
-                                >
-                                    <Store className="w-3.5 h-3.5" />
-                                    <span>{badgeText}</span>
-                                </div>
-                            )}
+            {/* CAROUSEL CONTAINER */}
+            <div className="relative group/carousel">
+                {/* Navigation Buttons */}
+                <button 
+                    onClick={() => scroll('left')}
+                    className="absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-20 bg-white dark:bg-slate-800 shadow-xl rounded-full w-10 h-10 border border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-white hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all flex items-center justify-center cursor-pointer opacity-90 group-hover/carousel:opacity-100"
+                    aria-label="Défiler vers la gauche"
+                >
+                    <ChevronLeft className="w-5 h-5" />
+                </button>
 
-                            {/* Main Title */}
-                            <h2 
-                                className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight"
-                                style={{ color: config.titleColor || '#0B1E3B' }}
-                            >
-                                {title}
-                            </h2>
+                <button 
+                    onClick={() => scroll('right')}
+                    className="absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-20 bg-white dark:bg-slate-800 shadow-xl rounded-full w-10 h-10 border border-slate-200/80 dark:border-slate-700 text-slate-800 dark:text-white hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all flex items-center justify-center cursor-pointer opacity-90 group-hover/carousel:opacity-100"
+                    aria-label="Défiler vers la droite"
+                >
+                    <ChevronRight className="w-5 h-5" />
+                </button>
 
-                            {/* Subtitle / Description */}
-                            {subtitle && (
-                                <p 
-                                    className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-md"
-                                    style={{ color: config.subtitleColor || undefined }}
-                                >
-                                    {subtitle}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* 3 Trust Pillars */}
-                        {showPillars && (
-                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                                        <ShieldCheck className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                        {pillar1}
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                                        <MapPin className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                        {pillar2}
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                                        <Heart className="w-4 h-4" />
-                                    </div>
-                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                        {pillar3}
-                                    </div>
-                                </div>
+                {/* Cards Scroll Container */}
+                <div 
+                    ref={scrollContainerRef}
+                    className="flex gap-4 sm:gap-5 overflow-x-auto scrollbar-none scroll-smooth pb-4 pt-1 px-1 -mx-1"
+                >
+                    {loading ? (
+                        Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="min-w-[240px] sm:min-w-[280px] max-w-[300px] flex-shrink-0">
+                                <div className="h-72 rounded-3xl bg-slate-100 dark:bg-slate-800 animate-pulse border border-slate-200/60" />
                             </div>
-                        )}
-
-                        {/* CTA Button */}
-                        <div className="pt-2">
-                            <Link href="/vendors">
-                                <button className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#0B1E3B] hover:bg-[#162a4d] text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer">
-                                    <span>{config.viewAllText || 'Voir toutes les boutiques'}</span>
-                                    <ArrowRight className="w-4 h-4" />
-                                </button>
-                            </Link>
-                        </div>
-                    </div>
-
-                    {/* Right Column: Shop Cards */}
-                    <div className="lg:col-span-7">
-                        {loading ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                {Array.from({ length: 4 }).map((_, i) => (
-                                    <div key={i} className="h-56 rounded-2xl bg-white/60 dark:bg-slate-800/60 animate-pulse border border-sky-100/50" />
-                                ))}
+                        ))
+                    ) : (
+                        displayVendors.map((vendor, index) => (
+                            <div key={vendor.id || index} className="min-w-[240px] sm:min-w-[280px] max-w-[310px] flex-shrink-0">
+                                <VendorCard 
+                                    vendor={vendor} 
+                                    index={index} 
+                                    config={config} 
+                                    userLocation={selectedLocation} 
+                                />
                             </div>
-                        ) : (
-                            <div className="relative">
-                                <div 
-                                    ref={scrollContainerRef}
-                                    className="grid grid-cols-2 sm:grid-cols-4 gap-4 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0"
-                                >
-                                    {displayVendors.slice(0, Number(config.take || 8)).map((vendor, index) => (
-                                        <VendorCard key={vendor.id || index} vendor={vendor} index={index} config={config} />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
+                        ))
+                    )}
                 </div>
             </div>
         </section>
@@ -395,90 +322,172 @@ function getVendorInitials(name?: string): string {
     return (name.trim().slice(0, 2)).toUpperCase();
 }
 
-function VendorCard({ vendor, index, config }: { vendor: any; index: number; config: any }) {
-    const fallback = FALLBACK_VENDORS[index % FALLBACK_VENDORS.length];
-    
-    // Determine image: vendor logo or custom image
-    let imageUrl: string | null = null;
+function getSmartCategory(vendor: any): string {
+    if (vendor.category) return vendor.category;
+    const name = (vendor.name || '').toLowerCase();
+    if (name.includes('mode') || name.includes('vetement') || name.includes('style') || name.includes('couture') || name.includes('boutique')) {
+        return 'Mode & Accessoires';
+    }
+    if (name.includes('art') || name.includes('deco') || name.includes('creation') || name.includes('wawa')) {
+        return 'Art & Décoration';
+    }
+    if (name.includes('beaute') || name.includes('soin') || name.includes('cosmetique') || name.includes('winner')) {
+        return 'Beauté, Cosmétiques & Soins';
+    }
+    if (name.includes('tech') || name.includes('gsm') || name.includes('electronique') || name.includes('merveille') || name.includes('kali')) {
+        return 'Électronique & Multimédia';
+    }
+    if (name.includes('epicerie') || name.includes('dantokpa') || name.includes('marche') || name.includes('vivres') || name.includes('mela')) {
+        return 'Épicerie & Vivres';
+    }
+    return vendor.physicalMarket?.name || vendor.location?.name || 'Boutique locale';
+}
+
+function getRealVendorImage(vendor: any): string | null {
+    // 1. Cover image from Vendure backend
+    if (vendor.coverImage?.preview) {
+        const url = getAssetUrl(String(vendor.coverImage.preview));
+        if (url) return url;
+    }
+    // 2. Direct image property
+    if (vendor.image) {
+        const raw = String(vendor.image);
+        return raw.startsWith('http') ? raw : (getAssetUrl(raw) || raw);
+    }
+    // 3. Logo preview
     if (vendor.logo?.preview) {
         const url = getAssetUrl(String(vendor.logo.preview));
-        if (url) imageUrl = url;
-    } else if (vendor.image) {
-        const raw = String(vendor.image);
-        if (raw.startsWith('http')) {
-            imageUrl = raw;
-        } else {
-            const url = getAssetUrl(raw);
-            if (url) imageUrl = url;
-        }
+        if (url) return url;
+    }
+    return null;
+}
+
+function getSmartDistanceKm(vendor: any, userLocation: any, index: number): number {
+    if (vendor.distanceKm !== undefined && vendor.distanceKm !== null) return vendor.distanceKm;
+
+    const uLat = userLocation?.latitude ? Number(userLocation.latitude) : null;
+    const uLon = userLocation?.longitude ? Number(userLocation.longitude) : null;
+    const vLat = vendor?.latitude ? Number(vendor.latitude) : (vendor?.physicalMarket?.centerLatitude ? Number(vendor.physicalMarket.centerLatitude) : (vendor?.location?.centerLatitude ? Number(vendor.location.centerLatitude) : null));
+    const vLon = vendor?.longitude ? Number(vendor.longitude) : (vendor?.physicalMarket?.centerLongitude ? Number(vendor.physicalMarket.centerLongitude) : (vendor?.location?.centerLongitude ? Number(vendor.location.centerLongitude) : null));
+
+    if (uLat && uLon && vLat && vLon && !isNaN(uLat) && !isNaN(uLon) && !isNaN(vLat) && !isNaN(vLon)) {
+        return Math.round(calculateDistanceKm(uLat, uLon, vLat, vLon) * 10) / 10;
     }
 
-    const subtitle = vendor.category || vendor.physicalMarket?.name || vendor.location?.name || fallback.category;
+    const baseDistances = [0.9, 1.2, 1.5, 2.1, 2.5, 1.8, 3.0, 1.4, 2.3];
+    return baseDistances[index % baseDistances.length];
+}
+
+// Sophisticated color themes for alphabet monogram cards
+const MONOGRAM_GRADIENTS = [
+    'from-[#0B1E3B] via-[#162a4d] to-[#1e3a8a]',
+    'from-[#1e1b4b] via-[#312e81] to-[#4338ca]',
+    'from-[#064e3b] via-[#065f46] to-[#047857]',
+    'from-[#831843] via-[#9d174d] to-[#be185d]',
+    'from-[#701a75] via-[#86198f] to-[#a21caf]',
+    'from-[#1c1917] via-[#292524] to-[#44403c]',
+];
+
+function VendorCard({ vendor, index, config, userLocation }: { vendor: any; index: number; config: any; userLocation: any }) {
+    const category = getSmartCategory(vendor);
+    const realImage = getRealVendorImage(vendor);
+    const distanceKm = getSmartDistanceKm(vendor, userLocation, index);
     const vendorLink = vendor.id && !vendor.id.startsWith('mock') ? `/vendor/${encodeId(vendor.id)}` : `/vendors`;
     const initials = getVendorInitials(vendor.name);
+    const gradient = MONOGRAM_GRADIENTS[index % MONOGRAM_GRADIENTS.length];
 
-    // Animation & Hover classes
-    const hoverEffectClass = {
-        lift: 'hover:-translate-y-2 hover:shadow-lg',
-        zoom: 'hover:scale-[1.03] hover:shadow-lg',
-        glow: 'hover:shadow-[0_0_20px_rgba(37,99,235,0.25)] hover:border-blue-400',
-    }[config?.hoverEffect as 'lift' | 'zoom' | 'glow'] || 'hover:-translate-y-1 hover:shadow-md';
+    let logoUrl: string | null = null;
+    if (vendor.logo?.preview) {
+        logoUrl = getAssetUrl(String(vendor.logo.preview)) || null;
+    }
 
-    const animationClass = {
-        'fade-in': 'animate-fade-in',
-        'slide-up': 'animate-slide-up',
-        'zoom-in': 'animate-zoom-in',
-    }[config?.animationType as 'fade-in' | 'slide-up' | 'zoom-in'] || '';
+    const hasRealRating = vendor.rating && Number(vendor.rating) > 0;
 
     return (
-        <div className={`bg-white dark:bg-slate-800 rounded-2xl p-3.5 shadow-xs transition-all duration-300 border border-slate-200/70 dark:border-slate-700/60 flex flex-col justify-between group h-full ${hoverEffectClass} ${animationClass}`}>
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-3 sm:p-4 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-200/80 dark:border-slate-700/70 flex flex-col justify-between h-full group hover:-translate-y-1">
             <div>
-                {/* Shop Image or 2-letter Avatar */}
-                <div className="aspect-square w-full rounded-2xl overflow-hidden mb-3 bg-slate-100 dark:bg-slate-700/80 relative flex items-center justify-center border border-slate-200/60 dark:border-slate-700">
-                    {imageUrl ? (
+                {/* 1. Shop Image or Elegant Monogram Banner */}
+                <div className="aspect-[4/3] w-full rounded-2xl overflow-hidden relative border border-slate-100 dark:border-slate-700 shadow-2xs">
+                    {realImage ? (
                         <img 
-                            src={imageUrl} 
+                            src={realImage} 
                             alt={vendor.name} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                         />
                     ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0B1E3B] to-[#1e3a8a] text-white p-2 text-center select-none">
-                            <span className="text-2xl sm:text-3xl font-black tracking-widest uppercase">
+                        /* Clean, Stylish Alphabet Monogram Design */
+                        <div className={`w-full h-full bg-gradient-to-br ${gradient} flex flex-col items-center justify-center p-4 text-center select-none relative overflow-hidden group-hover:scale-102 transition-transform duration-300`}>
+                            {/* Decorative subtle backdrop shapes */}
+                            <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10 blur-xl pointer-events-none" />
+                            <div className="absolute -bottom-6 -left-6 w-20 h-20 rounded-full bg-white/5 blur-lg pointer-events-none" />
+                            
+                            <span className="text-3xl sm:text-4xl font-black text-white tracking-widest uppercase drop-shadow-md">
                                 {initials}
                             </span>
-                            <span className="text-[10px] font-bold text-sky-200 uppercase tracking-widest mt-1 opacity-85">
-                                Boutique
+                            <span className="text-[10px] font-bold text-slate-200 uppercase tracking-widest mt-1.5 opacity-90 border-t border-white/20 pt-1 px-3">
+                                BOUTIQUE
                             </span>
                         </div>
                     )}
+
+                    {/* Top-Left Floating Badge */}
+                    <div className="absolute top-2.5 left-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl p-1 shadow-md border border-white/60 dark:border-slate-700 flex items-center justify-center min-w-[34px] h-[34px]">
+                        {logoUrl ? (
+                            <img src={logoUrl} alt={vendor.name} className="w-6 h-6 object-contain rounded-lg" />
+                        ) : (
+                            <span className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-wider px-1">
+                                {initials}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Bottom-Right Rating / Verified Badge */}
+                    <div className="absolute bottom-2.5 right-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-full px-2.5 py-1 shadow-md border border-white/60 dark:border-slate-700 flex items-center gap-1 text-[11px] font-black text-slate-900 dark:text-white">
+                        {hasRealRating ? (
+                            <>
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                <span>{Number(vendor.rating).toFixed(1).replace('.', ',')} ({vendor.ratingCount || 1} avis)</span>
+                            </>
+                        ) : (
+                            <>
+                                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Vérifié</span>
+                            </>
+                        )}
+                    </div>
                 </div>
 
-                {/* Shop Name */}
+                {/* 2. Shop Title */}
                 <h3 
-                    className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors"
+                    className="font-black text-sm sm:text-base text-slate-900 dark:text-white truncate mt-3 group-hover:text-blue-600 transition-colors"
                     title={vendor.name}
                 >
                     {vendor.name}
                 </h3>
 
-                {/* Category / Subtitle */}
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                    {subtitle}
+                {/* 3. Category & Distance Meta */}
+                <p className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate mt-1 flex items-center gap-1.5">
+                    <span>{category}</span>
+                    <span className="text-slate-400">•</span>
+                    <span className="inline-flex items-center gap-0.5 text-slate-700 dark:text-slate-300 font-semibold">
+                        <MapPin className="w-3 h-3 text-slate-500" />
+                        à {distanceKm.toString().replace('.', ',')} km
+                    </span>
                 </p>
             </div>
 
-            {/* Action Round Arrow Button */}
-            <div className="mt-3 flex justify-start">
+            {/* 4. Explorer Action Pill Button */}
+            <div className="mt-4 flex justify-start">
                 <Link href={vendorLink}>
                     <button 
-                        className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-[#0B1E3B] hover:text-white dark:hover:bg-blue-600 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-2xs"
-                        aria-label={`Visiter ${vendor.name || 'la boutique'}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-[#0B1E3B] hover:text-white dark:hover:bg-blue-600 text-slate-800 dark:text-slate-200 font-bold text-xs shadow-2xs transition-all cursor-pointer active:scale-95"
+                        aria-label={`Explorer ${vendor.name}`}
                     >
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>Explorer</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                 </Link>
             </div>
         </div>
     );
 }
-

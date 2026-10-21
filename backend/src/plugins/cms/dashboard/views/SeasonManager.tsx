@@ -188,8 +188,15 @@ export function SeasonManager() {
                                 <button 
                                     onClick={() => {
                                         const name = (document.getElementById('season-name') as HTMLInputElement).value;
-                                        const startDate = (document.getElementById('season-start') as HTMLInputElement).value;
-                                        const endDate = (document.getElementById('season-end') as HTMLInputElement).value;
+                                        const startRaw = (document.getElementById('season-start') as HTMLInputElement).value;
+                                        const endRaw = (document.getElementById('season-end') as HTMLInputElement).value;
+                                        const formatToIso = (val: string) => {
+                                            if (!val || !val.trim()) return null;
+                                            const d = new Date(val);
+                                            return isNaN(d.getTime()) ? null : d.toISOString();
+                                        };
+                                        const startDate = formatToIso(startRaw);
+                                        const endDate = formatToIso(endRaw);
                                         if (isAdding) {
                                             createMutation.mutate({ name, startDate, endDate, isActive: false });
                                         } else {

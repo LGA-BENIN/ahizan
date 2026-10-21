@@ -7,8 +7,8 @@ import { getBannerApiUrl } from '@/lib/vendure/api-utils';
  */
 export async function GlobalPopupProvider() {
     try {
-        // Fetch our General Config which contains the modals
-        const res = await fetch(getBannerApiUrl('general-config'));
+        // Fetch our General Config which contains the modals (cached for 60s)
+        const res = await fetch(getBannerApiUrl('general-config'), { next: { revalidate: 60 } });
         
         if (!res.ok) {
             console.warn(`[GlobalPopupProvider] Failed to fetch general-config: ${res.status}`);

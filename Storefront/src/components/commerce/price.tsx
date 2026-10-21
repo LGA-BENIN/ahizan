@@ -9,7 +9,7 @@ interface PriceProps {
 
 export function Price({value, currencyCode = 'XOF'}: PriceProps) {
     if (value === undefined || value === null || isNaN(value)) {
-        return <>0 FCFA</>;
+        return <span className="whitespace-nowrap">0&nbsp;FCFA</span>;
     }
-    return <>{formatPrice(value, currencyCode)}</>;
+    return <span className="whitespace-nowrap">{formatPrice(value, currencyCode)}</span>;
 }

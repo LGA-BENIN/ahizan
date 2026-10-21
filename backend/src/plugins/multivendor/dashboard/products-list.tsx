@@ -991,8 +991,11 @@ export function ProductListComponent() {
             if (selectedVendor !== 'all') {
                 if (selectedVendor === 'ahizan_official') {
                     if (vendorId) return false;
-                } else if (vendorId !== selectedVendor) {
-                    return false;
+                } else if (String(vendorId) !== String(selectedVendor)) {
+                    const hasOfferFromVendor = (offersMap[p.id] || []).some((off: any) => String(off.vendor?.id) === String(selectedVendor));
+                    if (!hasOfferFromVendor) {
+                        return false;
+                    }
                 }
             }
 

@@ -27,7 +27,8 @@
     "vite.*.*ts",
     "src/debug-*.ts",
     "src/test-*.ts",
-    "src/run-migration-fix.ts"
+    "src/run-migration-fix.ts",
+    "src/plugins/**/scripts/*"
   ],
   "ts-node": {
     "files": true

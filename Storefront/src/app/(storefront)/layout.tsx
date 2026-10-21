@@ -24,6 +24,7 @@ import { MobileMenuProvider, MobileMenuHeader } from "@/contexts/mobile-menu-con
 import { getTopCollections } from "@/lib/vendure/cached";
 import { AhizanContextExposer } from "@/components/ahizan/AhizanContextExposer";
 import { LocationProvider } from "@/contexts/location-context";
+import { NavigationProgress } from "@/components/shared/NavigationProgress";
 
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
@@ -235,7 +236,11 @@ export default async function StorefrontLayout({ children }: { children: React.R
                 />
             )}
             {googleFontsUrl && (
-                <link rel="stylesheet" href={googleFontsUrl} />
+                <>
+                    <link rel="preconnect" href="https://fonts.googleapis.com" />
+                    <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+                    <link rel="stylesheet" href={googleFontsUrl} />
+                </>
             )}
             <style dangerouslySetInnerHTML={{ __html: `
                 :root {
@@ -251,6 +256,11 @@ export default async function StorefrontLayout({ children }: { children: React.R
             ` }} />
             
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
+                {/* Instant Top Navigation Progress Bar on route change */}
+                <Suspense fallback={null}>
+                    <NavigationProgress />
+                </Suspense>
+
                 {/* Render the Preloader IMMEDIATELY. Since the config is already fetched, it starts animating instantly! */}
                 <AhizanPreloader config={{ preloader: theme?.preloader }} />
                 

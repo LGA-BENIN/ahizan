@@ -25,6 +25,11 @@ import { LocalCascadeEngineSection } from "@/components/cms/LocalCascadeEngineSe
 import { MarketHeroBanner } from "@/components/cms/MarketHeroBanner";
 import { MarketProductSearch } from "@/components/cms/MarketProductSearch";
 import { MarketFacetedCatalog } from "@/components/cms/MarketFacetedCatalog";
+import { HeroStoryScroller } from "@/components/cms/HeroStoryScroller";
+import { HeroSlimBanner } from "@/components/cms/HeroSlimBanner";
+import { QuadCategoryGrid } from "@/components/cms/QuadCategoryCard";
+import { CircularCategoryNav } from "@/components/cms/CircularCategoryNav";
+import { TrustFooterBar } from "@/components/cms/TrustFooterBar";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Script from "next/script";
 import { useLocation } from "@/contexts/location-context";
@@ -283,7 +288,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
     // Strict emptiness check helper
     const isEmpty = (v: any) => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
 
-    const wrapper = "max-w-[1440px] mx-auto w-full px-3 sm:px-4 md:px-8 lg:px-12";
+    const wrapper = "max-w-[1720px] mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8";
 
     switch (type) {
         case 'PRODUCT_COLLECTION': {
@@ -335,11 +340,13 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             return <InlineCategorySection config={config} siteCategories={siteCategories} globalPromoConfig={globalPromoConfig} wrapper={wrapper} />;
         }
 
+        case 'TABBED_PRODUCT_GRID':
         case 'PRODUCT_GRID': {
             // Standard product grid section using the cms/TabbedProductGrid component
             return (
                 <section className={`${wrapper} mt-2 md:mt-3`}>
                     <TabbedProductGrid
+                        {...config}
                         title={config.title}
                         layout={config.layout || 'grid'}
                         columns={config.columns || 4}
@@ -365,6 +372,47 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
             );
         }
 
+        case 'HERO_STORY_SCROLLER': {
+            return (
+                <section className={`${wrapper} mt-3 md:mt-4`}>
+                    <HeroStoryScroller {...config} />
+                </section>
+            );
+        }
+
+        case 'HERO_SLIM_BANNER': {
+            return (
+                <section className={`${wrapper} mt-3 md:mt-4`}>
+                    <HeroSlimBanner {...config} />
+                </section>
+            );
+        }
+
+        case 'QUAD_CATEGORY_CARD':
+        case 'QUAD_GRID': {
+            return (
+                <section className={`${wrapper} mt-3 md:mt-4`}>
+                    <QuadCategoryGrid {...config} />
+                </section>
+            );
+        }
+
+        case 'CIRCULAR_CATEGORY_NAV': {
+            return (
+                <section className={`${wrapper} mt-2 md:mt-3`}>
+                    <CircularCategoryNav {...config} />
+                </section>
+            );
+        }
+
+        case 'TRUST_FOOTER_BAR': {
+            return (
+                <section className={`${wrapper} mt-4 md:mt-6`}>
+                    <TrustFooterBar {...config} />
+                </section>
+            );
+        }
+
         case 'SMART_VISUAL_GRID': {
             return <SmartVisualGridSection config={config} siteCategories={siteCategories} />;
         }
@@ -374,46 +422,26 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         }
 
         case 'LOCAL_PRODUCTS': {
-            return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
-                    <LocalPersonalizedProducts config={config} />
-                </section>
-            );
+            return <LocalPersonalizedProducts config={config} />;
         }
 
         case 'LOCAL_VENDORS':
         case 'LOCAL_VENDORS_SECTION': {
-            return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
-                    <LocalVendorsProximitySection config={config} />
-                </section>
-            );
+            return <LocalVendorsProximitySection config={config} />;
         }
 
         case 'LOCAL_MARKETS':
         case 'LOCAL_MARKETS_SECTION': {
-            return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
-                    <LocalMarketsProximitySection config={config} />
-                </section>
-            );
+            return <LocalMarketsProximitySection config={config} />;
         }
 
         case 'LOCAL_NEIGHBORHOODS':
         case 'LOCAL_NEIGHBORHOODS_SECTION': {
-            return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
-                    <LocalNeighborhoodsProximitySection config={config} />
-                </section>
-            );
+            return <LocalNeighborhoodsProximitySection config={config} />;
         }
 
         case 'LOCAL_CASCADE_ENGINE': {
-            return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
-                    <LocalCascadeEngineSection config={config} />
-                </section>
-            );
+            return <LocalCascadeEngineSection config={config} />;
         }
 
         case 'MARKET_HERO_BANNER':

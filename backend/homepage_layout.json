@@ -1,0 +1,555 @@
+[
+  {
+    "type": "THEME_SETTINGS",
+    "title": "Paramètres du Thème",
+    "description": "Design System Global Ahizan",
+    "layout": "boxed",
+    "order": 0,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "primaryColor": "#0f172a",
+      "secondaryColor": "#f59e0b",
+      "accentColor": "#d8263e",
+      "successColor": "#059669",
+      "warningColor": "#d97706",
+      "dangerColor": "#dc2626",
+      "backgroundColor": "#fafafa",
+      "surfaceColor": "#f8fafc",
+      "textColor": "#1e293b",
+      "textMutedColor": "#64748b",
+      "borderColor": "#e2e8f0",
+      "fontFamily": "'Outfit', sans-serif",
+      "headingFontFamily": "Inter, sans-serif",
+      "baseFontSize": "16px",
+      "headingFontWeight": "800",
+      "bodyLineHeight": "1.6",
+      "borderRadius": "12px",
+      "buttonRadius": "8px",
+      "cardRadius": "12px",
+      "inputRadius": "8px",
+      "layoutMode": "boxed",
+      "maxWidth": "1440px",
+      "sectionSpacing": "40px",
+      "containerPadding": "16px",
+      "enableAnimations": true,
+      "enableHoverEffects": true,
+      "enableSmoothScroll": true
+    }
+  },
+  {
+    "type": "HEADER_CONF",
+    "title": "Configuration En-tête",
+    "description": "Barre de navigation principale et bandeau supérieur",
+    "layout": "standard",
+    "order": 1,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "siteName": "AHIZAN",
+      "logoUrl": "https://api.ahizan.com/assets/preview/78/logo-temp-01__preview.png",
+      "logoWidth": "130px",
+      "sticky": true,
+      "headerBgColor": "#ffffff",
+      "showSearch": true,
+      "searchPlaceholder": "Rechercher un produit, une marque, une boutique...",
+      "showCartIcon": true,
+      "showWishlistIcon": true,
+      "showAccountIcon": true,
+      "cartBadgeColor": "#d8263e",
+      "showVendorLink": true,
+      "vendorLinkText": "Vendre sur Ahizan",
+      "vendorLinkUrl": "https://seller.ahizan.com/",
+      "topBar": {
+        "enabled": true,
+        "text": "Tout le marché béninois chez vous • Paiement MTN MoMo & Moov sécurisé • Livraison express",
+        "bgColor": "#d8263e",
+        "textColor": "#ffffff",
+        "height": "36px",
+        "fontSize": "13px",
+        "fontWeight": "600"
+      }
+    }
+  },
+  {
+    "type": "HERO_SLIM_BANNER",
+    "title": "Bannière Hero Slim Panoramique",
+    "description": "Accroche principale marketplace avec badges et CTA",
+    "layout": "full-width",
+    "order": 2,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "autoplaySpeed": 5000,
+      "slides": [
+        {
+          "id": 1,
+          "title": "Tout le marché béninois livré chez vous en toute confiance",
+          "subtitle": "Vos boutiques de Cotonou, Calavi et Porto-Novo accessibles 24h/24",
+          "bgGradient": "linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%)",
+          "highlightBadge": "100% SÉCURISÉ",
+          "badgeBgColor": "#059669",
+          "productImage": "https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop",
+          "ctaText": "Profiter des promos",
+          "ctaUrl": "/flash-deals"
+        },
+        {
+          "id": 2,
+          "title": "Paiement Mobile Money MTN & Moov Sans Frais Cachés",
+          "subtitle": "Commandez en un instant avec confirmation instantanée par SMS",
+          "bgGradient": "linear-gradient(135deg, #701a75 0%, #a21caf 50%, #d8263e 100%)",
+          "highlightBadge": "MTN & MOOV MONEY",
+          "badgeBgColor": "#f59e0b",
+          "productImage": "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=600&auto=format&fit=crop",
+          "ctaText": "Commander maintenant",
+          "ctaUrl": "/local-discovery"
+        },
+        {
+          "id": 3,
+          "title": "Le Marché Dantokpa & Boutiques de Quartier en Ligne",
+          "subtitle": "Livraison rapide le jour même dans tout le Grand Cotonou",
+          "bgGradient": "linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%)",
+          "highlightBadge": "LIVRAISON DU JOUR",
+          "badgeBgColor": "#dc2626",
+          "productImage": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop",
+          "ctaText": "Voir les boutiques proches",
+          "ctaUrl": "/local-discovery"
+        }
+      ]
+    }
+  },
+  {
+    "type": "HERO_STORY_SCROLLER",
+    "title": "Univers Phares",
+    "description": "Cartes verticales 9:16 défilantes au toucher pour mobile et desktop",
+    "layout": "carousel",
+    "order": 3,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Univers Phares",
+      "subtitle": "Explorez les sélections et tendances incontournables",
+      "cards": [
+        {
+          "id": "story-1",
+          "title": "Mode & Wax Béninois",
+          "subtitle": "Créations artisanales & style local",
+          "coverImage": "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=800&auto=format&fit=crop",
+          "linkUrl": "/search?category=mode",
+          "tag": "TENDANCE",
+          "tagColor": "#d8263e",
+          "buttonText": "Découvrir"
+        },
+        {
+          "id": "story-2",
+          "title": "Smartphones & High-Tech",
+          "subtitle": "Grandes marques garanties d'origine",
+          "coverImage": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=800&auto=format&fit=crop",
+          "linkUrl": "/collection/telephones-tablettes-c",
+          "tag": "MEILLEUR PRIX",
+          "tagColor": "#2563eb",
+          "buttonText": "Explorer"
+        },
+        {
+          "id": "story-3",
+          "title": "Maison & Électroménager",
+          "subtitle": "Équipez votre intérieur au meilleur coût",
+          "coverImage": "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=800&auto=format&fit=crop",
+          "linkUrl": "/collection/maison-bureau-b",
+          "tag": "NOUVEAUTÉ",
+          "tagColor": "#059669",
+          "buttonText": "Voir les offres"
+        },
+        {
+          "id": "story-4",
+          "title": "Terroir & Épicerie Locale",
+          "subtitle": "Saveurs et vivres frais du Bénin",
+          "coverImage": "https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=800&auto=format&fit=crop",
+          "linkUrl": "/collection/alimentation-a",
+          "tag": "TERROIR",
+          "tagColor": "#f59e0b",
+          "buttonText": "Commander"
+        },
+        {
+          "id": "story-5",
+          "title": "Commerces de Proximité",
+          "subtitle": "Vendeurs certifiés de votre quartier",
+          "coverImage": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop",
+          "linkUrl": "/local-discovery",
+          "tag": "PROXIMITÉ",
+          "tagColor": "#7c3aed",
+          "buttonText": "Visiter"
+        }
+      ]
+    }
+  },
+  {
+    "type": "CIRCULAR_CATEGORY_NAV",
+    "title": "Les Incontournables",
+    "description": "Bulles de catégories circulaires avec chargement dynamique",
+    "layout": "carousel",
+    "order": 4,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Les Incontournables",
+      "subtitle": "Accédez directement aux rayons principaux",
+      "autoFetch": true,
+      "badgeText": "RAYONS",
+      "badgeBgColor": "#d8263e",
+      "badgeTextColor": "#ffffff",
+      "showBorder": true,
+      "avatarSize": "lg"
+    }
+  },
+  {
+    "type": "FLASH_DEALS",
+    "title": "Ventes Flash",
+    "description": "Bandeau dynamique avec compte à rebours et urgence de stock",
+    "layout": "carousel",
+    "order": 5,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Ventes Flash",
+      "subtitle": "Offres limitées dans le temps • Jusqu'à épuisement des stocks",
+      "badgeText": "PRIX CHOC",
+      "badgeBgColor": "#dc2626",
+      "badgeTextColor": "#ffffff",
+      "headerStyle": "jumia",
+      "showCountdown": true,
+      "flashBadgeStyle": "neon_timer",
+      "countdownEnd": "2026-10-18T23:59:59",
+      "selectionMode": "AUTOMATIC",
+      "filterType": "FEATURED",
+      "layout": "carousel",
+      "columns": 5,
+      "take": 10,
+      "cardTheme": "master",
+      "topLeftBadge": "discount_percent",
+      "topRightBadge": "like_button",
+      "bottomRightBadge": "cart_button",
+      "bottomLeftBadge": "stock_status"
+    }
+  },
+  {
+    "type": "LOCAL_PRODUCTS",
+    "title": "Près de chez vous",
+    "description": "Moteur GeoEngine pour recommander les produits disponibles près de l'acheteur",
+    "layout": "carousel",
+    "order": 6,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Près de chez vous",
+      "subtitle": "Disponible à Cotonou et environs • Livraison rapide",
+      "badgeText": "LOCAL",
+      "badgeBgColor": "#059669",
+      "badgeTextColor": "#ffffff",
+      "selectionMode": "AUTOMATIC",
+      "experienceStrategy": "LOCAL_DISCOVERY",
+      "radiusKm": 25,
+      "boostCertifiedVendors": true,
+      "requireConfirmedLocation": false,
+      "layout": "carousel",
+      "columns": 4,
+      "take": 8,
+      "cardTheme": "master"
+    }
+  },
+  {
+    "type": "QUAD_GRID",
+    "title": "Parcourir par Univers",
+    "description": "Conteneurs multi-vignettes reliant aux sous-catégories",
+    "layout": "grid",
+    "order": 7,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Parcourir par Univers",
+      "subtitle": "Naviguez directement au cœur de nos rayons",
+      "cards": [
+        {
+          "cardTitle": "Smartphones & Accessoires",
+          "targetCategoryUrl": "/collection/telephones-tablettes-c",
+          "ctaLabel": "Voir tout l'univers High-Tech",
+          "items": [
+            {
+              "name": "Téléphones Portables",
+              "imageUrl": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/telephone-portables-c-1"
+            },
+            {
+              "name": "Accessoires Téléphone",
+              "imageUrl": "https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/accessoires-telephone-c-2"
+            },
+            {
+              "name": "Écouteurs & Audio",
+              "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/search?category=audio"
+            },
+            {
+              "name": "Chargeurs & Câbles",
+              "imageUrl": "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/search?category=chargeurs"
+            }
+          ]
+        },
+        {
+          "cardTitle": "Maison, Cuisine & Électroménager",
+          "targetCategoryUrl": "/collection/maison-bureau-b",
+          "ctaLabel": "Équiper votre maison",
+          "items": [
+            {
+              "name": "Petit Électroménager",
+              "imageUrl": "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/petit-electromenager-b-1"
+            },
+            {
+              "name": "Gros Électroménager",
+              "imageUrl": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/gros-electromenager-b-2"
+            },
+            {
+              "name": "Arts de la Table",
+              "imageUrl": "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/cuisine-et-arts-de-la-table-b-3"
+            },
+            {
+              "name": "Maison & Ameublement",
+              "imageUrl": "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/maison-et-ameublement-b-4"
+            }
+          ]
+        },
+        {
+          "cardTitle": "Alimentation & Épicerie Béninoise",
+          "targetCategoryUrl": "/collection/alimentation-a",
+          "ctaLabel": "Faire votre marché local",
+          "items": [
+            {
+              "name": "Boissons & Jus Locaux",
+              "imageUrl": "https://images.unsplash.com/photo-1534353473418-4cfa6c56fd38?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/alimentation-a"
+            },
+            {
+              "name": "Épices & Condiments",
+              "imageUrl": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/alimentation-a"
+            },
+            {
+              "name": "Céréales & Farines",
+              "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/alimentation-a"
+            },
+            {
+              "name": "Produits Vivriers Frais",
+              "imageUrl": "https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/alimentation-a"
+            }
+          ]
+        },
+        {
+          "cardTitle": "Beauté, Cosmétiques & Soins",
+          "targetCategoryUrl": "/collection/beaute-hygiene-e",
+          "ctaLabel": "Découvrir les soins",
+          "items": [
+            {
+              "name": "Soins du Visage",
+              "imageUrl": "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/beaute-hygiene-e"
+            },
+            {
+              "name": "Parfums & Eaux",
+              "imageUrl": "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/beaute-hygiene-e"
+            },
+            {
+              "name": "Soins Capillaires",
+              "imageUrl": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/beaute-hygiene-e"
+            },
+            {
+              "name": "Hygiène Quotidienne",
+              "imageUrl": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400&auto=format&fit=crop",
+              "targetUrl": "/collection/beaute-hygiene-e"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "type": "TABBED_PRODUCT_GRID",
+    "title": "Sélections du Moment",
+    "description": "Navigation par onglets sans rechargement de page style marketplace",
+    "layout": "grid",
+    "order": 8,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Sélections du Moment",
+      "subtitle": "Nos meilleures sélections au meilleur prix",
+      "tabStyle": "cdiscount",
+      "layout": "grid",
+      "columns": 4,
+      "cardStyle": "standard",
+      "tabs": [
+        {
+          "id": "tab-bestsellers",
+          "label": "Meilleures Ventes",
+          "filterType": "FEATURED",
+          "take": 8
+        },
+        {
+          "id": "tab-latest",
+          "label": "Nouveautés",
+          "filterType": "LATEST",
+          "take": 8
+        },
+        {
+          "id": "tab-electro",
+          "label": "Bons Plans Électro",
+          "filterType": "COLLECTION",
+          "collectionSlug": "telephones-tablettes-c",
+          "take": 8
+        }
+      ]
+    }
+  },
+  {
+    "type": "QUICK_LINKS",
+    "title": "Boutiques Officielles & Marques",
+    "description": "Bannière pleine largeur pour aérer la page",
+    "layout": "full-width",
+    "order": 9,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "showPromoBanners": true,
+      "promoBanners": [
+        {
+          "id": "banner-partenaires",
+          "title": "Boutiques Officielles & Marques Partenaires",
+          "subtitle": "Profitez de prix directs producteurs et vendeurs certifiés au Bénin",
+          "linkUrl": "/vendors",
+          "ctaText": "Découvrir les boutiques",
+          "badge": "100% AUTHENTIQUE",
+          "imageUrl": "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1200&auto=format&fit=crop"
+        }
+      ]
+    }
+  },
+  {
+    "type": "LOCAL_VENDORS_SECTION",
+    "title": "Boutiques Officielles",
+    "description": "Carrousel des marchands locaux vérifiés",
+    "layout": "carousel",
+    "order": 10,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Boutiques Officielles",
+      "subtitle": "Commerçants locaux vérifiés • 100% de confiance",
+      "badgeText": "100% VÉRIFIÉ",
+      "badgeBgColor": "#1e3a8a",
+      "badgeTextColor": "#ffffff",
+      "limit": 6
+    }
+  },
+  {
+    "type": "PRODUCT_COLLECTION",
+    "title": "Recommandé pour vous",
+    "description": "Catalogue élargi pour découverte de fin de page",
+    "layout": "grid",
+    "order": 11,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Recommandé pour vous",
+      "subtitle": "Sélection personnalisée selon vos envies",
+      "badgeText": "DÉCOUVERTE",
+      "badgeBgColor": "#0f172a",
+      "badgeTextColor": "#ffffff",
+      "selectionMode": "AUTOMATIC",
+      "filterType": "LATEST",
+      "layout": "grid",
+      "columns": 4,
+      "take": 12,
+      "cardStyle": "standard"
+    }
+  },
+  {
+    "type": "TRUST_FOOTER_BAR",
+    "title": "Engagements Ahizan",
+    "description": "4 piliers d'engagements adaptés au Bénin",
+    "layout": "contained",
+    "order": 12,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "title": "Engagements Ahizan",
+      "subtitle": "Votre marketplace de confiance au Bénin",
+      "items": [
+        {
+          "icon": "Smartphone",
+          "title": "Paiement Mobile Sécurisé",
+          "subtitle": "MTN MoMo, Moov Money, Celtiis et Cartes",
+          "description": "MTN MoMo, Moov Money, Celtiis et Cartes"
+        },
+        {
+          "icon": "Truck",
+          "title": "Livraison Partout au Bénin",
+          "subtitle": "Cotonou, Calavi, Porto-Novo et toutes les villes",
+          "description": "Cotonou, Calavi, Porto-Novo et toutes les villes"
+        },
+        {
+          "icon": "ShieldCheck",
+          "title": "Produits 100% Vérifiés",
+          "subtitle": "Authenticité assurée & commerçants certifiés",
+          "description": "Authenticité assurée & commerçants certifiés"
+        },
+        {
+          "icon": "Headphones",
+          "title": "Assistance Locale 7j/7",
+          "subtitle": "Service client réactif par WhatsApp et appel",
+          "description": "Service client réactif par WhatsApp et appel"
+        }
+      ]
+    }
+  },
+  {
+    "type": "FOOTER_CONF",
+    "title": "Configuration Pied de Page",
+    "description": "Footer complet avec liens et mentions de paiement",
+    "layout": "standard",
+    "order": 13,
+    "isActive": true,
+    "pageSlug": "home",
+    "dataJson": {
+      "about": "Ahizan - La plateforme de commerce et marketplace de référence au Bénin.",
+      "bgColor": "#0f172a",
+      "padding": "48px",
+      "textColor": "#94a3b8",
+      "accentColor": "#3b82f6",
+      "bottomBarBg": "#020617",
+      "headingColor": "#ffffff",
+      "bottomBarText": "#64748b",
+      "columnsLayout": "4",
+      "copyrightText": "© 2026 AHIZAN. Tous droits réservés.",
+      "showBackToTop": true,
+      "paymentMethods": [
+        "MTN Mobile Money",
+        "Moov Money",
+        "Carte Bancaire",
+        "Paiement à la livraison"
+      ],
+      "showNewsletter": true,
+      "newsletterTitle": "NOUVEAU SUR AHIZAN ?",
+      "newsletterSubtitle": "Inscrivez-vous pour recevoir les offres exclusives et ventes flash.",
+      "newsletterBtnText": "S'inscrire",
+      "newsletterBtnColor": "#d8263e"
+    }
+  }
+]

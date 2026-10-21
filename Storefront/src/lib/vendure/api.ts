@@ -88,19 +88,11 @@ export async function query<TResult = any, TVariables = any>(
     // Set the channel token header (use provided channelToken or default)
     headers[VENDURE_CHANNEL_TOKEN_HEADER] = channelToken || VENDURE_CHANNEL_TOKEN;
 
-    console.log(`[API Query] Requesting: ${VENDURE_API_URL}`);
-    console.log(`[API Query] Variables:`, JSON.stringify(variables, null, 2));
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[API Query] Requesting: ${VENDURE_API_URL}`);
+        console.log(`[API Query] Variables:`, JSON.stringify(variables, null, 2));
+    }
     
-    // DEBUG LOG HEADERS
-    try {
-        const fs = require('fs');
-        const documentName = (document as any)?.definitions?.[0]?.name?.value || 'Unknown';
-        fs.appendFileSync('checkout-debug.log', `[API] Executing ${documentName}
-AuthHeader: ${headers['Authorization'] ? 'PRESENT (' + headers['Authorization'].substring(0,15) + '...)' : 'MISSING'}
-Variables: ${JSON.stringify(variables)}
-\n`);
-    } catch(e) {}
-
     let queryString = '';
     if (typeof document === 'string') {
         queryString = document;
@@ -131,7 +123,10 @@ Variables: ${JSON.stringify(variables)}
     }
 
     const result: VendureResponse<TResult> = await response.json();
-    console.log(`[API Query] Result Data Keys:`, result.data ? Object.keys(result.data) : 'NULL');
+
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[API Query] Result Data Keys:`, result.data ? Object.keys(result.data) : 'NULL');
+    }
     if (result.data && (result.data as any).product === null) {
         console.warn(`[API Query] PRODUCT WAS NULL for variables:`, variables);
     }

@@ -61,6 +61,7 @@ export class GeoZone extends VendureEntity {
         nullable: true,
         spatialFeatureType: 'Geometry',
         srid: 4326,
+        select: false,
     })
     @Index({ spatial: true })
     boundary: any;

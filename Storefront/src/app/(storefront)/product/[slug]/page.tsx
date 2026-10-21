@@ -30,16 +30,23 @@ const GET_GLOBAL_WHATSAPP = `
     }
 `;
 
+let cachedWhatsappNumber: { value: string; timestamp: number } | null = null;
 async function getWhatsappNumber(): Promise<string> {
+    const now = Date.now();
+    if (cachedWhatsappNumber && now - cachedWhatsappNumber.timestamp < 5 * 60 * 1000) {
+        return cachedWhatsappNumber.value;
+    }
     try {
         const data = await rawQuery(GET_GLOBAL_WHATSAPP);
-        return data?.whatsappNumber || '';
+        const num = data?.whatsappNumber || '';
+        cachedWhatsappNumber = { value: num, timestamp: now };
+        return num;
     } catch {
         return '';
     }
 }
 
-async function getProductData(slugOrId: string) {
+const getProductData = React.cache(async (slugOrId: string) => {
     if (!slugOrId || slugOrId === 'undefined' || slugOrId === 'null') {
         return { data: { product: null } };
     }
@@ -95,7 +102,7 @@ async function getProductData(slugOrId: string) {
         console.warn(`[getProductData] Query error for "${slugOrId}":`, err);
         return { data: { product: null } };
     }
-}
+});
 
 export async function generateMetadata({ params, searchParams }: any): Promise<Metadata> {
     const { slug } = await params;
@@ -134,20 +141,28 @@ export async function generateMetadata({ params, searchParams }: any): Promise<M
             }
         }
     }
+    const rawPriceNumber = targetVariant?.priceWithTax || product.variants?.[0]?.priceWithTax || 0;
+    const formattedPriceStr = rawPriceNumber > 0 ? `${(rawPriceNumber / 100).toLocaleString('fr-FR')} FCFA` : '';
+    const baseTitle = declSuffix ? `${product.name} (${declSuffix})` : product.name;
+    const fullTitle = formattedPriceStr 
+        ? `${baseTitle} — ${formattedPriceStr} | ${SITE_NAME} Bénin`
+        : `${baseTitle} | ${SITE_NAME} Bénin`;
+    const fullDesc = description 
+        ? `${description.slice(0, 150)}. Prix: ${formattedPriceStr || 'Meilleur prix'}. Livraison rapide partout au Bénin (Cotonou, Calavi, etc.) et paiement à la livraison.`
+        : `Achetez ${baseTitle} ${formattedPriceStr ? `à ${formattedPriceStr}` : ''} sur ${SITE_NAME}. Livraison rapide partout au Bénin et paiement à la livraison.`;
     const collectionsStr = product.collections?.map((c: any) => c.name).join(', ');
-    const fullTitle = declSuffix ? `${product.name} — ${declSuffix}` : product.name;
-    const keywords = [product.name, declSuffix, collectionsStr, SITE_NAME, 'Bénin', 'E-commerce', 'Achat en ligne'].filter(Boolean).join(', ');
+    const keywords = [product.name, declSuffix, collectionsStr, SITE_NAME, 'Bénin', 'Cotonou', 'E-commerce Bénin', 'Achat en ligne Bénin', 'Paiement à la livraison'].filter(Boolean).join(', ');
 
         return {
             title: fullTitle,
-            description: description || `Achetez ${fullTitle} sur ${SITE_NAME}`,
+            description: fullDesc,
             keywords,
             alternates: {
                 canonical: buildCanonicalUrl(`/product/${product.slug}${targetVariant?.id ? `?variant=${targetVariant.id}` : ''}`),
             },
             openGraph: {
                 title: fullTitle,
-                description: description || `Achetez ${fullTitle} sur ${SITE_NAME}`,
+                description: fullDesc,
                 type: 'website',
                 url: buildCanonicalUrl(`/product/${product.slug}${targetVariant?.id ? `?variant=${targetVariant.id}` : ''}`),
                 images: buildOgImages(ogImage, fullTitle),
@@ -173,28 +188,70 @@ export async function generateMetadata({ params, searchParams }: any): Promise<M
     }
 }
 
+function toAbsoluteImageUrl(url: string | null | undefined): string | undefined {
+    if (!url) return undefined;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const base = (process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com').replace(/\/shop-api\/?$/, '');
+    return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 function buildProductJsonLd(product: any) {
     const mainVariant = product.variants?.[0];
     const rawPrice = mainVariant?.priceWithTax ? mainVariant.priceWithTax : 0;
+    // Price in Vendure is in centimes: divide by 100 for XOF in Schema.org
+    const price = Math.round(rawPrice / 100);
     const cleanDescription = truncateDescription(product.description, 500);
-    const images = product.assets?.map((a: any) => a.preview).filter(Boolean) || [];
+
+    const rawImages: string[] = [];
+    if (product.featuredAsset?.preview) rawImages.push(product.featuredAsset.preview);
+    if (product.assets) {
+        for (const a of product.assets) {
+            if (a?.preview) rawImages.push(a.preview);
+        }
+    }
+    if (product.variants) {
+        for (const v of product.variants) {
+            if (v?.featuredAsset?.preview) rawImages.push(v.featuredAsset.preview);
+            if (v?.assets) {
+                for (const va of v.assets) {
+                    if (va?.preview) rawImages.push(va.preview);
+                }
+            }
+        }
+    }
+    const absoluteImages = Array.from(new Set(rawImages.map(toAbsoluteImageUrl).filter(Boolean))) as string[];
+
+    const vendorName = product.customFields?.vendor?.name || SITE_NAME;
 
     const jsonLd: any = {
         '@context': 'https://schema.org',
         '@type': 'Product',
         name: product.name,
-        image: images.length > 0 ? images : undefined,
-        description: cleanDescription || `Achetez ${product.name} sur ${SITE_NAME}`,
+        image: absoluteImages.length > 0 ? absoluteImages : undefined,
+        description: cleanDescription || `Achetez ${product.name} sur ${SITE_NAME} Bénin`,
         sku: mainVariant?.sku || product.id,
+        brand: {
+            '@type': 'Brand',
+            name: vendorName,
+        },
         offers: {
             '@type': 'Offer',
             url: buildCanonicalUrl(`/product/${product.slug}`),
             priceCurrency: 'XOF',
-            price: rawPrice,
+            price: price,
+            priceValidUntil: '2027-12-31',
             availability: (mainVariant?.stockLevel !== 'IN_STOCK' && mainVariant?.stockLevel === 'OUT_OF_STOCK') 
                 ? 'https://schema.org/OutOfStock' 
                 : 'https://schema.org/InStock',
             itemCondition: 'https://schema.org/NewCondition',
+            seller: {
+                '@type': 'Organization',
+                name: vendorName,
+            },
+            areaServed: {
+                '@type': 'Country',
+                name: 'Benin',
+            },
         },
     };
 
@@ -383,15 +440,30 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
     const { slug } = await params;
     const searchParamsResolved = searchParams ? await searchParams : {};
 
+    const presetId = searchParamsResolved?.presetId;
     let product = null;
     let whatsappNumber = '';
+    let cmsPage: any = null;
     try {
-        const [result, wa] = await Promise.all([
+        const [result, wa, cms] = await Promise.all([
             getProductData(slug),
             getWhatsappNumber(),
+            presetId ? getPreviewHabillageContent(presetId) : getPageContent('product'),
         ]);
         product = result?.data?.product;
+
+        // Resilient Fallback: If product wasn't found by slug (e.g. corrupted variant name or outdated slug),
+        // but a valid variantId was passed in searchParams, recover the product directly via variant!
+        if (!product && (searchParamsResolved?.variantId || searchParamsResolved?.variant)) {
+            const rawVarId = searchParamsResolved.variantId || searchParamsResolved.variant;
+            const vId = String(Array.isArray(rawVarId) ? rawVarId[0] : rawVarId);
+            try {
+                const varFallbackRes = await getProductData(vId);
+                product = varFallbackRes?.data?.product;
+            } catch {}
+        }
         whatsappNumber = wa || '';
+        cmsPage = cms;
     } catch (e) {
         console.error('[ProductDetailPage] Error fetching product data:', e);
     }
@@ -475,18 +547,11 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
         .map((c: any) => c.slug)
         .filter(Boolean);
 
-    // Load CMS configurations (preset preview or published page)
-    const presetId = searchParamsResolved?.presetId;
-    let cmsPage = null;
-    if (presetId) {
-        cmsPage = await getPreviewHabillageContent(presetId);
-    } else {
-        cmsPage = await getPageContent('product');
-    }
+    // Sections from concurrently pre-loaded CMS page
     const sections = (cmsPage?.sections || [])
-        .filter(s => (s.pageSlug || 'home') === 'product')
-        .sort((a, b) => a.order - b.order);
-    const activeSections = sections.filter(s => s.isActive);
+        .filter((s: any) => (s.pageSlug || 'home') === 'product')
+        .sort((a: any, b: any) => a.order - b.order);
+    const activeSections = sections.filter((s: any) => s.isActive);
 
     const penultimateIdx = activeSections.length >= 2 ? activeSections.length - 2 : activeSections.length - 1;
 
@@ -533,7 +598,7 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
                 })()}
 
                 <div className="space-y-4">
-                    {activeSections.map((section, idx) => {
+                    {activeSections.map((section: any, idx: number) => {
                         const isPenultimate = idx === penultimateIdx;
                         const isLast = idx === activeSections.length - 1;
                         const sectionId = isPenultimate ? "cms-penultimate-section" : undefined;

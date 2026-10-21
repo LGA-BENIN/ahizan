@@ -1528,24 +1528,7 @@ const UniversalBuilderInner = () => {
               transition: 'all 0.15s'
             }}
           >
-            Habillages
-          </button>
-          <button
-            onClick={() => setActiveTab('SEASONS')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: '6px',
-              border: 'none',
-              background: activeTab === 'SEASONS' ? '#fff' : 'transparent',
-              color: activeTab === 'SEASONS' ? '#1e40af' : '#64748b',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '0.75rem',
-              boxShadow: activeTab === 'SEASONS' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.15s'
-            }}
-          >
-            Saisons
+            Habillages & Saisons
           </button>
         </nav>
       </div>
@@ -1554,10 +1537,8 @@ const UniversalBuilderInner = () => {
       <div style={{ flex: 1, overflow: 'hidden' }}>
           {activeTab === 'PAGES' ? (
             <BuilderContent pendingPresetId={pendingPresetId} onPresetOpened={() => setPendingPresetId(null)} />
-          ) : activeTab === 'HABILLAGES' ? (
-            <HabillageManager onOpenInEditor={handleOpenInEditor} />
           ) : (
-            <SeasonManager />
+            <HabillageManager onOpenInEditor={handleOpenInEditor} />
           )}
       </div>
     </div>

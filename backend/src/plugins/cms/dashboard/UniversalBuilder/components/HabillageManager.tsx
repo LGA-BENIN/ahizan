@@ -178,7 +178,23 @@ export const HabillageManager = ({ onOpenInEditor }: { onOpenInEditor?: (presetI
 
     const handleSaveSeason = async () => {
         try {
-            const input: any = { name: seasonName, startDate: seasonStart || null, endDate: seasonEnd || null, isActive: seasonActive, presetId: seasonPresetId || null };
+            if (!seasonName || !seasonName.trim()) {
+                alert('Veuillez renseigner un nom pour la saison.');
+                return;
+            }
+            const formatToIso = (val: string) => {
+                if (!val || !val.trim()) return null;
+                const d = new Date(val);
+                return isNaN(d.getTime()) ? null : d.toISOString();
+            };
+
+            const input: any = { 
+                name: seasonName.trim(), 
+                startDate: formatToIso(seasonStart), 
+                endDate: formatToIso(seasonEnd), 
+                isActive: seasonActive, 
+                presetId: seasonPresetId || null 
+            };
             if (editingSeason?.id) {
                 input.id = editingSeason.id;
                 await gql(UPDATE_SEASON, { input });
@@ -334,8 +350,19 @@ export const HabillageManager = ({ onOpenInEditor }: { onOpenInEditor?: (presetI
             {/* SEASONS TAB */}
             {tab === 'seasons' && (
                 <div>
-                    <div className="flex justify-between mb-3">
-                        <span className="text-xs text-[var(--builder-text-muted)]">Programmez des changements automatiques d'habillage</span>
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 mb-4 text-xs text-blue-900 leading-relaxed">
+                        <div className="font-bold mb-1 flex items-center gap-1.5">
+                            <span>💡</span> Comment fonctionne le Saisonage automatique ?
+                        </div>
+                        <div>
+                            Définissez une période de date (début et fin) pour vos événements (ex: <i>Noël</i>, <i>Tabaski</i>, <i>Black Friday</i>). 
+                            Durant cette période, l'habillage choisi est servi automatiquement. Dès la fin de la période, ou en l'absence de saison programmée, 
+                            la boutique bascule instantanément sur votre <b>Habillage par Défaut</b> sans aucune intervention manuelle.
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="text-xs text-[var(--builder-text-muted)]">Programmez vos campagnes saisonnières</span>
                         <Button size="sm" onClick={() => handleEditSeason()}>
                             + Nouvelle saison
                         </Button>
@@ -344,37 +371,62 @@ export const HabillageManager = ({ onOpenInEditor }: { onOpenInEditor?: (presetI
                     {loading ? (
                         <div className="text-center py-10 text-[var(--builder-text-muted)]">Chargement...</div>
                     ) : seasons.length === 0 ? (
-                        <div className="text-center py-10 text-[var(--builder-text-muted)] text-sm">Aucune saison configurée</div>
+                        <div className="text-center py-10 text-[var(--builder-text-muted)] text-sm border-2 border-dashed border-slate-200 rounded-xl">
+                            Aucune saison configurée. Créez votre première saison pour automatiser vos campagnes.
+                        </div>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Nom</TableHead>
-                                    <TableHead>Début</TableHead>
-                                    <TableHead>Fin</TableHead>
+                                    <TableHead>Période</TableHead>
                                     <TableHead>Habillage</TableHead>
                                     <TableHead>Statut</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {seasons.map((s: any) => (
-                                    <TableRow key={s.id}>
-                                        <TableCell className="font-semibold">{s.name}</TableCell>
-                                        <TableCell>{s.startDate ? new Date(s.startDate).toLocaleDateString('fr-FR') : '—'}</TableCell>
-                                        <TableCell>{s.endDate ? new Date(s.endDate).toLocaleDateString('fr-FR') : '—'}</TableCell>
-                                        <TableCell>{s.preset?.name || '—'}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={s.isActive ? 'success' : 'secondary'}>
-                                                {s.isActive ? 'ACTIF' : 'INACTIF'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="outline" size="sm" onClick={() => handleEditSeason(s)} className="mr-1">✏️</Button>
-                                            <Button variant="destructive" size="sm" onClick={() => handleDeleteSeason(s.id)}>🗑️</Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {seasons.map((s: any) => {
+                                    const now = new Date();
+                                    const isStarted = !s.startDate || new Date(s.startDate) <= now;
+                                    const isEnded = s.endDate && new Date(s.endDate) < now;
+                                    const isCurrentlyRunning = s.isActive && isStarted && !isEnded;
+                                    const isScheduled = s.isActive && !isStarted;
+
+                                    return (
+                                        <TableRow key={s.id} className={isCurrentlyRunning ? 'bg-emerald-50/50' : undefined}>
+                                            <TableCell className="font-semibold">
+                                                <div className="flex items-center gap-2">
+                                                    <span>{s.name}</span>
+                                                    {isCurrentlyRunning && <span className="text-[10px] text-emerald-600 font-bold">● En ligne</span>}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-xs text-slate-600">
+                                                {s.startDate ? new Date(s.startDate).toLocaleDateString('fr-FR') : 'Indéfini'} 
+                                                {' ➔ '} 
+                                                {s.endDate ? new Date(s.endDate).toLocaleDateString('fr-FR') : 'Indéfini'}
+                                            </TableCell>
+                                            <TableCell className="font-medium text-xs text-slate-800">
+                                                {s.preset?.name ? `🎨 ${s.preset.name}` : <span className="text-slate-400">— Aucun —</span>}
+                                            </TableCell>
+                                            <TableCell>
+                                                {!s.isActive ? (
+                                                    <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-500">DÉSACTIVÉ</Badge>
+                                                ) : isEnded ? (
+                                                    <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700">⌛ EXPIRÉ</Badge>
+                                                ) : isScheduled ? (
+                                                    <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-800">⏰ PROGRAMMÉ</Badge>
+                                                ) : (
+                                                    <Badge variant="default" className="text-[10px] bg-emerald-600 text-white animate-pulse">🟢 EN COURS (ACTIF)</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="outline" size="sm" onClick={() => handleEditSeason(s)} className="mr-1">✏️</Button>
+                                                <Button variant="destructive" size="sm" onClick={() => handleDeleteSeason(s.id)}>🗑️</Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     )}

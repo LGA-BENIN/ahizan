@@ -30,6 +30,7 @@ export const getActiveCustomer = cache(async () => {
 
 export const getActiveOrder = cache(async () => {
     const token = await getAuthToken();
+    if (!token) return null;
     try {
         const result = await query(GetActiveOrderQuery, undefined, {
             token

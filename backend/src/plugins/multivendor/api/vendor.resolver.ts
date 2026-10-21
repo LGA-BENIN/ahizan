@@ -1,4 +1,4 @@
-import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction, ProductVariantService, SearchService, GlobalSettingsService, EventBus, ProductEvent, Collection, ProductVariant, ChannelService, ProductOptionGroupService, ProductOptionService } from '@vendure/core';
+import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, CustomerService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction, ProductVariantService, SearchService, GlobalSettingsService, EventBus, ProductEvent, Collection, ProductVariant, ChannelService, ProductOptionGroupService, ProductOptionService } from '@vendure/core';
 import { In, Not } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
@@ -424,6 +424,38 @@ export class VendorResolver {
         return this.geoService.getMarketsByIds(ctx, vendor.marketIds);
     }
 
+    @ResolveField()
+    async latitude(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<number | null> {
+        if (vendor.latitude !== null && vendor.latitude !== undefined && !isNaN(Number(vendor.latitude))) {
+            return Number(vendor.latitude);
+        }
+        if (vendor.physicalMarketId) {
+            const market = await this.geoService.getMarket(ctx, Number(vendor.physicalMarketId));
+            if (market?.centerLatitude != null) return Number(market.centerLatitude);
+        }
+        if (vendor.locationId) {
+            const zone = await this.geoService.getLocation(ctx, Number(vendor.locationId));
+            if (zone?.centerLatitude != null) return Number(zone.centerLatitude);
+        }
+        return null;
+    }
+
+    @ResolveField()
+    async longitude(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<number | null> {
+        if (vendor.longitude !== null && vendor.longitude !== undefined && !isNaN(Number(vendor.longitude))) {
+            return Number(vendor.longitude);
+        }
+        if (vendor.physicalMarketId) {
+            const market = await this.geoService.getMarket(ctx, Number(vendor.physicalMarketId));
+            if (market?.centerLongitude != null) return Number(market.centerLongitude);
+        }
+        if (vendor.locationId) {
+            const zone = await this.geoService.getLocation(ctx, Number(vendor.locationId));
+            if (zone?.centerLongitude != null) return Number(zone.centerLongitude);
+        }
+        return null;
+    }
+
     @Query()
     @Allow(Permission.Authenticated)
     async myWithdrawals(@Ctx() ctx: RequestContext): Promise<any[]> {
@@ -473,8 +505,10 @@ export class VendorAdminResolver {
         private notificationsService: NotificationsService,
         private smsService: BrevoSmsService,
         private assetService: AssetService,
+        private orderService: OrderService,
+        private customerService: CustomerService,
     ) {
-        console.log('VendorAdminResolver initialized with ProductService, GeoService and AssetService');
+        console.log('VendorAdminResolver initialized with ProductService, GeoService, AssetService, OrderService and CustomerService');
     }
 
     @ResolveField()
@@ -497,7 +531,166 @@ export class VendorAdminResolver {
     @Query()
     @Allow(Permission.Authenticated)
     async adminVendorProducts(@Ctx() ctx: RequestContext, @Args('options') options: any): Promise<PaginatedList<Product>> {
-        return this.productService.findAll(ctx, options);
+        return this.productService.findAll(ctx, options, [
+            'featuredAsset',
+            'variants',
+            'variants.featuredAsset',
+            'variants.options',
+            'variants.options.group',
+            'customFields.vendor',
+        ]);
+    }
+
+    @Mutation()
+    @Allow(Permission.Authenticated)
+    async createAssistedOrder(
+        @Ctx() ctx: RequestContext,
+        @Args('input') input: any,
+    ): Promise<Order> {
+        const { customer, items, shippingMethodId, notes } = input;
+        if (!items || items.length === 0) {
+            throw new Error('Au moins un produit doit être ajouté à la commande.');
+        }
+
+        // 1. Create Draft Order
+        const draftOrder = await this.orderService.createDraft(ctx);
+
+        // 2. Set Customer
+        const cleanPhone = (customer.phoneNumber || '').trim();
+        const baseEmail = `client-${cleanPhone.replace(/[^0-9]/g, '') || 'commande'}`;
+        const email = `${baseEmail}@ahizan.local`;
+
+        try {
+            const customerEntity = await this.customerService.createOrUpdate(ctx, {
+                firstName: customer.firstName.trim(),
+                lastName: (customer.lastName || customer.firstName).trim(),
+                emailAddress: email,
+                phoneNumber: cleanPhone,
+            });
+            if (customerEntity && !(customerEntity as any).errorCode) {
+                await this.orderService.addCustomerToOrder(ctx, draftOrder.id, customerEntity as any);
+            }
+        } catch (e: any) {
+            try {
+                const customerEntity = await this.customerService.createOrUpdate(ctx, {
+                    firstName: customer.firstName.trim(),
+                    lastName: (customer.lastName || customer.firstName).trim(),
+                    emailAddress: `${baseEmail}-${Date.now()}@ahizan.local`,
+                    phoneNumber: cleanPhone,
+                });
+                if (customerEntity && !(customerEntity as any).errorCode) {
+                    await this.orderService.addCustomerToOrder(ctx, draftOrder.id, customerEntity as any);
+                }
+            } catch (custErr) {
+                console.warn('[createAssistedOrder] Customer assignment warning:', custErr);
+            }
+        }
+
+        // 3. Add items
+        let primaryVendorId: string | null = null;
+        for (const it of items) {
+            const addRes = await this.orderService.addItemToOrder(ctx, draftOrder.id, it.productVariantId, it.quantity);
+            if ((addRes as any)?.__typename && (addRes as any).__typename !== 'Order') {
+                throw new Error((addRes as any).message || `Erreur lors de l'ajout de la variante ${it.productVariantId}`);
+            }
+
+            // Determine vendor for this item
+            let vendorId = it.vendorId ? String(it.vendorId) : null;
+            if (!vendorId) {
+                const offer = await this.connection.rawConnection.query(`
+                    SELECT "vendorId" FROM seller_offer WHERE "productVariantId" = $1 ORDER BY id DESC LIMIT 1
+                `, [it.productVariantId]).catch(() => null);
+                if (offer?.[0]?.vendorId) {
+                    vendorId = String(offer[0].vendorId);
+                } else {
+                    const prod = await this.connection.rawConnection.query(`
+                        SELECT "customFieldsVendorid" FROM product WHERE id = (
+                            SELECT "productId" FROM product_variant WHERE id = $1
+                        ) LIMIT 1
+                    `, [it.productVariantId]).catch(() => null);
+                    if (prod?.[0]?.customFieldsVendorid) {
+                        vendorId = String(prod[0].customFieldsVendorid);
+                    }
+                }
+            }
+
+            if (vendorId && !primaryVendorId) {
+                primaryVendorId = vendorId;
+            }
+
+            if (vendorId) {
+                const vendor = await this.vendorService.findOne(ctx, vendorId);
+                const channelId = vendor?.channelId || null;
+                // Assign vendor and seller status to line
+                await this.connection.rawConnection.query(`
+                    UPDATE order_line 
+                    SET "customFieldsAssignedvendorid" = $1, 
+                        "sellerChannelId" = $2,
+                        "customFieldsSellerstatus" = 'pending'
+                    WHERE "orderId" = $3 AND "productVariantId" = $4
+                `, [Number(vendorId), channelId, Number(draftOrder.id), Number(it.productVariantId)]);
+            }
+        }
+
+        if (primaryVendorId) {
+            await this.connection.rawConnection.query(`
+                UPDATE "order" SET "customFieldsVendorid" = $1 WHERE id = $2
+            `, [Number(primaryVendorId), Number(draftOrder.id)]);
+        }
+
+        // 4. Set Shipping Address
+        try {
+            await this.orderService.setShippingAddress(ctx, draftOrder.id, {
+                fullName: `${customer.firstName} ${customer.lastName || ''}`.trim(),
+                streetLine1: customer.neighborhood || customer.city,
+                city: customer.city,
+                countryCode: 'BJ',
+                phoneNumber: cleanPhone,
+            });
+        } catch (addrErr) {
+            console.warn('[createAssistedOrder] Warning setting shipping address:', addrErr);
+        }
+
+        // 5. Set Shipping Method
+        try {
+            const eligibleMethods = await this.orderService.getEligibleShippingMethods(ctx, draftOrder.id).catch(() => []);
+            const chosenMethodId = shippingMethodId || eligibleMethods?.[0]?.id || '1';
+            await this.orderService.setShippingMethod(ctx, draftOrder.id, [chosenMethodId]);
+        } catch (shipErr) {
+            console.warn('[createAssistedOrder] Warning setting shipping method:', shipErr);
+        }
+
+        // 6. Transition to ArrangingPayment
+        try {
+            await this.orderService.transitionToState(ctx, draftOrder.id, 'ArrangingPayment');
+        } catch (tErr) {
+            console.warn('[createAssistedOrder] Transition to ArrangingPayment:', tErr);
+        }
+
+        // 7. Add Manual Payment (Cash on Delivery) -> transitions to PaymentSettled
+        try {
+            await this.orderService.addManualPaymentToOrder(ctx, {
+                orderId: draftOrder.id,
+                method: 'gratuit',
+                metadata: {
+                    notes: notes || 'Commande assistée (WhatsApp / Téléphone) - Paiement à la livraison',
+                }
+            });
+        } catch (pErr) {
+            console.warn('[createAssistedOrder] Add manual payment:', pErr);
+            await this.orderService.transitionToState(ctx, draftOrder.id, 'PaymentSettled').catch(() => null);
+        }
+
+        const settled = await this.orderService.findOne(ctx, draftOrder.id, [
+            'lines',
+            'lines.productVariant',
+            'lines.productVariant.product',
+            'customer',
+            'shippingLines',
+            'channels'
+        ]);
+
+        return settled || (draftOrder as any);
     }
 
     @Query()
@@ -702,6 +895,38 @@ export class VendorAdminResolver {
         return this.geoService.getMarketsByIds(ctx, vendor.marketIds);
     }
 
+    @ResolveField()
+    async latitude(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<number | null> {
+        if (vendor.latitude !== null && vendor.latitude !== undefined && !isNaN(Number(vendor.latitude))) {
+            return Number(vendor.latitude);
+        }
+        if (vendor.physicalMarketId) {
+            const market = await this.geoService.getMarket(ctx, Number(vendor.physicalMarketId));
+            if (market?.centerLatitude != null) return Number(market.centerLatitude);
+        }
+        if (vendor.locationId) {
+            const zone = await this.geoService.getLocation(ctx, Number(vendor.locationId));
+            if (zone?.centerLatitude != null) return Number(zone.centerLatitude);
+        }
+        return null;
+    }
+
+    @ResolveField()
+    async longitude(@Parent() vendor: Vendor, @Ctx() ctx: RequestContext): Promise<number | null> {
+        if (vendor.longitude !== null && vendor.longitude !== undefined && !isNaN(Number(vendor.longitude))) {
+            return Number(vendor.longitude);
+        }
+        if (vendor.physicalMarketId) {
+            const market = await this.geoService.getMarket(ctx, Number(vendor.physicalMarketId));
+            if (market?.centerLongitude != null) return Number(market.centerLongitude);
+        }
+        if (vendor.locationId) {
+            const zone = await this.geoService.getLocation(ctx, Number(vendor.locationId));
+            if (zone?.centerLongitude != null) return Number(zone.centerLongitude);
+        }
+        return null;
+    }
+
     @Query()
     @Allow(Permission.Authenticated)
     async withdrawalRequests(@Ctx() ctx: RequestContext): Promise<any[]> {
@@ -806,9 +1031,10 @@ export class VendorAdminResolver {
             } catch (err) {}
         }
 
-        try {
-            await this.searchService.reindex(ctx);
-        } catch (reindexErr) {}
+        // Run search reindex in background without blocking the GraphQL request
+        this.searchService.reindex(ctx).catch((reindexErr) => {
+            console.error('[addVariantsToCollections] Search reindex background error:', reindexErr?.message || reindexErr);
+        });
     }
 
     private async removeVariantsFromAllCollections(ctx: RequestContext, variantIds: string[]): Promise<void> {
@@ -1897,79 +2123,81 @@ export class VendorAdminResolver {
             }
         }
 
-        // Direct notification to creator vendor
+        // Direct notification to creator vendor (dispatched in background to not block response)
         if (creatorVendor?.id) {
-            try {
-                const vendorUserRes = await this.connection.rawConnection.query(
-                    `SELECT v.id as vendor_id, v.name as vendor_name, v.email, v."phoneNumber" as phone_number, v."userId" as user_id, v."channelId" as channel_id FROM vendor v WHERE v.id = $1 LIMIT 1`,
-                    [creatorVendor.id]
-                );
-                const vRow = vendorUserRes[0];
-                if (vRow) {
-                    const finalProdName = (name && name.trim()) || product.translations?.[0]?.name || (product as any).name || 'Produit';
-                    const vars = {
-                        productName: finalProdName,
-                        businessName: vRow.vendor_name || 'Vendeur',
-                        rejectionReason: rejectionReason || 'Non conforme aux critères Ahizan',
-                    };
+            setTimeout(async () => {
+                try {
+                    const vendorUserRes = await this.connection.rawConnection.query(
+                        `SELECT v.id as vendor_id, v.name as vendor_name, v.email, v."phoneNumber" as phone_number, v."userId" as user_id, v."channelId" as channel_id FROM vendor v WHERE v.id = $1 LIMIT 1`,
+                        [creatorVendor.id]
+                    );
+                    const vRow = vendorUserRes[0];
+                    if (vRow) {
+                        const finalProdName = (name && name.trim()) || product.translations?.[0]?.name || (product as any).name || 'Produit';
+                        const vars = {
+                            productName: finalProdName,
+                            businessName: vRow.vendor_name || 'Vendeur',
+                            rejectionReason: rejectionReason || 'Non conforme aux critères Ahizan',
+                        };
 
-                    const settings = await this.smsService.getSettings();
+                        const settings = await this.smsService.getSettings();
 
-                    if (status === 'approved') {
-                        if (vRow.user_id) {
-                            await this.notificationsService.notify(ctx, {
-                                userId: vRow.user_id.toString(),
-                                eventType: 'VENDOR_EVENT',
-                                title: 'Produit Approuvé ✅',
-                                body: `Votre produit "${finalProdName}" a été validé et publié sur la marketplace.`,
-                                actionUrl: '/dashboard/products',
-                                targetRole: 'VENDOR',
-                                channels: ['IN_APP', 'PUSH'],
-                                channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
-                            });
-                        }
-                        if (settings?.channelsConfig?.ProductApproved?.enabled) {
-                            const cfg = settings.channelsConfig.ProductApproved;
-                            if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
-                                const content = this.smsService.interpolate(cfg.smsTemplate, vars);
-                                await this.smsService.sendSms(vRow.phone_number, content, settings);
+                        if (status === 'approved') {
+                            if (vRow.user_id) {
+                                await this.notificationsService.notify(ctx, {
+                                    userId: vRow.user_id.toString(),
+                                    eventType: 'VENDOR_EVENT',
+                                    title: 'Produit Approuvé ✅',
+                                    body: `Votre produit "${finalProdName}" a été validé et publié sur la marketplace.`,
+                                    actionUrl: '/dashboard/products',
+                                    targetRole: 'VENDOR',
+                                    channels: ['IN_APP', 'PUSH'],
+                                    channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
+                                });
                             }
-                            if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
-                                const subject = this.smsService.interpolate(cfg.emailSubject || 'Votre produit a été approuvé - Ahizan', vars);
-                                const content = this.smsService.interpolate(cfg.emailTemplate, vars);
-                                await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
+                            if (settings?.channelsConfig?.ProductApproved?.enabled) {
+                                const cfg = settings.channelsConfig.ProductApproved;
+                                if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
+                                    const content = this.smsService.interpolate(cfg.smsTemplate, vars);
+                                    await this.smsService.sendSms(vRow.phone_number, content, settings);
+                                }
+                                if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
+                                    const subject = this.smsService.interpolate(cfg.emailSubject || 'Votre produit a été approuvé - Ahizan', vars);
+                                    const content = this.smsService.interpolate(cfg.emailTemplate, vars);
+                                    await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
+                                }
                             }
-                        }
-                    } else if (status === 'rejected') {
-                        if (vRow.user_id) {
-                            await this.notificationsService.notify(ctx, {
-                                userId: vRow.user_id.toString(),
-                                eventType: 'VENDOR_EVENT',
-                                title: 'Produit Refusé ❌',
-                                body: `Votre produit "${finalProdName}" n'a pas été validé. Motif : ${vars.rejectionReason}`,
-                                actionUrl: '/dashboard/products',
-                                targetRole: 'VENDOR',
-                                channels: ['IN_APP', 'PUSH'],
-                                channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
-                            });
-                        }
-                        if (settings?.channelsConfig?.ProductRejected?.enabled) {
-                            const cfg = settings.channelsConfig.ProductRejected;
-                            if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
-                                const content = this.smsService.interpolate(cfg.smsTemplate, vars);
-                                await this.smsService.sendSms(vRow.phone_number, content, settings);
+                        } else if (status === 'rejected') {
+                            if (vRow.user_id) {
+                                await this.notificationsService.notify(ctx, {
+                                    userId: vRow.user_id.toString(),
+                                    eventType: 'VENDOR_EVENT',
+                                    title: 'Produit Refusé ❌',
+                                    body: `Votre produit "${finalProdName}" n'a pas été validé. Motif : ${vars.rejectionReason}`,
+                                    actionUrl: '/dashboard/products',
+                                    targetRole: 'VENDOR',
+                                    channels: ['IN_APP', 'PUSH'],
+                                    channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
+                                });
                             }
-                            if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
-                                const subject = this.smsService.interpolate(cfg.emailSubject || 'Mise à jour concernant votre produit - Ahizan', vars);
-                                const content = this.smsService.interpolate(cfg.emailTemplate, vars);
-                                await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
+                            if (settings?.channelsConfig?.ProductRejected?.enabled) {
+                                const cfg = settings.channelsConfig.ProductRejected;
+                                if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
+                                    const content = this.smsService.interpolate(cfg.smsTemplate, vars);
+                                    await this.smsService.sendSms(vRow.phone_number, content, settings);
+                                }
+                                if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
+                                    const subject = this.smsService.interpolate(cfg.emailSubject || 'Mise à jour concernant votre produit - Ahizan', vars);
+                                    const content = this.smsService.interpolate(cfg.emailTemplate, vars);
+                                    await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
+                                }
                             }
                         }
                     }
+                } catch (notifErr: any) {
+                    console.error('[adminReviewProduct] Background notification error:', notifErr?.message || notifErr);
                 }
-            } catch (notifErr: any) {
-                console.error('[adminReviewProduct] Notification error:', notifErr?.message || notifErr);
-            }
+            }, 0);
         }
 
         // Synchronize all variant names under this product to match the canonical product name + options
@@ -2110,111 +2338,113 @@ export class VendorAdminResolver {
                 );
             }
 
-            // Direct notification to the vendor owning this offer
+            // Direct notification to the vendor owning this offer (dispatched in background)
             if (offer.vendor?.id || (offer as any).vendorId) {
-                try {
-                    const targetVendorId = offer.vendor?.id || (offer as any).vendorId;
-                    const vRowRes = await this.connection.rawConnection.query(
-                        `SELECT v.id, v.name as vendor_name, v.email, v."phoneNumber" as phone_number, v."userId" as user_id, v."channelId" as channel_id 
-                         FROM vendor v WHERE v.id = $1 LIMIT 1`,
-                        [targetVendorId]
-                    );
-                    const vRow = vRowRes[0];
-                    if (vRow) {
-                        let offerName = '';
-                        try {
-                            const vRows = await this.connection.rawConnection.query(
-                                `SELECT pvt.name as variant_name, pt.name as product_name
-                                 FROM product_variant pv
-                                 LEFT JOIN product_variant_translation pvt ON (pvt."baseId" = pv.id)
-                                 LEFT JOIN product_translation pt ON (pt."baseId" = pv."productId")
-                                 WHERE pv.id = $1
-                                 ORDER BY 
-                                    CASE WHEN pvt."languageCode" = 'fr' THEN 1 ELSE 2 END,
-                                    CASE WHEN pt."languageCode" = 'fr' THEN 1 ELSE 2 END
-                                 LIMIT 1`,
-                                [offer.productVariant?.id]
-                            );
-                            if (vRows && vRows[0]) {
-                                const vName = vRows[0].variant_name;
-                                const pName = vRows[0].product_name;
-                                if (vName && pName && !vName.toLowerCase().includes(pName.toLowerCase())) {
-                                    offerName = `${pName} - ${vName}`;
-                                } else {
-                                    offerName = vName || pName || 'Déclinaison';
+                setTimeout(async () => {
+                    try {
+                        const targetVendorId = offer.vendor?.id || (offer as any).vendorId;
+                        const vRowRes = await this.connection.rawConnection.query(
+                            `SELECT v.id, v.name as vendor_name, v.email, v."phoneNumber" as phone_number, v."userId" as user_id, v."channelId" as channel_id 
+                             FROM vendor v WHERE v.id = $1 LIMIT 1`,
+                            [targetVendorId]
+                        );
+                        const vRow = vRowRes[0];
+                        if (vRow) {
+                            let offerName = '';
+                            try {
+                                const vRows = await this.connection.rawConnection.query(
+                                    `SELECT pvt.name as variant_name, pt.name as product_name
+                                     FROM product_variant pv
+                                     LEFT JOIN product_variant_translation pvt ON (pvt."baseId" = pv.id)
+                                     LEFT JOIN product_translation pt ON (pt."baseId" = pv."productId")
+                                     WHERE pv.id = $1
+                                     ORDER BY 
+                                        CASE WHEN pvt."languageCode" = 'fr' THEN 1 ELSE 2 END,
+                                        CASE WHEN pt."languageCode" = 'fr' THEN 1 ELSE 2 END
+                                     LIMIT 1`,
+                                    [offer.productVariant?.id]
+                                );
+                                if (vRows && vRows[0]) {
+                                    const vName = vRows[0].variant_name;
+                                    const pName = vRows[0].product_name;
+                                    if (vName && pName && !vName.toLowerCase().includes(pName.toLowerCase())) {
+                                        offerName = `${pName} - ${vName}`;
+                                    } else {
+                                        offerName = vName || pName || 'Déclinaison';
+                                    }
+                                }
+                            } catch (_) {}
+
+                            if (!offerName) {
+                                offerName = 'Déclinaison';
+                            }
+
+                            const rejReason = offer.rejectionReason || rejectionReason || 'Non conforme aux critères Ahizan';
+
+                            const vars = {
+                                productName: offerName,
+                                businessName: vRow.vendor_name || 'Vendeur',
+                                rejectionReason: rejReason,
+                            };
+
+                            const settings = await this.smsService.getSettings();
+
+                            if (status === 'approved') {
+                                if (vRow.user_id) {
+                                    await this.notificationsService.notify(ctx, {
+                                        userId: vRow.user_id.toString(),
+                                        eventType: 'VENDOR_EVENT',
+                                        title: 'Déclinaison validée ✅',
+                                        body: `Votre offre "${offerName}" est maintenant en ligne sur la marketplace.`,
+                                        actionUrl: '/dashboard/products',
+                                        targetRole: 'VENDOR',
+                                        channels: ['IN_APP', 'PUSH'],
+                                        channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
+                                    });
+                                }
+                                if (settings?.channelsConfig?.ProductApproved?.enabled) {
+                                    const cfg = settings.channelsConfig.ProductApproved;
+                                    if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
+                                        const content = this.smsService.interpolate(cfg.smsTemplate, vars);
+                                        await this.smsService.sendSms(vRow.phone_number, content, settings);
+                                    }
+                                    if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
+                                        const subject = this.smsService.interpolate(cfg.emailSubject || 'Votre offre a été validée - Ahizan', vars);
+                                        const content = this.smsService.interpolate(cfg.emailTemplate, vars);
+                                        await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
+                                    }
+                                }
+                            } else if (status === 'rejected' || status === 'correction_requested') {
+                                if (vRow.user_id) {
+                                    await this.notificationsService.notify(ctx, {
+                                        userId: vRow.user_id.toString(),
+                                        eventType: 'VENDOR_EVENT',
+                                        title: 'Déclinaison refusée ❌',
+                                        body: `Votre offre "${offerName}" n'a pas été validée. Motif : ${rejReason}`,
+                                        actionUrl: '/dashboard/products',
+                                        targetRole: 'VENDOR',
+                                        channels: ['IN_APP', 'PUSH'],
+                                        channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
+                                    });
+                                }
+                                if (settings?.channelsConfig?.ProductRejected?.enabled) {
+                                    const cfg = settings.channelsConfig.ProductRejected;
+                                    if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
+                                        const content = this.smsService.interpolate(cfg.smsTemplate, vars);
+                                        await this.smsService.sendSms(vRow.phone_number, content, settings);
+                                    }
+                                    if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
+                                        const subject = this.smsService.interpolate(cfg.emailSubject || 'Mise à jour concernant votre offre - Ahizan', vars);
+                                        const content = this.smsService.interpolate(cfg.emailTemplate, vars);
+                                        await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
+                                    }
                                 }
                             }
-                        } catch (_) {}
-
-                        if (!offerName) {
-                            offerName = 'Déclinaison';
                         }
-
-                        const rejReason = offer.rejectionReason || rejectionReason || 'Non conforme aux critères Ahizan';
-
-                        const vars = {
-                            productName: offerName,
-                            businessName: vRow.vendor_name || 'Vendeur',
-                            rejectionReason: rejReason,
-                        };
-
-                        const settings = await this.smsService.getSettings();
-
-                        if (status === 'approved') {
-                            if (vRow.user_id) {
-                                await this.notificationsService.notify(ctx, {
-                                    userId: vRow.user_id.toString(),
-                                    eventType: 'VENDOR_EVENT',
-                                    title: 'Déclinaison validée ✅',
-                                    body: `Votre offre "${offerName}" est maintenant en ligne sur la marketplace.`,
-                                    actionUrl: '/dashboard/products',
-                                    targetRole: 'VENDOR',
-                                    channels: ['IN_APP', 'PUSH'],
-                                    channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
-                                });
-                            }
-                            if (settings?.channelsConfig?.ProductApproved?.enabled) {
-                                const cfg = settings.channelsConfig.ProductApproved;
-                                if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
-                                    const content = this.smsService.interpolate(cfg.smsTemplate, vars);
-                                    await this.smsService.sendSms(vRow.phone_number, content, settings);
-                                }
-                                if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
-                                    const subject = this.smsService.interpolate(cfg.emailSubject || 'Votre offre a été validée - Ahizan', vars);
-                                    const content = this.smsService.interpolate(cfg.emailTemplate, vars);
-                                    await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
-                                }
-                            }
-                        } else if (status === 'rejected' || status === 'correction_requested') {
-                            if (vRow.user_id) {
-                                await this.notificationsService.notify(ctx, {
-                                    userId: vRow.user_id.toString(),
-                                    eventType: 'VENDOR_EVENT',
-                                    title: 'Déclinaison refusée ❌',
-                                    body: `Votre offre "${offerName}" n'a pas été validée. Motif : ${rejReason}`,
-                                    actionUrl: '/dashboard/products',
-                                    targetRole: 'VENDOR',
-                                    channels: ['IN_APP', 'PUSH'],
-                                    channelId: vRow.channel_id ? parseInt(vRow.channel_id, 10) : undefined,
-                                });
-                            }
-                            if (settings?.channelsConfig?.ProductRejected?.enabled) {
-                                const cfg = settings.channelsConfig.ProductRejected;
-                                if ((cfg.channel === 'SMS' || cfg.channel === 'BOTH') && vRow.phone_number && cfg.smsTemplate) {
-                                    const content = this.smsService.interpolate(cfg.smsTemplate, vars);
-                                    await this.smsService.sendSms(vRow.phone_number, content, settings);
-                                }
-                                if ((cfg.channel === 'EMAIL' || cfg.channel === 'BOTH') && vRow.email && cfg.emailTemplate) {
-                                    const subject = this.smsService.interpolate(cfg.emailSubject || 'Mise à jour concernant votre offre - Ahizan', vars);
-                                    const content = this.smsService.interpolate(cfg.emailTemplate, vars);
-                                    await this.smsService.sendTransactionalEmail(vRow.email, subject, content, settings);
-                                }
-                            }
-                        }
+                    } catch (err: any) {
+                        console.error('[adminReviewSellerOffer] Background notification error:', err?.message || err);
                     }
-                } catch (err: any) {
-                    console.error('[adminReviewSellerOffer] Notification error:', err?.message || err);
-                }
+                }, 0);
             }
 
             // Run global full search sync after a 3s delay to ensure our Channel 1 data

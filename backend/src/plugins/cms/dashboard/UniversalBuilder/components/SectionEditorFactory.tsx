@@ -31,6 +31,13 @@ import { LocalNeighborhoodsSettings } from './sections/LocalNeighborhoodsSetting
 import { LocalVendorsSettings } from './sections/LocalVendorsSettings';
 import { MarketHeroBannerSettings } from './sections/MarketHeroBannerSettings';
 import { MarketSearchSettings } from './sections/MarketSearchSettings';
+import { 
+    HeroStoryScrollerSettings, 
+    HeroSlimBannerSettings, 
+    QuadCategoryCardSettings, 
+    CircularCategoryNavSettings, 
+    TrustFooterBarSettings 
+} from './sections/ModernSectionSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 import { FileUploadField } from './sections/FileUploadField';
@@ -149,6 +156,22 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
 
         case 'HERO':
             return withCodePanel(<HeroSettings data={data} onSave={handleSave} />);
+
+        case 'HERO_STORY_SCROLLER':
+            return withCodePanel(<HeroStoryScrollerSettings data={data} onSave={handleSave} />);
+
+        case 'HERO_SLIM_BANNER':
+            return withCodePanel(<HeroSlimBannerSettings data={data} onSave={handleSave} />);
+
+        case 'QUAD_CATEGORY_CARD':
+        case 'QUAD_GRID':
+            return withCodePanel(<QuadCategoryCardSettings data={data} onSave={handleSave} />);
+
+        case 'CIRCULAR_CATEGORY_NAV':
+            return withCodePanel(<CircularCategoryNavSettings data={data} onSave={handleSave} />);
+
+        case 'TRUST_FOOTER_BAR':
+            return withCodePanel(<TrustFooterBarSettings data={data} onSave={handleSave} />);
         
         case 'CATEGORIES':
             return withCodePanel(<CategorySectionSettings data={data} onSave={handleSave} />);

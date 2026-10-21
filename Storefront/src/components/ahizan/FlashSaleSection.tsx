@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Clock, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
+import { Clock, ChevronRight, ChevronLeft, Sparkles, Zap } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import Link from "next/link";
 import { ProductCard } from "@/components/commerce/product-card";
@@ -612,6 +612,60 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         </Button>
                     </div>
                 </div>
+            ) : activeFlash.headerStyle === 'jumia' || (!activeFlash.isSimpleMode && !activeFlash.headerStyle && (!activeFlash.bgColor || activeFlash.bgColor === '#0f172a' || activeFlash.bgColor === '#b91c1c')) ? (
+                /* --- JUMIA STYLE THEMATIC HEADER (Full width, dark crimson, centered timer pill) --- */
+                <div 
+                    className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 overflow-hidden relative w-full text-white rounded-t-2xl sm:rounded-t-3xl p-3 sm:p-4 shadow-md border-b border-red-900/30"
+                    style={{
+                        backgroundColor: activeFlash.bgColor || '#b91c1c',
+                        backgroundImage: activeFlash.bgImageUrl ? `url(${getAssetUrl(activeFlash.bgImageUrl)})` : 'linear-gradient(135deg, #991b1b 0%, #b91c1c 50%, #dc2626 100%)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                    }}
+                >
+                    {/* Left: Title & Subtitle */}
+                    <div className="flex items-center gap-3 relative z-10 w-full sm:w-auto justify-between sm:justify-start">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-lg sm:text-xl shadow-inner shrink-0">
+                            {DynamicIcon ? <DynamicIcon className="w-5 h-5 text-white fill-white" /> : <Zap className="w-5 h-5 text-white fill-white stroke-[2]" />}
+                        </div>
+                        <div className="text-left">
+                            <h2 className="font-black text-sm sm:text-lg md:text-xl tracking-tight leading-tight flex items-center gap-1.5">
+                                <span>{(activeFlash?.title || "Ventes Flash").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || "Ventes Flash"}</span>
+                                <span className="text-white/60 font-semibold text-xs sm:text-sm hidden sm:inline">| Chaque jour</span>
+                            </h2>
+                            <p className="text-[10px] sm:text-xs font-bold text-white/90 uppercase tracking-wider">
+                                {(activeFlash?.subtitle || "Offres limitées • Jusqu'à épuisement des stocks").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Center: Dynamic Countdown Pill */}
+                    {hasExplicitCountdown && (
+                        <div className="relative z-10 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 sm:px-4 py-1.5 rounded-full border border-white/10 shadow-inner">
+                            <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+                            <div className="flex items-center gap-1 font-mono font-black text-xs sm:text-sm text-white">
+                                <span className="bg-black/60 px-1.5 py-0.5 rounded">{timeLeft.h}h</span>:
+                                <span className="bg-black/60 px-1.5 py-0.5 rounded">{timeLeft.m}m</span>:
+                                <span className="bg-black/60 px-1.5 py-0.5 rounded text-amber-400">{timeLeft.s}s</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Right: CTA Button */}
+                    <div className="relative z-10 w-full sm:w-auto flex justify-end">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            asChild 
+                            className="bg-white/15 hover:bg-white hover:text-red-700 text-white font-extrabold text-xs px-3 sm:px-4 py-1.5 rounded-full backdrop-blur-xs transition-all flex items-center gap-1 shadow-xs"
+                        >
+                            <Link href={targetViewAllLink}>
+                                <span>Voir plus</span>
+                                <ChevronRight className="w-3.5 h-3.5 stroke-[3px]" />
+                            </Link>
+                        </Button>
+                    </div>
+                </div>
             ) : (
                 <div 
                     className={`flex flex-row items-center justify-between gap-2 sm:gap-4 overflow-hidden relative w-full text-left ${
@@ -796,7 +850,15 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 height: activeFlash.cardHeight || undefined,
                             }}
                         >
-                            <MasterProductCard item={p} config={activeFlash} />
+                            <MasterProductCard 
+                                item={p} 
+                                config={{
+                                    ...activeFlash,
+                                    showQuickAddButton: true,
+                                    isFlashSaleCard: true,
+                                    showStockGauge: true,
+                                }} 
+                            />
                         </div>
                     );
                 })}

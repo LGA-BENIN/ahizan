@@ -32,6 +32,7 @@ export interface CurrentLocation {
     formattedAddress: string;
     confidence: number;
     isLearnedLocation: boolean;
+    source?: string;
 }
 
 @Injectable()
@@ -184,6 +185,7 @@ export class GeoService {
             formattedAddress: [displayName, commune, country].filter(Boolean).join(', '),
             confidence,
             isLearnedLocation: false,
+            source: zones.length > 0 ? 'LOCAL_POSTGIS' : 'LOCAL_FALLBACK',
         };
 
         this.logResolution(ctx, lat, lng, permanentGeoId, specificZone?.id, marketId, confidence, displayName).catch(() => {});
@@ -442,7 +444,7 @@ export class GeoService {
             let distanceKm = 0;
             if (vendorLat != null && vendorLng != null) {
                 const distanceMeters = await this.calculateDistance(ctx, { lat: vendorLat, lng: vendorLng }, clientGps);
-                distanceKm = distanceMeters / 1000;
+                distanceKm = (distanceMeters / 1000) * 1.30; // Facteur de sinuosité urbaine béninois (1.30)
             }
 
             let finalFee = baseFee + Math.round(distanceKm * deliveryFeePerKm);

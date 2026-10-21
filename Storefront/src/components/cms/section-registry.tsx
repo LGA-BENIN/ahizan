@@ -24,6 +24,11 @@ import { LocalCascadeEngineSection } from '@/components/cms/LocalCascadeEngineSe
 import { MarketHeroBanner } from '@/components/cms/MarketHeroBanner';
 import { MarketProductSearch } from '@/components/cms/MarketProductSearch';
 import { MarketFacetedCatalog } from '@/components/cms/MarketFacetedCatalog';
+import { HeroStoryScroller } from '@/components/cms/HeroStoryScroller';
+import { HeroSlimBanner } from '@/components/cms/HeroSlimBanner';
+import { QuadCategoryGrid } from '@/components/cms/QuadCategoryCard';
+import { CircularCategoryNav } from '@/components/cms/CircularCategoryNav';
+import { TrustFooterBar } from '@/components/cms/TrustFooterBar';
 
 /**
  * Le registre fait correspondre un "type" de section provenant du CMS Backend Vendure
@@ -68,6 +73,12 @@ export const sectionRegistry: Record<string, React.ComponentType<any>> = {
     'MARKET_PRODUCT_SEARCH': MarketFacetedCatalog,
     'MARKET_FACETED_GRID': MarketFacetedCatalog,
     'MARKET_CATALOG': MarketFacetedCatalog,
+    'HERO_STORY_SCROLLER': HeroStoryScroller,
+    'HERO_SLIM_BANNER': HeroSlimBanner,
+    'QUAD_CATEGORY_CARD': QuadCategoryGrid,
+    'QUAD_GRID': QuadCategoryGrid,
+    'CIRCULAR_CATEGORY_NAV': CircularCategoryNav,
+    'TRUST_FOOTER_BAR': TrustFooterBar,
 };
 
 export function getSectionComponent(type: string): React.ComponentType<any> | null {

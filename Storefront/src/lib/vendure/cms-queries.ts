@@ -219,24 +219,36 @@ export interface PopupData {
     ctaLink?: string;
 }
 
+// In-memory cache with 30s TTL to eliminate redundant DB hits across page transitions
+interface PageCacheEntry {
+    data: CmsPage | null;
+    timestamp: number;
+}
+const pageMemoryCache = new Map<string, PageCacheEntry>();
+const PAGE_CACHE_TTL_MS = 30 * 1000;
+
 /**
  * Récupère le contenu d'une page configurée dans le CMS Vendure, et parse automatiquement
  * les dataJson de chaque section pour faciliter leur rendu par les composants React.
  */
-export async function getPageContent(slug: string): Promise<CmsPage | null> {
+async function fetchPageContent(slug: string): Promise<CmsPage | null> {
+    const cached = pageMemoryCache.get(slug);
+    const now = Date.now();
+    if (cached && (now - cached.timestamp < PAGE_CACHE_TTL_MS)) {
+        return cached.data;
+    }
+
     try {
         const result = await query(
             GetPageBySlugQuery, 
             { slug },
             { fetch: { cache: 'no-store' } } as any
         ) as any;
-        console.log(`[getPageContent] Raw API result for slug "${slug}":`, result);
 
         const pageResponse = result?.data?.page;
-        console.log(`[getPageContent] extracted pageResponse:`, pageResponse);
 
         if (!pageResponse) {
-            console.warn(`[getPageContent] NOT FOUND: Slug "${slug}" returned no page.`);
+            pageMemoryCache.set(slug, { data: null, timestamp: now });
             return null;
         }
 
@@ -265,7 +277,7 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
             })
             : [];
 
-        return {
+        const pageData: CmsPage = {
             id: pageResponse.id,
             slug: pageResponse.slug,
             title: pageResponse.title,
@@ -273,11 +285,18 @@ export async function getPageContent(slug: string): Promise<CmsPage | null> {
             isActive: pageResponse.isActive,
             sections
         };
+
+        pageMemoryCache.set(slug, { data: pageData, timestamp: now });
+        return pageData;
     } catch (error) {
         console.error(`Error fetching CMS page '${slug}':`, error);
-        return null; // On fail, return null to fallback to static default content
+        return null;
     }
 }
+
+import { cache } from 'react';
+export const getPageContent = cache(fetchPageContent);
+
 
 export const GetPreviewHabillageQuery = graphql(`
   query GetPreviewHabillage($presetId: ID!) {

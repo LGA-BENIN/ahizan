@@ -616,6 +616,32 @@ export const commonApiExtensions = `
         condition: ProductCondition
     }
 
+    extend type ProductVariant {
+        vendor: Vendor
+        sellerOffers: [SellerOffer!]
+    }
+
+    input CreateAssistedCustomerInput {
+        firstName: String!
+        lastName: String
+        phoneNumber: String!
+        city: String!
+        neighborhood: String
+    }
+
+    input CreateAssistedItemInput {
+        productVariantId: ID!
+        quantity: Int!
+        vendorId: ID
+    }
+
+    input CreateAssistedOrderInput {
+        customer: CreateAssistedCustomerInput!
+        items: [CreateAssistedItemInput!]!
+        shippingMethodId: ID
+        notes: String
+    }
+
     input TagProductWithVariantOffersInput {
         productId: ID!
         optionGroups: [CreateVendorOptionGroupInput!]
@@ -624,11 +650,11 @@ export const commonApiExtensions = `
 `;
 
 export const shopApiExtensions = `
+    # ── Unified account system ──
+
     extend type ProductVariant {
         stockOnHand: Int
     }
-
-    # ── Unified account system ──
 
     extend type Query {
         publicPlatformStats: PlatformPublicStats!
@@ -922,5 +948,6 @@ export const adminApiExtensions = `
         tagProductWithVariantOffers(input: TagProductWithVariantOffersInput!): [SellerOffer!]!
         updateMyVariantOffers(offers: [TagVariantOfferInput!]!): [SellerOffer!]!
         normalizeProductWithAI(id: ID!): Product!
+        createAssistedOrder(input: CreateAssistedOrderInput!): Order!
     }
 `;

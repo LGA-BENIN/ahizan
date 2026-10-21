@@ -21,24 +21,44 @@ export const metadata: Metadata = {
     },
 };
 
-import { getPageContent } from "@/lib/vendure/cms-queries";
+import { getPageContent, getPreviewHabillageContent } from "@/lib/vendure/cms-queries";
+import { getTopCollections } from "@/lib/vendure/cached";
 import { Suspense } from "react";
 import { unstable_noStore as noStore } from "next/cache";
 
-async function HomeContent() {
+async function HomeContent({ presetId }: { presetId?: string }) {
     // Opt out of caching so CMS updates show immediately
     noStore();
-    const page = await getPageContent('home');
+    const [page, collectionsTree] = await Promise.all([
+        presetId ? getPreviewHabillageContent(presetId).catch(() => null) : getPageContent('home'),
+        getTopCollections()
+    ]);
     const sections = page?.sections || [];
 
-    return <AhizanHome sections={sections} />;
+    const categories = ((collectionsTree as any[]) || []).map((coll: any) => ({
+        id: coll.id,
+        name: coll.name,
+        slug: coll.slug,
+        icon: coll.featuredAsset?.source || null,
+        children: (coll.children || []).map((ch: any) => ({
+            id: ch.id,
+            name: ch.name,
+            slug: ch.slug,
+            icon: ch.featuredAsset?.source || null,
+        }))
+    }));
+
+    return <AhizanHome sections={sections} initialCategories={categories} />;
 }
 
-export default function Home() {
+export default async function Home(props: { searchParams?: Promise<{ presetId?: string }> }) {
+    const searchParams = props.searchParams ? await props.searchParams : undefined;
+    const presetId = searchParams?.presetId;
+
     return (
         <div className="min-h-screen">
             <Suspense fallback={null}>
-                <HomeContent />
+                <HomeContent presetId={presetId} />
             </Suspense>
         </div>
     );

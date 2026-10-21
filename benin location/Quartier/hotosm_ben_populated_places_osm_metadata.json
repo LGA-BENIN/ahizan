@@ -1,0 +1,199 @@
+{
+  "type": "Collection",
+  "id": "hotosm_ben_populated_places",
+  "stac_version": "1.1.0",
+  "description": "Settlements and residential areas: named cities, towns, villages, suburbs, and residential land (`place=*` and `landuse=residential`). Useful for demographic context, settlement-level targeting, and population analysis.\n\nCoverage reflects where volunteer mappers have been active. Urban areas are usually well represented, remote areas may be sparse. Cross-check critical decisions with local field knowledge.\n\n- Source: [OpenStreetMap](https://www.openstreetmap.org), a free, collaborative world map\n- Tags: [place](https://wiki.openstreetmap.org/wiki/Key:place), [landuse](https://wiki.openstreetmap.org/wiki/Key:landuse)\n- Part of the [country exports on HDX](https://data.humdata.org/organization/hot/) by [HOT](https://www.hotosm.org/)\n",
+  "links": [
+    {
+      "rel": "license",
+      "href": "https://opendatacommons.org/licenses/odbl/1-0/",
+      "title": "Open Database License (ODC-ODbL)"
+    },
+    {
+      "rel": "item",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/populated_places/hotosm_ben_populated_places_osm_item.json",
+      "type": "application/json",
+      "title": "Populated Places of Benin"
+    },
+    {
+      "rel": "self",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/populated_places/hotosm_ben_populated_places_osm_metadata.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "root",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "via",
+      "href": "https://data.humdata.org/dataset/hotosm_ben_populated_places",
+      "title": "HDX dataset"
+    },
+    {
+      "rel": "alternate",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/populated_places/hotosm_ben_populated_places_report.html",
+      "type": "text/html",
+      "title": "Dataset page"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/buildings/hotosm_ben_buildings_osm_metadata.json",
+      "type": "application/json",
+      "title": "Buildings"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/roads/hotosm_ben_roads_osm_metadata.json",
+      "type": "application/json",
+      "title": "Roads"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/waterways/hotosm_ben_waterways_osm_metadata.json",
+      "type": "application/json",
+      "title": "Waterways"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/railways/hotosm_ben_railways_osm_metadata.json",
+      "type": "application/json",
+      "title": "Railways"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/education_facilities/hotosm_ben_education_facilities_osm_metadata.json",
+      "type": "application/json",
+      "title": "Education Facilities"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/health_facilities/hotosm_ben_health_facilities_osm_metadata.json",
+      "type": "application/json",
+      "title": "Health Facilities"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/financial_services/hotosm_ben_financial_services_osm_metadata.json",
+      "type": "application/json",
+      "title": "Financial Services"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/airports/hotosm_ben_airports_osm_metadata.json",
+      "type": "application/json",
+      "title": "Airports"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/sea_ports/hotosm_ben_sea_ports_osm_metadata.json",
+      "type": "application/json",
+      "title": "Sea Ports"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/points_of_interest/hotosm_ben_points_of_interest_osm_metadata.json",
+      "type": "application/json",
+      "title": "Points of Interest"
+    },
+    {
+      "rel": "related",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/BEN/cultural_places/hotosm_ben_cultural_places_osm_metadata.json",
+      "type": "application/json",
+      "title": "Cultural Places"
+    }
+  ],
+  "item_assets": {
+    "geojson": {
+      "title": "GeoJSON",
+      "type": "application/zip",
+      "roles": [
+        "data"
+      ]
+    },
+    "gpkg": {
+      "title": "GeoPackage",
+      "type": "application/zip",
+      "roles": [
+        "data"
+      ]
+    },
+    "kml": {
+      "title": "KML",
+      "type": "application/zip",
+      "roles": [
+        "data"
+      ]
+    },
+    "shp": {
+      "title": "Shapefile",
+      "type": "application/zip",
+      "roles": [
+        "data"
+      ]
+    },
+    "geoparquet": {
+      "title": "GeoParquet",
+      "type": "application/vnd.apache.parquet",
+      "roles": [
+        "data"
+      ]
+    },
+    "pmtiles": {
+      "title": "Vector Tiles",
+      "type": "application/vnd.pmtiles",
+      "roles": [
+        "visual",
+        "overview"
+      ]
+    }
+  },
+  "title": "Populated Places of Benin",
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          0.7846234,
+          6.2363543,
+          3.8480499,
+          12.4172369
+        ]
+      ]
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2026-10-06T00:00:00Z",
+          "2026-10-06T00:00:00Z"
+        ]
+      ]
+    }
+  },
+  "license": "ODbL-1.0",
+  "keywords": [
+    "geodata",
+    "populated places-settlements"
+  ],
+  "providers": [
+    {
+      "name": "OpenStreetMap (Geofabrik BEN 2026-10-06)",
+      "roles": [
+        "producer",
+        "licensor"
+      ]
+    }
+  ],
+  "summaries": {
+    "oex:category": [
+      "populated_places"
+    ],
+    "oex:source": [
+      "osm"
+    ]
+  }
+}

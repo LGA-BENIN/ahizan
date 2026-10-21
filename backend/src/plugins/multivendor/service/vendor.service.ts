@@ -3249,7 +3249,7 @@ export class VendorService implements OnApplicationBootstrap {
             if (!isOwner) {
                 p.variants = p.variants.filter((v: ProductVariant) => !v.deletedAt && offerMap.has(String(v.id)));
             } else {
-                p.variants = p.variants.filter((v: ProductVariant) => !v.deletedAt);
+                p.variants = p.variants.filter((v: ProductVariant) => !v.deletedAt && (offerMap.has(String(v.id)) || !offerMap.size));
             }
 
             if (p.variants.length === 0) {

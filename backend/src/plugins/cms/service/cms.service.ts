@@ -79,19 +79,117 @@ export class CMSService {
     }
 
     async findOneBySlug(ctx: RequestContext, slug: string): Promise<Page | null> {
-        // Simplified: habillage is now applied directly on the home page via applyPreset.
-        // No need to resolve season-specific slugs like "noel-home".
-        // Disable query cache to ensure fresh reads after publishHabillage updates
+        const now = new Date();
+
+        // 1. Check if an active Season campaign is currently active
+        const activeSeason = await this.connection.getRepository(ctx, SiteSeason)
+            .createQueryBuilder('season')
+            .leftJoinAndSelect('season.preset', 'preset')
+            .where('season.isActive = :isActive', { isActive: true })
+            .andWhere('(season.startDate IS NULL OR season.startDate <= :now)', { now })
+            .andWhere('(season.endDate IS NULL OR season.endDate >= :now)', { now })
+            .orderBy('season.updatedAt', 'DESC')
+            .getOne();
+
+        if (activeSeason?.preset?.sectionsJson) {
+            try {
+                const rawSections = JSON.parse(activeSeason.preset.sectionsJson);
+                if (Array.isArray(rawSections) && rawSections.length > 0) {
+                    const pageSections = rawSections.filter((s: any) => {
+                        const sSlug = s.pageSlug || 'home';
+                        return sSlug === slug || (slug === 'home' && (!s.pageSlug || s.pageSlug === 'home'));
+                    });
+
+                    if (pageSections.length > 0) {
+                        const dynamicSections = pageSections.map((s: any, idx: number) => new PageSection({
+                            id: s.id || `season-sec-${idx}`,
+                            type: s.type,
+                            title: s.title || '',
+                            description: s.description || '',
+                            layout: s.layout || 'grid',
+                            order: s.order !== undefined ? s.order : idx,
+                            isActive: s.isActive !== false,
+                            dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || s.data || {}),
+                        }));
+                        dynamicSections.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                        return new Page({
+                            id: (slug === 'home' ? 'home' : `season-${slug}`) as any,
+                            slug,
+                            title: slug === 'home' ? `Accueil • ${activeSeason.name}` : slug,
+                            type: slug === 'home' ? 'HOME' : 'CUSTOM',
+                            isActive: true,
+                            sections: dynamicSections,
+                            activePreset: activeSeason.preset
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('[CMS Service] Error parsing active season preset sectionsJson:', e);
+            }
+        }
+
+        // 2. Normal State: Render the published Page and its active sections from database
         const page = await this.connection.getRepository(ctx, Page).findOne({
             where: { slug, isActive: true },
-            relations: ['sections'],
+            relations: ['sections', 'activePreset'],
             cache: false,
         });
 
-        if (page) {
-            if (page.sections) {
-                page.sections.sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (page && page.sections && page.sections.length > 0) {
+            page.sections.sort((a, b) => (a.order || 0) - (b.order || 0));
+            return page;
+        }
+
+        // 3. Fallback: If page has no sections, check if a default Habillage preset exists
+        if (!page || !page.sections || page.sections.length === 0) {
+            const defaultHabillage = await this.connection.getRepository(ctx, PagePreset)
+                .createQueryBuilder('preset')
+                .where('preset.isDefault = :isDefault', { isDefault: true })
+                .andWhere('preset.isBackup = :isBackup', { isBackup: false })
+                .orderBy('preset.updatedAt', 'DESC')
+                .getOne();
+
+            if (defaultHabillage?.sectionsJson) {
+                try {
+                    const rawSections = JSON.parse(defaultHabillage.sectionsJson);
+                    if (Array.isArray(rawSections) && rawSections.length > 0) {
+                        const pageSections = rawSections.filter((s: any) => {
+                            const sSlug = s.pageSlug || 'home';
+                            return sSlug === slug || (slug === 'home' && (!s.pageSlug || s.pageSlug === 'home'));
+                        });
+
+                        if (pageSections.length > 0) {
+                            const dynamicSections = pageSections.map((s: any, idx: number) => new PageSection({
+                                id: s.id || `default-sec-${idx}`,
+                                type: s.type,
+                                title: s.title || '',
+                                description: s.description || '',
+                                layout: s.layout || 'grid',
+                                order: s.order !== undefined ? s.order : idx,
+                                isActive: s.isActive !== false,
+                                dataJson: typeof s.dataJson === 'string' ? s.dataJson : JSON.stringify(s.dataJson || s.data || {}),
+                            }));
+                            dynamicSections.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                            return new Page({
+                                id: (slug === 'home' ? 'home' : `default-${slug}`) as any,
+                                slug,
+                                title: page?.title || defaultHabillage.name,
+                                type: slug === 'home' ? 'HOME' : 'CUSTOM',
+                                isActive: true,
+                                sections: dynamicSections,
+                                activePreset: defaultHabillage
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error('[CMS Service] Error parsing fallback default habillage preset:', e);
+                }
             }
+        }
+
+        if (page) {
             return page;
         }
 
@@ -1427,7 +1525,8 @@ export class CMSService {
                 'CUSTOM','BLOG_POSTS','TESTIMONIALS','NEWSLETTER','CTA_VENDOR','COLLECTION_HEADER',
                 'PROMO_BANNER','PROMO_GRID','FLEX_GRID','SEARCH_BAR','RECENTLY_VIEWED','HERO_SLIDER',
                 'VENDOR_SHOWCASE','CTA','SOCIAL_PROOF','BRAND_BAR','SEASONAL_BANNER', 'LOCAL_PRODUCTS',
-                'MARKET_CODE', 'NEIGHBORHOOD_CODE'];
+                'MARKET_CODE', 'NEIGHBORHOOD_CODE', 'HERO_STORY_SCROLLER', 'HERO_SLIM_BANNER',
+                'QUAD_CATEGORY_CARD', 'QUAD_GRID', 'CIRCULAR_CATEGORY_NAV', 'TRUST_FOOTER_BAR'];
             for (const s of parsed) {
                 if (!s.type) throw new Error('Section sans type détectée');
                 if (!knownTypes.includes(s.type)) {

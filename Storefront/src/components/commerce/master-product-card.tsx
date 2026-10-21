@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { Price } from '@/components/commerce/price';
 import { useThemeSettings } from '@/components/providers/theme-provider';
 import { getAssetUrl, getPromoPriceInfo } from '@/lib/vendure/api-utils';
-import { Heart, Loader2, MapPin, ShoppingCart, Store, Zap, Clock } from 'lucide-react';
+import { Heart, Loader2, MapPin, ShoppingCart, Store, Zap, Clock, Plus, Star, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import { toggleProductLikeAction, checkProductLikeStatus } from '@/app/(storefront)/likes-actions';
 import { LoginPromptModal } from '@/components/shared/login-prompt-modal';
 import { addToCart } from '@/app/(storefront)/product/[slug]/actions';
 import { MasterDisplayItem, resolveDeclinationName } from '@/lib/vendure/display-engine';
 import { priceFromSubunit } from '@/lib/format';
+import { Progress } from '@/components/ui/progress';
 
 interface MasterProductCardProps {
     item: MasterDisplayItem | any;
@@ -72,8 +73,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
     const originalPrice = isPromoActive && promoPrice ? rawPrice : 0;
     const discountPercent = item.discountPercentage || winningOffer?.discountPercentage || (originalPrice > activePrice && originalPrice > 0 ? Math.round(((originalPrice - activePrice) / originalPrice) * 100) : 0);
 
-    // Image resolution
-    const defaultImage = themeSettings?.defaultProductImage;
+    // Image resolution: resolve real product photo, eliminate red placeholder
     const rawAsset = winningOffer?.featuredAsset?.preview 
         || item.featuredAsset?.preview 
         || item.productVariantAsset?.preview 
@@ -83,7 +83,10 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
         || item.assets?.[0]?.preview 
         || item.imageUrl 
         || null;
-    const displayImageUrl = getAssetUrl(rawAsset) || defaultImage;
+    const resolvedUrl = getAssetUrl(rawAsset);
+    const displayImageUrl = (resolvedUrl && !resolvedUrl.includes('whatsapp-image')) 
+        ? resolvedUrl 
+        : null;
     const isDisplayGif = isGif(displayImageUrl);
 
     // PDP URL with variant and seller query parameters
@@ -180,7 +183,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
         <>
             <div className={`group/card relative flex flex-col h-full overflow-hidden transition-all duration-300 ${cardThemeClass}`}>
                 {/* Product/Declination Image */}
-                <div className={`relative ${ratioClass} w-full overflow-hidden bg-muted/20 flex-shrink-0`}>
+                <div className={`relative ${ratioClass} w-full overflow-hidden bg-slate-50 dark:bg-slate-900/50 flex-shrink-0`}>
                     <Link href={productDetailHref} className="block w-full h-full">
                         {displayImageUrl ? (
                             <Image
@@ -192,24 +195,34 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                                 unoptimized={isDisplayGif}
                             />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-muted/40 text-muted-foreground text-xs font-medium">
-                                {displayTitle}
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-850 text-slate-400 p-4 transition-colors">
+                                <ShoppingBag className="w-9 h-9 text-slate-300 dark:text-slate-600 stroke-[1.25] mb-1.5" />
+                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 line-clamp-1 text-center px-2">
+                                    {displayTitle}
+                                </span>
                             </div>
                         )}
                     </Link>
 
-                    {/* Corner Badges: Discount & SLA */}
-                    <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-                        {isPromoActive && (
-                            <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[10px] sm:text-xs font-black px-2 py-0.5 rounded-full shadow-xs animate-pulse">
-                                <Zap className="w-3 h-3 fill-white" />
-                                {discountPercent > 0 ? `-${discountPercent}%` : 'PROMO'}
+                    {/* Corner Badges: Contextual (Cdiscount) & Promo (Jumia) */}
+                    <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[70%]">
+                        {Boolean(item.contextBadge || config?.contextBadge) && (
+                            <span className={`inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs text-white uppercase tracking-wider ${
+                                (item.contextBadge || config?.contextBadge)?.toLowerCase().includes('bon plan') 
+                                    ? 'bg-blue-600'
+                                    : (item.contextBadge || config?.contextBadge)?.toLowerCase().includes('meilleur') 
+                                    ? 'bg-amber-700'
+                                    : (item.contextBadge || config?.contextBadge)?.toLowerCase().includes('responsable') 
+                                    ? 'bg-emerald-600'
+                                    : 'bg-primary'
+                            }`}>
+                                {item.contextBadge || config?.contextBadge}
                             </span>
                         )}
-                        {winningOffer?.deliveryTimeValue && (
-                            <span className="inline-flex items-center gap-1 bg-black/75 backdrop-blur-md text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-2xs">
-                                <Clock className="w-2.5 h-2.5" />
-                                {winningOffer.deliveryTimeValue}{winningOffer.deliveryTimeUnit === 'HOURS' || winningOffer.deliveryTimeUnit === 'h' ? 'h' : 'j'}
+                        {isPromoActive && (
+                            <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs w-fit">
+                                <Zap className="w-2.5 h-2.5 fill-white stroke-[1.5]" />
+                                {discountPercent > 0 ? `-${discountPercent}%` : 'PROMO'}
                             </span>
                         )}
                     </div>
@@ -228,8 +241,22 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                         )}
                     </button>
 
-                    {/* Quick Add To Cart Button (Optional, customer goes to PDP by default) */}
-                    {config?.showQuickAddToCart && (
+                    {/* Quick Add '+' Button (Jumia style - immediate action without leaving page) */}
+                    {(config?.showQuickAddButton || config?.actionStyle === 'quick_add' || config?.isFlashSaleCard) ? (
+                        <button
+                            onClick={handleAddToCart}
+                            disabled={isPending}
+                            aria-label="Ajout rapide au panier"
+                            title="Ajout rapide au panier"
+                            className="absolute bottom-2 right-2 z-10 w-8 h-8 sm:w-8 sm:h-8 rounded-full bg-slate-900/95 hover:bg-red-600 text-white flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all duration-200 border border-white/20"
+                        >
+                            {isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Plus className="w-4 h-4 stroke-[3px]" />
+                            )}
+                        </button>
+                    ) : config?.showQuickAddToCart ? (
                         <button
                             onClick={handleAddToCart}
                             disabled={isPending}
@@ -239,7 +266,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                         >
                             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
                         </button>
-                    )}
+                    ) : null}
                 </div>
 
                 {/* Card Content */}
@@ -249,7 +276,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                         <div className="flex items-center justify-between gap-1 text-[11px] font-semibold text-muted-foreground truncate">
                             {vendorName ? (
                                 <div className="flex items-center gap-1.5 truncate">
-                                    <Store className="w-3.5 h-3.5 text-primary shrink-0" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                                     <span className="truncate text-foreground font-bold">{vendorName}</span>
                                 </div>
                             ) : <div />}
@@ -278,6 +305,41 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                                 <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
                                 {declinationName}
                             </span>
+                        </div>
+                    )}
+
+                    {/* Social Proof / Rating */}
+                    {Boolean(item.rating || item.score || item.reviewCount || config?.showRating) && (
+                        <div className="flex items-center gap-1 text-[11px] text-amber-500 font-bold">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            <span>{(item.rating || item.score || 4.5).toFixed(1)}</span>
+                            {Boolean(item.reviewCount || item.reviewsCount) && (
+                                <span className="text-[10px] text-muted-foreground font-normal">
+                                    ({item.reviewCount || item.reviewsCount})
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Stock Urgency / Scarcity Gauge (FOMO) */}
+                    {(Boolean(item.stockRemaining != null || config?.stockRemaining != null) || config?.showStockGauge) && (
+                        <div className="space-y-1 my-1">
+                            {(() => {
+                                const remaining = item.stockRemaining ?? config?.stockRemaining ?? 12;
+                                const total = item.stockTotal ?? config?.stockTotal ?? 30;
+                                const percent = Math.min(100, Math.max(10, Math.round((remaining / total) * 100)));
+                                return (
+                                    <>
+                                        <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                                            <span className="text-red-600 dark:text-red-400 font-extrabold flex items-center gap-1">
+                                                <Clock className="w-2.5 h-2.5 inline" />
+                                                {remaining <= 5 ? `Plus que ${remaining} en stock !` : `${remaining} restants`}
+                                            </span>
+                                        </div>
+                                        <Progress value={percent} className="h-1.5 bg-muted rounded-full" />
+                                    </>
+                                );
+                            })()}
                         </div>
                     )}
 

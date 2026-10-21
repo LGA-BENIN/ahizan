@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronRight, ChevronLeft, Sparkles, Flame, Zap, Compass } from "lucide-react";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
 import { ProductCard } from "@/components/commerce/product-card";
 import { MasterProductCard } from "@/components/commerce/master-product-card";
@@ -40,7 +40,7 @@ interface TabbedProductGridProps {
     cardStyle?: string;
     tabs: TabConfig[];
     defaultTabIndex?: number;
-    tabStyle?: 'pill' | 'underline' | 'boxed';
+    tabStyle?: 'pill' | 'underline' | 'boxed' | 'cdiscount' | 'pill-cdiscount' | string;
     tabColor?: string;
     tabActiveColor?: string;
     marketId?: string;
@@ -384,7 +384,14 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     communeName: selectedLocation?.commune || selectedLocation?.name,
                 };
                 const resolved = await expandProductsWithSellerOffers(items, displayContext);
-                setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
+                const sortedByImage = [...resolved].sort((a, b) => {
+                    const hasImgA = Boolean(a.featuredAsset?.preview || a.productAsset?.preview || a.winningOffer?.featuredAsset?.preview);
+                    const hasImgB = Boolean(b.featuredAsset?.preview || b.productAsset?.preview || b.winningOffer?.featuredAsset?.preview);
+                    if (hasImgA && !hasImgB) return -1;
+                    if (!hasImgA && hasImgB) return 1;
+                    return 0;
+                });
+                setProductsMap(prev => ({ ...prev, [tab.id]: sortedByImage.slice(0, take) }));
             }
         } catch (err) {
             console.error('Error in fetchProducts workflow:', err);
@@ -539,51 +546,69 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
     return (
         <section className="container mx-auto px-4 py-2 md:py-3">
             {(props.title || badgeText || props.subtitle) && (
-                <div className="mb-3 flex flex-col items-start gap-1">
+                <div className="mb-4 flex flex-col items-start gap-1">
                     {badgeText && (
                         <div 
-                            className="flex items-center gap-1.5 font-extrabold uppercase text-[10px] tracking-wider px-3 py-1 rounded-full shadow-sm w-fit"
+                            className="flex items-center gap-1.5 font-bold uppercase text-[10px] tracking-wider px-2.5 py-0.5 rounded-full shadow-2xs w-fit mb-0.5"
                             style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
                         >
                             <span>{badgeText}</span>
                         </div>
                     )}
                     {props.title && props.title.trim() !== '' && (
-                        <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground uppercase leading-tight mt-0.5">
-                            {props.title}
-                        </h2>
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center text-red-600 shrink-0">
+                                {props.title.toLowerCase().includes('recommand') || props.title.toLowerCase().includes('découvert') ? (
+                                    <Compass className="w-4 h-4 stroke-[1.75]" />
+                                ) : (
+                                    <Sparkles className="w-4 h-4 stroke-[1.75]" />
+                                )}
+                            </div>
+                            <h2 className="text-lg md:text-xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight">
+                                {props.title.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                            </h2>
+                        </div>
                     )}
                     {props.subtitle && props.subtitle.trim() !== '' && (
-                        <p className="font-medium text-xs sm:text-sm text-muted-foreground mt-0.5 max-w-2xl">
-                            {props.subtitle}
+                        <p className="font-medium text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5 max-w-2xl">
+                            {props.subtitle.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
                         </p>
-                    )}
-                    {(props.title || badgeText) && (
-                        <div className="h-1 w-12 bg-primary mt-1.5 rounded-full" style={{ backgroundColor: badgeBgColor }} />
                     )}
                 </div>
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
                 {showTabs && (
-                    <TabsList className={`mb-3 ${tabStyle === 'pill' ? 'bg-muted rounded-full h-auto p-1 gap-1' : tabStyle === 'boxed' ? 'bg-transparent h-auto p-0 gap-2' : 'bg-transparent h-auto p-0 border-b rounded-none w-full justify-start gap-0'}`}>
-                        {props.tabs.map((tab) => (
-                            <TabsTrigger
-                                key={tab.id}
-                                value={tab.id}
-                                className={
-                                    tabStyle === 'pill'
-                                        ? 'rounded-full data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md font-bold text-sm'
-                                        : tabStyle === 'boxed'
-                                        ? 'rounded-lg border data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary font-bold text-sm'
-                                        : 'rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary font-bold text-sm px-4 py-2'
-                                }
-                            >
-                                {tab.icon && <span>{tab.icon}</span>}
-                                {tab.label}
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
+                    <div className="w-full overflow-x-auto pb-1 mb-3 scrollbar-none">
+                        <TabsList className={`inline-flex min-w-full sm:min-w-0 ${
+                            tabStyle === 'cdiscount' || tabStyle === 'pill-cdiscount'
+                                ? 'bg-slate-100 dark:bg-slate-800/60 rounded-full h-auto p-1 gap-1 border border-border/50'
+                                : tabStyle === 'pill' 
+                                ? 'bg-muted rounded-full h-auto p-1 gap-1' 
+                                : tabStyle === 'boxed'
+                                ? 'bg-transparent h-auto p-0 gap-2' 
+                                : 'bg-transparent h-auto p-0 border-b rounded-none w-full justify-start gap-0'
+                        }`}>
+                            {props.tabs.map((tab) => (
+                                <TabsTrigger
+                                    key={tab.id}
+                                    value={tab.id}
+                                    className={
+                                        tabStyle === 'cdiscount' || tabStyle === 'pill-cdiscount'
+                                            ? 'rounded-full px-3.5 sm:px-4 py-1.5 data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:shadow-sm font-bold text-xs sm:text-sm transition-all whitespace-nowrap'
+                                            : tabStyle === 'pill'
+                                            ? 'rounded-full data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md font-bold text-sm whitespace-nowrap'
+                                            : tabStyle === 'boxed'
+                                            ? 'rounded-lg border data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary font-bold text-sm whitespace-nowrap'
+                                            : 'rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary font-bold text-sm px-4 py-2 whitespace-nowrap'
+                                    }
+                                >
+                                    {tab.icon && <span className="mr-1">{tab.icon}</span>}
+                                    {tab.label.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                    </div>
                 )}
 
                 {props.tabs.map((tab) => (

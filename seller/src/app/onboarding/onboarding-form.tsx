@@ -71,53 +71,27 @@ export function OnboardingForm({
             async (position) => {
                 const { latitude, longitude } = position.coords;
                 try {
-                    // 1. Fetch details from Nominatim for full address details
-                    const osmRes = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-                        { headers: { 'Accept-Language': 'fr' } }
-                    );
-                    const osmData = await osmRes.json();
-                    const addressComponents = osmData.address || {};
-                    const neighborhoodName = addressComponents.suburb || addressComponents.neighbourhood || addressComponents.city_district || '';
-                    const fullAddress = osmData.display_name || '';
-
-                    // 2. Fetch the zone ID from Vendure reverseGeocode
+                    // Fetch location details directly from Vendure GeoEngine (Local PostGIS)
                     const res = await query(`
-                        query ReverseGeocode($lat: Float!, $lng: Float!) {
-                            reverseGeocode(latitude: $lat, longitude: $lng) {
-                                id
-                                name
-                                type
+                        query ResolveCoordinates($lat: Float!, $lng: Float!) {
+                            resolveCoordinates(latitude: $lat, longitude: $lng) {
+                                geoZoneId
+                                geoId
+                                displayName
+                                formattedAddress
+                                commune
+                                arrondissement
+                                neighborhood
+                                marketId
+                                marketName
                             }
                         }
                     `, { lat: latitude, lng: longitude });
 
-                    const matchedZones = (res.data as any)?.reverseGeocode || [];
-                    let zoneId = '';
-                    
-                    // Search backwards from most specific zone (NEIGHBORHOOD -> ARRONDISSEMENT -> COMMUNE)
-                    for (let i = matchedZones.length - 1; i >= 0; i--) {
-                        const z = matchedZones[i];
-                        const exists = neighborhoods.some((n: any) => String(n.id) === String(z.id));
-                        if (exists) {
-                            zoneId = String(z.id);
-                            break;
-                        }
-                    }
-
-                    if (!zoneId && matchedZones.length > 0) {
-                        zoneId = String(matchedZones[matchedZones.length - 1].id);
-                    }
-
-                    if (!zoneId && neighborhoodName) {
-                        const matched = neighborhoods.find((n: any) => 
-                            n.name.toLowerCase().includes(neighborhoodName.toLowerCase()) ||
-                            neighborhoodName.toLowerCase().includes(n.name.toLowerCase())
-                        );
-                        if (matched) {
-                            zoneId = String(matched.id);
-                        }
-                    }
+                    const resolved = (res.data as any)?.resolveCoordinates;
+                    const zoneId = resolved?.geoZoneId && resolved.geoZoneId !== '0' ? String(resolved.geoZoneId) : '';
+                    const neighborhoodName = resolved?.neighborhood || resolved?.arrondissement || resolved?.commune || resolved?.displayName || '';
+                    const fullAddress = resolved?.formattedAddress || [neighborhoodName, resolved?.commune, 'Bénin'].filter(Boolean).join(', ');
 
                     // 3. Fill the locationId select dropdown
                     if (zoneId) {

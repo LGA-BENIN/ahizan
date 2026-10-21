@@ -8,12 +8,16 @@ export function formatPrice(price: number, currencyCode: string = 'XOF'): string
     const zeroDecimalCurrencies = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];
     const divisor = zeroDecimalCurrencies.includes(activeCurrency.toUpperCase()) ? 1 : 100;
 
-    return new Intl.NumberFormat('fr-FR', {
+    const formatted = new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency: activeCurrency,
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
     }).format(price / divisor);
+
+    // Replace regular spaces and narrow spaces with non-breaking spaces (\u00A0)
+    // and standardize CFA format so it never wraps alone to a new line
+    return formatted.replace(/[\s\u202F]/g, '\u00A0');
 }
 
 type DateFormat = 'short' | 'long';

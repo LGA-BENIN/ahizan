@@ -95,29 +95,29 @@ const CatalogSearchField = ({ onSelect }: { onSelect: (data: { title: string, ur
     }, [term, type, allCollections]);
 
     return (
-        <div ref={wrapperRef} style={{ position: 'relative', marginBottom: '1rem' }}>
-            <label className="label-pro">Rechercher & Ajouter un produit/collection</label>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+        <div ref={wrapperRef} style={{ position: 'relative', marginTop: '8px' }}>
+            <label className="label-pro">Ajout rapide via catalogue</label>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
                 <select 
                     className="input-pro" 
-                    style={{ width: '110px' }} 
+                    style={{ width: '100px', fontSize: '11px' }} 
                     value={type} 
                     onChange={e => { setType(e.target.value as any); setTerm(''); setResults([]); }}
                 >
                     <option value="product">Produit</option>
-                    <option value="collection">Collection</option>
+                    <option value="collection">Rayon</option>
                 </select>
                 <input 
                     type="text" 
                     className="input-pro" 
-                    style={{ flex: 1, minWidth: 0 }} 
+                    style={{ flex: 1, minWidth: 0, fontSize: '12px' }} 
                     placeholder="Tapez un nom..." 
                     value={term}
                     onChange={e => { setTerm(e.target.value); setIsOpen(true); }}
                     onFocus={() => { if (results.length > 0) setIsOpen(true); }}
                 />
             </div>
-            {loading && <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center' }}>Recherche en cours...</div>}
+            {loading && <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>Recherche en cours...</div>}
             
             {isOpen && results.length > 0 && (
                 <div style={{
@@ -129,7 +129,7 @@ const CatalogSearchField = ({ onSelect }: { onSelect: (data: { title: string, ur
                     {results.map(item => (
                         <div 
                             key={item.id}
-                            style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                            style={{ padding: '6px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                             onClick={() => {
                                 onSelect({
                                     title: item.name,
@@ -143,11 +143,11 @@ const CatalogSearchField = ({ onSelect }: { onSelect: (data: { title: string, ur
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
                             {item.preview ? (
-                                <img src={item.preview} style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} alt="" />
+                                <img src={item.preview} style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} alt="" />
                             ) : (
-                                <div style={{ width: '32px', height: '32px', backgroundColor: '#f1f5f9', borderRadius: '4px', flexShrink: 0 }} />
+                                <div style={{ width: '28px', height: '28px', backgroundColor: '#f1f5f9', borderRadius: '4px', flexShrink: 0 }} />
                             )}
-                            <div style={{ fontSize: '13px', color: '#0f172a', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <div style={{ fontSize: '12px', color: '#0f172a', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {item.name}
                             </div>
                         </div>
@@ -253,9 +253,11 @@ export const GridRoot = ({
     sectionHeaderCtaText = 'Voir Tout',
     sectionHeaderCtaUrl = '#',
     sectionHeaderCtaStyle = 'solid',
-
     scrollMode = 'grid',
     carouselArrows = 'circle',
+    autoplay = false,
+    autoplaySpeed = 3000,
+    autoplayDirection = 'right',
     globalShape = 'circle',
     globalImageBorderRadius = '',
     globalImageWidth = '120px',
@@ -285,64 +287,96 @@ export const GridRoot = ({
     globalShowCta = false,
     globalCtaText = 'Découvrir',
     globalCtaStyle = 'solid',
-    autoplay = false,
-    autoplaySpeed = 3000,
-    autoplayDirection = 'right',
     children
 }: GridRootProps) => {
     const { connectors: { connect, drag } } = useNode();
-
-    let bgStyle = bgColor;
-    if (bgGradient) {
-        bgStyle = bgGradient;
-    } else if (bgImage) {
-        bgStyle = `url(${bgImage}) center/cover no-repeat ${bgColor}`;
-    }
+    const isCarousel = scrollMode === 'carousel';
 
     const getAlignment = () => {
-        if (gridAlignment === 'left') return 'flex-start';
-        if (gridAlignment === 'right') return 'flex-end';
-        return 'center';
+        switch (gridAlignment) {
+            case 'left': return 'start';
+            case 'right': return 'end';
+            case 'center':
+            default: return 'center';
+        }
     };
-
-    const isCarousel = scrollMode === 'carousel';
 
     const headerAlign = sectionHeaderAlign || 'center';
     let headerFlexAlign = 'center';
     let headerJustify = 'center';
     let headerTextAlign = 'center';
 
-    if (headerAlign === 'left') { headerFlexAlign = 'flex-start'; headerJustify = 'flex-start'; headerTextAlign = 'left'; }
-    if (headerAlign === 'right') { headerFlexAlign = 'flex-end'; headerJustify = 'flex-end'; headerTextAlign = 'right'; }
-    if (headerAlign === 'between') { headerFlexAlign = 'center'; headerJustify = 'space-between'; headerTextAlign = 'left'; }
+    if (headerAlign === 'left') {
+        headerFlexAlign = 'flex-start';
+        headerJustify = 'flex-start';
+        headerTextAlign = 'left';
+    } else if (headerAlign === 'right') {
+        headerFlexAlign = 'flex-end';
+        headerJustify = 'flex-end';
+        headerTextAlign = 'right';
+    } else if (headerAlign === 'between') {
+        headerFlexAlign = 'center';
+        headerJustify = 'space-between';
+        headerTextAlign = 'left';
+    }
+
+    const contextValue = {
+        columnsDesktop,
+        columnsTablet,
+        columnsMobile,
+        gapX,
+        gapY,
+        contentLayout,
+        globalInsideTextPosition,
+        globalShape,
+        globalImageBorderRadius,
+        globalImageWidth,
+        globalImageHeight,
+        globalImageFitMode,
+        globalImageFit,
+        globalImagePosX,
+        globalImagePosY,
+        globalAnimEntrance,
+        globalAnimHover,
+        globalItemAlignment,
+        globalItemTitleSize,
+        globalItemTitleWeight,
+        globalItemTitleColor,
+        globalItemTitleTransform,
+        globalItemDescSize,
+        globalItemDescWeight,
+        globalItemDescColor,
+        globalItemDescLines,
+        globalTextPadding,
+        globalTextGap,
+        globalCardBorderWidth,
+        globalCardBorderColor,
+        globalCardBorderRadius,
+        globalCardBgColor,
+        globalCardHoverBgColor,
+        globalShowCta,
+        globalCtaText,
+        globalCtaStyle,
+        isCarousel
+    };
 
     return (
-        <GridGlobalContext.Provider value={{
-            globalShape, globalImageBorderRadius, globalImageWidth, globalImageHeight, globalImageFitMode, globalImageFit,
-            globalImagePosX, globalImagePosY, globalAnimEntrance, globalAnimHover,
-            globalItemAlignment, globalItemTitleSize, globalItemTitleWeight, globalItemTitleColor, globalItemTitleTransform,
-            globalItemDescSize, globalItemDescWeight, globalItemDescColor, globalItemDescLines,
-            globalCardBorderWidth, globalCardBorderColor, globalCardBorderRadius, globalCardBgColor, globalCardHoverBgColor,
-            globalContentLayout: contentLayout,
-            globalInsideTextPosition,
-            globalTextPadding,
-            globalTextGap,
-            globalShowCta,
-            globalCtaText,
-            globalCtaStyle,
-            isCarousel,
-            columnsDesktop,
-            gapX
-        }}>
+        <GridGlobalContext.Provider value={contextValue}>
             <div
                 ref={(ref: any) => connect(drag(ref))}
                 style={{
-                    background: bgStyle,
-                    padding: `${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px`,
+                    paddingTop: `${paddingTop}px`,
+                    paddingBottom: `${paddingBottom}px`,
+                    paddingLeft: `${paddingLeft}px`,
+                    paddingRight: `${paddingRight}px`,
+                    backgroundColor: bgColor,
+                    backgroundImage: bgGradient || (bgImage ? `url(${bgImage})` : undefined),
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
                     width: '100%',
-                    position: 'relative',
                     boxSizing: 'border-box',
-                    minHeight: '100px',
+                    minHeight: '160px',
+                    position: 'relative'
                 }}
             >
                 {(globalTitle || sectionHeaderCtaEnabled) && (
@@ -353,7 +387,7 @@ export const GridRoot = ({
                         justifyContent: headerJustify as any,
                         textAlign: headerTextAlign as any,
                         gap: '12px',
-                        marginBottom: '24px',
+                        marginBottom: '20px',
                         width: '100%'
                     }}>
                         {globalTitle && (
@@ -372,10 +406,10 @@ export const GridRoot = ({
                                 {sectionHeaderCtaStyle === 'solid' && (
                                     <span style={{
                                         display: 'inline-block',
-                                        padding: '8px 18px',
-                                        backgroundColor: 'var(--builder-primary, #3b82f6)',
+                                        padding: '6px 14px',
+                                        backgroundColor: '#2563eb',
                                         color: '#ffffff',
-                                        fontSize: '13px',
+                                        fontSize: '12px',
                                         fontWeight: 'bold',
                                         borderRadius: '6px',
                                     }}>
@@ -385,10 +419,10 @@ export const GridRoot = ({
                                 {sectionHeaderCtaStyle === 'outline' && (
                                     <span style={{
                                         display: 'inline-block',
-                                        padding: '7px 17px',
-                                        border: '1.5px solid var(--builder-primary, #3b82f6)',
-                                        color: 'var(--builder-primary, #3b82f6)',
-                                        fontSize: '13px',
+                                        padding: '5px 13px',
+                                        border: '1.5px solid #2563eb',
+                                        color: '#2563eb',
+                                        fontSize: '12px',
                                         fontWeight: 'bold',
                                         borderRadius: '6px',
                                     }}>
@@ -400,8 +434,8 @@ export const GridRoot = ({
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: '4px',
-                                        color: 'var(--builder-primary, #3b82f6)',
-                                        fontSize: '14px',
+                                        color: '#2563eb',
+                                        fontSize: '12px',
                                         fontWeight: 'bold',
                                     }}>
                                         {sectionHeaderCtaText} ➔
@@ -415,27 +449,25 @@ export const GridRoot = ({
                 <div style={{ position: 'relative' }}>
                     {isCarousel && carouselArrows !== 'none' && (
                         <div style={{
-                            position: 'absolute', top: '50%', left: '-16px', right: '-16px', 
+                            position: 'absolute', top: '50%', left: '-12px', right: '-12px', 
                             display: 'flex', justifyContent: 'space-between', transform: 'translateY(-50%)',
                             pointerEvents: 'none', zIndex: 10
                         }}>
                             <div style={{
-                                width: carouselArrows === 'circle' ? '40px' : carouselArrows === 'square' ? '40px' : 'auto',
-                                height: carouselArrows === 'circle' ? '40px' : carouselArrows === 'square' ? '40px' : 'auto',
+                                width: '32px', height: '32px',
                                 borderRadius: carouselArrows === 'circle' ? '50%' : '4px',
-                                background: carouselArrows !== 'simple' ? '#fff' : 'transparent',
-                                boxShadow: carouselArrows !== 'simple' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                                background: '#fff',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: '#334155', fontWeight: 'bold'
+                                color: '#334155', fontWeight: 'bold', fontSize: '12px'
                             }}>❮</div>
                             <div style={{
-                                width: carouselArrows === 'circle' ? '40px' : carouselArrows === 'square' ? '40px' : 'auto',
-                                height: carouselArrows === 'circle' ? '40px' : carouselArrows === 'square' ? '40px' : 'auto',
+                                width: '32px', height: '32px',
                                 borderRadius: carouselArrows === 'circle' ? '50%' : '4px',
-                                background: carouselArrows !== 'simple' ? '#fff' : 'transparent',
-                                boxShadow: carouselArrows !== 'simple' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none',
+                                background: '#fff',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                color: '#334155', fontWeight: 'bold'
+                                color: '#334155', fontWeight: 'bold', fontSize: '12px'
                             }}>❯</div>
                         </div>
                     )}
@@ -463,9 +495,9 @@ export const GridRoot = ({
 const ColorField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
     <div>
         <label className="label-pro">{label}</label>
-        <div className="color-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <input type="color" className="color-swatch" value={value || '#000000'} onChange={(e) => onChange(e.target.value)} style={{ width: '32px', height: '32px', padding: '0', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }} />
-            <input className="input-pro" value={value || ''} onChange={(e) => onChange(e.target.value)} style={{ flex: 1 }} />
+        <div className="color-row" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <input type="color" className="color-swatch" value={value || '#000000'} onChange={(e) => onChange(e.target.value)} style={{ width: '28px', height: '28px', padding: '0', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }} />
+            <input className="input-pro" value={value || ''} onChange={(e) => onChange(e.target.value)} style={{ flex: 1, fontSize: '11px' }} />
         </div>
     </div>
 );
@@ -483,39 +515,39 @@ const AccordionSection = ({
     isOpen?: boolean; 
     onToggle?: () => void; 
 }) => {
-    const [localOpen, setLocalOpen] = useState(false);
+    const [localOpen, setLocalOpen] = useState(true);
     const open = isOpen !== undefined ? isOpen : localOpen;
     const toggle = onToggle ? onToggle : () => setLocalOpen(!localOpen);
 
     return (
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '10px', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden', background: '#ffffff', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
             <button
                 type="button"
                 onClick={toggle}
                 style={{
                     width: '100%',
-                    padding: '12px 16px',
+                    padding: '10px 14px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    background: open ? '#f8fafc' : '#fff',
+                    background: open ? '#f8fafc' : '#ffffff',
                     border: 'none',
                     borderBottom: open ? '1px solid #e2e8f0' : 'none',
                     cursor: 'pointer',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: 700,
                     color: '#0f172a',
                     textAlign: 'left'
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '15px' }}>{icon}</span>
+                    <span style={{ fontSize: '14px' }}>{icon}</span>
                     <span>{title}</span>
                 </div>
-                <span style={{ fontSize: '12px', color: '#64748b', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                <span style={{ fontSize: '11px', color: '#64748b', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
             </button>
             {open && (
-                <div style={{ padding: '16px' }}>
+                <div style={{ padding: '14px', background: '#ffffff' }}>
                     {children}
                 </div>
             )}
@@ -530,11 +562,17 @@ export const GridRootSettings = () => {
         props: node.data.props as GridRootProps
     }));
 
-    // Accordion single-open state: only 1 section open at a time
-    const [openSectionId, setOpenSectionId] = useState<string>('layout');
+    // Accordion multi-open state
+    const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
+        'grid-format': true,
+        'layout': true,
+        'section-appearance': true,
+        'section-header': false,
+        'card-management': true,
+    });
 
     const toggleSection = (sectionId: string) => {
-        setOpenSectionId(prev => prev === sectionId ? '' : sectionId);
+        setOpenSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
     };
 
     const addManualCard = () => {
@@ -582,34 +620,129 @@ export const GridRootSettings = () => {
     };
 
     return (
-        <div style={{ padding: '16px', maxHeight: '100%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '30px' }}>
             
-            {/* 1. DISPOSITION DES IMAGES & DU TEXTE */}
+            {/* 1. STRUCTURE & COLONNES */}
             <AccordionSection 
-                title="Position & Intégration Image / Texte" 
+                title="Structure Grille & Carrousel" 
+                icon="📐" 
+                isOpen={openSections['grid-format']}
+                onToggle={() => toggleSection('grid-format')}
+            >
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <div>
+                        <label className="label-pro">Mode d'affichage</label>
+                        <select className="input-pro" value={props.scrollMode} onChange={(e) => setProp((p: any) => p.scrollMode = e.target.value)}>
+                            <option value="grid">Grille Standard</option>
+                            <option value="carousel">Carrousel Horizontal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Colonnes Desktop</label>
+                        <input className="input-pro" type="number" min={1} max={12} value={props.columnsDesktop} onChange={(e) => setProp((p: any) => p.columnsDesktop = parseInt(e.target.value) || 1)} />
+                    </div>
+                </div>
+
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <div>
+                        <label className="label-pro">Colonnes Tablette</label>
+                        <input className="input-pro" type="number" min={1} max={6} value={props.columnsTablet || 2} onChange={(e) => setProp((p: any) => p.columnsTablet = parseInt(e.target.value) || 2)} />
+                    </div>
+                    <div>
+                        <label className="label-pro">Colonnes Mobile</label>
+                        <select 
+                            className="input-pro" 
+                            value={props.columnsMobile || 'auto'} 
+                            onChange={(e) => setProp((p: any) => p.columnsMobile = e.target.value === 'auto' ? 'auto' : (parseFloat(e.target.value) || 'auto'))}
+                        >
+                            <option value="auto">✨ Automatique (recommandé)</option>
+                            <option value="1.4">1 et demi (1.4 - 1.5 cartes)</option>
+                            <option value="2.4">2 et demi (2.4 - 2.5 cartes)</option>
+                            <option value="3.5">3 et demi (3.5 - Catégories)</option>
+                            <option value="1">1 colonne fixe</option>
+                            <option value="2">2 colonnes fixes</option>
+                            <option value="3">3 colonnes fixes</option>
+                            <option value="4">4 colonnes fixes</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="grid-2">
+                    <div>
+                        <label className="label-pro">Espacement X (px)</label>
+                        <input className="input-pro" type="number" min={0} value={props.gapX} onChange={(e) => setProp((p: any) => p.gapX = parseInt(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                        <label className="label-pro">Espacement Y (px)</label>
+                        <input className="input-pro" type="number" min={0} value={props.gapY} onChange={(e) => setProp((p: any) => p.gapY = parseInt(e.target.value) || 0)} />
+                    </div>
+                </div>
+
+                {props.scrollMode === 'carousel' && (
+                    <div style={{ marginTop: '10px', padding: '10px', background: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                        <div className="grid-2" style={{ marginBottom: '6px' }}>
+                            <div>
+                                <label className="label-pro">Style des flèches</label>
+                                <select className="input-pro" value={props.carouselArrows} onChange={(e) => setProp((p: any) => p.carouselArrows = e.target.value)}>
+                                    <option value="none">Aucune (Tactile)</option>
+                                    <option value="circle">Boutons ronds</option>
+                                    <option value="square">Boutons carrés</option>
+                                    <option value="simple">Flèches simples</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', marginTop: '20px' }}>
+                                    <input type="checkbox" checked={props.autoplay || false} onChange={(e) => setProp((p: any) => p.autoplay = e.target.checked)} />
+                                    Autoplay Défilement
+                                </label>
+                            </div>
+                        </div>
+
+                        {props.autoplay && (
+                            <div className="grid-2" style={{ marginTop: '8px' }}>
+                                <div>
+                                    <label className="label-pro">Vitesse (ms)</label>
+                                    <input className="input-pro" type="number" min={500} step={500} value={props.autoplaySpeed || 3000} onChange={(e) => setProp((p: any) => p.autoplaySpeed = parseInt(e.target.value) || 3000)} />
+                                </div>
+                                <div>
+                                    <label className="label-pro">Sens de défilement</label>
+                                    <select className="input-pro" value={props.autoplayDirection || 'right'} onChange={(e) => setProp((p: any) => p.autoplayDirection = e.target.value)}>
+                                        <option value="right">Vers la droite ➔</option>
+                                        <option value="left">Vers la gauche ↵</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </AccordionSection>
+
+            {/* 2. DISPOSITION & FORMES */}
+            <AccordionSection 
+                title="Disposition & Forme des Cartes" 
                 icon="🖼️" 
-                isOpen={openSectionId === 'layout'}
+                isOpen={openSections['layout']}
                 onToggle={() => toggleSection('layout')}
             >
-                <div style={{ marginBottom: '14px' }}>
-                    <label className="label-pro" style={{ fontWeight: 'bold' }}>Placement de l'image par rapport au texte</label>
+                <div style={{ marginBottom: '10px' }}>
+                    <label className="label-pro">Disposition globale Image / Texte</label>
                     <select
                         className="input-pro"
                         value={props.contentLayout}
                         onChange={(e) => setProp((p: any) => p.contentLayout = e.target.value)}
                     >
-                        <option value="image-above-text">⬆️ Image au-dessus (Texte sous l'image)</option>
+                        <option value="image-above-text">⬆️ Image au-dessus (Texte en-dessous)</option>
                         <option value="image-below-text">⬇️ Image en-dessous (Texte au-dessus)</option>
                         <option value="image-left-text-right">⬅️ Image à gauche (Texte à droite)</option>
                         <option value="text-left-image-right">➡️ Image à droite (Texte à gauche)</option>
-                        <option value="image-overlay">🖼️ Texte DANS l'image (Superposition / Overlay)</option>
-                        <option value="image-on-shape">🎨 Image sur Forme (Effet 3D / Dépassant)</option>
+                        <option value="image-overlay">🖼️ Texte DANS l'image (Superposition)</option>
+                        <option value="image-on-shape">🎨 Image sur Forme (Effet 3D)</option>
                     </select>
                 </div>
 
                 {props.contentLayout === 'image-overlay' && (
-                    <div style={{ marginBottom: '14px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                        <label className="label-pro">📍 Position du texte dans l'image</label>
+                    <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <label className="label-pro">📍 Position par défaut du texte dans l'image</label>
                         <select
                             className="input-pro"
                             value={props.globalInsideTextPosition || 'center'}
@@ -628,20 +761,20 @@ export const GridRootSettings = () => {
                     </div>
                 )}
 
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
                     <div>
-                        <label className="label-pro">Forme du cadre / Image</label>
+                        <label className="label-pro">Forme des images</label>
                         <select className="input-pro" value={props.globalShape} onChange={(e) => setProp((p: any) => p.globalShape = e.target.value)}>
                             <option value="circle">⭕ Cercle</option>
-                            <option value="square">🔲 Carré</option>
                             <option value="rounded-square">⏹️ Carré Arrondi</option>
+                            <option value="square">🔲 Carré Droit</option>
                             <option value="rectangle">▭ Rectangle (16:9)</option>
                             <option value="rounded-rectangle">📱 Rectangle Arrondi</option>
                             <option value="custom">⚙️ Personnalisé</option>
                         </select>
                     </div>
                     <div>
-                        <label className="label-pro">Niveau d'arrondi (ex: 16px, 50%)</label>
+                        <label className="label-pro">Arrondi personnalisé (ex: 16px)</label>
                         <input 
                             className="input-pro" 
                             type="text" 
@@ -652,9 +785,9 @@ export const GridRootSettings = () => {
                     </div>
                 </div>
 
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
                     <div>
-                        <label className="label-pro">Mode Ajustement Image</label>
+                        <label className="label-pro">Mode Ajustement</label>
                         <select
                             className="input-pro"
                             value={props.globalImageFitMode || 'fit'}
@@ -665,21 +798,21 @@ export const GridRootSettings = () => {
                         </select>
                     </div>
                     <div>
-                        <label className="label-pro">Remplissage (Fit)</label>
+                        <label className="label-pro">Cadrage global (Fit)</label>
                         <select
                             className="input-pro"
                             value={props.globalImageFit || 'contain'}
                             onChange={(e) => setProp((p: any) => p.globalImageFit = e.target.value as any)}
                         >
-                            <option value="contain">Contain (Conserver tout le visuel)</option>
-                            <option value="cover">Cover (Remplir tout le bloc)</option>
+                            <option value="contain">Contain (Complet)</option>
+                            <option value="cover">Cover (Plein cadre)</option>
                             <option value="fill">Fill (Étirer)</option>
                         </select>
                     </div>
                 </div>
 
                 {props.globalImageFitMode === 'manual' && (
-                    <div className="grid-2" style={{ marginBottom: '12px' }}>
+                    <div className="grid-2" style={{ marginBottom: '10px' }}>
                         <div>
                             <label className="label-pro">Largeur Forcée (ex: 120px)</label>
                             <input className="input-pro" type="text" placeholder="120px" value={props.globalImageWidth} onChange={(e) => setProp((p: any) => p.globalImageWidth = e.target.value)} />
@@ -693,319 +826,121 @@ export const GridRootSettings = () => {
 
                 <div className="grid-2">
                     <div>
-                        <label className="label-pro">Décalage X Image : {props.globalImagePosX || 0}%</label>
-                        <input 
-                            className="range-pro" 
-                            type="range" min="-100" max="100" step="1" 
-                            value={props.globalImagePosX || 0} 
-                            onChange={(e) => setProp((p: any) => p.globalImagePosX = parseInt(e.target.value) || 0)} 
-                        />
+                        <label className="label-pro">Alignement Texte</label>
+                        <select className="input-pro" value={props.globalItemAlignment} onChange={(e) => setProp((p: any) => p.globalItemAlignment = e.target.value)}>
+                            <option value="center">Centré</option>
+                            <option value="left">À Gauche</option>
+                            <option value="right">À Droite</option>
+                        </select>
                     </div>
                     <div>
-                        <label className="label-pro">Décalage Y Image : {props.globalImagePosY || 0}%</label>
-                        <input 
-                            className="range-pro" 
-                            type="range" min="-100" max="100" step="1" 
-                            value={props.globalImagePosY || 0} 
-                            onChange={(e) => setProp((p: any) => p.globalImagePosY = parseInt(e.target.value) || 0)} 
-                        />
+                        <label className="label-pro">Survol (Hover)</label>
+                        <select className="input-pro" value={props.globalAnimHover} onChange={(e) => setProp((p: any) => p.globalAnimHover = e.target.value)}>
+                            <option value="scale">Zoom (Scale)</option>
+                            <option value="lift">Élévation (Lift)</option>
+                            <option value="glow">Lueur (Glow)</option>
+                            <option value="none">Aucune</option>
+                        </select>
                     </div>
                 </div>
             </AccordionSection>
 
-            {/* 2. TITRE DE SECTION ET BOUTON CTA EN HAUT */}
+            {/* 3. STYLE & FOND DE LA SECTION */}
             <AccordionSection 
-                title="Titre de Section & Alignement Header" 
-                icon="🏷️"
-                isOpen={openSectionId === 'section-header'}
+                title="Style & Fond de la Section" 
+                icon="🎨" 
+                isOpen={openSections['section-appearance']}
+                onToggle={() => toggleSection('section-appearance')}
+            >
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <ColorField label="Fond Section" value={props.bgColor} onChange={(v) => setProp((p: any) => p.bgColor = v)} />
+                    <ColorField label="Fond Cartes" value={props.globalCardBgColor || 'transparent'} onChange={(v) => setProp((p: any) => p.globalCardBgColor = v)} />
+                </div>
+
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <div>
+                        <label className="label-pro">Bordure Cartes (px)</label>
+                        <input className="input-pro" type="number" min={0} value={props.globalCardBorderWidth || 0} onChange={(e) => setProp((p: any) => p.globalCardBorderWidth = parseInt(e.target.value) || 0)} />
+                    </div>
+                    <ColorField label="Couleur Bordure" value={props.globalCardBorderColor || '#e2e8f0'} onChange={(v) => setProp((p: any) => p.globalCardBorderColor = v)} />
+                </div>
+
+                <div style={{ marginBottom: '10px' }}>
+                    <label className="label-pro">Arrondi des Cartes (Border Radius)</label>
+                    <input className="input-pro" type="text" placeholder="12px" value={props.globalCardBorderRadius || '12px'} onChange={(e) => setProp((p: any) => p.globalCardBorderRadius = e.target.value)} />
+                </div>
+
+                <div className="grid-2">
+                    <div>
+                        <label className="label-pro">Padding Haut (px)</label>
+                        <input className="input-pro" type="number" min={0} value={props.paddingTop} onChange={(e) => setProp((p: any) => p.paddingTop = parseInt(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                        <label className="label-pro">Padding Bas (px)</label>
+                        <input className="input-pro" type="number" min={0} value={props.paddingBottom} onChange={(e) => setProp((p: any) => p.paddingBottom = parseInt(e.target.value) || 0)} />
+                    </div>
+                </div>
+            </AccordionSection>
+
+            {/* 4. EN-TÊTE & TITRE DE SECTION */}
+            <AccordionSection 
+                title="En-tête & Titre de Section" 
+                icon="🏷️" 
+                isOpen={openSections['section-header']}
                 onToggle={() => toggleSection('section-header')}
             >
-                <div style={{ marginBottom: '12px' }}>
-                    <label className="label-pro">Titre principal de la section</label>
-                    <input className="input-pro" type="text" placeholder="ex: Nos Catégories En Vedette" value={props.globalTitle} onChange={(e) => setProp((p: any) => p.globalTitle = e.target.value)} />
+                <div style={{ marginBottom: '10px' }}>
+                    <label className="label-pro">Titre de la section (Optionnel)</label>
+                    <input className="input-pro" type="text" placeholder="ex: Nos Meilleurs Produits" value={props.globalTitle} onChange={(e) => setProp((p: any) => p.globalTitle = e.target.value)} />
                 </div>
-                
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
+
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <ColorField label="Couleur Titre" value={props.globalTitleColor} onChange={(v) => setProp((p: any) => p.globalTitleColor = v)} />
                     <div>
-                        <label className="label-pro">Alignement Titre & CTA Header</label>
+                        <label className="label-pro">Alignement</label>
                         <select className="input-pro" value={props.sectionHeaderAlign || 'center'} onChange={(e) => setProp((p: any) => p.sectionHeaderAlign = e.target.value as any)}>
-                            <option value="center">Centre (Centré au-dessus)</option>
-                            <option value="left">Gauche (Aligné à gauche)</option>
-                            <option value="right">Droite (Aligné à droite)</option>
-                            <option value="between">Titre Gauche ↔ CTA Droite (Séparé)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label-pro">Taille Titre Section</label>
-                        <input className="input-pro" type="text" value={props.globalTitleSize} onChange={(e) => setProp((p: any) => p.globalTitleSize = e.target.value)} />
-                    </div>
-                </div>
-
-                <div style={{ marginBottom: '12px' }}>
-                    <ColorField label="Couleur Titre Section" value={props.globalTitleColor} onChange={(v) => setProp((p: any) => p.globalTitleColor = v)} />
-                </div>
-
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                    <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '8px' }}>
-                        <input type="checkbox" checked={props.sectionHeaderCtaEnabled || false} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaEnabled = e.target.checked)} />
-                        Afficher un bouton CTA en haut de section
-                    </label>
-
-                    {props.sectionHeaderCtaEnabled && (
-                        <>
-                            <div className="grid-2" style={{ marginBottom: '12px' }}>
-                                <div>
-                                    <label className="label-pro">Texte du bouton Header</label>
-                                    <input className="input-pro" type="text" value={props.sectionHeaderCtaText || 'Voir Tout'} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaText = e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="label-pro">URL / Lien Cible</label>
-                                    <input className="input-pro" type="text" placeholder="/collection/..." value={props.sectionHeaderCtaUrl || '#'} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaUrl = e.target.value)} />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="label-pro">Style du bouton</label>
-                                <select className="input-pro" value={props.sectionHeaderCtaStyle || 'solid'} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaStyle = e.target.value as any)}>
-                                    <option value="solid">Bouton Rempli (Solid)</option>
-                                    <option value="outline">Bouton Contour (Outline)</option>
-                                    <option value="link">Lien Texte ➔</option>
-                                </select>
-                            </div>
-                        </>
-                    )}
-                </div>
-            </AccordionSection>
-
-            {/* 3. CONTOUR ET APPARENCE DES CARTES */}
-            <AccordionSection 
-                title="Contour & Arrière-Plan des Cartes" 
-                icon="🎨"
-                isOpen={openSectionId === 'card-appearance'}
-                onToggle={() => toggleSection('card-appearance')}
-            >
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <div>
-                        <label className="label-pro">Épaisseur Bordure (px)</label>
-                        <input 
-                            className="input-pro" 
-                            type="number" min={0} max={20} 
-                            value={props.globalCardBorderWidth !== undefined ? props.globalCardBorderWidth : 0} 
-                            onChange={(e) => setProp((p: any) => p.globalCardBorderWidth = parseInt(e.target.value) || 0)} 
-                        />
-                    </div>
-                    <ColorField 
-                        label="Couleur Bordure" 
-                        value={props.globalCardBorderColor || '#e2e8f0'} 
-                        onChange={(v) => setProp((p: any) => p.globalCardBorderColor = v)} 
-                    />
-                </div>
-
-                <div style={{ marginBottom: '12px' }}>
-                    <label className="label-pro">Arrondi des Cartes (Border Radius)</label>
-                    <input 
-                        className="input-pro" 
-                        type="text" placeholder="12px" 
-                        value={props.globalCardBorderRadius || '12px'} 
-                        onChange={(e) => setProp((p: any) => p.globalCardBorderRadius = e.target.value)} 
-                    />
-                </div>
-
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <ColorField 
-                        label="Fond de la Carte" 
-                        value={props.globalCardBgColor || 'transparent'} 
-                        onChange={(v) => setProp((p: any) => p.globalCardBgColor = v)} 
-                    />
-                    <ColorField 
-                        label="Fond au Survol" 
-                        value={props.globalCardHoverBgColor || 'transparent'} 
-                        onChange={(v) => setProp((p: any) => p.globalCardHoverBgColor = v)} 
-                    />
-                </div>
-
-                <div>
-                    <label className="label-pro">Animation au survol des cartes</label>
-                    <select className="input-pro" value={props.globalAnimHover} onChange={(e) => setProp((p: any) => p.globalAnimHover = e.target.value)}>
-                        <option value="none">Aucune</option>
-                        <option value="scale">Scale (Agrandissement)</option>
-                        <option value="lift">Lift (Élévation)</option>
-                        <option value="glow">Glow (Luminescence)</option>
-                    </select>
-                </div>
-            </AccordionSection>
-
-            {/* 4. TYPOGRAPHIE & COULEURS DU TEXTE */}
-            <AccordionSection 
-                title="Textes & Typographie (Titres & Descriptions)" 
-                icon="📝"
-                isOpen={openSectionId === 'typography'}
-                onToggle={() => toggleSection('typography')}
-            >
-                <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '6px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ margin: '0 0 8px', fontSize: '12px', color: '#334155', fontWeight: 'bold' }}>Titre Principal de la Carte</h4>
-                    <div className="grid-2" style={{ marginBottom: '8px' }}>
-                        <div>
-                            <label className="label-pro">Taille (ex: 16px)</label>
-                            <input className="input-pro" type="text" value={props.globalItemTitleSize} onChange={(e) => setProp((p: any) => p.globalItemTitleSize = e.target.value)} />
-                        </div>
-                        <div>
-                            <label className="label-pro">Graisse / Épaisseur</label>
-                            <select className="input-pro" value={props.globalItemTitleWeight} onChange={(e) => setProp((p: any) => p.globalItemTitleWeight = e.target.value)}>
-                                <option value="normal">Normal (400)</option>
-                                <option value="medium">Moyen (500)</option>
-                                <option value="semibold">Semi-Gras (600)</option>
-                                <option value="bold">Gras (700)</option>
-                                <option value="900">Très Gras / Black (900)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="grid-2">
-                        <ColorField label="Couleur du Titre" value={props.globalItemTitleColor || '#0f172a'} onChange={(v) => setProp((p: any) => p.globalItemTitleColor = v)} />
-                        <div>
-                            <label className="label-pro">Casse du Titre</label>
-                            <select className="input-pro" value={props.globalItemTitleTransform || 'none'} onChange={(e) => setProp((p: any) => p.globalItemTitleTransform = e.target.value)}>
-                                <option value="none">Normal</option>
-                                <option value="uppercase">MAJUSCULES</option>
-                                <option value="capitalize">Capitaliser</option>
-                                <option value="lowercase">minuscules</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '6px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ margin: '0 0 8px', fontSize: '12px', color: '#334155', fontWeight: 'bold' }}>Description de la Carte</h4>
-                    <div className="grid-2" style={{ marginBottom: '8px' }}>
-                        <div>
-                            <label className="label-pro">Taille (ex: 14px)</label>
-                            <input className="input-pro" type="text" value={props.globalItemDescSize} onChange={(e) => setProp((p: any) => p.globalItemDescSize = e.target.value)} />
-                        </div>
-                        <div>
-                            <label className="label-pro">Graisse / Épaisseur</label>
-                            <select className="input-pro" value={props.globalItemDescWeight} onChange={(e) => setProp((p: any) => p.globalItemDescWeight = e.target.value)}>
-                                <option value="normal">Normal</option>
-                                <option value="medium">Moyen (500)</option>
-                                <option value="bold">Gras</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="grid-2">
-                        <ColorField label="Couleur Description" value={props.globalItemDescColor || '#64748b'} onChange={(v) => setProp((p: any) => p.globalItemDescColor = v)} />
-                        <div>
-                            <label className="label-pro">Nombre max de lignes</label>
-                            <select className="input-pro" value={props.globalItemDescLines !== undefined ? props.globalItemDescLines : 2} onChange={(e) => setProp((p: any) => p.globalItemDescLines = parseInt(e.target.value) || 0)}>
-                                <option value={0}>Illimité</option>
-                                <option value={1}>1 Ligne</option>
-                                <option value={2}>2 Lignes</option>
-                                <option value={3}>3 Lignes</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid-2">
-                    <div>
-                        <label className="label-pro">Alignement du Texte</label>
-                        <select className="input-pro" value={props.globalItemAlignment} onChange={(e) => setProp((p: any) => p.globalItemAlignment = e.target.value)}>
+                            <option value="center">Centré</option>
                             <option value="left">Gauche</option>
-                            <option value="center">Centre</option>
-                            <option value="right">Droite</option>
+                            <option value="between">Titre Gauche / CTA Droite</option>
                         </select>
-                    </div>
-                    <div>
-                        <label className="label-pro">Espace Titre-Description (px)</label>
-                        <input className="input-pro" type="number" min={0} value={props.globalTextGap !== undefined ? props.globalTextGap : 6} onChange={(e) => setProp((p: any) => p.globalTextGap = parseInt(e.target.value) || 0)} />
-                    </div>
-                </div>
-            </AccordionSection>
-
-            {/* 5. MODE D'AFFICHAGE & DEFILEMENT */}
-            <AccordionSection 
-                title="Format de la Grille & Carrousel" 
-                icon="📐"
-                isOpen={openSectionId === 'grid-format'}
-                onToggle={() => toggleSection('grid-format')}
-            >
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <div>
-                        <label className="label-pro">Mode de Défilement</label>
-                        <select className="input-pro" value={props.scrollMode} onChange={(e) => setProp((p: any) => p.scrollMode = e.target.value)}>
-                            <option value="grid">Grille Responsive (Haut/Bas)</option>
-                            <option value="carousel">Carrousel Horizontal (Défilant)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label-pro">Colonnes PC (Desktop)</label>
-                        <input className="input-pro" type="number" min={1} max={12} value={props.columnsDesktop} onChange={(e) => setProp((p: any) => p.columnsDesktop = parseInt(e.target.value) || 1)} />
                     </div>
                 </div>
 
-                {props.scrollMode === 'carousel' && (
-                    <div style={{ padding: '10px', background: '#eff6ff', borderRadius: '6px', marginBottom: '12px', border: '1px solid #bfdbfe' }}>
-                        <div className="grid-2" style={{ marginBottom: '8px' }}>
-                            <div>
-                                <label className="label-pro">Style des flèches</label>
-                                <select className="input-pro" value={props.carouselArrows} onChange={(e) => setProp((p: any) => p.carouselArrows = e.target.value)}>
-                                    <option value="none">Aucune (Tactile)</option>
-                                    <option value="simple">Flèches simples</option>
-                                    <option value="circle">Boutons ronds</option>
-                                    <option value="square">Boutons carrés</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginTop: '22px' }}>
-                                    <input type="checkbox" checked={props.autoplay || false} onChange={(e) => setProp((p: any) => p.autoplay = e.target.checked)} />
-                                    Autoplay
-                                </label>
-                            </div>
+                <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={props.sectionHeaderCtaEnabled || false} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaEnabled = e.target.checked)} />
+                    Bouton "Voir Tout" en haut
+                </label>
+
+                {props.sectionHeaderCtaEnabled && (
+                    <div className="grid-2" style={{ marginTop: '8px' }}>
+                        <div>
+                            <label className="label-pro">Texte CTA</label>
+                            <input className="input-pro" type="text" value={props.sectionHeaderCtaText || 'Voir Tout'} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaText = e.target.value)} />
                         </div>
-
-                        {props.autoplay && (
-                            <div className="grid-2">
-                                <div>
-                                    <label className="label-pro">Vitesse (ms)</label>
-                                    <input className="input-pro" type="number" min={500} step={500} value={props.autoplaySpeed || 3000} onChange={(e) => setProp((p: any) => p.autoplaySpeed = parseInt(e.target.value) || 3000)} />
-                                </div>
-                                <div>
-                                    <label className="label-pro">Sens</label>
-                                    <select className="input-pro" value={props.autoplayDirection || 'right'} onChange={(e) => setProp((p: any) => p.autoplayDirection = e.target.value)}>
-                                        <option value="right">Vers la droite ➔</option>
-                                        <option value="left">Vers la gauche ↵</option>
-                                    </select>
-                                </div>
-                            </div>
-                        )}
+                        <div>
+                            <label className="label-pro">Lien URL</label>
+                            <input className="input-pro" type="text" placeholder="/collection/all" value={props.sectionHeaderCtaUrl || '#'} onChange={(e) => setProp((p: any) => p.sectionHeaderCtaUrl = e.target.value)} />
+                        </div>
                     </div>
                 )}
-
-                <div className="grid-2">
-                    <div>
-                        <label className="label-pro">Espacement X (Gap Horizontal)</label>
-                        <input className="input-pro" type="number" min={0} value={props.gapX} onChange={(e) => setProp((p: any) => p.gapX = parseInt(e.target.value) || 0)} />
-                    </div>
-                    <div>
-                        <label className="label-pro">Espacement Y (Gap Vertical)</label>
-                        <input className="input-pro" type="number" min={0} value={props.gapY} onChange={(e) => setProp((p: any) => p.gapY = parseInt(e.target.value) || 0)} />
-                    </div>
-                </div>
             </AccordionSection>
 
-            {/* 6. GESTION ET AJOUT DE CARTES */}
+            {/* 5. GESTION DES CARTES */}
             <AccordionSection 
-                title="Gestion & Ajout de Cartes" 
-                icon="📥"
-                isOpen={openSectionId === 'card-management'}
+                title="Ajouter des Cartes" 
+                icon="📥" 
+                isOpen={openSections['card-management']}
                 onToggle={() => toggleSection('card-management')}
             >
                 <button 
                     onClick={addManualCard}
                     style={{ 
-                        width: '100%', padding: '10px 16px', background: 'var(--builder-primary)', 
+                        width: '100%', padding: '8px 14px', background: '#2563eb', 
                         color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', 
-                        fontWeight: 'bold', marginBottom: '12px', fontSize: '13px' 
+                        fontWeight: 'bold', fontSize: '12px' 
                     }}
                 >
-                    ➕ Ajouter une Carte Personnalisée
+                    ➕ Ajouter une Carte Vierge
                 </button>
 
                 <CatalogSearchField onSelect={addEntityCard} />

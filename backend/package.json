@@ -16,7 +16,8 @@
     "start": "concurrently npm:start:*",
     "migration:generate": "node node_modules/@vendure/cli/dist/cli.js migrate --generate",
     "migration:run": "node node_modules/@vendure/cli/dist/cli.js migrate --run",
-    "migration:revert": "node node_modules/@vendure/cli/dist/cli.js migrate --revert"
+    "migration:revert": "node node_modules/@vendure/cli/dist/cli.js migrate --revert",
+    "geo:import-places": "ts-node --transpileOnly src/plugins/geo-engine/scripts/import-osm-neighborhoods.ts"
   },
   "dependencies": {
     "@apollo/client": "^3.14.0",

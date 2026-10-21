@@ -1,0 +1,445 @@
+{
+  "type": "Feature",
+  "stac_version": "1.1.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/projection/v2.0.0/schema.json",
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json"
+  ],
+  "id": "hotosm_ben_populated_places-osm",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [
+          0.7846234,
+          6.2363543
+        ],
+        [
+          3.8480499,
+          6.2363543
+        ],
+        [
+          3.8480499,
+          12.4172369
+        ],
+        [
+          0.7846234,
+          12.4172369
+        ],
+        [
+          0.7846234,
+          6.2363543
+        ]
+      ]
+    ]
+  },
+  "bbox": [
+    0.7846234,
+    6.2363543,
+    3.8480499,
+    12.4172369
+  ],
+  "properties": {
+    "oex:category": "populated_places",
+    "oex:source": "osm",
+    "oex:dataset_source": "OpenStreetMap (Geofabrik BEN 2026-10-06)",
+    "oex:snapshot": "2026-10-06",
+    "oex:boundary": "geoBoundaries gbOpen ADM0",
+    "oex:version": "0.4.15",
+    "oex:pcode_source_date": "2025-07-29",
+    "oex:geometry_types": {
+      "POLYGON": 13289,
+      "POINT": 12751,
+      "MULTIPOLYGON": 62,
+      "LINESTRING": 11
+    },
+    "title": "Populated Places of Benin",
+    "description": "26,113 features: 13,289 polygons, 12,751 points, 62 multipolygons, 11 lines. 1 of 9 attributes are filled for at least half of the features.",
+    "license": "ODbL-1.0",
+    "created": "2026-10-06T17:51:40Z",
+    "keywords": [
+      "geodata",
+      "populated places-settlements"
+    ],
+    "providers": [
+      {
+        "name": "OpenStreetMap (Geofabrik BEN 2026-10-06)",
+        "roles": [
+          "producer",
+          "licensor"
+        ]
+      }
+    ],
+    "proj:code": "EPSG:4326",
+    "table:row_count": 26113,
+    "table:primary_geometry": "geom",
+    "table:columns": [
+      {
+        "name": "id",
+        "type": "VARCHAR",
+        "oex:null_count": 0,
+        "oex:null_percent": 0.0,
+        "oex:distinct_count": 26113,
+        "oex:top_values": []
+      },
+      {
+        "name": "name",
+        "type": "VARCHAR",
+        "oex:null_count": 14299,
+        "oex:null_percent": 54.76,
+        "oex:distinct_count": 10392,
+        "oex:top_values": []
+      },
+      {
+        "name": "name_en",
+        "type": "VARCHAR",
+        "oex:null_count": 26109,
+        "oex:null_percent": 99.98,
+        "oex:distinct_count": 4,
+        "oex:top_values": [
+          {
+            "value": "Lagbé",
+            "count": 1
+          },
+          {
+            "value": "Ouidah",
+            "count": 1
+          },
+          {
+            "value": "Porto-Novo",
+            "count": 1
+          },
+          {
+            "value": "Allada",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "name": "name_fr",
+        "type": "VARCHAR",
+        "oex:null_count": 26103,
+        "oex:null_percent": 99.96,
+        "oex:distinct_count": 10,
+        "oex:top_values": [
+          {
+            "value": "Yasinrou",
+            "count": 1
+          },
+          {
+            "value": "Sègbohouè",
+            "count": 1
+          },
+          {
+            "value": "Dékanmè",
+            "count": 1
+          },
+          {
+            "value": "Djègbadji",
+            "count": 1
+          },
+          {
+            "value": "Djèrègbè",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "name": "place",
+        "type": "VARCHAR",
+        "oex:null_count": 11846,
+        "oex:null_percent": 45.36,
+        "oex:distinct_count": 6,
+        "oex:top_values": [
+          {
+            "value": "hamlet",
+            "count": 9583
+          },
+          {
+            "value": "village",
+            "count": 4158
+          },
+          {
+            "value": "isolated_dwelling",
+            "count": 256
+          },
+          {
+            "value": "town",
+            "count": 229
+          },
+          {
+            "value": "city",
+            "count": 25
+          }
+        ]
+      },
+      {
+        "name": "landuse",
+        "type": "VARCHAR",
+        "oex:null_count": 13768,
+        "oex:null_percent": 52.72,
+        "oex:distinct_count": 2,
+        "oex:top_values": [
+          {
+            "value": "residential",
+            "count": 12344
+          },
+          {
+            "value": "farmyard",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "name": "population",
+        "type": "VARCHAR",
+        "oex:null_count": 26039,
+        "oex:null_percent": 99.72,
+        "oex:distinct_count": 47,
+        "oex:top_values": [
+          {
+            "value": "150",
+            "count": 6
+          },
+          {
+            "value": "110000",
+            "count": 6
+          },
+          {
+            "value": "200",
+            "count": 3
+          },
+          {
+            "value": "100000",
+            "count": 2
+          },
+          {
+            "value": "150000",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "name": "is_in",
+        "type": "VARCHAR",
+        "oex:null_count": 26107,
+        "oex:null_percent": 99.98,
+        "oex:distinct_count": 2,
+        "oex:top_values": [
+          {
+            "value": "Benin",
+            "count": 5
+          },
+          {
+            "value": "Littoral, Bénin",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "name": "source",
+        "type": "VARCHAR",
+        "oex:null_count": 26113,
+        "oex:null_percent": 100.0,
+        "oex:distinct_count": 0,
+        "oex:top_values": []
+      },
+      {
+        "name": "adm0_pcode",
+        "type": "VARCHAR",
+        "oex:null_count": 0,
+        "oex:null_percent": 0.0,
+        "oex:distinct_count": 1,
+        "oex:top_values": [
+          {
+            "value": "BEN",
+            "count": 26113
+          }
+        ]
+      },
+      {
+        "name": "adm0_name",
+        "type": "VARCHAR",
+        "oex:null_count": 0,
+        "oex:null_percent": 0.0,
+        "oex:distinct_count": 1,
+        "oex:top_values": [
+          {
+            "value": "Benin",
+            "count": 26113
+          }
+        ]
+      },
+      {
+        "name": "adm1_pcode",
+        "type": "VARCHAR",
+        "oex:null_count": 32,
+        "oex:null_percent": 0.12,
+        "oex:distinct_count": 12,
+        "oex:top_values": [
+          {
+            "value": "BJ04",
+            "count": 4361
+          },
+          {
+            "value": "BJ01",
+            "count": 3239
+          },
+          {
+            "value": "BJ09",
+            "count": 3069
+          },
+          {
+            "value": "BJ03",
+            "count": 2629
+          },
+          {
+            "value": "BJ06",
+            "count": 2448
+          }
+        ]
+      },
+      {
+        "name": "adm1_name",
+        "type": "VARCHAR",
+        "oex:null_count": 32,
+        "oex:null_percent": 0.12,
+        "oex:distinct_count": 12,
+        "oex:top_values": [
+          {
+            "value": "Borgou",
+            "count": 4361
+          },
+          {
+            "value": "Alibori",
+            "count": 3239
+          },
+          {
+            "value": "Mono",
+            "count": 3069
+          },
+          {
+            "value": "Atlantique",
+            "count": 2629
+          },
+          {
+            "value": "Couffo",
+            "count": 2448
+          }
+        ]
+      },
+      {
+        "name": "adm2_pcode",
+        "type": "VARCHAR",
+        "oex:null_count": 32,
+        "oex:null_percent": 0.12,
+        "oex:distinct_count": 77,
+        "oex:top_values": [
+          {
+            "value": "BJ0702",
+            "count": 1195
+          },
+          {
+            "value": "BJ1205",
+            "count": 1134
+          },
+          {
+            "value": "BJ0101",
+            "count": 1016
+          },
+          {
+            "value": "BJ0402",
+            "count": 978
+          },
+          {
+            "value": "BJ0408",
+            "count": 969
+          }
+        ]
+      },
+      {
+        "name": "adm2_name",
+        "type": "VARCHAR",
+        "oex:null_count": 32,
+        "oex:null_percent": 0.12,
+        "oex:distinct_count": 77,
+        "oex:top_values": [
+          {
+            "value": "Djougou",
+            "count": 1195
+          },
+          {
+            "value": "Djidja",
+            "count": 1134
+          },
+          {
+            "value": "Banikoara",
+            "count": 1016
+          },
+          {
+            "value": "Kalale",
+            "count": 978
+          },
+          {
+            "value": "Tchaourou",
+            "count": 969
+          }
+        ]
+      },
+      {
+        "name": "adm3_pcode",
+        "type": "VARCHAR",
+        "oex:null_count": 26113,
+        "oex:null_percent": 100.0,
+        "oex:distinct_count": 0,
+        "oex:top_values": []
+      },
+      {
+        "name": "adm3_name",
+        "type": "VARCHAR",
+        "oex:null_count": 26113,
+        "oex:null_percent": 100.0,
+        "oex:distinct_count": 0,
+        "oex:top_values": []
+      },
+      {
+        "name": "adm4_pcode",
+        "type": "VARCHAR",
+        "oex:null_count": 26113,
+        "oex:null_percent": 100.0,
+        "oex:distinct_count": 0,
+        "oex:top_values": []
+      },
+      {
+        "name": "adm4_name",
+        "type": "VARCHAR",
+        "oex:null_count": 26113,
+        "oex:null_percent": 100.0,
+        "oex:distinct_count": 0,
+        "oex:top_values": []
+      },
+      {
+        "name": "name_latin",
+        "type": "VARCHAR",
+        "oex:null_count": 14299,
+        "oex:null_percent": 54.76,
+        "oex:distinct_count": 10251,
+        "oex:top_values": []
+      }
+    ],
+    "datetime": "2026-10-06T00:00:00Z"
+  },
+  "links": [
+    {
+      "rel": "license",
+      "href": "https://opendatacommons.org/licenses/odbl/1-0/",
+      "title": "Open Database License (ODC-ODbL)"
+    },
+    {
+      "rel": "root",
+      "href": "https://production-raw-data-api.s3.amazonaws.com/ISO3/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {}
+}

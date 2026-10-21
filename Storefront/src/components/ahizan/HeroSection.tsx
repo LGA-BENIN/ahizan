@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
+import { HeroStoryScroller } from "@/components/cms/HeroStoryScroller";
+import { HeroSlimBanner } from "@/components/cms/HeroSlimBanner";
 
 interface HeroSectionProps {
     heroConfig: any;
@@ -129,10 +131,24 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
             )}
 
             {/* DYNAMIC CONTENT AREA */}
-            <div className="flex-grow">
+            <div className="flex-grow min-w-0">
                 {template === 'classic' && <ClassicHero baseConfig={config} globalConfig={heroConfig} hClass={hClass} />}
                 {template === 'bento' && <BentoHero baseConfig={config} globalConfig={heroConfig} hClass={hClass} />}
                 {template === 'fullwidth' && <FullWidthHero baseConfig={config} globalConfig={heroConfig} hClass={hClass} />}
+                {template === 'story_scroller' && (
+                    <HeroStoryScroller 
+                        title={config.title}
+                        subtitle={config.subtitle}
+                        cards={config.cards} 
+                        autoplaySpeed={config.autoplaySpeed}
+                    />
+                )}
+                {template === 'slim' && (
+                    <HeroSlimBanner 
+                        slides={config.slides} 
+                        autoplaySpeed={config.autoplaySpeed}
+                    />
+                )}
             </div>
         </div>
     );

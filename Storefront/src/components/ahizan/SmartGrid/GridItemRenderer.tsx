@@ -238,13 +238,14 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
         <div 
             className="relative flex items-center justify-center flex-shrink-0"
             style={{
-                width: isShapeLayout ? (globalImageWidth || '120px') : boxWidth,
+                width: isShapeLayout ? `min(100%, ${imageWidth || globalImageWidth || '120px'})` : boxWidth,
                 maxWidth: isRowLayout ? '50%' : '100%',
-                height: isShapeLayout ? (globalImageHeight || '120px') : boxHeight,
-                aspectRatio: (isOverlayLayout || isShapeLayout) ? undefined : (imageHeight ? undefined : (isRect ? '16/9' : '1/1')),
+                height: isShapeLayout ? 'auto' : (imageHeight ? undefined : 'auto'),
+                aspectRatio: isOverlayLayout ? undefined : (isShapeLayout ? (isRect ? '16/9' : '1/1') : (imageHeight ? undefined : (isRect ? '16/9' : '1/1'))),
                 borderRadius: isShapeLayout ? undefined : getBorderRadius(),
                 overflow: 'visible',
                 backgroundColor: (imageUrl || isShapeLayout) ? 'transparent' : '#f1f5f9',
+                margin: isRowLayout ? undefined : '0 auto',
             }}
         >
             {isShapeLayout ? (
@@ -265,7 +266,13 @@ export const GridItemRenderer = ({ props, contentLayout }: GridItemRendererProps
                         <img 
                             src={imageUrl} 
                             alt={titleText} 
-                            style={imgStyle}
+                            style={{
+                                ...imgStyle,
+                                width: '100%',
+                                height: '100%',
+                                top: 0,
+                                left: 0,
+                            }}
                             loading="lazy"
                         />
                     )}

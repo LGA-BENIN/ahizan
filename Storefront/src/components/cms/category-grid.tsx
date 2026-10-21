@@ -202,13 +202,17 @@ export function CategoryGrid({
                         {categories.map((cat) => {
                             const isCatGif = isGif(cat.imageUrl);
                             return (
-                                <div key={cat.slug} className="min-w-[130px] sm:min-w-[160px] md:min-w-[180px] max-w-[200px] flex-shrink-0 snap-start">
+                                <div key={cat.slug} className={cardStyle === 'circular' ? "min-w-[90px] sm:min-w-[110px] flex-shrink-0 snap-start" : "min-w-[130px] sm:min-w-[160px] md:min-w-[180px] max-w-[200px] flex-shrink-0 snap-start"}>
                                     <Link 
                                         href={`/collection/${cat.slug}`}
-                                        className="group flex flex-col items-center text-center space-y-3 p-2 rounded-2xl hover:bg-muted/30 transition-all no-underline text-inherit"
+                                        className="group flex flex-col items-center text-center space-y-2.5 p-1 rounded-2xl hover:bg-muted/30 transition-all no-underline text-inherit"
                                     >
-                                        <div className="relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 border border-border/60 group-hover:border-primary/40 p-1.5 shadow-sm">
-                                            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-muted">
+                                        <div className={
+                                            cardStyle === 'circular'
+                                            ? "relative w-18 h-18 sm:w-22 sm:h-22 md:w-24 md:h-24 rounded-full bg-card overflow-hidden group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-300 border border-border/70 group-hover:border-primary p-1 shadow-xs"
+                                            : "relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 border border-border/60 group-hover:border-primary/40 p-1.5 shadow-sm"
+                                        }>
+                                            <div className={`relative w-full h-full overflow-hidden bg-muted ${cardStyle === 'circular' ? 'rounded-full' : 'rounded-2xl'}`}>
                                                 {cat.imageUrl ? (
                                                     isCatGif ? (
                                                         <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -216,7 +220,7 @@ export function CategoryGrid({
                                                         <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
                                                     )
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-3xl font-black text-primary/20 bg-primary/5 uppercase">
+                                                    <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
                                                         {cat.name.charAt(0)}
                                                     </div>
                                                 )}
@@ -248,8 +252,12 @@ export function CategoryGrid({
                                 href={`/collection/${cat.slug}`}
                                 className="group flex flex-col items-center text-center space-y-3 p-2 rounded-2xl hover:bg-muted/30 transition-all no-underline text-inherit"
                             >
-                                <div className="relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 border border-border/60 group-hover:border-primary/40 p-1.5 shadow-sm">
-                                    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-muted">
+                                <div className={
+                                    cardStyle === 'circular'
+                                    ? "relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full bg-card overflow-hidden group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-300 border border-border/70 group-hover:border-primary p-1 shadow-xs"
+                                    : "relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 border border-border/60 group-hover:border-primary/40 p-1.5 shadow-sm"
+                                }>
+                                    <div className={`relative w-full h-full overflow-hidden bg-muted ${cardStyle === 'circular' ? 'rounded-full' : 'rounded-2xl'}`}>
                                         {cat.imageUrl ? (
                                             isCatGif ? (
                                                 <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -257,7 +265,7 @@ export function CategoryGrid({
                                                 <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
                                             )
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-3xl font-black text-primary/20 bg-primary/5 uppercase">
+                                            <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
                                                 {cat.name.charAt(0)}
                                             </div>
                                         )}

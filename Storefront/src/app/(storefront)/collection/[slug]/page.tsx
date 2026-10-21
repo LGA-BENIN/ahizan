@@ -26,24 +26,29 @@ function isRootCollection(col?: { slug?: string | null; name?: string | null } |
     return s.includes('_root_collection_') || s.includes('__root_collection__') || s.startsWith('_root') || n.includes('_root_collection_') || n.includes('__root_collection__') || n.startsWith('_root');
 }
 
-async function getCollectionMetadata(slug: string) {
+const getCollectionMetadata = React.cache(async (slug: string) => {
     return query(GetCollectionProductsQuery, {
         slug,
-        input: { take: 100, collectionSlug: slug, groupByProduct: false },
+        input: { take: 0, collectionSlug: slug, groupByProduct: false },
     });
-}
+});
 
+const allowedFacetsCache = new Map<string, { data: any; timestamp: number }>();
 async function getCollectionAllowedFacets(slug: string) {
+    const cached = allowedFacetsCache.get(slug);
+    const now = Date.now();
+    if (cached && now - cached.timestamp < 5 * 60 * 1000) {
+        return cached.data;
+    }
     try {
-        const collectionResult = await query(GetCollectionProductsQuery, {
-            slug,
-            input: { take: 0, collectionSlug: slug, groupByProduct: false },
-        });
+        const collectionResult = await getCollectionMetadata(slug);
         const collectionId = collectionResult?.data?.collection?.id;
         
         if (!collectionId) return null;
         
-        return await query(GetCollectionAllowedFacetsQuery, { collectionId });
+        const facetsRes = await query(GetCollectionAllowedFacetsQuery, { collectionId });
+        allowedFacetsCache.set(slug, { data: facetsRes, timestamp: now });
+        return facetsRes;
     } catch (err) {
         console.error('Failed to fetch collection allowed facets:', err);
         return null;

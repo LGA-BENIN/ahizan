@@ -21,6 +21,7 @@ export const commonApiExtensions = gql`
         formattedAddress: String!
         confidence: Float!
         isLearnedLocation: Boolean!
+        source: String
     }
 
     type GeoResolutionLog implements Node {

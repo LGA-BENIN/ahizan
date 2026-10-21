@@ -62,27 +62,7 @@ const FALLBACK_MARKETS = [
     { id: "32", name: "Marché Kpassè (Ouidah)", slug: "marche-kpasse-ouidah", centerLatitude: 6.3631, centerLongitude: 2.0851, radiusMeters: 800 },
     { id: "33", name: "Marché de Bohicon", slug: "marche-bohicon", centerLatitude: 7.1783, centerLongitude: 2.0667, radiusMeters: 900 }
 ];
-
-const FALLBACK_NEIGHBORHOODS = [
-    { id: "101", name: "Védoko", slug: "vedoko", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3750, centerLongitude: 2.3920 },
-    { id: "102", name: "Mènontin", slug: "menontin", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3710, centerLongitude: 2.3850 },
-    { id: "103", name: "Agla", slug: "agla", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3650, centerLongitude: 2.3780 },
-    { id: "104", name: "Fidjrossè", slug: "fidjrosse", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3690, centerLongitude: 2.3610 },
-    { id: "105", name: "Cadjèhoun", slug: "cadjehoun", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3620, centerLongitude: 2.4000 },
-    { id: "106", name: "Gbégamey", slug: "gbegamey", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3650, centerLongitude: 2.4080 },
-    { id: "107", name: "Akpakpa Dodomè", slug: "akpakpa-dodome", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3873, centerLongitude: 2.4573 },
-    { id: "108", name: "Sikècodji", slug: "sikecodji", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3740, centerLongitude: 2.4130 },
-    { id: "109", name: "Sainte-Rita", slug: "sainte-rita", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3780, centerLongitude: 2.4050 },
-    { id: "110", name: "Haie Vive", slug: "haie-vive", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3720, centerLongitude: 2.3950 },
-    { id: "111", name: "Zongo", slug: "zongo", type: "NEIGHBORHOOD", commune: "Cotonou", centerLatitude: 6.3660, centerLongitude: 2.4220 },
-    { id: "14", name: "Tokpota", slug: "tokpota", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.515, centerLongitude: 2.632 },
-    { id: "13", name: "Ahouangbo", slug: "ahouangbo", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.488, centerLongitude: 2.628 },
-    { id: "12", name: "Ouando", slug: "ouando", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.505, centerLongitude: 2.618 },
-    { id: "112", name: "Djassin", slug: "djassin", type: "NEIGHBORHOOD", commune: "Porto-Novo", centerLatitude: 6.478, centerLongitude: 2.632 },
-    { id: "17", name: "Cococodji", slug: "cococodji", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.425, centerLongitude: 2.298 },
-    { id: "15", name: "Zogbadjè", slug: "zogbadje", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.4236, centerLongitude: 2.3347 },
-    { id: "16", name: "Godomey", slug: "godomey", type: "NEIGHBORHOOD", commune: "Abomey-Calavi", centerLatitude: 6.3854, centerLongitude: 2.3432 }
-];
+// Hardcoded fallback neighborhoods removed in favor of dynamic GeoEngine PostGIS resolution
 
 const FALLBACK_CITIES = [
     { id: "18", name: "Cotonou", slug: "cotonou", type: "COMMUNE", centerLatitude: 6.3654, centerLongitude: 2.4183 },
@@ -93,7 +73,7 @@ const FALLBACK_CITIES = [
 export function LocationProvider({ children }: { children: ReactNode }) {
     const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
     const [markets, setMarkets] = useState<any[]>(FALLBACK_MARKETS);
-    const [neighborhoods, setNeighborhoods] = useState<any[]>(FALLBACK_NEIGHBORHOODS);
+    const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
     const [cities, setCities] = useState<any[]>(FALLBACK_CITIES);
     const [loading, setLoading] = useState(false);
     const [gpsLoading, setGpsLoading] = useState(false);
@@ -142,6 +122,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                     code
                     type
                     status
+                    image
+                    icon
+                    banner
                     centerLatitude
                     centerLongitude
                     radiusMeters
@@ -249,7 +232,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         const timeoutId = setTimeout(() => controller.abort(), 3500);
 
         // Precompute closest neighborhood and market in memory
-        const currentNeighborhoods = neighborhoods.length > 0 ? neighborhoods : FALLBACK_NEIGHBORHOODS;
+        const currentNeighborhoods = neighborhoods;
         const currentMarkets = markets.length > 0 ? markets : FALLBACK_MARKETS;
         const currentCities = cities.length > 0 ? cities : FALLBACK_CITIES;
 
@@ -316,15 +299,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     // 4. Internal apply (no toast) — used by auto-tracking
     const _applyLocation = (loc: LocationData) => {
-        clearClientCache();
         setSelectedLocation(loc);
         localStorage.setItem('ahizan_client_location', JSON.stringify(loc));
         if (typeof window !== 'undefined') {
             document.cookie = `ahizan_client_location=${encodeURIComponent(JSON.stringify(loc))}; path=/; max-age=31536000; SameSite=Lax`;
             window.dispatchEvent(new Event('ahizan_location_changed'));
-            try {
-                router.refresh();
-            } catch {}
         }
     };
 
@@ -443,11 +422,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             const handleError = (error: GeolocationPositionError, isRetry = false) => {
                 console.warn('GPS error:', error);
                 if (!isRetry && error.code !== 1) {
-                    // If high accuracy timed out or unavailable, retry with network location
+                    // Fallback to high accuracy if low-power location is unavailable
                     navigator.geolocation.getCurrentPosition(
                         handleSuccess,
                         (fallbackErr) => handleError(fallbackErr, true),
-                        { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 }
+                        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
                     );
                     return;
                 }
@@ -461,10 +440,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 resolve();
             };
 
+            // Fast initial location retrieval (network/Wi-Fi/cell, returns in ~150ms)
             navigator.geolocation.getCurrentPosition(
                 handleSuccess,
                 (err) => handleError(err, false),
-                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                { enableHighAccuracy: false, timeout: 3500, maximumAge: 60000 }
             );
         });
     };
@@ -586,12 +566,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                     if (result.state === 'granted') {
                         nav.geolocation.getCurrentPosition(
                             async (pos) => {
+                                const stored = localStorage.getItem('ahizan_client_location');
+                                const current = stored ? (JSON.parse(stored) as LocationData) : null;
+                                if (current && current.type !== 'GPS') {
+                                    return;
+                                }
                                 const { latitude, longitude } = pos.coords;
                                 const loc = await reverseGeocode(latitude, longitude);
-                                const stored = localStorage.getItem('ahizan_client_location');
+                                loc.type = 'GPS';
                                 if (stored) {
-                                    const current = JSON.parse(stored) as LocationData;
-                                    if (current.id !== loc.id) {
+                                    if (current && current.id !== loc.id) {
                                         _applyLocation(loc);
                                         toast.info(`📍 Zone mise à jour : ${loc.name}`, { duration: 4000 });
                                     }

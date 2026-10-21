@@ -9,10 +9,17 @@ import { CmsSection } from "@/lib/vendure/cms-queries";
 import { getShopApiUrl } from "@/lib/vendure/api-utils";
 import { fetchWithClientCache } from "@/lib/vendure/client-cache";
 
-export function AhizanHome({ sections }: { sections: CmsSection[] }) {
-    const [siteCategories, setSiteCategories] = useState<any[]>([]);
+export function AhizanHome({ 
+    sections, 
+    initialCategories 
+}: { 
+    sections: CmsSection[]; 
+    initialCategories?: any[]; 
+}) {
+    const [siteCategories, setSiteCategories] = useState<any[]>(initialCategories || []);
 
     useEffect(() => {
+        if (siteCategories.length > 0) return; // Already loaded from server
         const fetchCategories = async () => {
             const gqlQuery = `
                 query GetCmsCollectionsTree {

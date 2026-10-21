@@ -1,7 +1,8 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useNode } from '@craftjs/core';
 import { MediaUploadField } from '../../MediaUploadField';
 import { GridGlobalContext } from './GridRoot';
+import { fetchGraphQL, getAssetUrl } from '../../../../../lib/utils';
 
 export interface GridItemProps {
     bgColor: string;
@@ -116,8 +117,8 @@ export const GridItem = (props: GridItemProps) => {
     const columnsDesktop = globalContext.columnsDesktop || 4;
     const gapX = globalContext.gapX || 16;
 
-    const effectivePosX = props.imagePosX !== undefined ? props.imagePosX : (globalContext.globalImagePosX !== undefined ? globalContext.globalImagePosX : (isShapeLayout ? -10 : 0));
-    const effectivePosY = props.imagePosY !== undefined ? props.imagePosY : (globalContext.globalImagePosY !== undefined ? globalContext.globalImagePosY : (isShapeLayout ? -10 : 0));
+    const effectivePosX = props.imagePosX !== undefined ? props.imagePosX : (globalContext.globalImagePosX !== undefined ? globalContext.globalImagePosX : 0);
+    const effectivePosY = props.imagePosY !== undefined ? props.imagePosY : (globalContext.globalImagePosY !== undefined ? globalContext.globalImagePosY : 0);
 
     const getBorderRadius = () => {
         if (globalContext.globalImageBorderRadius) return globalContext.globalImageBorderRadius;
@@ -140,9 +141,9 @@ export const GridItem = (props: GridItemProps) => {
     let hoverBoxShadow = 'none';
 
     if (isHovered && activeAnimHover !== 'none') {
-        if (activeAnimHover === 'scale') hoverTransform = 'scale(1.05)';
-        if (activeAnimHover === 'lift') hoverTransform = 'translateY(-8px)';
-        if (activeAnimHover === 'glow') hoverBoxShadow = '0 0 15px rgba(255,255,255,0.8)';
+        if (activeAnimHover === 'scale') hoverTransform = 'scale(1.03)';
+        if (activeAnimHover === 'lift') hoverTransform = 'translateY(-6px)';
+        if (activeAnimHover === 'glow') hoverBoxShadow = '0 0 15px rgba(59,130,246,0.3)';
     }
 
     const effectiveInsidePos = props.insideTextPosition || globalContext.globalInsideTextPosition || 'center';
@@ -175,6 +176,7 @@ export const GridItem = (props: GridItemProps) => {
     const boxHeight = props.imageHeight ? props.imageHeight : (globalContext.globalImageHeight || 'auto');
     const currentScale = (props.imageSize !== undefined ? props.imageSize : 100) / 100;
 
+    // Interactive image transform & panning (moves smoothly for any fit mode)
     const imgStyle: React.CSSProperties = {
         width: props.imageWidth ? '100%' : (activeFitMode === 'manual' ? 'auto' : '100%'),
         height: props.imageHeight ? '100%' : (activeFitMode === 'manual' ? 'auto' : '100%'),
@@ -183,9 +185,9 @@ export const GridItem = (props: GridItemProps) => {
         zIndex: 2,
         objectFit: (activeFit || 'contain') as any,
         objectPosition: `${50 + effectivePosX}% ${50 + effectivePosY}%`,
-        transform: `scale(${currentScale})`,
+        transform: `translate(${effectivePosX}%, ${effectivePosY}%) scale(${currentScale})`,
         transformOrigin: 'center center',
-        transition: 'transform 0.2s ease, width 0.2s ease, height 0.2s ease',
+        transition: 'transform 0.15s ease, width 0.2s ease, height 0.2s ease',
     };
 
     if (isShapeLayout) {
@@ -202,6 +204,7 @@ export const GridItem = (props: GridItemProps) => {
             width: '100%',
             height: '100%',
             backgroundColor: props.imageUrl ? 'transparent' : '#f1f5f9',
+            overflow: 'hidden',
             zIndex: 0
         }}>
             {props.imageUrl ? (
@@ -212,7 +215,10 @@ export const GridItem = (props: GridItemProps) => {
                         width: '100%', 
                         height: '100%', 
                         objectFit: activeFitMode === 'fit' ? activeFit : 'cover',
-                        objectPosition: `${50 + effectivePosX}% ${50 + effectivePosY}%`
+                        objectPosition: `${50 + effectivePosX}% ${50 + effectivePosY}%`,
+                        transform: `translate(${effectivePosX}%, ${effectivePosY}%) scale(${currentScale})`,
+                        transformOrigin: 'center center',
+                        transition: 'transform 0.15s ease'
                     }} 
                 />
             ) : null}
@@ -223,24 +229,26 @@ export const GridItem = (props: GridItemProps) => {
                     top: 0, left: 0, right: 0, bottom: 0,
                     backgroundColor: props.overlayEnabled ? props.overlayColor : '#000000',
                     opacity: props.overlayEnabled ? props.overlayOpacity : 0.4,
-                    pointerEvents: 'none'
+                    pointerEvents: 'none',
+                    zIndex: 1
                 }} />
             )}
         </div>
     ) : (
         <div style={{
             position: 'relative',
-            width: isShapeLayout ? (globalContext.globalImageWidth || '120px') : boxWidth,
+            width: isShapeLayout ? `min(100%, ${props.imageWidth || globalContext.globalImageWidth || '120px'})` : boxWidth,
             maxWidth: isRowLayout ? '50%' : '100%',
-            height: isShapeLayout ? (globalContext.globalImageHeight || '120px') : boxHeight,
-            aspectRatio: (isOverlayLayout || isShapeLayout) ? undefined : (props.imageHeight ? undefined : (isRect ? '16/9' : '1/1')),
+            height: isShapeLayout ? 'auto' : (props.imageHeight ? undefined : 'auto'),
+            aspectRatio: isOverlayLayout ? undefined : (isShapeLayout ? (isRect ? '16/9' : '1/1') : (props.imageHeight ? undefined : (isRect ? '16/9' : '1/1'))),
             borderRadius: isShapeLayout ? undefined : getBorderRadius(),
-            overflow: 'visible',
+            overflow: 'hidden',
             backgroundColor: (props.imageUrl || isShapeLayout) ? 'transparent' : '#f1f5f9',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            flexShrink: 0
+            flexShrink: 0,
+            margin: isRowLayout ? undefined : '0 auto',
         }}>
             {isShapeLayout ? (
                 <>
@@ -259,7 +267,13 @@ export const GridItem = (props: GridItemProps) => {
                         <img 
                             src={props.imageUrl} 
                             alt={props.titleText} 
-                            style={imgStyle} 
+                            style={{
+                                ...imgStyle,
+                                width: '100%',
+                                height: '100%',
+                                top: 0,
+                                left: 0,
+                            }} 
                         />
                     )}
                 </>
@@ -297,12 +311,11 @@ export const GridItem = (props: GridItemProps) => {
                 <span style={{
                     display: 'inline-block',
                     padding: '6px 14px',
-                    backgroundColor: 'var(--builder-primary, #3b82f6)',
+                    backgroundColor: '#2563eb',
                     color: '#ffffff',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
                     borderRadius: '6px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
+                    fontSize: '12px',
+                    fontWeight: 700,
                 }}>
                     {activeCtaText}
                 </span>
@@ -311,11 +324,12 @@ export const GridItem = (props: GridItemProps) => {
                 <span style={{
                     display: 'inline-block',
                     padding: '5px 13px',
-                    border: '1.5px solid currentColor',
-                    color: isOverlayLayout ? '#ffffff' : 'var(--builder-primary, #3b82f6)',
+                    backgroundColor: 'transparent',
+                    border: '1px solid #2563eb',
+                    color: '#2563eb',
+                    borderRadius: '6px',
                     fontSize: '12px',
-                    fontWeight: 'bold',
-                    borderRadius: '6px'
+                    fontWeight: 700,
                 }}>
                     {activeCtaText}
                 </span>
@@ -325,9 +339,9 @@ export const GridItem = (props: GridItemProps) => {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
-                    color: isOverlayLayout ? '#ffffff' : 'var(--builder-primary, #3b82f6)',
-                    fontSize: '13px',
-                    fontWeight: 'bold'
+                    color: '#2563eb',
+                    fontSize: '12px',
+                    fontWeight: 700,
                 }}>
                     {activeCtaText} ➔
                 </span>
@@ -335,142 +349,188 @@ export const GridItem = (props: GridItemProps) => {
         </div>
     );
 
-    const priceBlockElement = (props.priceText || props.oldPriceText) && (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-            {props.oldPriceText && (
-                <span style={{ 
-                    textDecoration: 'line-through', 
-                    color: props.oldPriceColor || '#94a3b8', 
-                    fontSize: '12px' 
-                }}>
-                    {props.oldPriceText}
-                </span>
-            )}
-            {props.priceText && (
-                <span style={{ 
-                    color: props.priceColor || '#ef4444', 
-                    fontSize: props.priceFontSize || '16px', 
-                    fontWeight: 'bold' 
-                }}>
-                    {props.priceText}
-                </span>
-            )}
-        </div>
-    );
-
-    const textElement = (props.titleText || props.descText || props.priceText || activeShowCta) && (
-        <div style={{ 
-            flex: isRowLayout ? 1 : undefined, 
-            width: isRowLayout ? undefined : (isOverlayLayout ? 'auto' : '100%'), 
-            maxWidth: isOverlayLayout ? '100%' : undefined,
-            minWidth: 0, 
-            textAlign: overlayTextAlign as any,
-            position: isOverlayLayout ? 'relative' : undefined,
-            zIndex: isOverlayLayout ? 2 : undefined,
+    const textContentElement = (
+        <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: `${activeGap}px`
+            justifyContent: isOverlayLayout ? overlayFlex.justifyContent : 'center',
+            alignItems: isOverlayLayout ? overlayFlex.alignItems : (activeAlignment === 'center' ? 'center' : activeAlignment === 'right' ? 'flex-end' : 'flex-start'),
+            textAlign: overlayTextAlign as any,
+            padding: `${activePadding}px`,
+            gap: `${activeGap}px`,
+            position: isOverlayLayout ? 'absolute' : 'relative',
+            top: isOverlayLayout ? 0 : undefined,
+            left: isOverlayLayout ? 0 : undefined,
+            right: isOverlayLayout ? 0 : undefined,
+            bottom: isOverlayLayout ? 0 : undefined,
+            zIndex: isOverlayLayout ? 3 : 1,
+            pointerEvents: isOverlayLayout ? 'none' : 'auto',
+            width: '100%',
+            boxSizing: 'border-box'
         }}>
             {props.titleText && (
                 <div style={{
-                    color: isOverlayLayout && (activeTitleColor === 'var(--builder-text-main)' || activeTitleColor === '#0f172a') ? '#ffffff' : activeTitleColor,
                     fontSize: activeTitleSize,
-                    fontWeight: activeTitleWeight,
-                    textAlign: overlayTextAlign as any,
+                    fontWeight: activeTitleWeight as any,
+                    color: isOverlayLayout ? '#ffffff' : activeTitleColor,
                     textTransform: activeTitleTransform as any,
-                    marginBottom: '0px'
+                    lineHeight: 1.25,
+                    margin: 0,
+                    textShadow: isOverlayLayout ? '0 1px 3px rgba(0,0,0,0.6)' : 'none'
                 }}>
                     {props.titleText}
                 </div>
             )}
+
             {props.descText && (
                 <div style={{
-                    color: isOverlayLayout && (activeDescColor === 'var(--builder-text-muted)' || activeDescColor === '#64748b') ? '#cbd5e1' : activeDescColor,
                     fontSize: activeDescSize,
-                    fontWeight: activeDescWeight,
-                    textAlign: overlayTextAlign as any,
-                    display: activeDescLines > 0 ? '-webkit-box' : 'block',
+                    fontWeight: activeDescWeight as any,
+                    color: isOverlayLayout ? '#e2e8f0' : activeDescColor,
+                    lineHeight: 1.4,
+                    margin: 0,
+                    display: '-webkit-box',
                     WebkitLineClamp: activeDescLines > 0 ? activeDescLines : undefined,
-                    WebkitBoxOrient: activeDescLines > 0 ? 'vertical' : undefined,
-                    overflow: activeDescLines > 0 ? 'hidden' : 'visible'
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    textShadow: isOverlayLayout ? '0 1px 2px rgba(0,0,0,0.5)' : 'none'
                 }}>
                     {props.descText}
                 </div>
             )}
-            {priceBlockElement}
+
+            {/* Price section */}
+            {(props.priceText || props.oldPriceText) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                    {props.priceText && (
+                        <span style={{
+                            fontSize: props.priceFontSize || '15px',
+                            fontWeight: 800,
+                            color: isOverlayLayout ? '#34d399' : (props.priceColor || '#059669')
+                        }}>
+                            {props.priceText}
+                        </span>
+                    )}
+                    {props.oldPriceText && (
+                        <span style={{
+                            fontSize: '12px',
+                            textDecoration: 'line-through',
+                            color: isOverlayLayout ? '#94a3b8' : (props.oldPriceColor || '#94a3b8')
+                        }}>
+                            {props.oldPriceText}
+                        </span>
+                    )}
+                </div>
+            )}
+
             {ctaButtonElement}
         </div>
     );
 
-    const promoPos = props.promoCardPosition || 'top-left';
-    const isBottom = promoPos.includes('bottom');
-    const isRight = promoPos.includes('right');
-    const isCenterHoriz = promoPos.includes('center');
+    const getPromoBadgeStyle = () => {
+        const bg = props.promoCardBgColor || '#ef4444';
+        const color = props.promoCardTextColor || '#ffffff';
+        const style = props.promoCardStyle || 'solid';
 
-    const promoStyle = props.promoCardStyle || 'solid';
-
-    const promoBadge = props.promoCardEnabled && (
-        <div style={{
+        const base: React.CSSProperties = {
             position: 'absolute',
-            top: isBottom ? undefined : '10px',
-            bottom: isBottom ? '10px' : undefined,
-            left: isCenterHoriz ? '50%' : (isRight ? undefined : '10px'),
-            right: isCenterHoriz ? undefined : (isRight ? '10px' : undefined),
-            transform: isCenterHoriz ? 'translateX(-50%)' : undefined,
-            backgroundColor: promoStyle === 'glass' ? 'rgba(255,255,255,0.75)' : (promoStyle === 'outline' ? 'transparent' : (props.promoCardBgColor || '#ef4444')),
-            color: promoStyle === 'glass' ? '#0f172a' : (promoStyle === 'outline' ? (props.promoCardBgColor || '#ef4444') : (props.promoCardTextColor || '#ffffff')),
-            border: promoStyle === 'outline' ? `2px solid ${props.promoCardBgColor || '#ef4444'}` : (promoStyle === 'glass' ? '1px solid rgba(255,255,255,0.4)' : 'none'),
-            backdropFilter: promoStyle === 'glass' ? 'blur(8px)' : undefined,
-            fontSize: '11px',
-            fontWeight: 'bold',
-            padding: promoStyle === 'pill' ? '5px 14px' : '4px 10px',
-            borderRadius: promoStyle === 'pill' ? '9999px' : '6px',
-            boxShadow: promoStyle === 'glass' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.25)',
-            zIndex: 15,
-            pointerEvents: 'none',
+            zIndex: 10,
+            fontSize: '10px',
+            fontWeight: 800,
+            padding: '3px 8px',
             textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-        }}>
+            letterSpacing: '0.5px',
+            pointerEvents: 'none'
+        };
+
+        switch (props.promoCardPosition) {
+            case 'top-left': base.top = '10px'; base.left = '10px'; break;
+            case 'top-right': base.top = '10px'; base.right = '10px'; break;
+            case 'top-center': base.top = '10px'; base.left = '50%'; base.transform = 'translateX(-50%)'; break;
+            case 'bottom-left': base.bottom = '10px'; base.left = '10px'; break;
+            case 'bottom-right': base.bottom = '10px'; base.right = '10px'; break;
+            case 'bottom-center': base.bottom = '10px'; base.left = '50%'; base.transform = 'translateX(-50%)'; break;
+            default: base.top = '10px'; base.left = '10px'; break;
+        }
+
+        if (style === 'pill') {
+            base.borderRadius = '999px';
+            base.backgroundColor = bg;
+            base.color = color;
+            base.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+        } else if (style === 'glass') {
+            base.borderRadius = '6px';
+            base.backgroundColor = 'rgba(255, 255, 255, 0.85)';
+            base.color = bg;
+            base.backdropFilter = 'blur(4px)';
+            base.border = `1px solid ${bg}`;
+            base.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+        } else if (style === 'outline') {
+            base.borderRadius = '4px';
+            base.backgroundColor = '#ffffff';
+            base.border = `1.5px solid ${bg}`;
+            base.color = bg;
+        } else {
+            base.borderRadius = '4px';
+            base.backgroundColor = bg;
+            base.color = color;
+            base.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+        }
+
+        return base;
+    };
+
+    const promoBadgeElement = props.promoCardEnabled && (
+        <div style={getPromoBadgeStyle()}>
             {props.promoCardText || 'PROMO'}
         </div>
     );
 
+    const cardStyles: React.CSSProperties = {
+        position: 'relative',
+        display: 'flex',
+        flexDirection: isRowLayout ? 'row' : 'column',
+        alignItems: isRowLayout ? 'center' : (activeAlignment === 'center' ? 'center' : activeAlignment === 'right' ? 'flex-end' : 'flex-start'),
+        justifyContent: isOverlayLayout ? 'center' : 'flex-start',
+        backgroundColor: currentBgColor,
+        borderWidth: `${effectiveBorderWidth}px`,
+        borderStyle: effectiveBorderWidth > 0 ? 'solid' : 'none',
+        borderColor: effectiveBorderColor,
+        borderRadius: effectiveBorderRadius,
+        minHeight: props.cardMinHeight || undefined,
+        gridColumn: props.cardColSpan ? `span ${props.cardColSpan}` : undefined,
+        gridRow: props.cardRowSpan ? `span ${props.cardRowSpan}` : undefined,
+        width: isCarousel ? `calc((100% - ${(columnsDesktop - 1) * gapX}px) / ${columnsDesktop})` : '100%',
+        flexShrink: isCarousel ? 0 : undefined,
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        cursor: 'pointer',
+        transform: hoverTransform,
+        boxShadow: selected ? '0 0 0 2px #2563eb, 0 4px 12px rgba(37,99,235,0.2)' : hoverBoxShadow,
+        outline: selected ? '2px solid #2563eb' : 'none',
+        transition: 'all 0.2s ease',
+    };
+
     return (
-        <div
+        <div 
             ref={(ref: any) => connect(drag(ref))}
+            style={cardStyles}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            style={{
-                position: 'relative',
-                display: 'flex',
-                flexDirection: isOverlayLayout ? 'column' : (isRowLayout ? (isReverse ? 'row-reverse' : 'row') : (isReverse ? 'column-reverse' : 'column')),
-                alignItems: isOverlayLayout ? overlayFlex.alignItems as any : (activeAlignment === 'left' ? 'flex-start' : activeAlignment === 'right' ? 'flex-end' : 'center'),
-                justifyContent: isOverlayLayout ? overlayFlex.justifyContent as any : undefined,
-                gap: isOverlayLayout ? '0px' : `${activeGap}px`,
-                padding: isOverlayLayout ? '24px' : `${activePadding}px`,
-                backgroundColor: currentBgColor,
-                border: `${effectiveBorderWidth}px solid ${effectiveBorderColor}`,
-                borderRadius: effectiveBorderRadius,
-                outline: selected ? '2px solid var(--builder-primary)' : 'none',
-                cursor: 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                transform: hoverTransform,
-                boxShadow: hoverBoxShadow,
-                boxSizing: 'border-box',
-                gridColumn: !isCarousel && props.cardColSpan ? `span ${props.cardColSpan}` : undefined,
-                gridRow: !isCarousel && props.cardRowSpan ? `span ${props.cardRowSpan}` : undefined,
-                width: isCarousel ? `calc(100% / ${columnsDesktop} - ${gapX * (columnsDesktop - 1) / columnsDesktop}px)` : '100%',
-                flexShrink: isCarousel ? 0 : 1,
-                scrollSnapAlign: isCarousel ? 'start' : undefined,
-                height: '100%',
-                minHeight: props.cardMinHeight || (isOverlayLayout ? '180px' : 'auto'),
-                overflow: isOverlayLayout ? 'hidden' : 'visible',
-                zIndex: isHovered ? 10 : 1
-            }}
         >
-            {promoBadge}
-            {imageElement}
-            {textElement}
+            {promoBadgeElement}
+
+            {isReverse ? (
+                <>
+                    {textContentElement}
+                    {imageElement}
+                </>
+            ) : (
+                <>
+                    {imageElement}
+                    {textContentElement}
+                </>
+            )}
         </div>
     );
 };
@@ -479,7 +539,13 @@ const ColorField = ({ label, value, onChange }: { label: string; value: string; 
     <div>
         <label className="label-pro">{label}</label>
         <div className="color-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <input type="color" className="color-swatch" value={value || '#000000'} onChange={(e) => onChange(e.target.value)} style={{ width: '32px', height: '32px', padding: '0', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }} />
+            <input 
+                type="color" 
+                className="color-swatch" 
+                value={value || '#000000'} 
+                onChange={(e) => onChange(e.target.value)} 
+                style={{ width: '30px', height: '30px', padding: '0', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }} 
+            />
             <input className="input-pro" value={value || ''} onChange={(e) => onChange(e.target.value)} style={{ flex: 1 }} />
         </div>
     </div>
@@ -498,42 +564,262 @@ const AccordionSection = ({
     isOpen?: boolean; 
     onToggle?: () => void; 
 }) => {
-    const [localOpen, setLocalOpen] = useState(false);
+    const [localOpen, setLocalOpen] = useState(true);
     const open = isOpen !== undefined ? isOpen : localOpen;
     const toggle = onToggle ? onToggle : () => setLocalOpen(!localOpen);
 
     return (
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '10px', overflow: 'hidden', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden', background: '#ffffff', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
             <button
                 type="button"
                 onClick={toggle}
                 style={{
                     width: '100%',
-                    padding: '12px 16px',
+                    padding: '10px 14px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    background: open ? '#f8fafc' : '#fff',
+                    background: open ? '#f8fafc' : '#ffffff',
                     border: 'none',
                     borderBottom: open ? '1px solid #e2e8f0' : 'none',
                     cursor: 'pointer',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: 700,
                     color: '#0f172a',
                     textAlign: 'left'
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '15px' }}>{icon}</span>
+                    <span style={{ fontSize: '14px' }}>{icon}</span>
                     <span>{title}</span>
                 </div>
-                <span style={{ fontSize: '12px', color: '#64748b', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
+                <span style={{ fontSize: '11px', color: '#64748b', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▼</span>
             </button>
             {open && (
-                <div style={{ padding: '16px' }}>
+                <div style={{ padding: '14px', background: '#ffffff' }}>
                     {children}
                 </div>
             )}
+        </div>
+    );
+};
+
+const ProductPickerModal = ({ isOpen, onClose, onSelect }: { isOpen: boolean; onClose: () => void; onSelect: (product: any) => void }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [products, setProducts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setLoading(true);
+        const term = searchTerm.trim();
+        const query = term 
+            ? `query SearchProducts($term: String!) {
+                products(options: { filter: { name: { contains: $term } }, take: 20 }) {
+                    items { id name slug description featuredAsset { id preview source } variants { id name price priceWithTax } }
+                }
+            }`
+            : `query GetInitialProducts {
+                products(options: { take: 20 }) {
+                    items { id name slug description featuredAsset { id preview source } variants { id name price priceWithTax } }
+                }
+            }`;
+        
+        fetchGraphQL(query, term ? { term } : undefined)
+            .then((res: any) => {
+                setProducts(res?.products?.items || []);
+            })
+            .catch((err) => console.error("Error fetching products for SmartGrid", err))
+            .finally(() => setLoading(false));
+    }, [isOpen, searchTerm]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>📦</span>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Choisir un Produit Vendure</h3>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                </div>
+                
+                <div style={{ padding: '12px 18px', borderBottom: '1px solid #f1f5f9' }}>
+                    <input 
+                        type="text" 
+                        placeholder="Rechercher par nom de produit..." 
+                        value={searchTerm} 
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="input-pro"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        autoFocus
+                    />
+                </div>
+
+                <div style={{ padding: '14px 18px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>Chargement des produits...</div>
+                    ) : products.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '13px' }}>Aucun produit trouvé</div>
+                    ) : (
+                        products.map((p) => {
+                            const img = getAssetUrl(p.featuredAsset?.preview || p.featuredAsset?.source);
+                            const price = p.variants?.[0]?.priceWithTax ? `${(p.variants[0].priceWithTax / 100).toLocaleString('fr-FR')} FCFA` : '';
+                            return (
+                                <div 
+                                    key={p.id}
+                                    onClick={() => {
+                                        onSelect({
+                                            name: p.name,
+                                            slug: p.slug,
+                                            image: img,
+                                            price: price,
+                                            description: p.description || ''
+                                        });
+                                        onClose();
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        background: '#fff'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.background = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fff'; }}
+                                >
+                                    <div style={{ width: '42px', height: '42px', borderRadius: '6px', background: '#f1f5f9', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {img ? <img src={img} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '📦'}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '12px', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                                        <div style={{ fontSize: '11px', color: '#64748b' }}>/product/{p.slug}</div>
+                                    </div>
+                                    {price && (
+                                        <div style={{ fontWeight: 700, fontSize: '12px', color: '#059669', flexShrink: 0 }}>
+                                            {price}
+                                        </div>
+                                    )}
+                                    <button style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                        Choisir
+                                    </button>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const CollectionPickerModal = ({ isOpen, onClose, onSelect }: { isOpen: boolean; onClose: () => void; onSelect: (col: any) => void }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [collections, setCollections] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setLoading(true);
+        fetchGraphQL(`query GetCollectionsTree { cmsCollectionsTree { id name slug featuredAsset { id preview source } children { id name slug featuredAsset { id preview source } } } }`)
+            .then((res: any) => {
+                const tree = res?.cmsCollectionsTree || [];
+                const flat: any[] = [];
+                const flatten = (nodes: any[]) => {
+                    for (const node of nodes) {
+                        flat.push(node);
+                        if (node.children && node.children.length > 0) flatten(node.children);
+                    }
+                };
+                flatten(tree);
+                setCollections(flat);
+            })
+            .catch((err) => console.error("Error fetching collections for SmartGrid", err))
+            .finally(() => setLoading(false));
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const filtered = collections.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>🗂️</span>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Choisir une Collection / Rayon</h3>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                </div>
+                
+                <div style={{ padding: '12px 18px', borderBottom: '1px solid #f1f5f9' }}>
+                    <input 
+                        type="text" 
+                        placeholder="Filtrer les collections..." 
+                        value={searchTerm} 
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="input-pro"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        autoFocus
+                    />
+                </div>
+
+                <div style={{ padding: '14px 18px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>Chargement des collections...</div>
+                    ) : filtered.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px', color: '#94a3b8', fontSize: '13px' }}>Aucune collection trouvée</div>
+                    ) : (
+                        filtered.map((c) => {
+                            const img = getAssetUrl(c.featuredAsset?.preview || c.featuredAsset?.source);
+                            return (
+                                <div 
+                                    key={c.id}
+                                    onClick={() => {
+                                        onSelect({
+                                            name: c.name,
+                                            slug: c.slug,
+                                            image: img,
+                                        });
+                                        onClose();
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        background: '#fff'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.background = '#f8fafc'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fff'; }}
+                                >
+                                    <div style={{ width: '42px', height: '42px', borderRadius: '6px', background: '#f1f5f9', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {img ? <img src={img} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '📁'}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '12px', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                                        <div style={{ fontSize: '11px', color: '#64748b' }}>/collection/{c.slug}</div>
+                                    </div>
+                                    <button style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                                        Choisir
+                                    </button>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
@@ -546,233 +832,298 @@ export const GridItemSettings = () => {
     const globalContext = useContext(GridGlobalContext) || {};
     const activeLayout = props.cardContentLayout || globalContext.globalContentLayout || 'image-above-text';
     const isOverlayLayout = activeLayout === 'image-overlay';
+    const isShapeLayout = activeLayout === 'image-on-shape';
 
-    // Accordion single-open state: only 1 section open at a time
-    const [openSectionId, setOpenSectionId] = useState<string>('card-size');
+    const [isProductPickerOpen, setIsProductPickerOpen] = useState(false);
+    const [isCollectionPickerOpen, setIsCollectionPickerOpen] = useState(false);
+
+    // Accordion multi-open state
+    const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
+        'card-source': true,
+        'card-image-pos': true,
+        'card-price': true,
+        'card-text': false,
+        'card-appearance': false,
+        'card-promo': false,
+    });
 
     const toggleSection = (sectionId: string) => {
-        setOpenSectionId(prev => prev === sectionId ? '' : sectionId);
+        setOpenSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+    };
+
+    const handleSelectProduct = (product: any) => {
+        setProp((p: any) => {
+            if (product.name) p.titleText = product.name;
+            if (product.image) p.imageUrl = product.image;
+            if (product.slug) p.linkUrl = `/product/${product.slug}`;
+            if (product.price) p.priceText = product.price;
+            if (product.description) p.descText = product.description.replace(/<[^>]*>?/gm, '').substring(0, 100);
+        });
+    };
+
+    const handleSelectCollection = (col: any) => {
+        setProp((p: any) => {
+            if (col.name) p.titleText = col.name;
+            if (col.image) p.imageUrl = col.image;
+            if (col.slug) p.linkUrl = `/collection/${col.slug}`;
+            p.descText = `Découvrez notre sélection ${col.name}`;
+        });
+    };
+
+    // Helper to shift image position interactively
+    const shiftImagePos = (dx: number, dy: number) => {
+        setProp((p: any) => {
+            const currentX = p.imagePosX !== undefined ? p.imagePosX : 0;
+            const currentY = p.imagePosY !== undefined ? p.imagePosY : 0;
+            p.imagePosX = Math.max(-100, Math.min(100, currentX + dx));
+            p.imagePosY = Math.max(-100, Math.min(100, currentY + dy));
+        });
+    };
+
+    const resetImagePos = () => {
+        setProp((p: any) => {
+            p.imagePosX = 0;
+            p.imagePosY = 0;
+            p.imageSize = 100;
+        });
     };
 
     return (
-        <div style={{ padding: '16px', maxHeight: '100%', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '30px' }}>
             
-            {/* 1. TAILLE SPECIFIQUE DE LA CARTE */}
-            <AccordionSection 
-                title="Taille & Span de la Carte (Lignes / Colonnes)" 
-                icon="📏" 
-                isOpen={openSectionId === 'card-size'}
-                onToggle={() => toggleSection('card-size')}
-            >
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <div>
-                        <label className="label-pro">Largeur / Colonnes (Col Span)</label>
-                        <select 
-                            className="input-pro" 
-                            value={props.cardColSpan || ''} 
-                            onChange={(e) => setProp((p: any) => p.cardColSpan = e.target.value ? parseInt(e.target.value) : undefined)}
-                        >
-                            <option value="">(1 colonne)</option>
-                            <option value={2}>2 colonnes (Large)</option>
-                            <option value={3}>3 colonnes</option>
-                            <option value={4}>4 colonnes</option>
-                            <option value={6}>6 colonnes (Moitié)</option>
-                            <option value={12}>12 colonnes (Pleine Largeur)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label-pro">Hauteur / Lignes (Row Span)</label>
-                        <select 
-                            className="input-pro" 
-                            value={props.cardRowSpan || ''} 
-                            onChange={(e) => setProp((p: any) => p.cardRowSpan = e.target.value ? parseInt(e.target.value) : undefined)}
-                        >
-                            <option value="">(1 ligne - Normal)</option>
-                            <option value={2}>2 lignes (Double Hauteur / Image 1)</option>
-                            <option value={3}>3 lignes (Triple Hauteur)</option>
-                        </select>
-                    </div>
-                </div>
+            <ProductPickerModal 
+                isOpen={isProductPickerOpen} 
+                onClose={() => setIsProductPickerOpen(false)} 
+                onSelect={handleSelectProduct} 
+            />
 
-                <div style={{ marginBottom: '12px' }}>
-                    <label className="label-pro">Hauteur Min Spécifique (ex: 280px)</label>
-                    <input 
-                        className="input-pro" 
-                        type="text" 
-                        placeholder="ex: 250px" 
-                        value={props.cardMinHeight || ''} 
-                        onChange={(e) => setProp((p: any) => p.cardMinHeight = e.target.value)} 
-                    />
-                </div>
-            </AccordionSection>
+            <CollectionPickerModal 
+                isOpen={isCollectionPickerOpen} 
+                onClose={() => setIsCollectionPickerOpen(false)} 
+                onSelect={handleSelectCollection} 
+            />
 
-            {/* 2. PLACEMENT TEXTE & IMAGE */}
+            {/* 1. SOURCE & REMPLISSAGE AUTOMATIQUE */}
             <AccordionSection 
-                title="Position Image / Texte (Propre à cette carte)" 
-                icon="🖼️"
-                isOpen={openSectionId === 'card-layout'}
-                onToggle={() => toggleSection('card-layout')}
+                title="Source & Produit Associé" 
+                icon="⚡" 
+                isOpen={openSections['card-source']}
+                onToggle={() => toggleSection('card-source')}
             >
-                <div style={{ marginBottom: '12px' }}>
-                    <label className="label-pro">Placement Image / Texte</label>
-                    <select
-                        className="input-pro"
-                        value={props.cardContentLayout || ''}
-                        onChange={(e) => setProp((p: any) => p.cardContentLayout = e.target.value as any)}
-                    >
-                        <option value="">(Hériter de la grille globale)</option>
-                        <option value="image-above-text">⬆️ Image au-dessus (Texte en-dessous)</option>
-                        <option value="image-below-text">⬇️ Image en-dessous (Texte au-dessus)</option>
-                        <option value="image-left-text-right">⬅️ Image à gauche (Texte à droite)</option>
-                        <option value="text-left-image-right">➡️ Image à droite (Texte à gauche)</option>
-                        <option value="image-overlay">🖼️ Texte DANS l'image (Superposition / Overlay)</option>
-                    </select>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', color: '#166534', fontWeight: 600, marginBottom: '6px' }}>
+                        📦 Sélectionner directement un article Vendure :
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setIsProductPickerOpen(true)}
+                            style={{
+                                background: '#16a34a',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '8px 10px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                            }}
+                        >
+                            📦 Choisir Produit
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsCollectionPickerOpen(true)}
+                            style={{
+                                background: '#ffffff',
+                                color: '#166534',
+                                border: '1px solid #86efac',
+                                borderRadius: '6px',
+                                padding: '8px 10px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                            }}
+                        >
+                            🗂️ Choisir Rayon
+                        </button>
+                    </div>
                 </div>
 
                 <MediaUploadField 
-                    label="Image de l'élément"
+                    label="Image principale de l'élément"
                     value={props.imageUrl}
                     onChange={(url) => setProp((p: any) => p.imageUrl = url)}
                 />
 
-                <div className="grid-2" style={{ marginTop: '12px', marginBottom: '12px' }}>
-                    <div>
-                        <label className="label-pro">Mode Ajustement Image</label>
-                        <select
-                            className="input-pro"
-                            value={props.imageFitMode || ''}
-                            onChange={(e) => setProp((p: any) => p.imageFitMode = e.target.value as any)}
-                        >
-                            <option value="">(Hériter du global)</option>
-                            <option value="fit">Ajuster (Box Fit)</option>
-                            <option value="manual">Dimensions Manuelles</option>
-                        </select>
+                <div style={{ marginTop: '10px' }}>
+                    <label className="label-pro">Lien URL de redirection</label>
+                    <input 
+                        className="input-pro" 
+                        type="text" 
+                        placeholder="/product/mon-produit" 
+                        value={props.linkUrl || ''} 
+                        onChange={(e) => setProp((p: any) => p.linkUrl = e.target.value)} 
+                    />
+                </div>
+            </AccordionSection>
+
+            {/* 2. DÉPLACEMENT & AJUSTEMENT DE L'IMAGE (PAN & ZOOM) */}
+            <AccordionSection 
+                title="Position & Cadrage de l'Image" 
+                icon="🖼️"
+                isOpen={openSections['card-image-pos']}
+                onToggle={() => toggleSection('card-image-pos')}
+            >
+                {/* Visual D-Pad & Quick Controls */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#334155', marginBottom: '8px', textAlign: 'center' }}>
+                        🎯 Déplacer l'image dans son cadre :
                     </div>
-                    <div>
-                        <label className="label-pro">Fit (Remplissage)</label>
-                        <select
-                            className="input-pro"
-                            value={props.imageFit || ''}
-                            onChange={(e) => setProp((p: any) => p.imageFit = e.target.value as any)}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <button 
+                            type="button" 
+                            onClick={() => shiftImagePos(0, -5)} 
+                            title="Monter"
+                            style={{ width: '34px', height: '28px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
                         >
-                            <option value="">(Hériter du global)</option>
-                            <option value="contain">Contain (Conserver visuel)</option>
-                            <option value="cover">Cover (Remplir tout)</option>
-                            <option value="fill">Fill (Étirer)</option>
-                        </select>
+                            ▲
+                        </button>
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <button 
+                                type="button" 
+                                onClick={() => shiftImagePos(-5, 0)} 
+                                title="Déplacer à gauche"
+                                style={{ width: '34px', height: '28px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                                ◀
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={resetImagePos} 
+                                title="Réinitialiser la position au centre"
+                                style={{ padding: '0 8px', height: '28px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 700 }}
+                            >
+                                Centrer
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => shiftImagePos(5, 0)} 
+                                title="Déplacer à droite"
+                                style={{ width: '34px', height: '28px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                                ▶
+                            </button>
+                        </div>
+                        <button 
+                            type="button" 
+                            onClick={() => shiftImagePos(0, 5)} 
+                            title="Descendre"
+                            style={{ width: '34px', height: '28px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                            ▼
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '8px' }}>
+                        <span>Position X : <strong>{props.imagePosX || 0}%</strong></span>
+                        <span>Position Y : <strong>{props.imagePosY || 0}%</strong></span>
                     </div>
                 </div>
 
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <div>
-                        <label className="label-pro">Largeur Image (ex: 150px)</label>
-                        <input className="input-pro" type="text" placeholder="Défaut" value={props.imageWidth || ''} onChange={(e) => setProp((p: any) => p.imageWidth = e.target.value)} />
+                {/* Fine Tuning Sliders */}
+                <div style={{ marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <label className="label-pro">🔍 Zoom / Échelle Image</label>
+                        <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 700 }}>{props.imageSize !== undefined ? props.imageSize : 100}%</span>
                     </div>
-                    <div>
-                        <label className="label-pro">Hauteur Image (ex: 150px)</label>
-                        <input className="input-pro" type="text" placeholder="Défaut" value={props.imageHeight || ''} onChange={(e) => setProp((p: any) => p.imageHeight = e.target.value)} />
-                    </div>
-                </div>
-
-                <div style={{ marginBottom: '12px' }}>
-                    <label className="label-pro">Échelle Image (%) : {props.imageSize !== undefined ? props.imageSize : 100}%</label>
                     <input 
                         className="range-pro" 
-                        type="range" min="10" max="500" step="5" 
+                        type="range" min="20" max="300" step="5" 
                         value={props.imageSize !== undefined ? props.imageSize : 100} 
                         onChange={(e) => setProp((p: any) => p.imageSize = parseInt(e.target.value) || 100)} 
                     />
                 </div>
 
-                <div className="grid-2">
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
                     <div>
-                        <label className="label-pro">Décalage X Image ({props.imagePosX || 0}%)</label>
+                        <label className="label-pro">Décalage X ({props.imagePosX || 0}%)</label>
                         <input className="range-pro" type="range" min="-100" max="100" step="1" value={props.imagePosX || 0} onChange={(e) => setProp((p: any) => p.imagePosX = parseInt(e.target.value) || 0)} />
                     </div>
                     <div>
-                        <label className="label-pro">Décalage Y Image ({props.imagePosY || 0}%)</label>
+                        <label className="label-pro">Décalage Y ({props.imagePosY || 0}%)</label>
                         <input className="range-pro" type="range" min="-100" max="100" step="1" value={props.imagePosY || 0} onChange={(e) => setProp((p: any) => p.imagePosY = parseInt(e.target.value) || 0)} />
                     </div>
                 </div>
-            </AccordionSection>
 
-            {/* 3. PRIX & PRIX PROMO */}
-            <AccordionSection 
-                title="Prix & Tarifs Promo" 
-                icon="🏷️"
-                isOpen={openSectionId === 'card-price'}
-                onToggle={() => toggleSection('card-price')}
-            >
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
                     <div>
-                        <label className="label-pro">Prix Vente / Promo (ex: 314,99€)</label>
-                        <input className="input-pro" type="text" placeholder="314,99€" value={props.priceText || ''} onChange={(e) => setProp((p: any) => p.priceText = e.target.value)} />
+                        <label className="label-pro">Cadrage Image (Fit)</label>
+                        <select
+                            className="input-pro"
+                            value={props.imageFit || ''}
+                            onChange={(e) => setProp((p: any) => p.imageFit = e.target.value as any)}
+                        >
+                            <option value="">(Global)</option>
+                            <option value="contain">Contain (Conserver visuel)</option>
+                            <option value="cover">Cover (Plein cadre)</option>
+                            <option value="fill">Fill (Étirer)</option>
+                        </select>
                     </div>
                     <div>
-                        <label className="label-pro">Prix Barré (ex: 389,90€)</label>
-                        <input className="input-pro" type="text" placeholder="389,90€" value={props.oldPriceText || ''} onChange={(e) => setProp((p: any) => p.oldPriceText = e.target.value)} />
+                        <label className="label-pro">Placement Image / Texte</label>
+                        <select
+                            className="input-pro"
+                            value={props.cardContentLayout || ''}
+                            onChange={(e) => setProp((p: any) => p.cardContentLayout = e.target.value as any)}
+                        >
+                            <option value="">(Global)</option>
+                            <option value="image-above-text">⬆️ Image en haut</option>
+                            <option value="image-below-text">⬇️ Image en bas</option>
+                            <option value="image-left-text-right">⬅️ Image à gauche</option>
+                            <option value="text-left-image-right">➡️ Image à droite</option>
+                            <option value="image-overlay">🖼️ Texte dans image (Overlay)</option>
+                            <option value="image-on-shape">🎨 Image sur Forme (3D / Dépassante)</option>
+                        </select>
                     </div>
                 </div>
-                <div className="grid-2">
-                    <ColorField label="Couleur Prix Promo" value={props.priceColor || '#ef4444'} onChange={(v) => setProp((p: any) => p.priceColor = v)} />
-                    <ColorField label="Couleur Prix Barré" value={props.oldPriceColor || '#94a3b8'} onChange={(v) => setProp((p: any) => p.oldPriceColor = v)} />
-                </div>
-            </AccordionSection>
 
-            {/* 4. CONTOUR ET APPARENCE DES CARTES */}
-            <AccordionSection 
-                title="Contour & Couleurs de la Carte" 
-                icon="🎨"
-                isOpen={openSectionId === 'card-appearance'}
-                onToggle={() => toggleSection('card-appearance')}
-            >
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <ColorField label="Couleur de fond" value={props.bgColor} onChange={(v) => setProp((p: any) => p.bgColor = v)} />
-                    <ColorField label="Fond au survol" value={props.hoverBgColor} onChange={(v) => setProp((p: any) => p.hoverBgColor = v)} />
-                </div>
-                
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
-                    <div>
-                        <label className="label-pro">Bordure (px)</label>
-                        <input className="input-pro" type="number" min={0} value={props.borderWidth} onChange={(e) => setProp((p: any) => p.borderWidth = parseInt(e.target.value) || 0)} />
-                    </div>
-                    <ColorField label="Couleur bordure" value={props.borderColor} onChange={(v) => setProp((p: any) => p.borderColor = v)} />
-                </div>
-
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                    <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '8px' }}>
-                        <input type="checkbox" checked={props.overlayEnabled} onChange={(e) => setProp((p: any) => p.overlayEnabled = e.target.checked)} />
-                        Voile Sombre (Overlay)
-                    </label>
-
-                    {props.overlayEnabled && (
-                        <div className="grid-2">
-                            <ColorField label="Couleur voile" value={props.overlayColor} onChange={(v) => setProp((p: any) => p.overlayColor = v)} />
-                            <div>
-                                <label className="label-pro">Opacité ({Math.round(props.overlayOpacity * 100)}%)</label>
-                                <input className="range-pro" type="range" step="0.1" min="0" max="1" value={props.overlayOpacity} onChange={(e) => setProp((p: any) => p.overlayOpacity = parseFloat(e.target.value) || 0)} />
-                            </div>
+                {/* IMAGE SUR FORME (3D / DÉPASSANTE) */}
+                {(isShapeLayout || props.cardContentLayout === 'image-on-shape') && (
+                    <div style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#6d28d9', marginBottom: '8px' }}>
+                            🎨 Configuration de la Forme Arrière-Plan :
                         </div>
-                    )}
-                </div>
-            </AccordionSection>
+                        <div className="grid-2" style={{ marginBottom: '10px' }}>
+                            <ColorField label="Couleur de la forme" value={props.shapeBgColor || '#e0e7ff'} onChange={(v) => setProp((p: any) => p.shapeBgColor = v)} />
+                        </div>
+                        <MediaUploadField 
+                            label="Image de fond sur la forme (Texture/Décor)" 
+                            value={props.shapeBgImage || ''} 
+                            onChange={(url) => setProp((p: any) => p.shapeBgImage = url)} 
+                        />
+                    </div>
+                )}
 
-            {/* 5. TEXTES ET TYPOGRAPHIE */}
-            <AccordionSection 
-                title="Titre, Description & Typographie" 
-                icon="📝"
-                isOpen={openSectionId === 'card-text'}
-                onToggle={() => toggleSection('card-text')}
-            >
+                {/* TEXT POSITION IN OVERLAY */}
                 {isOverlayLayout && (
                     <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                        <label className="label-pro">📍 Position spécifique du texte dans l'image</label>
+                        <label className="label-pro">📍 Position du texte dans l'image</label>
                         <select 
                             className="input-pro" 
                             value={props.insideTextPosition || ''} 
                             onChange={(e) => setProp((p: any) => p.insideTextPosition = e.target.value as any)}
                         >
-                            <option value="">(Utiliser la position globale)</option>
+                            <option value="">(Position globale)</option>
                             <option value="center">Centre</option>
                             <option value="top-left">Haut Gauche</option>
                             <option value="top-center">Haut Centre</option>
@@ -786,24 +1137,103 @@ export const GridItemSettings = () => {
                     </div>
                 )}
 
-                <div style={{ marginBottom: '12px' }}>
+                {/* Dimensions Manuelles Optionnelles */}
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <div>
+                        <label className="label-pro">Largeur Image (ex: 150px)</label>
+                        <input className="input-pro" type="text" placeholder="Défaut" value={props.imageWidth || ''} onChange={(e) => setProp((p: any) => p.imageWidth = e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="label-pro">Hauteur Image (ex: 150px)</label>
+                        <input className="input-pro" type="text" placeholder="Défaut" value={props.imageHeight || ''} onChange={(e) => setProp((p: any) => p.imageHeight = e.target.value)} />
+                    </div>
+                </div>
+
+                <div style={{ marginBottom: '10px' }}>
+                    <label className="label-pro">Hauteur Min Carte (ex: 280px)</label>
+                    <input className="input-pro" type="text" placeholder="ex: 250px" value={props.cardMinHeight || ''} onChange={(e) => setProp((p: any) => p.cardMinHeight = e.target.value)} />
+                </div>
+
+                {/* Spans */}
+                <div className="grid-2">
+                    <div>
+                        <label className="label-pro">Colonnes (Col Span)</label>
+                        <select 
+                            className="input-pro" 
+                            value={props.cardColSpan || ''} 
+                            onChange={(e) => setProp((p: any) => p.cardColSpan = e.target.value ? parseInt(e.target.value) : undefined)}
+                        >
+                            <option value="">(1 colonne standard)</option>
+                            <option value={2}>2 colonnes (Large)</option>
+                            <option value={3}>3 colonnes</option>
+                            <option value={4}>4 colonnes</option>
+                            <option value={6}>6 colonnes (Demi-page)</option>
+                            <option value={12}>12 colonnes (Pleine largeur)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="label-pro">Lignes (Row Span)</label>
+                        <select 
+                            className="input-pro" 
+                            value={props.cardRowSpan || ''} 
+                            onChange={(e) => setProp((p: any) => p.cardRowSpan = e.target.value ? parseInt(e.target.value) : undefined)}
+                        >
+                            <option value="">(1 ligne standard)</option>
+                            <option value={2}>2 lignes (Double Hauteur)</option>
+                            <option value={3}>3 lignes (Triple)</option>
+                        </select>
+                    </div>
+                </div>
+            </AccordionSection>
+
+            {/* 3. PRIX & TARIFS */}
+            <AccordionSection 
+                title="Prix & Tarifs Promo" 
+                icon="🏷️"
+                isOpen={openSections['card-price']}
+                onToggle={() => toggleSection('card-price')}
+            >
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <div>
+                        <label className="label-pro">Prix du Produit</label>
+                        <input className="input-pro" type="text" placeholder="ex: 15 000 FCFA" value={props.priceText || ''} onChange={(e) => setProp((p: any) => p.priceText = e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="label-pro">Prix Barré (Optionnel)</label>
+                        <input className="input-pro" type="text" placeholder="ex: 20 000 FCFA" value={props.oldPriceText || ''} onChange={(e) => setProp((p: any) => p.oldPriceText = e.target.value)} />
+                    </div>
+                </div>
+                <div className="grid-2">
+                    <ColorField label="Couleur Prix" value={props.priceColor || '#059669'} onChange={(v) => setProp((p: any) => p.priceColor = v)} />
+                    <ColorField label="Couleur Prix Barré" value={props.oldPriceColor || '#94a3b8'} onChange={(v) => setProp((p: any) => p.oldPriceColor = v)} />
+                </div>
+            </AccordionSection>
+
+            {/* 4. TEXTES & TYPOGRAPHIE */}
+            <AccordionSection 
+                title="Titre, Description & Typographie" 
+                icon="📝"
+                isOpen={openSections['card-text']}
+                onToggle={() => toggleSection('card-text')}
+            >
+                <div style={{ marginBottom: '10px' }}>
                     <label className="label-pro">Titre de la carte</label>
                     <input className="input-pro" type="text" placeholder="Titre principal" value={props.titleText} onChange={(e) => setProp((p: any) => p.titleText = e.target.value)} />
                 </div>
                 
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
                     <ColorField label="Couleur Titre" value={props.titleColor} onChange={(v) => setProp((p: any) => p.titleColor = v)} />
                     <div>
-                        <label className="label-pro">Taille Titre (ex: 18px)</label>
-                        <input className="input-pro" type="text" placeholder="Défaut" value={props.titleFontSize || ''} onChange={(e) => setProp((p: any) => p.titleFontSize = e.target.value)} />
+                        <label className="label-pro">Taille Titre</label>
+                        <input className="input-pro" type="text" placeholder="16px" value={props.titleFontSize || ''} onChange={(e) => setProp((p: any) => p.titleFontSize = e.target.value)} />
                     </div>
                 </div>
 
-                <div className="grid-2" style={{ marginBottom: '12px' }}>
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
                     <div>
                         <label className="label-pro">Graisse Titre</label>
                         <select className="input-pro" value={props.titleFontWeight || ''} onChange={(e) => setProp((p: any) => p.titleFontWeight = e.target.value)}>
-                            <option value="">(Défaut global)</option>
+                            <option value="">(Global)</option>
                             <option value="normal">Normal (400)</option>
                             <option value="medium">Moyen (500)</option>
                             <option value="bold">Gras (700)</option>
@@ -813,7 +1243,7 @@ export const GridItemSettings = () => {
                     <div>
                         <label className="label-pro">Casse Titre</label>
                         <select className="input-pro" value={props.titleTransform || ''} onChange={(e) => setProp((p: any) => p.titleTransform = e.target.value as any)}>
-                            <option value="">(Défaut global)</option>
+                            <option value="">(Global)</option>
                             <option value="none">Normal</option>
                             <option value="uppercase">MAJUSCULES</option>
                             <option value="capitalize">Capitaliser</option>
@@ -821,34 +1251,17 @@ export const GridItemSettings = () => {
                     </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '10px' }}>
+                <div style={{ marginBottom: '10px' }}>
                     <label className="label-pro">Description</label>
-                    <textarea className="input-pro" rows={3} placeholder="Courte description..." value={props.descText} onChange={(e) => setProp((p: any) => p.descText = e.target.value)} />
-                </div>
-
-                <div className="grid-2" style={{ marginTop: '10px', marginBottom: '12px' }}>
-                    <ColorField label="Couleur Description" value={props.descColor} onChange={(v) => setProp((p: any) => p.descColor = v)} />
-                    <div>
-                        <label className="label-pro">Taille Description</label>
-                        <input className="input-pro" type="text" placeholder="Défaut" value={props.descFontSize || ''} onChange={(e) => setProp((p: any) => p.descFontSize = e.target.value)} />
-                    </div>
+                    <textarea className="input-pro" rows={2} placeholder="Courte description..." value={props.descText} onChange={(e) => setProp((p: any) => p.descText = e.target.value)} />
                 </div>
 
                 <div className="grid-2">
+                    <ColorField label="Couleur Description" value={props.descColor} onChange={(v) => setProp((p: any) => p.descColor = v)} />
                     <div>
-                        <label className="label-pro">Graisse Description</label>
-                        <select className="input-pro" value={props.descFontWeight || ''} onChange={(e) => setProp((p: any) => p.descFontWeight = e.target.value)}>
-                            <option value="">(Défaut global)</option>
-                            <option value="normal">Normal</option>
-                            <option value="medium">Moyen</option>
-                            <option value="bold">Gras</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label-pro">Lignes max description</label>
+                        <label className="label-pro">Lignes max</label>
                         <select className="input-pro" value={props.descLines !== undefined ? props.descLines : ''} onChange={(e) => setProp((p: any) => p.descLines = e.target.value !== '' ? parseInt(e.target.value) : undefined)}>
-                            <option value="">(Défaut global)</option>
-                            <option value={0}>Illimité</option>
+                            <option value="">(Global)</option>
                             <option value={1}>1 Ligne</option>
                             <option value={2}>2 Lignes</option>
                             <option value={3}>3 Lignes</option>
@@ -857,26 +1270,63 @@ export const GridItemSettings = () => {
                 </div>
             </AccordionSection>
 
-            {/* 6. PROMOTION & BADGES */}
+            {/* 5. STYLE & FOND DE LA CARTE */}
             <AccordionSection 
-                title="Carte de Promotion / Badge" 
+                title="Style, Fond & Voile Sombre" 
+                icon="🎨"
+                isOpen={openSections['card-appearance']}
+                onToggle={() => toggleSection('card-appearance')}
+            >
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <ColorField label="Couleur de fond" value={props.bgColor} onChange={(v) => setProp((p: any) => p.bgColor = v)} />
+                    <ColorField label="Fond au survol" value={props.hoverBgColor} onChange={(v) => setProp((p: any) => p.hoverBgColor = v)} />
+                </div>
+                
+                <div className="grid-2" style={{ marginBottom: '10px' }}>
+                    <div>
+                        <label className="label-pro">Bordure (px)</label>
+                        <input className="input-pro" type="number" min={0} value={props.borderWidth} onChange={(e) => setProp((p: any) => p.borderWidth = parseInt(e.target.value) || 0)} />
+                    </div>
+                    <ColorField label="Couleur bordure" value={props.borderColor} onChange={(v) => setProp((p: any) => p.borderColor = v)} />
+                </div>
+
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                    <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={props.overlayEnabled} onChange={(e) => setProp((p: any) => p.overlayEnabled = e.target.checked)} />
+                        Voile sombre sur l'image (Overlay)
+                    </label>
+
+                    {props.overlayEnabled && (
+                        <div className="grid-2" style={{ marginTop: '8px' }}>
+                            <ColorField label="Couleur voile" value={props.overlayColor} onChange={(v) => setProp((p: any) => p.overlayColor = v)} />
+                            <div>
+                                <label className="label-pro">Opacité ({Math.round(props.overlayOpacity * 100)}%)</label>
+                                <input className="range-pro" type="range" step="0.1" min="0" max="1" value={props.overlayOpacity} onChange={(e) => setProp((p: any) => p.overlayOpacity = parseFloat(e.target.value) || 0)} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </AccordionSection>
+
+            {/* 6. BADGES & BOUTON CTA */}
+            <AccordionSection 
+                title="Badge Promo & Bouton CTA" 
                 icon="📌"
-                isOpen={openSectionId === 'card-promo'}
+                isOpen={openSections['card-promo']}
                 onToggle={() => toggleSection('card-promo')}
             >
-                <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '10px' }}>
+                <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '8px', cursor: 'pointer' }}>
                     <input type="checkbox" checked={props.promoCardEnabled || false} onChange={(e) => setProp((p: any) => p.promoCardEnabled = e.target.checked)} />
-                    Afficher un badge / étiquette promo
+                    Afficher un badge (ex: PROMO, -20%)
                 </label>
 
                 {props.promoCardEnabled && (
-                    <>
-                        <div style={{ marginBottom: '12px' }}>
-                            <label className="label-pro">Texte du badge (ex: PROMO, -30%, Nouveau)</label>
+                    <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', marginBottom: '10px' }}>
+                        <div style={{ marginBottom: '8px' }}>
+                            <label className="label-pro">Texte du badge</label>
                             <input className="input-pro" type="text" placeholder="PROMO" value={props.promoCardText || 'PROMO'} onChange={(e) => setProp((p: any) => p.promoCardText = e.target.value)} />
                         </div>
-
-                        <div className="grid-2" style={{ marginBottom: '12px' }}>
+                        <div className="grid-2" style={{ marginBottom: '8px' }}>
                             <div>
                                 <label className="label-pro">Position du Badge</label>
                                 <select className="input-pro" value={props.promoCardPosition || 'top-left'} onChange={(e) => setProp((p: any) => p.promoCardPosition = e.target.value as any)}>
@@ -898,66 +1348,38 @@ export const GridItemSettings = () => {
                                 </select>
                             </div>
                         </div>
-
                         <div className="grid-2">
                             <ColorField label="Fond badge" value={props.promoCardBgColor || '#ef4444'} onChange={(v) => setProp((p: any) => p.promoCardBgColor = v)} />
                             <ColorField label="Texte badge" value={props.promoCardTextColor || '#ffffff'} onChange={(v) => setProp((p: any) => p.promoCardTextColor = v)} />
                         </div>
-                    </>
+                    </div>
                 )}
-            </AccordionSection>
 
-            {/* 7. BOUTON ACTION CTA */}
-            <AccordionSection 
-                title="Bouton d'Action (CTA)" 
-                icon="🔘"
-                isOpen={openSectionId === 'card-cta'}
-                onToggle={() => toggleSection('card-cta')}
-            >
-                <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '10px' }}>
+                <label style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginTop: '8px', cursor: 'pointer' }}>
                     <input 
                         type="checkbox" 
                         checked={props.showCta !== undefined ? props.showCta : false} 
                         onChange={(e) => setProp((p: any) => p.showCta = e.target.checked)} 
                     />
-                    Activer le bouton d'action sur cette carte
+                    Afficher un bouton d'action (CTA)
                 </label>
 
                 {props.showCta && (
-                    <div className="grid-2">
+                    <div className="grid-2" style={{ marginTop: '8px' }}>
                         <div>
                             <label className="label-pro">Texte du bouton</label>
                             <input className="input-pro" type="text" placeholder="Découvrir" value={props.ctaText || ''} onChange={(e) => setProp((p: any) => p.ctaText = e.target.value)} />
                         </div>
                         <div>
-                            <label className="label-pro">Style du bouton</label>
+                            <label className="label-pro">Style</label>
                             <select className="input-pro" value={props.ctaStyle || 'solid'} onChange={(e) => setProp((p: any) => p.ctaStyle = e.target.value as any)}>
-                                <option value="solid">Bouton Rempli</option>
-                                <option value="outline">Bouton Contour</option>
+                                <option value="solid">Bouton Plein</option>
+                                <option value="outline">Contour</option>
                                 <option value="link">Lien Texte ➔</option>
                             </select>
                         </div>
                     </div>
                 )}
-            </AccordionSection>
-
-            {/* 8. LIEN CIBLE */}
-            <AccordionSection 
-                title="Lien Cible de la Carte" 
-                icon="🔗"
-                isOpen={openSectionId === 'card-link'}
-                onToggle={() => toggleSection('card-link')}
-            >
-                <div style={{ marginBottom: '12px' }}>
-                    <label className="label-pro">URL Cible</label>
-                    <input className="input-pro" type="text" placeholder="/collection/..." value={props.linkUrl} onChange={(e) => setProp((p: any) => p.linkUrl = e.target.value)} />
-                </div>
-                <div>
-                    <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                        <input type="checkbox" checked={props.linkNewTab} onChange={(e) => setProp((p: any) => p.linkNewTab = e.target.checked)} />
-                        Ouvrir dans un nouvel onglet
-                    </label>
-                </div>
             </AccordionSection>
 
         </div>
@@ -986,9 +1408,9 @@ GridItem.craft = {
         descLines: 2,
         priceText: '',
         oldPriceText: '',
-        priceColor: '#ef4444',
+        priceColor: '#059669',
         oldPriceColor: '#94a3b8',
-        priceFontSize: '16px',
+        priceFontSize: '15px',
         linkUrl: '',
         linkNewTab: false,
         imageWidth: '',
@@ -997,8 +1419,8 @@ GridItem.craft = {
         imageFit: '',
         shapeBgColor: '#e0e7ff',
         shapeBgImage: '',
-        imagePosX: -10,
-        imagePosY: -10,
+        imagePosX: 0,
+        imagePosY: 0,
         imageSize: 100,
         cardColSpan: undefined,
         cardRowSpan: undefined,

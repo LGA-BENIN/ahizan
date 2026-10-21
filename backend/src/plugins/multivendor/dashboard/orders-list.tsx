@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
     Search, Filter, Eye, ChevronDown, Check, X, RefreshCw, AlertCircle, 
     Calendar, User, MapPin, Package, Phone, Mail, Clock, ShieldCheck, 
-    Truck, Award, ShoppingBag, Store, ChevronRight, Activity, Download, Receipt, Trash2
+    Truck, Award, ShoppingBag, Store, ChevronRight, Activity, Download, Receipt, Trash2, Plus, Minus
 } from 'lucide-react';
 
 const stateMeta: Record<string, { label: string; color: string; icon: any }> = {
@@ -177,14 +177,139 @@ const GET_PRODUCTS_MINIMAL = `
             items {
                 id
                 name
+                featuredAsset {
+                    id
+                    preview
+                }
                 customFields {
-                    vendor { id name }
+                    vendor {
+                        id
+                        name
+                        physicalMarket {
+                            id
+                            name
+                        }
+                    }
                 }
                 variants {
                     id
+                    name
                     price
                     sku
+                    stockOnHand
+                    stockLevel
+                    vendor {
+                        id
+                        name
+                        physicalMarket {
+                            id
+                            name
+                        }
+                    }
+                    featuredAsset {
+                        id
+                        preview
+                    }
+                    options {
+                        id
+                        name
+                        group { id name }
+                    }
                 }
+            }
+        }
+    }
+`;
+
+const CREATE_ASSISTED_ORDER = `
+    mutation CreateAssistedOrder($input: CreateAssistedOrderInput!) {
+        createAssistedOrder(input: $input) {
+            id
+            code
+            state
+            totalWithTax
+        }
+    }
+`;
+
+const CREATE_DRAFT_ORDER = `
+    mutation CreateDraftOrder {
+        createDraftOrder {
+            id
+            code
+            state
+        }
+    }
+`;
+
+const SET_CUSTOMER_FOR_DRAFT = `
+    mutation SetCustomerForDraftOrder($orderId: ID!, $input: CreateCustomerInput) {
+        setCustomerForDraftOrder(orderId: $orderId, input: $input) {
+            __typename
+            ... on Order { id }
+            ... on EmailAddressConflictError { message }
+        }
+    }
+`;
+
+const ADD_ITEM_TO_DRAFT = `
+    mutation AddItemToDraftOrder($orderId: ID!, $input: AddItemToDraftOrderInput!) {
+        addItemToDraftOrder(orderId: $orderId, input: $input) {
+            __typename
+            ... on Order { id }
+            ... on InsufficientStockError { message }
+            ... on NegativeQuantityError { message }
+            ... on OrderModificationError { message }
+        }
+    }
+`;
+
+const SET_DRAFT_SHIPPING_ADDRESS = `
+    mutation SetDraftShippingAddress($orderId: ID!, $input: CreateAddressInput!) {
+        setDraftOrderShippingAddress(orderId: $orderId, input: $input) {
+            id
+        }
+    }
+`;
+
+const GET_ELIGIBLE_SHIPPING_METHODS = `
+    query EligibleShippingMethodsForDraft($orderId: ID!) {
+        eligibleShippingMethodsForDraftOrder(orderId: $orderId) {
+            id
+            name
+            price
+            priceWithTax
+        }
+    }
+`;
+
+const SET_DRAFT_SHIPPING_METHOD = `
+    mutation SetDraftShippingMethod($orderId: ID!, $shippingMethodId: ID!) {
+        setDraftOrderShippingMethod(orderId: $orderId, shippingMethodId: $shippingMethodId) {
+            __typename
+            ... on Order {
+                id
+                state
+            }
+            ... on ErrorResult {
+                errorCode
+                message
+            }
+        }
+    }
+`;
+
+const ADD_MANUAL_PAYMENT = `
+    mutation AddManualPaymentToDraft($input: ManualPaymentInput!) {
+        addManualPaymentToOrder(input: $input) {
+            __typename
+            ... on Order {
+                id
+                state
+            }
+            ... on ManualPaymentStateError {
+                errorCode
+                message
             }
         }
     }
@@ -217,12 +342,22 @@ async function fetchGraphQL(query: string, variables: any = {}) {
         headers: getAuthHeaders(),
         body: JSON.stringify({ query, variables }),
     });
+    let json: any = null;
+    try {
+        json = await res.json();
+    } catch {}
+
     if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        let msg = `HTTP ${res.status}: ${res.statusText}`;
+        if (json?.errors && json.errors.length) {
+            msg += ` - ${json.errors.map((e: any) => e.message).join(' | ')}`;
+        }
+        throw new Error(msg);
     }
-    const json = await res.json();
-    if (json.errors) throw new Error(json.errors[0].message);
-    return json.data;
+    if (json?.errors && json.errors.length) {
+        throw new Error(json.errors[0].message);
+    }
+    return json?.data;
 }
 
 function formatPrice(price: number, currency: string = 'XOF') {
@@ -254,23 +389,58 @@ export function OrdersListComponent() {
     const [sellerFilter, setSellerFilter] = useState('');
     const [adminFilter, setAdminFilter] = useState('');
     const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+    const [orderViewTab, setOrderViewTab] = useState<'confirmed' | 'abandoned'>('confirmed');
+    interface OrderCartItem {
+        productId: string;
+        productName: string;
+        variantId: string;
+        variantName: string;
+        optionLabel: string;
+        price: number;
+        sku?: string;
+        preview?: string;
+        vendorId?: string;
+        vendorName?: string;
+        marketName?: string;
+        availableStock?: number;
+        quantity: number;
+    }
+
+    const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
+    const [createOrderSearch, setCreateOrderSearch] = useState('');
+    const [createOrderCart, setCreateOrderCart] = useState<OrderCartItem[]>([]);
+    const [createOrderCustomer, setCreateOrderCustomer] = useState({
+        firstName: '',
+        lastName: '',
+        phone: '',
+        city: 'Cotonou',
+        neighborhood: '',
+        isSubmitting: false,
+    });
 
     const take = 15;
     const skip = (page - 1) * take;
 
     const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-        queryKey: ['adminOrders', page],
+        queryKey: ['adminOrders', page, orderViewTab],
         queryFn: () => fetchGraphQL(GET_MARKETPLACE_ORDERS, {
             options: {
                 take,
                 skip,
                 sort: { createdAt: 'DESC' },
-                filter: {
-                    state: { notIn: ['AddingItems', 'ArrangingPayment'] }
-                }
+                filter: orderViewTab === 'confirmed'
+                    ? { state: { notIn: ['AddingItems', 'ArrangingPayment'] } }
+                    : { state: { in: ['AddingItems', 'ArrangingPayment'] } }
             }
         }),
     });
+
+    const { data: productsMinData } = useQuery({
+        queryKey: ['adminProductsMinimal'],
+        queryFn: () => fetchGraphQL(GET_PRODUCTS_MINIMAL),
+        enabled: isCreateOrderModalOpen,
+    });
+    const availableProducts = productsMinData?.adminVendorProducts?.items || [];
 
     const refreshLocalOrder = (orderId: string, updates: any) => {
         setSelectedOrder((prev: any) => {
@@ -307,11 +477,17 @@ export function OrdersListComponent() {
     });
 
     const deleteOrderMutation = useMutation({
-        mutationFn: ({ orderId }: any) => fetchGraphQL(DELETE_VENDOR_ORDER, { orderId }),
+        mutationFn: (param: any) => {
+            const orderId = typeof param === 'string' ? param : (param?.orderId || param?.id);
+            return fetchGraphQL(DELETE_VENDOR_ORDER, { orderId });
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
             setSelectedOrder(null);
             alert('Commande supprimée avec succès !');
+        },
+        onError: (err: any) => {
+            alert('❌ Erreur lors de la suppression : ' + (err?.message || 'Erreur inconnue'));
         }
     });
 
@@ -463,10 +639,75 @@ export function OrdersListComponent() {
                     <h1 className="po-title">Commandes Marketplace</h1>
                     <p className="po-subtitle">Gérez et suivez les commandes, validez les paiements et expéditions.</p>
                 </div>
-                <div className="po-badge">
-                    {isFetching ? <Activity size={16} className="lucide-spin" style={{ display: 'inline', marginRight: '6px' }} /> : null}
-                    {totalItems} Commandes Total
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                        onClick={() => setIsCreateOrderModalOpen(true)}
+                        style={{
+                            background: '#2563eb',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            padding: '10px 18px',
+                            fontWeight: 700,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
+                        }}
+                    >
+                        <span>➕ Nouvelle Commande Assistée</span>
+                    </button>
+                    <div className="po-badge">
+                        {isFetching ? <Activity size={16} className="lucide-spin" style={{ display: 'inline', marginRight: '6px' }} /> : null}
+                        {totalItems} {orderViewTab === 'confirmed' ? 'Commandes' : 'Paniers'}
+                    </div>
                 </div>
+            </div>
+
+            {/* TAB SELECTOR: CONFIRMED VS ABANDONED CARTS */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                <button
+                    onClick={() => { setOrderViewTab('confirmed'); setPage(1); }}
+                    style={{
+                        padding: '10px 20px',
+                        borderRadius: '12px',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: orderViewTab === 'confirmed' ? '#0B1E3B' : '#ffffff',
+                        color: orderViewTab === 'confirmed' ? '#ffffff' : '#64748b',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    <Package size={16} />
+                    <span>Commandes Validées</span>
+                </button>
+                <button
+                    onClick={() => { setOrderViewTab('abandoned'); setPage(1); }}
+                    style={{
+                        padding: '10px 20px',
+                        borderRadius: '12px',
+                        fontWeight: 700,
+                        fontSize: '13px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: orderViewTab === 'abandoned' ? '#ea580c' : '#ffffff',
+                        color: orderViewTab === 'abandoned' ? '#ffffff' : '#64748b',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                    }}
+                >
+                    <ShoppingBag size={16} />
+                    <span>Paniers en cours & Abandonnés</span>
+                </button>
             </div>
 
             <div className="po-filters">
@@ -598,12 +839,44 @@ export function OrdersListComponent() {
                                             </td>
                                             <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                                                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                    <button 
-                                                        className="po-btn-view"
-                                                        onClick={() => setSelectedOrder(order)}
-                                                    >
-                                                        <Eye size={14} /> Gérer
-                                                    </button>
+                                                    {orderViewTab === 'abandoned' ? (
+                                                        <button
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                background: '#22c55e',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '8px',
+                                                                cursor: 'pointer',
+                                                                fontWeight: 700,
+                                                                fontSize: '12px',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px',
+                                                            }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const phone = order.customer?.phoneNumber || order.shippingAddress?.phoneNumber || '';
+                                                                const clientName = order.customer?.firstName || 'cher client';
+                                                                const cleanPhone = phone.replace(/[^0-9]/g, '');
+                                                                const msg = `Bonjour ${clientName}, vos articles vous attendent sur Ahizan ! Finalisez votre commande en 1 clic ici : https://ahizan.com/cart`;
+                                                                if (cleanPhone) {
+                                                                    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                                                                } else {
+                                                                    alert('Aucun numéro de téléphone disponible pour ce client.');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <span>📲 Relancer WhatsApp</span>
+                                                        </button>
+                                                    ) : (
+                                                        <button 
+                                                            className="po-btn-view"
+                                                            onClick={() => setSelectedOrder(order)}
+                                                        >
+                                                            <Eye size={14} /> Gérer
+                                                        </button>
+                                                    )}
                                                     <button 
                                                         style={{ padding: '6px 10px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                                         onClick={(e) => {
@@ -667,6 +940,578 @@ export function OrdersListComponent() {
                     isMutating={transitionMutation.isPending || sellerMutation.isPending || adminMutation.isPending}
                 />
             )}
+
+            {/* MODAL: NOUVELLE COMMANDE ASSISTÉE (ORDER ON BEHALF / WHATSAPP & TÉLÉPHONE) */}
+            {isCreateOrderModalOpen && (() => {
+                const getImgUrl = (preview?: string) => {
+                    if (!preview) return '';
+                    if (preview.startsWith('http')) return preview;
+                    return `https://api.ahizan.com/assets/${preview.replace(/^\/+/, '')}`;
+                };
+
+                const filteredProductsForOrder = (!createOrderSearch.trim())
+                    ? availableProducts.slice(0, 50)
+                    : availableProducts.filter((p: any) => {
+                        const term = createOrderSearch.toLowerCase().trim();
+                        const matchName = (p.name || '').toLowerCase().includes(term);
+                        const matchVendor = (p.customFields?.vendor?.name || '').toLowerCase().includes(term);
+                        const matchVariants = (p.variants || []).some((v: any) => 
+                            (v.name || '').toLowerCase().includes(term) ||
+                            (v.sku || '').toLowerCase().includes(term) ||
+                            (v.options || []).some((o: any) => (o.name || '').toLowerCase().includes(term))
+                        );
+                        return matchName || matchVendor || matchVariants;
+                    });
+
+                const addToCart = (product: any, variant: any) => {
+                    const optionLabel = (variant.options && variant.options.length > 0)
+                        ? variant.options.map((o: any) => o.name).join(' • ')
+                        : (variant.name && variant.name !== product.name ? variant.name : '');
+
+                    const availableStock = (variant.stockOnHand !== undefined && variant.stockOnHand !== null)
+                        ? Number(variant.stockOnHand)
+                        : (variant.stockLevel === 'OUT_OF_STOCK' ? 0 : 999);
+
+                    if (availableStock <= 0 || variant.stockLevel === 'OUT_OF_STOCK') {
+                        alert(`⛔ Impossible d'ajouter : "${product.name} (${optionLabel || 'Standard'})" est en rupture de stock.`);
+                        return;
+                    }
+
+                    const resolvedVendor = variant.vendor || product.customFields?.vendor;
+                    const vendorName = resolvedVendor?.name || 'Vendeur Marketplace';
+                    const marketName = resolvedVendor?.physicalMarket?.name;
+                    const vendorId = resolvedVendor?.id;
+
+                    const existing = createOrderCart.find(i => i.variantId === variant.id);
+                    if (existing) {
+                        if (existing.quantity + 1 > availableStock) {
+                            alert(`⚠️ Stock maximum atteint pour "${product.name}" (${availableStock} disponible(s) chez ce vendeur).`);
+                            return;
+                        }
+                        setCreateOrderCart(prev => prev.map(item => 
+                            item.variantId === variant.id ? { ...item, quantity: item.quantity + 1 } : item
+                        ));
+                    } else {
+                        setCreateOrderCart(prev => [
+                            ...prev,
+                            {
+                                productId: product.id,
+                                productName: product.name,
+                                variantId: variant.id,
+                                variantName: variant.name,
+                                optionLabel,
+                                price: variant.price || 0,
+                                sku: variant.sku,
+                                preview: variant.featuredAsset?.preview || product.featuredAsset?.preview,
+                                vendorId,
+                                vendorName,
+                                marketName,
+                                availableStock,
+                                quantity: 1,
+                            }
+                        ]);
+                    }
+                };
+
+                const updateCartQty = (variantId: string, delta: number) => {
+                    setCreateOrderCart(prev => prev.map(item => {
+                        if (item.variantId === variantId) {
+                            const nextQty = item.quantity + delta;
+                            if (delta > 0 && item.availableStock && nextQty > item.availableStock) {
+                                alert(`⚠️ Stock maximum atteint (${item.availableStock} disponible(s)).`);
+                                return item;
+                            }
+                            return nextQty > 0 ? { ...item, quantity: nextQty } : null;
+                        }
+                        return item;
+                    }).filter(Boolean) as OrderCartItem[]);
+                };
+
+                const removeFromCart = (variantId: string) => {
+                    setCreateOrderCart(prev => prev.filter(item => item.variantId !== variantId));
+                };
+
+                const totalCartPrice = createOrderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+                const handleCreateOrderSubmit = async () => {
+                    if (!createOrderCustomer.firstName.trim() || !createOrderCustomer.phone.trim()) {
+                        alert('Veuillez renseigner au moins le prénom et le numéro WhatsApp / Téléphone du client.');
+                        return;
+                    }
+                    if (createOrderCart.length === 0) {
+                        alert('Veuillez ajouter au moins un produit au panier avant de valider la commande.');
+                        return;
+                    }
+
+                    setCreateOrderCustomer(prev => ({ ...prev, isSubmitting: true }));
+                    try {
+                        const input = {
+                            customer: {
+                                firstName: createOrderCustomer.firstName.trim(),
+                                lastName: (createOrderCustomer.lastName || createOrderCustomer.firstName).trim(),
+                                phoneNumber: createOrderCustomer.phone.trim(),
+                                city: createOrderCustomer.city || 'Cotonou',
+                                neighborhood: createOrderCustomer.neighborhood || '',
+                            },
+                            items: createOrderCart.map(item => ({
+                                productVariantId: item.variantId,
+                                quantity: Number(item.quantity) || 1,
+                                vendorId: item.vendorId || undefined,
+                            })),
+                            notes: 'Commande assistée (WhatsApp / Téléphone) - Enregistrée via administration',
+                        };
+
+                        const res = await fetchGraphQL(CREATE_ASSISTED_ORDER, { input });
+                        const order = res?.createAssistedOrder;
+                        if (!order?.id) {
+                            throw new Error(res?.errors?.[0]?.message || "Impossible de créer et finaliser la commande assistée.");
+                        }
+
+                        alert(`🎉 Commande #${order.code} créée et confirmée avec succès !\nStatut: Payée / Confirmée\nMontant total: ${formatPrice(totalCartPrice, 'XOF')}\nLes vendeurs ont reçu la commande et une notification automatique.`);
+                        setIsCreateOrderModalOpen(false);
+                        setCreateOrderCart([]);
+                        setCreateOrderCustomer({
+                            firstName: '',
+                            lastName: '',
+                            phone: '',
+                            city: 'Cotonou',
+                            neighborhood: '',
+                            isSubmitting: false,
+                        });
+                        queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
+                    } catch (err: any) {
+                        alert(`Erreur: ${err.message || err}`);
+                    } finally {
+                        setCreateOrderCustomer(prev => ({ ...prev, isSubmitting: false }));
+                    }
+                };
+
+                return (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.65)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+                        <div style={{ background: '#f8fafc', borderRadius: '24px', maxWidth: '1100px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                            
+                            {/* Modal Header */}
+                            <div style={{ padding: '20px 24px', background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>🛍️</span> Nouvelle Commande Assistée (WhatsApp / Téléphone)
+                                    </h3>
+                                    <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>
+                                        Sélectionnez les articles, choisissez les déclinaisons (taille, couleur...) et ajoutez les quantités demandées par le client.
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => setIsCreateOrderModalOpen(false)} 
+                                    style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Modal Body: Split Screen */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+                                
+                                {/* LEFT COLUMN: CATALOG SEARCH & DECLINATIONS */}
+                                <div style={{ borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', background: '#f8fafc', overflow: 'hidden' }}>
+                                    
+                                    {/* Search input */}
+                                    <div style={{ padding: '16px', background: 'white', borderBottom: '1px solid #e2e8f0' }}>
+                                        <div style={{ position: 'relative' }}>
+                                            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                            <input 
+                                                type="text"
+                                                placeholder="🔍 Rechercher un produit, une référence, déclinaison ou vendeur..."
+                                                value={createOrderSearch}
+                                                onChange={e => setCreateOrderSearch(e.target.value)}
+                                                style={{ width: '100%', padding: '11px 12px 11px 38px', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                                            />
+                                            {createOrderSearch && (
+                                                <button 
+                                                    onClick={() => setCreateOrderSearch('')} 
+                                                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
+                                                >
+                                                    <X size={15} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                                                {filteredProductsForOrder.length} produit(s) disponible(s)
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Products scroll list */}
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                        {filteredProductsForOrder.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: '13px' }}>
+                                                Aucun produit trouvé pour "{createOrderSearch}".
+                                            </div>
+                                        ) : (
+                                            filteredProductsForOrder.map((product: any) => {
+                                                const productImg = getImgUrl(product.featuredAsset?.preview);
+                                                const variants = product.variants || [];
+
+                                                return (
+                                                    <div 
+                                                        key={product.id}
+                                                        style={{ background: 'white', borderRadius: '16px', padding: '14px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                                                    >
+                                                        {/* Product info banner */}
+                                                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '10px' }}>
+                                                            {productImg ? (
+                                                                <img 
+                                                                    src={productImg} 
+                                                                    alt={product.name} 
+                                                                    style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #e2e8f0', flexShrink: 0 }} 
+                                                                />
+                                                            ) : (
+                                                                <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexShrink: 0 }}>
+                                                                    <Package size={22} />
+                                                                </div>
+                                                            )}
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    {product.name}
+                                                                </div>
+                                                                {(() => {
+                                                                    const pVendor = product.customFields?.vendor || variants[0]?.vendor;
+                                                                    const pVendorName = pVendor?.name || 'Vendeur Marketplace';
+                                                                    const pMarketName = pVendor?.physicalMarket?.name;
+                                                                    return (
+                                                                        <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                                                                            <span style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                                🏪 {pVendorName} {pMarketName ? <span style={{ color: '#2563eb', fontWeight: 800 }}>({pMarketName})</span> : null}
+                                                                            </span>
+                                                                            <span>• {variants.length} déclinaison(s)</span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Variants / Declinations List */}
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: '#f8fafc', borderRadius: '12px', padding: '8px', border: '1px solid #f1f5f9' }}>
+                                                            {variants.map((v: any) => {
+                                                                const vImg = getImgUrl(v.featuredAsset?.preview) || productImg;
+                                                                const optionLabel = (v.options && v.options.length > 0)
+                                                                    ? v.options.map((o: any) => o.name).join(' • ')
+                                                                    : (v.name && v.name !== product.name ? v.name : 'Standard');
+                                                                
+                                                                const cartQty = createOrderCart.find(i => i.variantId === v.id)?.quantity || 0;
+                                                                const pVendor = product.customFields?.vendor || variants[0]?.vendor;
+                                                                const vVendor = v.vendor || pVendor;
+                                                                const vVendorName = vVendor?.name;
+                                                                
+                                                                const stock = (v.stockOnHand !== undefined && v.stockOnHand !== null)
+                                                                    ? Number(v.stockOnHand)
+                                                                    : (v.stockLevel === 'OUT_OF_STOCK' ? 0 : 999);
+                                                                const isOutOfStock = stock <= 0 || v.stockLevel === 'OUT_OF_STOCK';
+                                                                const isLowStock = !isOutOfStock && stock <= 5;
+
+                                                                return (
+                                                                    <div 
+                                                                        key={v.id}
+                                                                        style={{ 
+                                                                            display: 'flex', 
+                                                                            alignItems: 'center', 
+                                                                            justifyContent: 'space-between', 
+                                                                            padding: '8px 12px', 
+                                                                            borderRadius: '10px', 
+                                                                            background: isOutOfStock ? '#f8fafc' : 'white', 
+                                                                            border: cartQty > 0 ? '1.5px solid #2563eb' : (isOutOfStock ? '1px dashed #cbd5e1' : '1px solid #e2e8f0'), 
+                                                                            gap: '10px',
+                                                                            opacity: isOutOfStock ? 0.75 : 1
+                                                                        }}
+                                                                    >
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                                                                            {vImg ? (
+                                                                                <img src={vImg} alt="" style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
+                                                                            ) : null}
+                                                                            <div style={{ minWidth: 0 }}>
+                                                                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                                                    <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>
+                                                                                        {optionLabel}
+                                                                                    </span>
+                                                                                    {isOutOfStock ? (
+                                                                                        <span style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                                                                                            🔴 Stock épuisé
+                                                                                        </span>
+                                                                                    ) : isLowStock ? (
+                                                                                        <span style={{ background: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                                                                                            🟠 Stock limité ({stock} restant{stock > 1 ? 's' : ''})
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                                                                                            🟢 En stock ({stock})
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {vVendorName && vVendorName !== pVendor?.name && (
+                                                                                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                                                                                            🏪 {vVendorName}
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {v.sku ? <span style={{ fontSize: '10px', color: '#94a3b8' }}>({v.sku})</span> : null}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                                                                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                                                                                {formatPrice(v.price, 'XOF')}
+                                                                            </span>
+                                                                            <button 
+                                                                                disabled={isOutOfStock}
+                                                                                onClick={() => !isOutOfStock && addToCart(product, v)}
+                                                                                style={{ 
+                                                                                    padding: '6px 12px', 
+                                                                                    borderRadius: '8px', 
+                                                                                    border: 'none', 
+                                                                                    background: isOutOfStock ? '#e2e8f0' : (cartQty > 0 ? '#10b981' : '#2563eb'), 
+                                                                                    color: isOutOfStock ? '#94a3b8' : 'white', 
+                                                                                    fontSize: '11px', 
+                                                                                    fontWeight: 800, 
+                                                                                    cursor: isOutOfStock ? 'not-allowed' : 'pointer',
+                                                                                    display: 'flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: '4px',
+                                                                                    transition: 'all 0.2s'
+                                                                                }}
+                                                                            >
+                                                                                {isOutOfStock ? (
+                                                                                    'Épuisé'
+                                                                                ) : cartQty > 0 ? (
+                                                                                    `Ajouté (${cartQty})`
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <Plus size={12} />
+                                                                                        Ajouter
+                                                                                    </>
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* RIGHT COLUMN: CUSTOMER DETAILS & ORDER CART */}
+                                <div style={{ display: 'flex', flexDirection: 'column', background: 'white', overflow: 'hidden' }}>
+                                    
+                                    {/* Customer Form */}
+                                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
+                                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
+                                            👤 Coordonnées du Client
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Prénom *</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="ex: Brice" 
+                                                    value={createOrderCustomer.firstName}
+                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, firstName: e.target.value })}
+                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Nom</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="ex: Dossou" 
+                                                    value={createOrderCustomer.lastName}
+                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, lastName: e.target.value })}
+                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ marginBottom: '10px' }}>
+                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Téléphone WhatsApp / Appel *</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="ex: +229 97 00 00 00" 
+                                                value={createOrderCustomer.phone}
+                                                onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, phone: e.target.value })}
+                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Ville / Commune</label>
+                                                <select 
+                                                    value={createOrderCustomer.city}
+                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, city: e.target.value })}
+                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: 'white', boxSizing: 'border-box' }}
+                                                >
+                                                    <option value="Cotonou">Cotonou</option>
+                                                    <option value="Abomey-Calavi">Abomey-Calavi</option>
+                                                    <option value="Porto-Novo">Porto-Novo</option>
+                                                    <option value="Parakou">Parakou</option>
+                                                    <option value="Ouidah">Ouidah</option>
+                                                    <option value="Bohicon">Bohicon</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Quartier / Repère</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="ex: Haie Vive, en face..." 
+                                                    value={createOrderCustomer.neighborhood}
+                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, neighborhood: e.target.value })}
+                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Cart Items List */}
+                                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                🛒 Panier ({createOrderCart.reduce((sum, i) => sum + i.quantity, 0)} articles)
+                                            </span>
+                                            {createOrderCart.length > 0 && (
+                                                <button 
+                                                    onClick={() => setCreateOrderCart([])} 
+                                                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                                >
+                                                    Vider le panier
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {createOrderCart.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8', fontSize: '13px', border: '2px dashed #cbd5e1', borderRadius: '16px', background: 'white' }}>
+                                                <span>👈 Cliquez sur « Ajouter » sur les produits à gauche pour composer la commande.</span>
+                                            </div>
+                                        ) : (
+                                            createOrderCart.map((item) => {
+                                                const itemImg = getImgUrl(item.preview);
+                                                return (
+                                                    <div 
+                                                        key={item.variantId}
+                                                        style={{ background: 'white', borderRadius: '12px', padding: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                                                    >
+                                                        {itemImg ? (
+                                                            <img src={itemImg} alt="" style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0', flexShrink: 0 }} />
+                                                        ) : (
+                                                            <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexShrink: 0 }}>
+                                                                <Package size={18} />
+                                                            </div>
+                                                        )}
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                {item.productName}
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                                                                {item.optionLabel ? (
+                                                                    <span style={{ display: 'inline-block', background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>
+                                                                        {item.optionLabel}
+                                                                    </span>
+                                                                ) : null}
+                                                                {item.vendorName ? (
+                                                                    <span style={{ display: 'inline-block', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>
+                                                                        🏪 {item.vendorName} {item.marketName ? `(${item.marketName})` : ''}
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+                                                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', marginTop: '2px' }}>
+                                                                {formatPrice(item.price, 'XOF')}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quantity stepper */}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '3px 6px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                            <button 
+                                                                onClick={() => updateCartQty(item.variantId, -1)}
+                                                                style={{ width: '22px', height: '22px', borderRadius: '6px', border: 'none', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}
+                                                            >
+                                                                <Minus size={12} />
+                                                            </button>
+                                                            <span style={{ fontSize: '12px', fontWeight: 800, minWidth: '18px', textAlign: 'center' }}>
+                                                                {item.quantity}
+                                                            </span>
+                                                            <button 
+                                                                onClick={() => updateCartQty(item.variantId, 1)}
+                                                                style={{ width: '22px', height: '22px', borderRadius: '6px', border: 'none', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}
+                                                            >
+                                                                <Plus size={12} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Line Total & Remove */}
+                                                        <div style={{ textAlign: 'right', minWidth: '70px' }}>
+                                                            <div style={{ fontSize: '12px', fontWeight: 900, color: '#0f172a' }}>
+                                                                {formatPrice(item.price * item.quantity, 'XOF')}
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => removeFromCart(item.variantId)}
+                                                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', marginTop: '2px' }}
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+
+                                    {/* Cart Footer: Total & Submit */}
+                                    <div style={{ padding: '16px 20px', background: 'white', borderTop: '1px solid #e2e8f0' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
+                                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Total de la commande :</span>
+                                            <span style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>
+                                                {formatPrice(totalCartPrice, 'XOF')}
+                                            </span>
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '10px' }}>
+                                            <button 
+                                                onClick={() => setIsCreateOrderModalOpen(false)}
+                                                style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid #cbd5e1', background: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button 
+                                                disabled={createOrderCustomer.isSubmitting || createOrderCart.length === 0}
+                                                onClick={handleCreateOrderSubmit}
+                                                style={{ 
+                                                    flex: 2, 
+                                                    padding: '11px', 
+                                                    borderRadius: '10px', 
+                                                    border: 'none', 
+                                                    background: createOrderCart.length === 0 ? '#94a3b8' : '#2563eb', 
+                                                    color: 'white', 
+                                                    fontWeight: 800, 
+                                                    fontSize: '13px', 
+                                                    cursor: createOrderCart.length === 0 || createOrderCustomer.isSubmitting ? 'not-allowed' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                {createOrderCustomer.isSubmitting ? '⏳ Création de la commande...' : `✅ Valider la Commande (${formatPrice(totalCartPrice, 'XOF')})`}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }
@@ -805,7 +1650,10 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
     });
 
     const deleteOrderMutation = useMutation({
-        mutationFn: ({ orderId }: any) => fetchGraphQL(DELETE_VENDOR_ORDER, { orderId }),
+        mutationFn: (param: any) => {
+            const orderId = typeof param === 'string' ? param : (param?.orderId || param?.id);
+            return fetchGraphQL(DELETE_VENDOR_ORDER, { orderId });
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
             alert('Commande supprimée avec succès !');
@@ -1278,7 +2126,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                 type="button"
                                 onClick={() => {
                                     if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement la commande #${order.code} et ses sous-commandes ?`)) {
-                                        deleteOrderMutation.mutate(order.id);
+                                        deleteOrderMutation.mutate({ orderId: order.id });
                                     }
                                 }}
                                 style={{
@@ -1604,6 +2452,8 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                         </div>
                     </div>
                 )}
+
+
 
             </div>
         </div>

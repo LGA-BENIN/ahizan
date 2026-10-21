@@ -359,39 +359,34 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                 updatePositionStateAndMap(latitude, longitude);
                 
                 try {
-                    // Fetch details from Nominatim
-                    const osmRes = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-                        { headers: { 'Accept-Language': 'fr' } }
-                    );
-                    const osmData = await osmRes.json();
-                    const addressComponents = osmData.address || {};
-                    const neighborhoodName = addressComponents.suburb || addressComponents.neighbourhood || addressComponents.city_district || '';
-                    const fullAddress = osmData.display_name || '';
-
-                    // Fetch zone ID from Vendure reverseGeocode
+                    // Fetch location details directly from Vendure GeoEngine (Local PostGIS)
                     const res = await query(`
-                        query ReverseGeocode($lat: Float!, $lng: Float!) {
-                            reverseGeocode(latitude: $lat, longitude: $lng) {
-                                id
-                                name
+                        query ResolveCoordinates($lat: Float!, $lng: Float!) {
+                            resolveCoordinates(latitude: $lat, longitude: $lng) {
+                                geoZoneId
+                                geoId
+                                displayName
+                                formattedAddress
+                                commune
+                                arrondissement
+                                neighborhood
+                                marketId
+                                marketName
                             }
                         }
                     `, { lat: latitude, lng: longitude });
 
-                    const matchedZones = (res.data as any)?.reverseGeocode || [];
-                    let zoneId = '';
-                    if (matchedZones.length > 0) {
-                        zoneId = matchedZones[0].id;
-                    } else if (neighborhoodName) {
-                        const matched = neighborhoods.find((n: any) => n.name.toLowerCase().includes(neighborhoodName.toLowerCase()));
-                        if (matched) {
-                            zoneId = matched.id;
-                        }
-                    }
+                    const resolved = (res.data as any)?.resolveCoordinates;
+                    const zoneId = resolved?.geoZoneId && resolved.geoZoneId !== '0' ? String(resolved.geoZoneId) : '';
+                    const neighborhoodName = resolved?.neighborhood || resolved?.arrondissement || resolved?.commune || resolved?.displayName || '';
+                    const fullAddress = resolved?.formattedAddress || [neighborhoodName, resolved?.commune, 'Bénin'].filter(Boolean).join(', ');
+                    const marketId = resolved?.marketId ? String(resolved.marketId) : '';
 
                     if (zoneId) {
                         setSelectedLocationId(zoneId);
+                    }
+                    if (marketId && setSelectedMarketId) {
+                        setSelectedMarketId(marketId);
                     }
 
                     if (fullAddress) {
@@ -412,7 +407,7 @@ export function AccountSettingsForm({ vendor, initialMarkets = [], initialNeighb
                         }
                     }
 
-                    toast.success("Position et quartier détectés avec succès !");
+                    toast.success("Position et zone détectées avec succès !");
                 } catch (err) {
                     console.error('Error in settings geocode:', err);
                     toast.success("Position GPS détectée avec succès !");

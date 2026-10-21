@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /checkout
+Disallow: /account
+Disallow: /cart
+Disallow: /sign-in
+Disallow: /register
+Disallow: /reset-password
+Disallow: /track-order
+Disallow: /verify
+Disallow: /verify-pending
+
+Sitemap: https://ahizan.com/sitemap.xml

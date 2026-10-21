@@ -38,6 +38,8 @@ const MASTER_ZONE_MAP = [
         zone: 'Impact',
         items: [
             { type: 'HERO', icon: '🎬', label: 'Slider Hero', mode: 'singleton' },
+            { type: 'HERO_STORY_SCROLLER', icon: '📱', label: 'Story Cards Déroulantes (Amazon)', mode: 'multi' },
+            { type: 'HERO_SLIM_BANNER', icon: '🎀', label: 'Bannière Panoramique Slim (Cdiscount)', mode: 'multi' },
         ],
         allowedOn: ['home']
     },
@@ -68,27 +70,17 @@ const MASTER_ZONE_MAP = [
         allowedOn: ['flash_deals']
     },
     {
-        zone: 'Page Découverte Locale (Modèles)',
-        items: [
-            { type: 'LOCAL_HERO_BANNER', icon: '📍', label: 'Bannière Découverte Locale & Sélecteur', mode: 'singleton' },
-            { type: 'LOCAL_DISCOVERY_TABS', icon: '📑', label: 'Barre des 4 Onglets Locaux', mode: 'singleton' },
-            { type: 'LOCAL_CASCADE_ENGINE', icon: '🎯', label: 'Moteur de Cascade de Proximité (Zone A, B, C)', mode: 'singleton' },
-            { type: 'LOCAL_MARKETS_SECTION', icon: '🏪', label: 'Grille des Marchés Populaires', mode: 'multi' },
-            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Grille des Quartiers', mode: 'multi' },
-            { type: 'LOCAL_VENDORS_SECTION', icon: '🏬', label: 'Grille des Boutiques Certifiées', mode: 'multi' },
-        ],
-        allowedOn: ['local_discovery']
-    },
-    {
         zone: 'Corps',
         items: [
             { type: 'PRODUCT_COLLECTION', icon: '🎯', label: 'Collection de Produits EMS (Unifiée)', mode: 'multi' },
             { type: 'CATEGORY_COLLECTION', icon: '🗂️', label: 'Collection de Catégories EMS', mode: 'multi' },
             { type: 'FLASH_DEALS', icon: '⚡', label: 'Campagnes Flash', mode: 'multi' },
-            { type: 'QUICK_LINKS', icon: '🏷️', label: 'Liens Rapides et Bannières', mode: 'multi' },
             { type: 'CATEGORIES', icon: '📁', label: 'Catégories', mode: 'multi' },
+            { type: 'CIRCULAR_CATEGORY_NAV', icon: '⭕', label: 'Ruban Catégories Circulaires (Cdiscount)', mode: 'multi' },
+            { type: 'QUAD_CATEGORY_CARD', icon: '⊞', label: 'Quad-Card Catégories 2x2 (Amazon)', mode: 'multi' },
             { type: 'SMART_VISUAL_GRID', icon: '✨', label: 'Smart Visual Grid', mode: 'multi' },
             { type: 'FREEFORM_BUILDER', icon: '🏗️', label: 'Constructeur Libre Drag & Drop', mode: 'multi' },
+            { type: 'TRUST_FOOTER_BAR', icon: '🛡️', label: 'Barre de Réassurance & Services Bénin', mode: 'multi' },
         ],
         allowedOn: ['all']
     },
@@ -109,12 +101,14 @@ const MASTER_ZONE_MAP = [
     {
         zone: 'Commerce Local & Proximité Bénin',
         items: [
+            { type: 'LOCAL_HERO_BANNER', icon: '📍', label: 'Bannière Découverte Locale & Sélecteur', mode: 'singleton' },
+            { type: 'LOCAL_DISCOVERY_TABS', icon: '📑', label: 'Barre des 4 Onglets Locaux', mode: 'singleton' },
             { type: 'MARKET_HERO_BANNER', icon: '🌴', label: 'Bannière d\'Identité du Marché (Hero, Photos, Badges)', mode: 'singleton' },
             { type: 'MARKET_SEARCH_BAR', icon: '🔍', label: 'Recherche Produits au Marché (Barre & Suggestions)', mode: 'singleton' },
             { type: 'LOCAL_CASCADE_ENGINE', icon: '🎯', label: 'Cascade de Produits Locaux (Zones A, B, C)', mode: 'multi' },
             { type: 'LOCAL_VENDORS_SECTION', icon: '🏬', label: 'Boutiques et Marchands Locaux', mode: 'multi' },
             { type: 'LOCAL_MARKETS_SECTION', icon: '🏪', label: 'Marchés Populaires du Bénin', mode: 'multi' },
-            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Grille des Quartiers du Bénin', mode: 'multi' },
+            { type: 'LOCAL_NEIGHBORHOODS_SECTION', icon: '🏘️', label: 'Quartiers du Bénin', mode: 'multi' },
             { type: 'LOCAL_PRODUCTS', icon: '📍', label: 'Découverte Locale (Marchés & Boutiques)', mode: 'multi' },
             { type: 'MARKET_INFO', icon: '🏪', label: 'Infos du Marché (Carte & Commerces)', mode: 'singleton' },
             { type: 'NEIGHBORHOOD_INFO', icon: '🏘️', label: 'Infos du Quartier (Carte & Commerces)', mode: 'singleton' },
@@ -138,17 +132,17 @@ const getZoneMapForSlug = (slug?: string) => {
     // Define exact permitted types for each page type to prevent clutter
     const permittedTypes: Record<string, string[]> = {
         home: [
-            'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO',
+            'THEME_SETTINGS', 'MODALS', 'HEADER_CONF', 'HERO', 'HERO_STORY_SCROLLER', 'HERO_SLIM_BANNER',
             'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION', 'LOCAL_PRODUCTS',
-            'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
-            'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+            'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
+            'FLASH_DEALS', 'CATEGORIES', 'CIRCULAR_CATEGORY_NAV', 'QUAD_CATEGORY_CARD', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'TRUST_FOOTER_BAR', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         flash_deals: [
             'THEME_SETTINGS', 'HEADER_CONF', 'FLASH_HERO_BANNER', 'FLASH_DEALS_SEARCH_HUB', 'FLASH_DEALS_GRID',
             'HERO', 'FLASH_DEALS', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION', 'LOCAL_PRODUCTS',
-            'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
-            'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
+            'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         local_discovery: [
@@ -156,36 +150,37 @@ const getZoneMapForSlug = (slug?: string) => {
             'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION', 'LOCAL_VENDORS_SECTION',
             'HERO', 'LOCAL_PRODUCTS', 'MARKET_INFO', 'NEIGHBORHOOD_INFO',
             'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION', 'FLASH_DEALS',
-            'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         category: [
             'CATEGORY_HEADER', 'DYNAMIC_PRODUCT_GRID', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION', 'LOCAL_PRODUCTS',
             'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'FLASH_DEALS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         product: [
             'PRODUCT_OVERVIEW', 'PRODUCT_REVIEWS', 'RELATED_PRODUCTS', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION', 'LOCAL_PRODUCTS',
             'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+            'FLASH_DEALS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
             'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
         ],
         market: [
             'THEME_SETTINGS', 'HEADER_CONF', 'MARKET_HERO_BANNER', 'MARKET_SEARCH_BAR', 'HERO', 'MARKET_INFO', 'LOCAL_PRODUCTS', 'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
+            'FLASH_DEALS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'MARKET_CODE'
         ],
         neighborhood: [
             'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'NEIGHBORHOOD_INFO', 'LOCAL_PRODUCTS', 'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
-            'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'NEIGHBORHOOD_CODE'
+            'FLASH_DEALS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM', 'NEIGHBORHOOD_CODE'
         ]
     };
 
     const defaultPermitted = [
-        'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
+        'THEME_SETTINGS', 'HEADER_CONF', 'HERO', 'HERO_STORY_SCROLLER', 'HERO_SLIM_BANNER',
+        'PRODUCT_COLLECTION', 'CATEGORY_COLLECTION',
         'LOCAL_CASCADE_ENGINE', 'LOCAL_VENDORS_SECTION', 'LOCAL_MARKETS_SECTION', 'LOCAL_NEIGHBORHOODS_SECTION',
-        'FLASH_DEALS', 'QUICK_LINKS', 'CATEGORIES', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
-        'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
+        'FLASH_DEALS', 'CATEGORIES', 'CIRCULAR_CATEGORY_NAV', 'QUAD_CATEGORY_CARD', 'SMART_VISUAL_GRID', 'FREEFORM_BUILDER',
+        'TRUST_FOOTER_BAR', 'RICH_TEXT', 'FOOTER_CONF', 'CUSTOM'
     ];
 
     const allowedTypes = permittedTypes[activeSlug] || defaultPermitted;

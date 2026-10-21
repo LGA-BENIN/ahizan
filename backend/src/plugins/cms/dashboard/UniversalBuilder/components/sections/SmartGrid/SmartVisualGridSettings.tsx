@@ -3,25 +3,32 @@ import { Editor, Frame, Element, useEditor, useNode } from '@craftjs/core';
 import { GridRoot } from './craft/GridRoot';
 import { GridItem } from './craft/GridItem';
 
+// Auto-saver for CraftJS internal state with clean initial mount protection
 const AutoSaver = ({ onSave }: { onSave: (data: string, silent?: boolean) => void }) => {
     const { query, state } = useEditor((state) => ({ state }));
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const lastSavedRef = useRef<string>('');
+    const isInitializedRef = useRef<boolean>(false);
 
     useEffect(() => {
-        if (!lastSavedRef.current) {
-            lastSavedRef.current = query.serialize();
+        if (!isInitializedRef.current) {
+            try {
+                lastSavedRef.current = query.serialize();
+            } catch (e) {}
+            isInitializedRef.current = true;
             return;
         }
 
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
-            const currentJson = query.serialize();
-            if (currentJson !== lastSavedRef.current) {
-                lastSavedRef.current = currentJson;
-                onSave(currentJson, true); // true = silent save
-            }
-        }, 300);
+            try {
+                const currentJson = query.serialize();
+                if (currentJson && currentJson !== lastSavedRef.current) {
+                    lastSavedRef.current = currentJson;
+                    onSave(currentJson, true); // true = silent background save
+                }
+            } catch (e) {}
+        }, 500);
 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
@@ -31,32 +38,8 @@ const AutoSaver = ({ onSave }: { onSave: (data: string, silent?: boolean) => voi
     return null;
 };
 
-const Toolbox = () => {
-    const { connectors: { create } } = useEditor();
-    return (
-        <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}>
-            <div
-                ref={(ref: any) => create(ref, <GridItem {...({} as any)} />)}
-                style={{
-                    padding: '8px 16px',
-                    background: 'var(--builder-bg)',
-                    border: '1px dashed var(--builder-primary)',
-                    borderRadius: '6px',
-                    cursor: 'grab',
-                    fontSize: '12px',
-                    color: 'var(--builder-primary)'
-                }}
-            >
-                ➕ Ajouter un élément
-            </div>
-            <div style={{ fontSize: '11px', color: '#64748b', alignSelf: 'center' }}>
-                Faites glisser vers la grille ci-dessous.
-            </div>
-        </div>
-    );
-};
-
-const SettingsPanel = ({ onToggleSize }: { onToggleSize: () => void }) => {
+// Side Inspector Panel (Sticky on the right, independently scrollable)
+const SideInspectorPanel = () => {
     const { selected } = useEditor((state) => {
         const selectedSet = state.events.selected;
         const currentNodeId = (selectedSet && selectedSet.size > 0) ? Array.from(selectedSet)[0] : 'ROOT';
@@ -78,55 +61,88 @@ const SettingsPanel = ({ onToggleSize }: { onToggleSize: () => void }) => {
 
     if (!selected) {
         return (
-            <div style={{ padding: '0', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-                <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button 
-                            onClick={onToggleSize} 
-                            title="Agrandir/Réduire le panneau" 
-                            style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: '2px 6px', fontSize: '12px' }}
-                        >
-                            ⇦⇨
-                        </button>
-                        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
-                            Paramètres
-                        </h3>
-                    </div>
-                </div>
-                <div style={{ padding: '16px', color: '#64748b', fontSize: '13px', textAlign: 'center' }}>
-                    Sélectionnez un élément pour afficher ses paramètres.
-                </div>
+            <div style={{ padding: '32px 20px', textAlign: 'center', color: '#64748b', fontSize: '13px', overflowY: 'auto' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>👆</div>
+                <div style={{ fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Aucun élément sélectionné</div>
+                <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+                    Cliquez sur une carte dans l'aperçu ou sur la grille globale pour afficher ses options.
+                </p>
+                <button
+                    onClick={() => actions.selectNode('ROOT')}
+                    style={{
+                        marginTop: '16px',
+                        padding: '8px 14px',
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                    }}
+                >
+                    ⚙️ Paramètres Globaux de la Grille
+                </button>
             </div>
         );
     }
 
     return (
-        <div style={{ padding: '0', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-            <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button 
-                        onClick={onToggleSize} 
-                        title="Agrandir/Réduire le panneau" 
-                        style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: '2px 6px', fontSize: '12px' }}
-                    >
-                        ⇦⇨
-                    </button>
-                    <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
-                        Paramètres ({selected.name})
-                    </h3>
-                </div>
-                
-                {selected.name !== 'GridRoot' && (
-                    <button 
-                        onClick={() => actions.selectNode('ROOT')}
-                        style={{ fontSize: '11px', background: 'var(--builder-primary)', color: '#fff', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontWeight: 500 }}
-                    >
-                        ⬆️ Grille Globale
-                    </button>
-                )}
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: '#ffffff', overflow: 'hidden' }}>
+            {/* Inspector Header */}
+            <div style={{
+                padding: '12px 16px',
+                background: '#f8fafc',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                flexShrink: 0
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <span style={{ fontSize: '16px' }}>{selected.name === 'GridRoot' ? '⚙️' : '🗂️'}</span>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{
+                                fontSize: '13px',
+                                fontWeight: 800,
+                                color: '#0f172a',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                            }}>
+                                {selected.name === 'GridRoot' ? 'Paramètres Globaux' : (selected.props?.titleText || 'Carte Produit')}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                {selected.name === 'GridRoot' ? 'Structure & Grille' : 'Élément sélectionné'}
+                            </div>
+                        </div>
+                    </div>
 
+                    {selected.name !== 'GridRoot' && (
+                        <button
+                            onClick={() => actions.selectNode('ROOT')}
+                            title="Revenir aux réglages globaux"
+                            style={{
+                                fontSize: '11px',
+                                background: '#eff6ff',
+                                color: '#2563eb',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '6px',
+                                padding: '4px 8px',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                flexShrink: 0
+                            }}
+                        >
+                            🌐 Grille globale
+                        </button>
+                    )}
+                </div>
+
+                {/* Card Quick Action Bar */}
                 {selected.isDeletable && (
-                    <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                    <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
                         <button
                             onClick={() => {
                                 if (selected.name === 'GridItem' && selected.parent) {
@@ -134,29 +150,66 @@ const SettingsPanel = ({ onToggleSize }: { onToggleSize: () => void }) => {
                                     actions.addNodeTree(nodeTree, selected.parent);
                                 }
                             }}
-                            title="Dupliquer"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#3b82f6' }}
+                            title="Dupliquer cette carte"
+                            style={{
+                                flex: 1,
+                                background: '#f8fafc',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: '#2563eb',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                            }}
                         >
-                            📑
+                            📑 Dupliquer
                         </button>
                         <button
                             onClick={() => actions.selectNode(null as any)}
                             title="Désélectionner"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#64748b' }}
+                            style={{
+                                background: '#f8fafc',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                color: '#64748b'
+                            }}
                         >
-                            ✖
+                            ✖ Fermer
                         </button>
                         <button
                             onClick={() => actions.delete(selected.id)}
-                            title="Supprimer"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                            title="Supprimer cette carte"
+                            style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                cursor: 'pointer',
+                                fontSize: '11px',
+                                color: '#ef4444',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                            }}
                         >
-                            🗑️
+                            🗑️ Supprimer
                         </button>
                     </div>
                 )}
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+
+            {/* Active Component Settings Body (Scrollable independently all the way down) */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '14px', minHeight: 0 }}>
                 {selected.settings ? React.createElement(selected.settings) : null}
             </div>
         </div>
@@ -165,34 +218,179 @@ const SettingsPanel = ({ onToggleSize }: { onToggleSize: () => void }) => {
 
 interface TopbarProps {
     onSave: () => void;
-    sidebarMode: 'hidden' | 'normal' | 'wide';
-    onToggleSidebar: () => void;
+    previewDevice: 'desktop' | 'tablet' | 'mobile';
+    onDeviceChange: (device: 'desktop' | 'tablet' | 'mobile') => void;
+    onAddCard: () => void;
 }
 
-const Topbar = ({ onSave, sidebarMode, onToggleSidebar }: TopbarProps) => {
+const Topbar = ({ onSave, previewDevice, onDeviceChange, onAddCard }: TopbarProps) => {
     return (
-        <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#475569' }}>
-                    Éditeur de Grille
+        <div style={{
+            padding: '10px 18px',
+            background: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            flexShrink: 0
+        }}>
+            {/* Left: Title & Quick Add */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎨</span> Smart Grid Builder
                 </span>
-                <button 
-                    onClick={onToggleSidebar}
-                    className="btn-pro" 
-                    style={{ fontSize: '12px', padding: '4px 8px', height: 'auto', background: '#f1f5f9', color: '#334155' }}
+                
+                <button
+                    type="button"
+                    onClick={onAddCard}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#dbeafe'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#eff6ff'}
                 >
-                    {sidebarMode === 'hidden' ? 'Afficher les paramètres' : 'Masquer les paramètres'}
+                    ➕ Ajouter une carte
                 </button>
             </div>
-            <button
-                onClick={onSave}
-                className="btn-pro btn-pro-primary"
-                style={{ height: '32px', padding: '0 16px', fontSize: '13px' }}
-            >
-                Mettre à jour la section
-            </button>
+
+            {/* Center: Device Viewport Switcher */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#f1f5f9',
+                borderRadius: '8px',
+                padding: '3px',
+                border: '1px solid #e2e8f0',
+                gap: '2px'
+            }}>
+                <button
+                    type="button"
+                    onClick={() => onDeviceChange('desktop')}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: previewDevice === 'desktop' ? 700 : 500,
+                        background: previewDevice === 'desktop' ? '#ffffff' : 'transparent',
+                        color: previewDevice === 'desktop' ? '#0f172a' : '#64748b',
+                        boxShadow: previewDevice === 'desktop' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    🖥️ Desktop
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onDeviceChange('tablet')}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: previewDevice === 'tablet' ? 700 : 500,
+                        background: previewDevice === 'tablet' ? '#ffffff' : 'transparent',
+                        color: previewDevice === 'tablet' ? '#0f172a' : '#64748b',
+                        boxShadow: previewDevice === 'tablet' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    💻 Tablette (768px)
+                </button>
+                <button
+                    type="button"
+                    onClick={() => onDeviceChange('mobile')}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: previewDevice === 'mobile' ? 700 : 500,
+                        background: previewDevice === 'mobile' ? '#ffffff' : 'transparent',
+                        color: previewDevice === 'mobile' ? '#0f172a' : '#64748b',
+                        boxShadow: previewDevice === 'mobile' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer'
+                    }}
+                >
+                    📱 Mobile (380px)
+                </button>
+            </div>
+
+            {/* Right: Save Section */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                    onClick={onSave}
+                    className="btn-pro btn-pro-primary"
+                    style={{
+                        height: '34px',
+                        padding: '0 16px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                    }}
+                >
+                    💾 Enregistrer
+                </button>
+            </div>
         </div>
     );
+};
+
+// Subcomponent that triggers card additions into ROOT
+const EditorActionsWrapper = ({ onSave, children }: { onSave: () => void; children: (addCard: () => void) => React.ReactNode }) => {
+    const { actions, query } = useEditor();
+
+    const handleAddCard = () => {
+        try {
+            const nodeTree = query.parseReactElement(
+                <GridItem 
+                    titleText="Nouvelle Carte"
+                    linkUrl="/"
+                    imageUrl=""
+                    bgColor="transparent"
+                    descText=""
+                    borderWidth={0}
+                    borderColor="transparent"
+                    overlayEnabled={false}
+                    overlayColor="#000000"
+                    overlayOpacity={0.4}
+                    titleColor="#0f172a"
+                    descColor="#64748b"
+                    hoverBgColor="transparent"
+                    linkNewTab={false}
+                />
+            ).toNodeTree();
+            actions.addNodeTree(nodeTree, 'ROOT');
+        } catch (e) {
+            console.error("Error adding card to ROOT", e);
+        }
+    };
+
+    return <>{children(handleAddCard)}</>;
 };
 
 interface SmartVisualGridEditorTabProps {
@@ -202,48 +400,120 @@ interface SmartVisualGridEditorTabProps {
 }
 
 const SmartVisualGridEditorTab = ({ craftState, onSaveCraftState, onForceSave }: SmartVisualGridEditorTabProps) => {
-    const [sidebarMode, setSidebarMode] = useState<'hidden' | 'normal' | 'wide'>('normal');
-
     const hasData = craftState && craftState !== '{}' && craftState.includes('GridRoot');
+    const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
-    let sidebarWidth = '320px';
-    if (sidebarMode === 'hidden') sidebarWidth = '0px';
-    if (sidebarMode === 'wide') sidebarWidth = '450px';
+    const getPreviewContainerWidth = () => {
+        switch (previewDevice) {
+            case 'mobile': return '390px';
+            case 'tablet': return '768px';
+            case 'desktop':
+            default: return '100%';
+        }
+    };
 
     return (
         <Editor resolver={{ GridRoot, GridItem, Element }}>
             <AutoSaver onSave={onSaveCraftState} />
-            <Topbar 
-                onSave={onForceSave} 
-                sidebarMode={sidebarMode} 
-                onToggleSidebar={() => setSidebarMode(prev => prev === 'hidden' ? 'normal' : 'hidden')} 
-            />
             
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: sidebarMode !== 'hidden' ? '1px solid #e2e8f0' : 'none', minWidth: 0 }}>
-                    <Toolbox />
-                    <div style={{ flex: 1, padding: '24px', overflow: 'auto', background: '#f1f5f9' }}>
-                        <div style={{ background: '#fff', minHeight: '400px', minWidth: '1024px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', borderRadius: '8px', overflow: 'hidden' }}>
-                            <Frame data={hasData ? craftState : undefined}>
-                                <Element is={GridRoot} canvas {...({} as any)}>
-                                    <GridItem {...({} as any)} />
-                                    <GridItem {...({} as any)} />
-                                    <GridItem {...({} as any)} />
-                                    <GridItem {...({} as any)} />
-                                </Element>
-                            </Frame>
+            <EditorActionsWrapper onSave={onForceSave}>
+                {(handleAddCard) => (
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden' }}>
+                        <Topbar 
+                            onSave={onForceSave} 
+                            previewDevice={previewDevice} 
+                            onDeviceChange={setPreviewDevice} 
+                            onAddCard={handleAddCard}
+                        />
+
+                        {/* Split-View Workspace: Canvas on Left, Inspector on Right */}
+                        <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                            
+                            {/* 1. Left / Center: Live Interactive Canvas */}
+                            <div style={{
+                                flex: 1,
+                                height: '100%',
+                                minHeight: 0,
+                                overflowY: 'auto',
+                                overflowX: 'auto',
+                                background: '#f8fafc',
+                                backgroundImage: 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)',
+                                backgroundSize: '20px 20px',
+                                padding: '24px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center'
+                            }}>
+                                {/* Device simulation frame wrapper */}
+                                <div style={{
+                                    width: getPreviewContainerWidth(),
+                                    maxWidth: '100%',
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    display: 'flex',
+                                    flexDirection: 'column'
+                                }}>
+                                    {/* Preview Header Hint */}
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '6px 12px',
+                                        background: '#ffffff',
+                                        border: '1px solid #e2e8f0',
+                                        borderBottom: 'none',
+                                        borderTopLeftRadius: '10px',
+                                        borderTopRightRadius: '10px',
+                                        fontSize: '11px',
+                                        color: '#64748b'
+                                    }}>
+                                        <span>🔍 Vue : <strong>{previewDevice.toUpperCase()}</strong></span>
+                                        <span style={{ color: '#059669', fontWeight: 600 }}>● Aperçu Direct Synchronisé</span>
+                                    </div>
+
+                                    {/* Actual Craft Frame */}
+                                    <div style={{
+                                        background: '#ffffff',
+                                        minHeight: '380px',
+                                        width: '100%',
+                                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+                                        borderBottomLeftRadius: '10px',
+                                        borderBottomRightRadius: '10px',
+                                        overflow: 'hidden',
+                                        border: '1px solid #e2e8f0',
+                                        position: 'relative'
+                                    }}>
+                                        <Frame data={hasData ? craftState : undefined}>
+                                            <Element is={GridRoot} canvas {...({} as any)}>
+                                                <GridItem {...({} as any)} />
+                                                <GridItem {...({} as any)} />
+                                                <GridItem {...({} as any)} />
+                                                <GridItem {...({} as any)} />
+                                            </Element>
+                                        </Frame>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 2. Right: Sticky & Scrollable Inspector */}
+                            <div style={{
+                                width: '420px',
+                                minWidth: '380px',
+                                borderLeft: '1px solid #e2e8f0',
+                                background: '#ffffff',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                height: '100%',
+                                minHeight: 0,
+                                boxShadow: '-2px 0 8px rgba(0,0,0,0.03)',
+                                zIndex: 10
+                            }}>
+                                <SideInspectorPanel />
+                            </div>
+
                         </div>
                     </div>
-                </div>
-
-                <div style={{ width: sidebarWidth, transition: 'width 0.3s ease', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    {sidebarMode !== 'hidden' && (
-                        <div style={{ minWidth: sidebarWidth === '450px' ? '450px' : '320px', width: '100%', flex: 1, minHeight: 0 }}>
-                            <SettingsPanel onToggleSize={() => setSidebarMode(prev => prev === 'wide' ? 'normal' : 'wide')} />
-                        </div>
-                    )}
-                </div>
-            </div>
+                )}
+            </EditorActionsWrapper>
         </Editor>
     );
 };
@@ -296,14 +566,13 @@ const normalizeGridData = (raw: any) => {
 };
 
 export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSettingsProps) => {
-    // Determine initial state with robust fallback normalization
     const [config, setConfig] = useState(() => normalizeGridData(data));
-
     const [activeTabId, setActiveTabId] = useState(() => config.tabs[0]?.id || 't_default');
     const activeTab = config.tabs.find((t: any) => t.id === activeTabId) || config.tabs[0];
     const lastSavedRef = useRef<string>(JSON.stringify(config));
+    const isInitRef = useRef<boolean>(false);
 
-    // Keep local config in sync with incoming data prop (e.g. after editing in Code mode)
+    // Keep local config in sync with incoming data prop
     useEffect(() => {
         try {
             const normalized = normalizeGridData(data);
@@ -322,12 +591,16 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
 
     // Global Auto-save for the entire configuration
     useEffect(() => {
+        if (!isInitRef.current) {
+            isInitRef.current = true;
+            return;
+        }
+
         const currentJson = JSON.stringify(config);
         if (currentJson === lastSavedRef.current) return;
 
         const timer = setTimeout(() => {
             lastSavedRef.current = currentJson;
-            // The SectionEditorFactory's handleSave accepts a second 'silent' argument
             (onSave as any)(currentJson, true);
         }, 1000);
 
@@ -345,7 +618,7 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
     };
 
     const handleRemoveTab = (id: string) => {
-        if (config.tabs.length <= 1) return; // Must have at least one tab
+        if (config.tabs.length <= 1) return;
         const newTabs = config.tabs.filter((t: any) => t.id !== id);
         updateConfig({ ...config, tabs: newTabs });
         if (activeTabId === id) setActiveTabId(newTabs[0].id);
@@ -372,70 +645,74 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '700px', maxHeight: 'calc(100vh - 100px)', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-            {/* TABS MANAGER UI */}
-            <div style={{ padding: '16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: 'calc(100vh - 170px)',
+            minHeight: '680px',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            overflow: 'hidden'
+        }}>
+            {/* TABS MANAGER UI (Header) */}
+            <div style={{ padding: '12px 18px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold', color: '#0f172a' }}>
-                            Grille Visuelle Intelligente (Groupes)
+                        <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>✨</span> Groupes & Onglets Smart Grid
                         </h2>
-                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                            Gérez plusieurs grilles et affichez-les sous forme d'onglets (pillules ou rectangles).
+                        <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748b' }}>
+                            Basculez entre vos différents groupes ou personnalisez leur style d'affichage.
                         </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Alignement :</label>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>Alignement :</label>
                             <select 
                                 value={config.tabAlignment || 'left'} 
                                 onChange={(e) => updateConfig({...config, tabAlignment: e.target.value})}
-                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                                style={{ padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px' }}
                             >
                                 <option value="left">Gauche</option>
                                 <option value="center">Centre</option>
                                 <option value="right">Droite</option>
                             </select>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Disposition :</label>
-                            <select 
-                                value={config.tabLayout || 'wrap'} 
-                                onChange={(e) => updateConfig({...config, tabLayout: e.target.value})}
-                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                            >
-                                <option value="scroll">Défilement H.</option>
-                                <option value="wrap">À la ligne</option>
-                            </select>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Style :</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>Style :</label>
                             <select 
                                 value={config.groupStyle || 'pillule'} 
                                 onChange={(e) => updateConfig({...config, groupStyle: e.target.value})}
-                                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                                style={{ padding: '3px 6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '11px' }}
                             >
-                                <option value="pillule">Pillules</option>
+                                <option value="pillule">Pilules</option>
                                 <option value="rectangle">Rectangles</option>
                             </select>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Couleur active :</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569' }}>Couleur active :</label>
                             <input 
                                 type="color" 
-                                value={config.activeColor || '#ef4444'} 
+                                value={config.activeColor || '#2563eb'} 
                                 onChange={(e) => updateConfig({...config, activeColor: e.target.value})}
-                                style={{ width: '32px', height: '32px', padding: '0', border: 'none', cursor: 'pointer', borderRadius: '4px' }}
+                                style={{ width: '26px', height: '26px', padding: '0', border: '1px solid #cbd5e1', cursor: 'pointer', borderRadius: '4px' }}
                             />
                         </div>
-                        <button onClick={handleForceSave} className="btn-pro btn-pro-primary">
-                            💾 Tout Enregistrer
-                        </button>
                     </div>
                 </div>
 
                 {/* Tabs List */}
-                <div style={{ display: 'flex', flexWrap: config.tabLayout === 'scroll' ? 'nowrap' : 'wrap', overflowX: config.tabLayout === 'scroll' ? 'auto' : 'visible', gap: '8px', alignItems: 'center', justifyContent: config.tabAlignment === 'center' ? 'center' : config.tabAlignment === 'right' ? 'flex-end' : 'flex-start', paddingBottom: config.tabLayout === 'scroll' ? '8px' : '0' }}>
+                <div style={{
+                    display: 'flex',
+                    flexWrap: config.tabLayout === 'scroll' ? 'nowrap' : 'wrap',
+                    overflowX: config.tabLayout === 'scroll' ? 'auto' : 'visible',
+                    gap: '8px',
+                    alignItems: 'center',
+                    justifyContent: config.tabAlignment === 'center' ? 'center' : config.tabAlignment === 'right' ? 'flex-end' : 'flex-start',
+                    paddingBottom: '4px'
+                }}>
                     {config.tabs.map((tab: any) => (
                         <div 
                             key={tab.id}
@@ -443,14 +720,15 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '8px',
-                                padding: '6px 12px',
-                                background: activeTabId === tab.id ? config.activeColor || '#ef4444' : '#fff',
-                                color: activeTabId === tab.id ? '#fff' : '#475569',
-                                border: `1px solid ${activeTabId === tab.id ? config.activeColor || '#ef4444' : '#cbd5e1'}`,
+                                padding: '5px 12px',
+                                background: activeTabId === tab.id ? (config.activeColor || '#2563eb') : '#ffffff',
+                                color: activeTabId === tab.id ? '#ffffff' : '#475569',
+                                border: `1px solid ${activeTabId === tab.id ? (config.activeColor || '#2563eb') : '#cbd5e1'}`,
                                 borderRadius: config.groupStyle === 'rectangle' ? '6px' : '999px',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                fontWeight: activeTabId === tab.id ? 'bold' : 'normal'
+                                fontWeight: activeTabId === tab.id ? 700 : 500,
+                                fontSize: '12px'
                             }}
                             onClick={() => setActiveTabId(tab.id)}
                         >
@@ -464,6 +742,7 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
                                         border: 'none', 
                                         color: 'inherit', 
                                         fontWeight: 'inherit',
+                                        fontSize: 'inherit',
                                         width: `${Math.max(tab.label.length, 5) * 8}px`,
                                         outline: 'none'
                                     }}
@@ -477,26 +756,37 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleRemoveTab(tab.id); }}
                                     style={{ 
-                                        background: 'none', border: 'none', 
-                                        color: activeTabId === tab.id ? '#fff' : '#94a3b8', 
-                                        cursor: 'pointer', padding: '0 4px', fontSize: '14px',
-                                        opacity: 0.7
+                                        background: 'none',
+                                        border: 'none', 
+                                        color: activeTabId === tab.id ? '#ffffff' : '#94a3b8', 
+                                        cursor: 'pointer',
+                                        padding: '0 2px',
+                                        fontSize: '14px',
+                                        opacity: 0.8
                                     }}
-                                    title="Supprimer"
+                                    title="Supprimer cet onglet"
                                 >
                                     ×
                                 </button>
                             )}
                         </div>
                     ))}
+                    
                     <button 
                         onClick={handleAddTab}
                         style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            width: '32px', height: '32px',
-                            background: '#e2e8f0', color: '#475569',
-                            border: 'none', borderRadius: '50%', cursor: 'pointer',
-                            fontSize: '18px', fontWeight: 'bold'
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            background: '#e2e8f0',
+                            color: '#475569',
+                            border: 'none',
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            fontSize: '16px',
+                            fontWeight: 'bold'
                         }}
                         title="Ajouter un groupe"
                     >
@@ -505,8 +795,8 @@ export const SmartVisualGridSettings = ({ data, onSave }: SmartVisualGridSetting
                 </div>
             </div>
 
-            {/* CRAFTJS EDITOR FOR ACTIVE TAB */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* CRAFTJS SPLIT-VIEW WORKSPACE FOR ACTIVE TAB */}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <SmartVisualGridEditorTab 
                     key={activeTabId} 
                     craftState={activeTab.craftState} 

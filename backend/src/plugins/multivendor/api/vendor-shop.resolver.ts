@@ -2517,13 +2517,10 @@ export class VendorShopResolver {
             }
         }
 
-        // Trigger search reindex so the storefront sees updated collection memberships
-        try {
-            await this.searchService.reindex(ctx);
-            console.log(`addVariantsToCollections: Search reindex triggered`);
-        } catch (reindexErr) {
-            console.error(`addVariantsToCollections: Search reindex failed:`, reindexErr);
-        }
+        // Trigger search reindex in background without blocking
+        this.searchService.reindex(ctx).catch((reindexErr) => {
+            console.error(`addVariantsToCollections: Search reindex background failed:`, reindexErr?.message || reindexErr);
+        });
     }
 
     /**
@@ -2811,14 +2808,15 @@ export class ProductShopResolver {
 
             const rawVendorId = (product.customFields as any)?.vendorId || (product.customFields as any)?.vendor?.id || (product as any)?.customFieldsVendorid || '';
             const isOwner = Boolean(rawVendorId && String(rawVendorId) === String((vendor as any).id));
-            const isOfficial = !rawVendorId;
 
-            // If the vendor owns the product OR if it is an official catalog product (mutualized),
-            // return all variants so the vendor can see all declinations and graft offers.
-            // Only for products owned by other specific vendors do we restrict to variants where this vendor has an offer.
-            const filteredVariants = (isOwner || isOfficial)
-                ? (allVariants || [])
-                : (allVariants || []).filter(v => offerMap.has(String(v.id)));
+            // Strictly filter to variants belonging to this vendor:
+            // 1) Variants where this vendor has an offer in seller_offer
+            // 2) OR if vendor is the owner of the product and has no seller_offer entries yet (legacy)
+            const filteredVariants = (allVariants || []).filter(v => {
+                if (offerMap.has(String(v.id))) return true;
+                if (isOwner && !offerMap.size) return true;
+                return false;
+            });
 
             for (const v of filteredVariants) {
                 const offer = offerMap.get(String(v.id));
@@ -2868,6 +2866,7 @@ export class ProductVariantShopResolver {
         private connection: TransactionalConnection,
         private productPriceApplicator: ProductPriceApplicator,
         private vendorService: VendorService,
+        private sellerOfferService: SellerOfferService,
     ) {}
 
     @ResolveField('currencyCode')
@@ -2900,6 +2899,37 @@ export class ProductVariantShopResolver {
         return productTrans?.[0]?.name || `Variant #${variant.id}`;
     }
 
+    @ResolveField('vendor')
+    async vendor(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<Vendor | null> {
+        try {
+            // 1. Check seller_offer
+            const offers = await this.sellerOfferService.getOffersForVariant(ctx, String(variant.id)).catch(() => []);
+            if (offers.length > 0 && offers[0].vendor) {
+                return offers[0].vendor;
+            }
+            // 2. Check parent product customFieldsVendorid
+            const prod = await this.connection.rawConnection.query(`
+                SELECT "customFieldsVendorid" FROM product WHERE id = (
+                    SELECT "productId" FROM product_variant WHERE id = $1
+                ) LIMIT 1
+            `, [variant.id]).catch(() => null);
+            const vendorId = prod?.[0]?.customFieldsVendorid;
+            if (vendorId) {
+                return this.vendorService.findOne(ctx, String(vendorId));
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    @ResolveField('sellerOffers')
+    async sellerOffers(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<SellerOffer[]> {
+        try {
+            return await this.sellerOfferService.getOffersForVariant(ctx, String(variant.id));
+        } catch (e) {
+            return [];
+        }
+    }
+
     @ResolveField('stockOnHand')
     async stockOnHand(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<number> {
         if ((variant as any).stockOnHand !== undefined && (variant as any).stockOnHand !== null) {
@@ -2914,6 +2944,13 @@ export class ProductVariantShopResolver {
                 if (offer && offer.length > 0 && offer[0].stock !== null && offer[0].stock !== undefined) {
                     return Number(offer[0].stock);
                 }
+            }
+            // Fallback: check any seller_offer for this variant
+            const anyOffer = await this.connection.rawConnection.query(`
+                SELECT stock FROM seller_offer WHERE "productVariantId" = $1 ORDER BY id DESC LIMIT 1
+            `, [variant.id.toString()]).catch(() => null);
+            if (anyOffer && anyOffer.length > 0 && anyOffer[0].stock !== null && anyOffer[0].stock !== undefined) {
+                return Number(anyOffer[0].stock);
             }
         } catch (e) {}
         const variantWithStock = await this.connection.getRepository(ctx, ProductVariant).findOne({

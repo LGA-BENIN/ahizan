@@ -26,9 +26,13 @@ import { getTopCollections } from "@/lib/vendure/cached";
 import { Suspense } from "react";
 import { unstable_noStore as noStore } from "next/cache";
 
+export const revalidate = 60;
+
 async function HomeContent({ presetId }: { presetId?: string }) {
-    // Opt out of caching so CMS updates show immediately
-    noStore();
+    // Opt out of caching only when previewing a CMS draft preset
+    if (presetId) {
+        noStore();
+    }
     const [page, collectionsTree] = await Promise.all([
         presetId ? getPreviewHabillageContent(presetId).catch(() => null) : getPageContent('home'),
         getTopCollections()

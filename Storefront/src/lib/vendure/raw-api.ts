@@ -8,6 +8,9 @@ const VENDURE_CHANNEL_TOKEN_HEADER = process.env.VENDURE_CHANNEL_TOKEN_HEADER ||
 interface RawQueryOptions {
     useAuthToken?: boolean;
     variables?: Record<string, any>;
+    cache?: RequestCache;
+    revalidate?: number | false;
+    tags?: string[];
 }
 
 /**
@@ -30,15 +33,26 @@ export async function rawQuery(queryString: string, options?: RawQueryOptions): 
         }
     }
 
-    const response = await fetch(apiUrl, {
+    const fetchConfig: RequestInit = {
         method: 'POST',
         headers,
         body: JSON.stringify({
             query: queryString,
             variables: options?.variables || {},
         }),
-        cache: 'no-store',
-    });
+    };
+
+    if (options?.useAuthToken || options?.cache === 'no-store' || options?.revalidate === false) {
+        fetchConfig.cache = 'no-store';
+    } else {
+        const revalidateVal = typeof options?.revalidate === 'number' ? options.revalidate : 60;
+        (fetchConfig as any).next = {
+            revalidate: revalidateVal,
+            ...(options?.tags && { tags: options.tags }),
+        };
+    }
+
+    const response = await fetch(apiUrl, fetchConfig);
 
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

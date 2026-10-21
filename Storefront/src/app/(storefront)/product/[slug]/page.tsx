@@ -1,7 +1,5 @@
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
-console.log('[ProductPage File] LOADING FILE: src/app/product/[slug]/page.tsx');
 import type { Metadata } from 'next';
 import { query } from '@/lib/vendure/api';
 import { GetProductDetailQuery } from '@/lib/vendure/queries';
@@ -22,6 +20,7 @@ import { BodySectionRenderer } from '@/components/ahizan/BodySectionRenderer';
 import { Suspense } from 'react';
 import Link from 'next/link';
 import React from 'react';
+import { unstable_noStore as noStore } from 'next/cache';
 import { rawQuery } from '@/lib/vendure/raw-api';
 
 const GET_GLOBAL_WHATSAPP = `
@@ -441,6 +440,9 @@ export default async function ProductDetailPage({ params, searchParams }: any) {
     const searchParamsResolved = searchParams ? await searchParams : {};
 
     const presetId = searchParamsResolved?.presetId;
+    if (presetId) {
+        noStore();
+    }
     let product = null;
     let whatsappNumber = '';
     let cmsPage: any = null;

@@ -8,7 +8,6 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig & { allowedDevOrigins?: string[] } = {
-    cacheComponents: false,
     allowedDevOrigins: ['10.1.1.73', 'localhost:3001', '10.1.1.73:3001'],
     images: {
         dangerouslyAllowLocalIP: true,

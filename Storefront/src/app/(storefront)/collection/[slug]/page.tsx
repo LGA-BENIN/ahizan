@@ -1,5 +1,4 @@
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 import type { Metadata } from 'next';
 import { query } from '@/lib/vendure/api';
@@ -18,6 +17,7 @@ import { priceFromSubunit } from '@/lib/format';
 import { expandProductsWithSellerOffers } from '@/lib/vendure/seller-offers';
 import { cookies } from 'next/headers';
 import React from 'react';
+import { unstable_noStore as noStore } from 'next/cache';
 
 function isRootCollection(col?: { slug?: string | null; name?: string | null } | null): boolean {
     if (!col) return true;
@@ -299,6 +299,9 @@ export default async function CollectionPage({ params, searchParams }: any) {
 
         // Load CMS layout configuration (preset preview or published page) & allowed facets concurrently
         const presetId = searchParamsResolved?.presetId;
+        if (presetId) {
+            noStore();
+        }
         const [cmsPage, homeCmsPage, allowedFacetsData] = await Promise.all([
             presetId ? getPreviewHabillageContent(presetId) : getPageContent('category'),
             getPageContent('home'),

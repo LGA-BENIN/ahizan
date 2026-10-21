@@ -1,6 +1,6 @@
 import { ProductCarousel } from "@/components/commerce/product-carousel";
 import { query } from "@/lib/vendure/api";
-import { GetCollectionProductsQuery } from "@/lib/vendure/queries";
+import { GetCollectionProductsQuery, SearchProductsQuery } from "@/lib/vendure/queries";
 import { expandProductsWithSellerOffers } from "@/lib/vendure/seller-offers";
 
 interface RelatedProductsProps {
@@ -61,11 +61,10 @@ async function getRelatedProducts(
             }
         }
 
-        // 2. If fewer than 6 distinct items found, enrich with general catalog products
+        // 2. If fewer than 6 distinct items found, enrich with general catalog products safely
         if (rawItems.length < 6) {
             try {
-                const generalResult = await query(GetCollectionProductsQuery, {
-                    slug: '',
+                const generalResult = await query(SearchProductsQuery, {
                     input: {
                         take: 16,
                         skip: 0,

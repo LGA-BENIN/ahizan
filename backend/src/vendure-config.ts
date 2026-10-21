@@ -51,6 +51,8 @@ export const config: any = {
         port: serverPort,
         adminApiPath: 'admin-api',
         shopApiPath: 'shop-api',
+        shopListQueryLimit: +(process.env.SHOP_LIST_QUERY_LIMIT || 1000),
+        adminListQueryLimit: +(process.env.ADMIN_LIST_QUERY_LIMIT || 1000),
         middleware: [
             {
                 handler: json({ limit: '50mb' }),

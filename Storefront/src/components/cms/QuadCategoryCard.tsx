@@ -28,110 +28,110 @@ export interface QuadCategoryGridProps {
 
 const DEFAULT_QUAD_CARDS: QuadCategoryCardProps[] = [
     {
-        cardTitle: "Branchez-vous à la High-Tech",
-        targetCategoryUrl: "/search?category=electronique",
-        ctaLabel: "Explorer l'univers High-Tech",
+        cardTitle: "Smartphones & Accessoires",
+        targetCategoryUrl: "/collection/telephones-tablettes-c",
+        ctaLabel: "Voir tout l'univers High-Tech",
         items: [
             {
-                name: "Casques & Audio",
-                imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&auto=format&fit=crop",
+                name: "Téléphones Portables",
+                imageUrl: "/assets/categories/telephone-portables.jpg",
+                targetUrl: "/collection/telephone-portables-c-1"
+            },
+            {
+                name: "Accessoires Téléphone",
+                imageUrl: "/assets/categories/accessoires-telephone.jpg",
+                targetUrl: "/collection/accessoires-telephone-c-2"
+            },
+            {
+                name: "Écouteurs & Audio",
+                imageUrl: "/assets/categories/ecouteurs-audio.jpg",
                 targetUrl: "/search?category=audio"
             },
             {
-                name: "Smartphones",
-                imageUrl: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=telephonie"
-            },
-            {
-                name: "Tablettes & iPad",
-                imageUrl: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=tablettes"
-            },
-            {
-                name: "Enceintes Bluetooth",
-                imageUrl: "https://images.unsplash.com/photo-1545454675-3531b543be5d?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=enceintes"
+                name: "Chargeurs & Câbles",
+                imageUrl: "/assets/categories/chargeurs-cables.jpg",
+                targetUrl: "/search?category=chargeurs"
             }
         ]
     },
     {
-        cardTitle: "Mode & Beauté Homme / Femme",
-        targetCategoryUrl: "/search?category=mode",
-        ctaLabel: "Voir toute la collection",
+        cardTitle: "Maison, Cuisine & Électroménager",
+        targetCategoryUrl: "/collection/maison-bureau-b",
+        ctaLabel: "Équiper votre maison",
         items: [
             {
-                name: "Robes & Tenues",
-                imageUrl: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=vetements"
+                name: "Petit Électroménager",
+                imageUrl: "/assets/categories/petit-electromenager.jpg",
+                targetUrl: "/collection/petit-electromenager-b-1"
             },
             {
-                name: "Montres & Bijoux",
-                imageUrl: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=accessoires"
+                name: "Gros Électroménager",
+                imageUrl: "/assets/categories/gros-electromenager.jpg",
+                targetUrl: "/collection/gros-electromenager-b-2"
             },
             {
-                name: "Sneakers & Chaussures",
-                imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=chaussures"
+                name: "Arts de la Table",
+                imageUrl: "/assets/categories/arts-de-la-table.jpg",
+                targetUrl: "/collection/cuisine-et-arts-de-la-table-b-3"
             },
             {
-                name: "Sacs & Maroquinerie",
-                imageUrl: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=sacs"
+                name: "Maison & Ameublement",
+                imageUrl: "/assets/categories/maison-ameublement.jpg",
+                targetUrl: "/collection/maison-et-ameublement-b-4"
             }
         ]
     },
     {
-        cardTitle: "Maison, Déco & Cuisine",
-        targetCategoryUrl: "/search?category=maison",
-        ctaLabel: "Équiper ma maison",
+        cardTitle: "Alimentation & Épicerie Béninoise",
+        targetCategoryUrl: "/collection/alimentation-a",
+        ctaLabel: "Faire votre marché local",
         items: [
             {
-                name: "Petit Électro",
-                imageUrl: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=electromenager"
+                name: "Boissons & Jus Locaux",
+                imageUrl: "/assets/categories/boissons-jus-locaux.jpg",
+                targetUrl: "/collection/alimentation-a"
             },
-            {
-                name: "Ustensiles Cuisine",
-                imageUrl: "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=cuisine"
-            },
-            {
-                name: "Luminaires & Lampes",
-                imageUrl: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=luminaires"
-            },
-            {
-                name: "Linge de lit & Maison",
-                imageUrl: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=linge"
-            }
-        ]
-    },
-    {
-        cardTitle: "Alimentation & Marchés Locaux",
-        targetCategoryUrl: "/local-discovery",
-        ctaLabel: "Voir les marchands à proximité",
-        items: [
             {
                 name: "Épices & Condiments",
-                imageUrl: "https://images.unsplash.com/photo-1532336414038-cf19250c5757?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=epicerie"
+                imageUrl: "/assets/categories/epices-condiments.jpg",
+                targetUrl: "/collection/alimentation-a"
             },
             {
-                name: "Boissons & Jus",
-                imageUrl: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=boissons"
+                name: "Céréales & Farines",
+                imageUrl: "/assets/categories/cereales-farines.jpg",
+                targetUrl: "/collection/alimentation-a"
             },
             {
-                name: "Produits Vivriers",
-                imageUrl: "https://images.unsplash.com/photo-1540420773420-3366772f4999?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=frais"
+                name: "Produits Vivriers Frais",
+                imageUrl: "/assets/categories/produits-vivriers-frais.jpg",
+                targetUrl: "/collection/alimentation-a"
+            }
+        ]
+    },
+    {
+        cardTitle: "Beauté, Cosmétiques & Soins",
+        targetCategoryUrl: "/collection/beaute-hygiene-e",
+        ctaLabel: "Découvrir les soins",
+        items: [
+            {
+                name: "Soins du Visage",
+                imageUrl: "/assets/categories/soins-du-visage.jpg",
+                targetUrl: "/collection/beaute-hygiene-e"
             },
             {
-                name: "Hygiène & Soins",
-                imageUrl: "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=400&auto=format&fit=crop",
-                targetUrl: "/search?category=hygiene"
+                name: "Parfums & Eaux",
+                imageUrl: "/assets/categories/parfums-eaux.jpg",
+                targetUrl: "/collection/beaute-hygiene-e"
+            },
+            {
+                name: "Soins Capillaires",
+                imageUrl: "/assets/categories/soins-capillaires.jpg",
+                targetUrl: "/collection/beaute-hygiene-e"
+            },
+            {
+                name: "Hygiène Quotidienne",
+                imageUrl: "/assets/categories/hygiene-quotidienne.jpg",
+                targetUrl: "/collection/beaute-hygiene-e"
             }
         ]
     }

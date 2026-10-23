@@ -94,7 +94,6 @@ export const HabillageManager = ({ onOpenInEditor }: { onOpenInEditor?: (presetI
 
     const handlePublish = async (presetId: string) => {
         if (!homePage) return alert('Page "home" introuvable');
-        if (!confirm('Publier cet habillage ? Il remplacera la version actuelle du site.')) return;
         try {
             await gql(PUBLISH_HABILLAGE, { presetId, pageId: homePage.id });
             alert('Habillage publié avec succès !');

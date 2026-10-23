@@ -25,12 +25,13 @@ export interface CircularCategoryNavProps {
 }
 
 const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
-    'telephones-tablettes-c': 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=300&auto=format&fit=crop',
-    'electronique-photo-d': 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=300&auto=format&fit=crop',
-    'maison-bureau-b': 'https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=300&auto=format&fit=crop',
-    'alimentation-a': 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=300&auto=format&fit=crop',
-    'beaute-hygiene-e': 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?q=80&w=300&auto=format&fit=crop',
-    'bebes-enfants-f': 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?q=80&w=300&auto=format&fit=crop',
+    'service': '/assets/categories/service.jpg',
+    'alimentation-a': '/assets/categories/alimentation.jpg',
+    'maison-bureau-b': '/assets/categories/maison-bureau.jpg',
+    'telephones-tablettes-c': '/assets/categories/telephones-tablettes.jpg',
+    'electronique-photo-d': '/assets/categories/electronique-photo.jpg',
+    'beaute-hygiene-e': '/assets/categories/beaute-hygiene.jpg',
+    'bebes-enfants-f': '/assets/categories/bebes-enfants.jpg',
 };
 
 function getCategoryVectorIcon(label: string, slug: string) {
@@ -47,44 +48,39 @@ function getCategoryVectorIcon(label: string, slug: string) {
 
 const DEFAULT_CIRCULAR_CATEGORIES: CircularCategoryItem[] = [
     {
-        label: "Téléphonie",
-        slug: "telephonie",
-        imageUrl: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-        label: "Informatique",
-        slug: "informatique",
-        imageUrl: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-        label: "Mode & Beauté",
-        slug: "mode",
-        imageUrl: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-        label: "Maison & Déco",
-        slug: "maison",
-        imageUrl: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-        label: "Électroménager",
-        slug: "electromenager",
-        imageUrl: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-        label: "Marchés Locaux",
-        slug: "marches-locaux",
-        imageUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=300&auto=format&fit=crop"
-    },
-    {
-        label: "Audio & Son",
-        slug: "audio",
-        imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=300&auto=format&fit=crop"
+        label: "Service",
+        slug: "service",
+        imageUrl: "/assets/categories/service.jpg"
     },
     {
         label: "Alimentation",
-        slug: "alimentation",
-        imageUrl: "https://images.unsplash.com/photo-1540420773420-3366772f4999?q=80&w=300&auto=format&fit=crop"
+        slug: "alimentation-a",
+        imageUrl: "/assets/categories/alimentation.jpg"
+    },
+    {
+        label: "Maison & Bureau",
+        slug: "maison-bureau-b",
+        imageUrl: "/assets/categories/maison-bureau.jpg"
+    },
+    {
+        label: "Téléphones & Tablettes",
+        slug: "telephones-tablettes-c",
+        imageUrl: "/assets/categories/telephones-tablettes.jpg"
+    },
+    {
+        label: "Électronique & Photo",
+        slug: "electronique-photo-d",
+        imageUrl: "/assets/categories/electronique-photo.jpg"
+    },
+    {
+        label: "Beauté & Hygiène",
+        slug: "beaute-hygiene-e",
+        imageUrl: "/assets/categories/beaute-hygiene.jpg"
+    },
+    {
+        label: "Bébés & Enfants",
+        slug: "bebes-enfants-f",
+        imageUrl: "/assets/categories/bebes-enfants.jpg"
     }
 ];
 
@@ -215,11 +211,10 @@ export function CircularCategoryNav({
                         <Link
                             key={cat.id || cat.slug || idx}
                             href={`/collection/${cat.slug}`}
-                            className="group/avatar flex flex-col items-center text-center flex-shrink-0 snap-start no-underline select-none"
-                            style={{ width: '84px' }}
+                            className="group/avatar flex flex-col items-center text-center flex-shrink-0 snap-start no-underline select-none w-[84px] md:w-[110px] lg:w-[120px]"
                         >
                             {/* Circular Avatar Container */}
-                            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover/avatar:border-primary group-hover/avatar:shadow-md transition-all duration-300 transform group-hover/avatar:scale-105">
+                            <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-[104px] lg:h-[104px] rounded-full p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover/avatar:border-primary group-hover/avatar:shadow-md transition-all duration-300 transform group-hover/avatar:scale-105">
                                 <div className="w-full h-full rounded-full overflow-hidden bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-0.5 shadow-inner">
                                     {imgSrc ? (
                                         <img
@@ -230,14 +225,14 @@ export function CircularCategoryNav({
                                         />
                                     ) : (
                                         <div className="w-full h-full rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600">
-                                            <CategoryIcon className="w-7 h-7 sm:w-8 sm:h-8 stroke-[1.75]" />
+                                            <CategoryIcon className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 stroke-[1.75]" />
                                         </div>
                                     )}
                                 </div>
                             </div>
 
                             {/* Label */}
-                            <span className="mt-2 block font-bold text-xs sm:text-xs text-foreground group-hover/avatar:text-primary transition-colors line-clamp-1 w-full text-center">
+                            <span className="mt-2 block font-bold text-xs md:text-sm text-foreground group-hover/avatar:text-primary transition-colors line-clamp-1 w-full text-center">
                                 {cat.label}
                             </span>
                         </Link>

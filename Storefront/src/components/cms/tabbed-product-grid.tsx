@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronLeft, Sparkles, Flame, Zap, Compass } from "lucide-react";
+import { ChevronRight, ChevronLeft, Flame, Zap, Compass } from "lucide-react";
+import { AhizanCartIcon } from "@/components/icons/AhizanCartIcon";
 import { DenseProductCard } from "@/components/commerce/dense-product-card";
 import { ProductCard } from "@/components/commerce/product-card";
 import { MasterProductCard } from "@/components/commerce/master-product-card";
@@ -415,10 +416,10 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
     const columns = props.columns || 5;
     const colClasses: Record<number, string> = {
-        3: 'grid-cols-2 md:grid-cols-3',
-        4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
-        5: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5',
-        6: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6',
+        3: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7',
+        4: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7',
+        5: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7',
+        6: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8',
     };
     const gridClass = colClasses[columns] || colClasses[5];
     const tabStyle = props.tabStyle || 'pill';
@@ -431,7 +432,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
             if (props.layout === 'carousel') {
                 return (
                     <div 
-                        className={`flex overflow-x-auto snap-x snap-mandatory ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'} pb-4`}
+                        className={`flex overflow-x-auto snap-x snap-mandatory ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-2.5 sm:gap-3.5 md:gap-4'} pb-4`}
                         style={{
                             scrollbarWidth: 'none',
                             msOverflowStyle: 'none',
@@ -441,7 +442,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             <div key={i} className={
                                 props.cardStyle === 'dense'
                                 ? "snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]"
-                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
+                                : "snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[175px] lg:w-[185px]"
                             }>
                                 <Card className="overflow-hidden h-full">
                                     <Skeleton className="aspect-[4/3] w-full" />
@@ -456,7 +457,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                 );
             }
             return (
-                <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'}`}>
+                <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-2.5 sm:gap-3.5 md:gap-4'}`}>
                     {Array.from({ length: tab.take || 10 }).map((_, i) => (
                         <Card key={i} className="overflow-hidden">
                             <Skeleton className="aspect-[4/3]" />
@@ -501,7 +502,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
 
                     <div 
                         ref={scrollContainerRef}
-                        className={`flex overflow-x-auto snap-x snap-mandatory ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'} pb-4`}
+                        className={`flex overflow-x-auto snap-x snap-mandatory ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-2.5 sm:gap-3.5 md:gap-4'} pb-4`}
                         style={{
                             scrollbarWidth: 'none',
                             msOverflowStyle: 'none',
@@ -511,7 +512,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             <div key={p.id || `${p.productId}-${p.productVariantId || idx}`} className={
                                 props.cardStyle === 'dense' 
                                 ? "snap-start flex-shrink-0 w-[100px] sm:w-[120px] md:w-[140px] lg:w-[160px]"
-                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
+                                : "snap-start flex-shrink-0 w-[140px] sm:w-[160px] md:w-[175px] lg:w-[185px]"
                             }>
                                 {props.cardStyle === 'dense' ? (
                                     <DenseProductCard product={p} />
@@ -526,7 +527,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         }
 
         return (
-            <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-3 md:gap-4'}`}>
+            <div className={`grid ${gridClass} ${props.cardStyle === 'dense' ? 'gap-2 md:gap-3' : 'gap-2.5 sm:gap-3.5 md:gap-4'}`}>
                 {products.map((p: any, idx: number) =>
                     props.cardStyle === 'dense' ? (
                         <DenseProductCard key={p.id || `${p.productId}-${p.productVariantId || idx}`} product={p} />
@@ -544,67 +545,43 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
     const badgeTextColor = props.badgeTextColor || '#ffffff';
 
     return (
-        <section className="container mx-auto px-4 py-2 md:py-3">
-            {(props.title || badgeText || props.subtitle) && (
-                <div className="mb-4 flex flex-col items-start gap-1">
-                    {badgeText && (
-                        <div 
-                            className="flex items-center gap-1.5 font-bold uppercase text-[10px] tracking-wider px-2.5 py-0.5 rounded-full shadow-2xs w-fit mb-0.5"
-                            style={{ backgroundColor: badgeBgColor, color: badgeTextColor }}
-                        >
-                            <span>{badgeText}</span>
-                        </div>
-                    )}
-                    {props.title && props.title.trim() !== '' && (
-                        <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center text-red-600 shrink-0">
-                                {props.title.toLowerCase().includes('recommand') || props.title.toLowerCase().includes('découvert') ? (
-                                    <Compass className="w-4 h-4 stroke-[1.75]" />
-                                ) : (
-                                    <Sparkles className="w-4 h-4 stroke-[1.75]" />
-                                )}
-                            </div>
-                            <h2 className="text-lg md:text-xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight">
+        <section className="w-full max-w-[1720px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-2 md:py-3">
+            {(props.title || props.subtitle) && (
+                <div className="mb-3.5 flex items-center gap-2.5 sm:gap-3">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center shrink-0 p-1.5 shadow-xs">
+                        {props.title && (props.title.toLowerCase().includes('recommand') || props.title.toLowerCase().includes('découvert')) ? (
+                            <Compass className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[1.75] text-red-600" />
+                        ) : (
+                            <AhizanCartIcon className="w-full h-full" />
+                        )}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        {props.title && props.title.trim() !== '' && (
+                            <h2 className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight truncate max-w-[220px] sm:max-w-md">
                                 {props.title.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
                             </h2>
-                        </div>
-                    )}
-                    {props.subtitle && props.subtitle.trim() !== '' && (
-                        <p className="font-medium text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5 max-w-2xl">
-                            {props.subtitle.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
-                        </p>
-                    )}
+                        )}
+                        {props.subtitle && props.subtitle.trim() !== '' && (
+                            <p className="font-medium text-[11px] sm:text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5 max-w-[260px] sm:max-w-xl leading-snug line-clamp-1 sm:line-clamp-2">
+                                {props.subtitle.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                            </p>
+                        )}
+                    </div>
                 </div>
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
                 {showTabs && (
-                    <div className="w-full overflow-x-auto pb-1 mb-3 scrollbar-none">
-                        <TabsList className={`inline-flex min-w-full sm:min-w-0 ${
-                            tabStyle === 'cdiscount' || tabStyle === 'pill-cdiscount'
-                                ? 'bg-slate-100 dark:bg-slate-800/60 rounded-full h-auto p-1 gap-1 border border-border/50'
-                                : tabStyle === 'pill' 
-                                ? 'bg-muted rounded-full h-auto p-1 gap-1' 
-                                : tabStyle === 'boxed'
-                                ? 'bg-transparent h-auto p-0 gap-2' 
-                                : 'bg-transparent h-auto p-0 border-b rounded-none w-full justify-start gap-0'
-                        }`}>
+                    <div className="w-full pb-1 mb-3">
+                        <TabsList className="w-full sm:w-auto flex items-center justify-start bg-transparent! border-0! p-0! shadow-none! gap-1 sm:gap-1.5">
                             {props.tabs.map((tab) => (
                                 <TabsTrigger
                                     key={tab.id}
                                     value={tab.id}
-                                    className={
-                                        tabStyle === 'cdiscount' || tabStyle === 'pill-cdiscount'
-                                            ? 'rounded-full px-3.5 sm:px-4 py-1.5 data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:shadow-sm font-bold text-xs sm:text-sm transition-all whitespace-nowrap'
-                                            : tabStyle === 'pill'
-                                            ? 'rounded-full data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md font-bold text-sm whitespace-nowrap'
-                                            : tabStyle === 'boxed'
-                                            ? 'rounded-lg border data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:border-primary font-bold text-sm whitespace-nowrap'
-                                            : 'rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary font-bold text-sm px-4 py-2 whitespace-nowrap'
-                                    }
+                                    className="flex-1 sm:flex-initial text-center justify-center rounded-full px-3 sm:px-4 py-1.5 font-bold text-[11px] sm:text-sm whitespace-nowrap transition-all border-0 data-[state=active]:bg-[#0f172a] dark:data-[state=active]:bg-white data-[state=active]:text-white dark:data-[state=active]:text-[#0f172a] data-[state=active]:shadow-sm data-[state=inactive]:text-slate-700 dark:data-[state=inactive]:text-slate-300 data-[state=inactive]:bg-transparent hover:data-[state=inactive]:bg-slate-100 dark:hover:data-[state=inactive]:bg-slate-800/60"
                                 >
                                     {tab.icon && <span className="mr-1">{tab.icon}</span>}
-                                    {tab.label.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                                    <span className="truncate">{tab.label.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}</span>
                                 </TabsTrigger>
                             ))}
                         </TabsList>

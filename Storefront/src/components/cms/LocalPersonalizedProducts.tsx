@@ -6,9 +6,8 @@ import { getShopApiUrl } from '@/lib/vendure/api-utils';
 import { VendorProductCard } from '@/components/commerce/vendor-product-card';
 import { MasterProductCard } from '@/components/commerce/master-product-card';
 import { processAndResolveDisplayItems } from '@/lib/vendure/display-engine';
-import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { Sparkles, MapPin, Store, ChevronLeft, ChevronRight, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useLocation } from '@/contexts/location-context';
-
 import { fetchWithClientCache, clearClientCache } from '@/lib/vendure/client-cache';
 
 interface LocalPersonalizedProductsProps {
@@ -324,6 +323,14 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                         const vId = String(item.productVariantId);
                         const matchingOffers = offers.filter(o => String(o.productVariant?.id) === vId && o.vendor?.id);
                         for (const off of matchingOffers) {
+                            const resolvedAsset = off.featuredAsset 
+                                || off.productVariant?.featuredAsset 
+                                || off.productVariant?.product?.featuredAsset 
+                                || item.featuredAsset 
+                                || item.productVariantAsset 
+                                || item.productAsset 
+                                || (typeof item.productPreview === 'string' ? { preview: item.productPreview } : item.productPreview);
+
                             rawVendorProducts.push({
                                 ...item,
                                 productId: off.productVariant?.product?.id || item.productId,
@@ -331,8 +338,13 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                                 slug: off.productVariant?.product?.slug || item.slug,
                                 productVariantId: vId,
                                 productVariantName: off.productVariant?.name || item.productVariantName,
-                                productVariant: off.productVariant,
-                                featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || item.featuredAsset,
+                                productVariant: {
+                                    ...off.productVariant,
+                                    featuredAsset: off.productVariant?.featuredAsset || resolvedAsset,
+                                },
+                                featuredAsset: resolvedAsset,
+                                productAsset: off.productVariant?.product?.featuredAsset || item.productAsset || resolvedAsset,
+                                productVariantAsset: off.productVariant?.featuredAsset || resolvedAsset,
                                 sku: off.productVariant?.sku,
                                 vendorId: off.vendor?.id,
                                 vendorName: off.vendor?.name,
@@ -566,14 +578,14 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     }, [selectedLocation, marketIdFromConfig, locationIdFromConfig, limit, rawLimit, config?.limit, config?.take, config?.maxProducts, config?.mixCollectionId, config?.mixMode, config?.interleaveSchema, config?.selectionMode, JSON.stringify(config?.collectionIds), JSON.stringify(config?.manualProductIds), config?.experienceStrategy, config?.radiusKm]);
 
     const renderProductsLayout = () => {
-        const columns = config?.columns || 4;
+        const columns = config?.columns || 5;
         const colClasses: Record<number, string> = {
-            3: 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3',
-            4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
-            5: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5',
-            6: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
+            3: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7',
+            4: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7',
+            5: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7',
+            6: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8',
         };
-        const gridClass = `grid ${colClasses[columns] || colClasses[4]} gap-4 md:gap-6`;
+        const gridClass = `grid ${colClasses[columns] || colClasses[5]} gap-2.5 sm:gap-3.5 md:gap-4`;
         const displayedProducts = products.slice(0, limit);
 
         if (layout === 'carousel') {
@@ -582,7 +594,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                     {/* Left Navigation Arrow */}
                     <button 
                         onClick={() => scroll('left')}
-                        className="absolute left-[-16px] top-1/2 -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        className="absolute left-[-16px] top-1/2 -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center cursor-pointer"
                         aria-label="Défiler vers la gauche"
                     >
                         <ChevronLeft className="w-5 h-5" />
@@ -591,7 +603,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                     {/* Right Navigation Arrow */}
                     <button 
                         onClick={() => scroll('right')}
-                        className="absolute right-[-16px] top-1/2 -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center"
+                        className="absolute right-[-16px] top-1/2 -translate-y-1/2 z-20 bg-white shadow-lg rounded-full p-2 border border-border/50 text-foreground hover:bg-muted hover:scale-110 transition-all opacity-0 group-hover/carousel:opacity-100 hidden md:flex items-center justify-center cursor-pointer"
                         aria-label="Défiler vers la droite"
                     >
                         <ChevronRight className="w-5 h-5" />
@@ -599,14 +611,14 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
 
                     <div 
                         ref={scrollContainerRef}
-                        className="flex overflow-x-auto pb-6 gap-4 md:gap-6 custom-scrollbar snap-x snap-mandatory"
+                        className="flex overflow-x-auto pb-4 gap-2.5 sm:gap-3.5 md:gap-4 custom-scrollbar snap-x snap-mandatory"
                         style={{
                             scrollbarWidth: 'none',
                             msOverflowStyle: 'none',
                         } as React.CSSProperties}
                     >
                         {displayedProducts.map((product, idx) => (
-                            <div key={`${product.vendorId || 'v'}-${product.productId || product.id || idx}`} className="w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px] shrink-0 snap-start">
+                            <div key={`${product.vendorId || 'v'}-${product.productId || product.id || idx}`} className="w-[145px] sm:w-[165px] md:w-[180px] lg:w-[190px] shrink-0 snap-start">
                                 <MasterProductCard item={product} config={config} />
                             </div>
                         ))}
@@ -632,58 +644,51 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
     }
 
     return (
-        <section className="py-3 md:py-5 max-w-[1720px] mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8 font-sans animate-in fade-in duration-500">
-            {/* Modern Transparent Header Style (Matching Image 2 Reference) */}
-            <div className="flex items-center justify-between mb-4 md:mb-5 gap-3 pb-1 w-full">
-                <div className={`flex items-center flex-wrap gap-2 sm:gap-3.5 min-w-0 flex-1 ${alignClass}`}>
-                    <div className="flex items-center flex-wrap gap-2 sm:gap-2.5">
-                        {displayTitle && displayTitle.trim() !== '' && (
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center text-red-600 shrink-0">
-                                    <MapPin className="w-4 h-4 stroke-[2]" />
-                                </div>
-                                <h2 
-                                    className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight"
-                                    style={{ color: titleColor || undefined }}
-                                >
-                                    {(displayTitle || 'Près de chez vous').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || 'Près de chez vous'}
-                                </h2>
-                            </div>
-                        )}
-
+        <section className="w-full max-w-[1720px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 md:py-5 font-sans animate-in fade-in duration-500">
+            {/* Modern Header: Centered Icon, Title on top, Subtitle underneath aligned */}
+            <div className="flex items-center justify-between mb-4 md:mb-5 gap-3 w-full">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center text-red-600 shrink-0">
+                        <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2]" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <h2 
+                            className="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight truncate max-w-[220px] sm:max-w-md"
+                            style={{ color: titleColor || undefined }}
+                        >
+                            {(displayTitle || 'Près de chez vous').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || 'Près de chez vous'}
+                        </h2>
                         {displaySubtitle && displaySubtitle.trim() !== '' && (
-                            <span 
-                                className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5 leading-tight"
+                            <p 
+                                className="text-[11px] sm:text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 leading-snug line-clamp-1 sm:line-clamp-2 max-w-[260px] sm:max-w-xl truncate mt-0.5"
                                 style={{ color: subtitleColor || undefined }}
                             >
-                                <span className="text-gray-300 dark:text-gray-600 font-extrabold hidden sm:inline">•</span>
-                                <span>{(displaySubtitle).replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}</span>
-                            </span>
+                                {(displaySubtitle).replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                            </p>
                         )}
                     </div>
-
-                    {displayBadgeText && displayBadgeText.trim() !== '' && (
-                        <div 
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold tracking-wide shadow-2xs border transition-all shrink-0"
-                            style={{ 
-                                backgroundColor: badgeBgColor || '#e0f2fe', 
-                                color: badgeTextColor || '#0369a1',
-                                borderColor: 'rgba(2, 132, 199, 0.2)'
-                            }}
-                        >
-                            <MapPin className="w-3.5 h-3.5 shrink-0" />
-                            <span>{displayBadgeText}</span>
-                        </div>
-                    )}
                 </div>
 
-                <Link 
-                    href="/local-discovery"
-                    className="group inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-bold shadow-2xs hover:shadow-xs transition-all shrink-0 cursor-pointer ml-auto"
-                >
-                    <span>Voir tout</span>
-                    <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300 group-hover:translate-x-0.5 transition-transform" />
-                </Link>
+                <div className="flex items-center gap-2 shrink-0">
+                    {/* Desktop: Full button with text */}
+                    <Link 
+                        href="/local-discovery"
+                        className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-bold shadow-2xs hover:shadow-xs transition-all shrink-0 cursor-pointer"
+                    >
+                        <span>Voir tout</span>
+                        <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300" />
+                    </Link>
+
+                    {/* Mobile: Sleek compact circular button with ArrowUpRight */}
+                    <Link 
+                        href="/local-discovery"
+                        className="sm:hidden w-8 h-8 rounded-full border border-slate-300/80 bg-white dark:bg-slate-800 shadow-2xs flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 active:scale-95 shrink-0"
+                        aria-label="Voir tout"
+                        title="Voir tout"
+                    >
+                        <ArrowUpRight className="w-4 h-4" />
+                    </Link>
+                </div>
             </div>
 
             {loading ? (

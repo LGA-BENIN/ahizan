@@ -23,6 +23,16 @@ interface MasterProductCardProps {
 
 const isGif = (url: string | undefined | null) => url?.toLowerCase().endsWith('.gif');
 
+function truncateString(str: string, maxLen: number): string {
+    if (!str || str.length <= maxLen) return str;
+    const truncated = str.slice(0, maxLen).trim();
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > maxLen * 0.65) {
+        return `${truncated.slice(0, lastSpace)}...`;
+    }
+    return `${truncated}...`;
+}
+
 export function MasterProductCard({ item, config }: MasterProductCardProps) {
     const themeSettings = useThemeSettings();
     const [isLiked, setIsLiked] = useState(false);
@@ -48,9 +58,19 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
             [item.productVariantName, item.variantName]
         );
 
-    const displayTitle = declinationName 
-        ? `${productName} — ${declinationName}` 
-        : productName;
+    const cleanProd = (productName || '').trim();
+    const rawDecl = (declinationName || '').trim();
+    let displayTitle = cleanProd;
+
+    if (rawDecl && rawDecl.toLowerCase() !== cleanProd.toLowerCase()) {
+        if (rawDecl.toLowerCase().startsWith(cleanProd.toLowerCase())) {
+            displayTitle = rawDecl;
+        } else if (cleanProd.toLowerCase().includes(rawDecl.toLowerCase())) {
+            displayTitle = cleanProd;
+        } else {
+            displayTitle = `${cleanProd} — ${rawDecl}`;
+        }
+    }
 
     // Resolve active vendor / shop info
     const activeVendor = winningOffer?.vendor || item.vendor || item.customFields?.vendor || {
@@ -73,14 +93,28 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
     const originalPrice = isPromoActive && promoPrice ? rawPrice : 0;
     const discountPercent = item.discountPercentage || winningOffer?.discountPercentage || (originalPrice > activePrice && originalPrice > 0 ? Math.round(((originalPrice - activePrice) / originalPrice) * 100) : 0);
 
-    // Image resolution: resolve real product photo, eliminate red placeholder
+    // Image resolution: robust resolution cascading from variant -> offer -> product parent -> search preview
     const rawAsset = winningOffer?.featuredAsset?.preview 
+        || (typeof winningOffer?.featuredAsset === 'string' ? winningOffer.featuredAsset : null)
         || item.featuredAsset?.preview 
+        || (typeof item.featuredAsset === 'string' ? item.featuredAsset : null)
         || item.productVariantAsset?.preview 
+        || (typeof item.productVariantAsset === 'string' ? item.productVariantAsset : null)
         || item.productAsset?.preview 
+        || (typeof item.productAsset === 'string' ? item.productAsset : null)
+        || (typeof item.productPreview === 'string' ? item.productPreview : item.productPreview?.preview)
         || initialVariant?.featuredAsset?.preview 
+        || (typeof initialVariant?.featuredAsset === 'string' ? initialVariant.featuredAsset : null)
         || initialVariant?.productVariantAsset?.preview 
+        || winningOffer?.productVariant?.featuredAsset?.preview
+        || winningOffer?.productVariant?.product?.featuredAsset?.preview
+        || initialVariant?.product?.featuredAsset?.preview
+        || item.product?.featuredAsset?.preview
+        || (typeof item.product?.featuredAsset === 'string' ? item.product.featuredAsset : null)
+        || item.product?.productAsset?.preview
         || item.assets?.[0]?.preview 
+        || item.product?.assets?.[0]?.preview
+        || (typeof item.assets?.[0] === 'string' ? item.assets[0] : null)
         || item.imageUrl 
         || null;
     const resolvedUrl = getAssetUrl(rawAsset);
@@ -270,10 +304,10 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                 </div>
 
                 {/* Card Content */}
-                <div className="p-3 sm:p-3.5 flex flex-col flex-1 text-left relative justify-between gap-1.5">
+                <div className="p-2 sm:p-2.5 flex flex-col flex-1 text-left relative justify-between gap-1 sm:gap-1.5">
                     {/* Store / Vendor Name & Location Badge */}
                     {Boolean(vendorName || geoTag) && (
-                        <div className="flex items-center justify-between gap-1 text-[11px] font-semibold text-muted-foreground truncate">
+                        <div className="flex items-center justify-between gap-1 text-[10.5px] sm:text-[11px] font-semibold text-muted-foreground truncate">
                             {vendorName ? (
                                 <div className="flex items-center gap-1.5 truncate">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -281,7 +315,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                                 </div>
                             ) : <div />}
                             {geoTag && (
-                                <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5">
+                                <span className="text-[9.5px] sm:text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5">
                                     <MapPin className="w-2.5 h-2.5" />
                                     {geoTag}
                                 </span>
@@ -292,18 +326,19 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                     {/* Title with Declination */}
                     <Link href={productDetailHref} className="block flex-1 min-w-0 mt-0.5">
                         <h3 
-                            className="font-bold text-xs sm:text-sm text-foreground hover:text-primary transition-colors line-clamp-2 leading-snug break-words"
+                            className="font-bold text-xs sm:text-[13px] text-foreground hover:text-primary transition-colors line-clamp-2 leading-snug break-words"
                             title={displayTitle}
                         >
-                            {displayTitle}
+                            <span className="sm:hidden">{truncateString(displayTitle, 48)}</span>
+                            <span className="hidden sm:inline">{truncateString(displayTitle, 70)}</span>
                         </h3>
                     </Link>
 
-                    {declinationName && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-muted/80 text-foreground border border-border/50">
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
-                                {declinationName}
+                    {rawDecl && rawDecl.length <= 25 && !displayTitle.toLowerCase().includes(rawDecl.toLowerCase()) && (
+                        <div className="flex items-center gap-1.5 flex-wrap max-w-full overflow-hidden">
+                            <span className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-muted/80 text-foreground border border-border/50 max-w-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block shrink-0" />
+                                <span className="truncate">{rawDecl}</span>
                             </span>
                         </div>
                     )}

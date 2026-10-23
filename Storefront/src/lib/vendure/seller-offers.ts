@@ -110,21 +110,28 @@ export async function expandProductsWithSellerOffers(
 
             if (matchingOffers.length > 0) {
                 for (const offer of matchingOffers) {
-                    const offerImage = offer.featuredAsset?.preview;
-                    const variantImage = offer.productVariant?.featuredAsset?.preview;
-                    const prodImage = offer.productVariant?.product?.featuredAsset?.preview;
-                    const displayImage = offerImage || variantImage || prodImage || item.productAsset || item.productPreview;
+                    const rawAssetObj = offer.featuredAsset 
+                        || offer.productVariant?.featuredAsset 
+                        || offer.productVariant?.product?.featuredAsset 
+                        || item.featuredAsset 
+                        || item.productVariantAsset 
+                        || item.productAsset 
+                        || (typeof item.productPreview === 'string' ? { preview: item.productPreview } : item.productPreview);
 
                     rawItemsWithOffers.push({
                         ...item,
                         productId: item.productId || item.product?.id || item.id,
                         productName: item.productName || item.name,
-                        productAsset: displayImage,
-                        productPreview: displayImage,
-                        featuredAsset: offer.featuredAsset || offer.productVariant?.featuredAsset || item.featuredAsset,
+                        productAsset: rawAssetObj,
+                        productPreview: rawAssetObj?.preview || item.productPreview,
+                        featuredAsset: rawAssetObj,
+                        productVariantAsset: offer.productVariant?.featuredAsset || rawAssetObj,
                         productVariantId: vId,
                         productVariantName: offer.productVariant?.name || item.productVariantName,
-                        productVariant: offer.productVariant || item.productVariant,
+                        productVariant: {
+                            ...(offer.productVariant || item.productVariant),
+                            featuredAsset: offer.productVariant?.featuredAsset || rawAssetObj,
+                        },
                         sku: offer.productVariant?.sku || item.sku,
                         vendorId: offer.vendor?.id,
                         vendorName: offer.vendor?.name,

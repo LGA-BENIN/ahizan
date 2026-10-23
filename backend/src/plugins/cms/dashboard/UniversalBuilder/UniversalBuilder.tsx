@@ -406,12 +406,14 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
     }
   };
 
-  // Publish habillage → push to storefront
+  // Publish habillage → push to storefront (1 clic direct, sans modal bloquante)
+  const [isPublishing, setIsPublishing] = useState(false);
+
   const handlePublish = async () => {
     const targetHabillage = activeHabillageRef.current || activeHabillage;
-    if (!targetHabillage || !selectedPageId) return;
-    if (!confirm('Publier cet habillage ? Il remplacera la version actuelle du site.')) return;
+    if (!targetHabillage || !selectedPageId || isPublishing) return;
     try {
+      setIsPublishing(true);
       setSaveStatus('Publication en cours...');
       
       const payloadSectionsJson = targetHabillage.sectionsJson;
@@ -429,6 +431,8 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
       setPreviewVersion(Date.now());
     } catch (err: any) {
       setSaveStatus('❌ Erreur de publication : ' + err.message);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -809,19 +813,21 @@ const BuilderContent = ({ pendingPresetId, onPresetOpened }: { pendingPresetId: 
           {activeHabillage && (
             <button
               onClick={handlePublish}
+              disabled={isPublishing}
               style={{
                 padding: '6px 16px',
                 borderRadius: '6px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #059669, #047857)',
+                background: isPublishing ? '#94a3b8' : 'linear-gradient(135deg, #059669, #047857)',
                 color: '#fff',
                 fontSize: '0.75rem',
                 fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(5,150,105,0.3)'
+                cursor: isPublishing ? 'not-allowed' : 'pointer',
+                boxShadow: isPublishing ? 'none' : '0 2px 8px rgba(5,150,105,0.3)',
+                transition: 'all 0.2s ease',
               }}
             >
-              🚀 Publier
+              {isPublishing ? 'Publication...' : '🚀 Publier'}
             </button>
           )}
         </div>

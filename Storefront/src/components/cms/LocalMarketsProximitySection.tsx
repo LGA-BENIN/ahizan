@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Store, MapPin, ChevronLeft, ChevronRight, ArrowRight, Compass } from 'lucide-react';
+import { Store, MapPin, ChevronLeft, ChevronRight, ArrowRight, ArrowUpRight, Compass } from 'lucide-react';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
 import { fetchWithClientCache } from '@/lib/vendure/client-cache';
 import { useLocation } from '@/contexts/location-context';
@@ -284,7 +284,7 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
             case 'white-card':
             case 'navy-modern':
             default:
-                return 'min-w-[260px] sm:min-w-[280px] max-w-[320px]';
+                return 'min-w-[200px] sm:min-w-[220px] md:min-w-[240px] max-w-[260px]';
         }
     };
 
@@ -307,52 +307,54 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
             )}
 
             <div className="max-w-[1720px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 relative z-10">
-                <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
-                    <div className="space-y-1.5 max-w-2xl">
-                        {badgeText && (
-                            <Badge 
-                                variant="outline" 
-                                className="px-3 py-1 font-semibold uppercase tracking-wider text-[11px] rounded-full border shadow-xs"
-                                style={{
-                                    borderColor: config.badgeColor || '#0B1E3B',
-                                    color: config.badgeColor || '#0B1E3B',
-                                    backgroundColor: config.badgeBgColor || 'rgba(11, 30, 59, 0.08)',
-                                }}
+                <div className="flex items-center justify-between mb-4 md:mb-5 gap-3">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                            <Store className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2]" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            <h2 
+                                className="text-base sm:text-xl md:text-2xl font-black tracking-tight leading-tight truncate max-w-[220px] sm:max-w-md"
+                                style={{ color: config.titleColor || '#0B1E3B' }}
                             >
-                                <Store className="w-3.5 h-3.5 mr-1.5" />
-                                {badgeText}
-                            </Badge>
-                        )}
-                        <h2 
-                            className="text-2xl md:text-3xl font-black tracking-tight"
-                            style={{ color: config.titleColor || '#0B1E3B' }}
-                        >
-                            {title}
-                        </h2>
-                        {subtitle && (
-                            <p 
-                                className="text-xs sm:text-sm opacity-85 leading-relaxed text-slate-600 dark:text-slate-300"
-                                style={{ color: config.subtitleColor || undefined }}
-                            >
-                                {subtitle}
-                            </p>
-                        )}
+                                {title}
+                            </h2>
+                            {subtitle && (
+                                <p 
+                                    className="text-[11px] sm:text-xs md:text-sm font-medium opacity-85 leading-snug text-slate-600 dark:text-slate-300 line-clamp-1 sm:line-clamp-2 max-w-[260px] sm:max-w-xl truncate mt-0.5"
+                                    style={{ color: config.subtitleColor || undefined }}
+                                >
+                                    {subtitle}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-start md:self-auto">
-                        {config.showAllLink !== false && (
-                            <Link href="/local-discovery?tab=markets">
+                    {config.showAllLink !== false && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            {/* Desktop: Full button with text */}
+                            <Link href="/local-discovery?tab=markets" className="hidden sm:inline-flex">
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="font-semibold rounded-full border-slate-300 bg-white hover:bg-slate-50 shadow-xs text-xs px-4 cursor-pointer text-slate-900"
+                                    className="font-bold rounded-full border-slate-300 bg-white hover:bg-slate-50 shadow-xs text-xs px-4 cursor-pointer text-slate-900"
                                 >
                                     {config.viewAllText || 'Tous les marchés'}
                                     <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                                 </Button>
                             </Link>
-                        )}
-                    </div>
+
+                            {/* Mobile: Sleek compact circular button with ArrowUpRight */}
+                            <Link 
+                                href="/local-discovery?tab=markets" 
+                                className="sm:hidden w-8 h-8 rounded-full border border-slate-300/80 bg-white dark:bg-slate-800 shadow-2xs flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-50 active:scale-95 shrink-0"
+                                aria-label={config.viewAllText || 'Tous les marchés'}
+                                title={config.viewAllText || 'Tous les marchés'}
+                            >
+                                <ArrowUpRight className="w-4 h-4" />
+                            </Link>
+                        </div>
+                    )}
                 </div>
 
                 {loading ? (
@@ -592,7 +594,7 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
     // ==========================================
     return (
         <div 
-            className={`relative rounded-[28px] sm:rounded-[32px] overflow-hidden shadow-lg transition-all duration-300 h-[340px] sm:h-[380px] w-full flex flex-col justify-between group border border-slate-200/60 dark:border-slate-800 ${hoverClass} ${animClass}`}
+            className={`relative rounded-[20px] sm:rounded-[24px] overflow-hidden shadow-lg transition-all duration-300 h-[260px] sm:h-[290px] w-full flex flex-col justify-between group border border-slate-200/60 dark:border-slate-800 ${hoverClass} ${animClass}`}
             style={{
                 backgroundColor: config.cardBgColor || '#0B1E3B',
                 borderColor: config.cardBorderColor || undefined,
@@ -610,36 +612,36 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
             </div>
 
             {/* Top Badges (Distance & Commune) */}
-            <div className="relative z-10 p-3.5 sm:p-4 flex items-center justify-between gap-2">
+            <div className="relative z-10 p-2.5 sm:p-3 flex items-center justify-between gap-1.5">
                 {market.geoZone?.name && (
-                    <span className="text-[11px] font-black text-white bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-sm">
+                    <span className="text-[10px] font-black text-white bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 shadow-sm">
                         {market.geoZone.name}
                     </span>
                 )}
                 {market.distanceKm !== null && config.showDistance !== false && (
-                    <span className="text-[11px] font-black text-white bg-emerald-600/90 backdrop-blur-md px-3 py-1 rounded-full shadow-sm ml-auto">
+                    <span className="text-[10px] font-black text-white bg-emerald-600/90 backdrop-blur-md px-2.5 py-0.5 rounded-full shadow-sm ml-auto">
                         📍 à {market.distanceKm} km
                     </span>
                 )}
             </div>
 
             {/* Floating White Rounded Box (Bottom / Center) */}
-            <div className="relative z-10 p-3 sm:p-4">
-                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[22px] sm:rounded-[24px] p-4 sm:p-5 shadow-2xl border border-white/40 dark:border-slate-700/50 flex flex-col items-center justify-center text-center gap-2.5 transition-transform duration-300 group-hover:scale-[1.02]">
-                    <div className="flex items-center justify-center gap-2 max-w-full px-1">
-                        <MapPin className="w-4 h-4 text-red-600 fill-red-600 shrink-0" />
+            <div className="relative z-10 p-2.5 sm:p-3">
+                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[16px] sm:rounded-[20px] p-2.5 sm:p-3 shadow-xl border border-white/40 dark:border-slate-700/50 flex flex-col items-center justify-center text-center gap-2 transition-transform duration-300 group-hover:scale-[1.02]">
+                    <div className="flex items-center justify-center gap-1.5 max-w-full px-1">
+                        <MapPin className="w-3.5 h-3.5 text-red-600 fill-red-600 shrink-0" />
                         <h3 
-                            className="font-black text-base sm:text-lg text-slate-950 dark:text-white tracking-tight truncate"
+                            className="font-black text-xs sm:text-sm text-slate-950 dark:text-white tracking-tight truncate"
                             title={market.name}
                         >
                             {market.name}
                         </h3>
                     </div>
 
-                    <Link href={marketLink} className="w-full mt-1 no-underline">
-                        <button className="w-full py-2 sm:py-2.5 px-4 rounded-full bg-[#0B1E3B] hover:bg-[#162a4d] text-white font-black text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                    <Link href={marketLink} className="w-full mt-0.5 no-underline">
+                        <button className="w-full py-1.5 sm:py-2 px-3 rounded-full bg-[#0B1E3B] hover:bg-[#162a4d] text-white font-black text-[11px] sm:text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1 cursor-pointer">
                             <span>Visiter ce marché</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
+                            <ArrowRight className="w-3 h-3" />
                         </button>
                     </Link>
                 </div>

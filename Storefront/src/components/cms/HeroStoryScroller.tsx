@@ -2,8 +2,9 @@
 
 import React, { useRef } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { AhizanCartIcon } from '@/components/icons/AhizanCartIcon';
 
 export interface StoryCard {
     id?: string | number;
@@ -96,28 +97,34 @@ export function HeroStoryScroller({
         <section className={`w-full relative group/story ${className}`}>
             {(title || subtitle) && (
                 <div className="flex items-center justify-between mb-3 px-1">
-                    <div>
-                        {title && (
-                            <h2 className="text-lg md:text-xl font-black tracking-tight text-foreground flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-primary" />
-                                {title}
-                            </h2>
-                        )}
-                        {subtitle && (
-                            <p className="text-xs text-muted-foreground font-medium mt-0.5">{subtitle}</p>
-                        )}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-50 dark:bg-red-950/40 border border-red-100 dark:border-red-900/40 flex items-center justify-center shrink-0 p-1.5 shadow-xs">
+                            <AhizanCartIcon className="w-full h-full" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                            {title && (
+                                <h2 className="text-base sm:text-lg md:text-xl font-black tracking-tight text-foreground leading-tight truncate max-w-[220px] sm:max-w-md">
+                                    {title}
+                                </h2>
+                            )}
+                            {subtitle && (
+                                <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mt-0.5 leading-snug truncate max-w-[260px] sm:max-w-xl line-clamp-1 sm:line-clamp-2">
+                                    {subtitle}
+                                </p>
+                            )}
+                        </div>
                     </div>
-                    <div className="hidden sm:flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                         <button
                             onClick={() => scroll('left')}
-                            className="p-1.5 rounded-full border border-border/60 hover:bg-muted transition-colors text-foreground"
+                            className="p-1.5 rounded-full border border-border/60 hover:bg-muted transition-colors text-foreground cursor-pointer"
                             aria-label="Faire défiler vers la gauche"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => scroll('right')}
-                            className="p-1.5 rounded-full border border-border/60 hover:bg-muted transition-colors text-foreground"
+                            className="p-1.5 rounded-full border border-border/60 hover:bg-muted transition-colors text-foreground cursor-pointer"
                             aria-label="Faire défiler vers la droite"
                         >
                             <ChevronRight className="w-4 h-4" />

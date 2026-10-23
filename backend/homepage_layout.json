@@ -276,22 +276,22 @@
           "items": [
             {
               "name": "Téléphones Portables",
-              "imageUrl": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/telephone-portables.jpg",
               "targetUrl": "/collection/telephone-portables-c-1"
             },
             {
               "name": "Accessoires Téléphone",
-              "imageUrl": "https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/accessoires-telephone.jpg",
               "targetUrl": "/collection/accessoires-telephone-c-2"
             },
             {
               "name": "Écouteurs & Audio",
-              "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/ecouteurs-audio.jpg",
               "targetUrl": "/search?category=audio"
             },
             {
               "name": "Chargeurs & Câbles",
-              "imageUrl": "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/chargeurs-cables.jpg",
               "targetUrl": "/search?category=chargeurs"
             }
           ]
@@ -303,22 +303,22 @@
           "items": [
             {
               "name": "Petit Électroménager",
-              "imageUrl": "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/petit-electromenager.jpg",
               "targetUrl": "/collection/petit-electromenager-b-1"
             },
             {
               "name": "Gros Électroménager",
-              "imageUrl": "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/gros-electromenager.jpg",
               "targetUrl": "/collection/gros-electromenager-b-2"
             },
             {
               "name": "Arts de la Table",
-              "imageUrl": "https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/arts-de-la-table.jpg",
               "targetUrl": "/collection/cuisine-et-arts-de-la-table-b-3"
             },
             {
               "name": "Maison & Ameublement",
-              "imageUrl": "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/maison-ameublement.jpg",
               "targetUrl": "/collection/maison-et-ameublement-b-4"
             }
           ]
@@ -330,22 +330,22 @@
           "items": [
             {
               "name": "Boissons & Jus Locaux",
-              "imageUrl": "https://images.unsplash.com/photo-1534353473418-4cfa6c56fd38?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/boissons-jus-locaux.jpg",
               "targetUrl": "/collection/alimentation-a"
             },
             {
               "name": "Épices & Condiments",
-              "imageUrl": "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/epices-condiments.jpg",
               "targetUrl": "/collection/alimentation-a"
             },
             {
               "name": "Céréales & Farines",
-              "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/cereales-farines.jpg",
               "targetUrl": "/collection/alimentation-a"
             },
             {
               "name": "Produits Vivriers Frais",
-              "imageUrl": "https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/produits-vivriers-frais.jpg",
               "targetUrl": "/collection/alimentation-a"
             }
           ]
@@ -357,22 +357,22 @@
           "items": [
             {
               "name": "Soins du Visage",
-              "imageUrl": "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/soins-du-visage.jpg",
               "targetUrl": "/collection/beaute-hygiene-e"
             },
             {
               "name": "Parfums & Eaux",
-              "imageUrl": "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/parfums-eaux.jpg",
               "targetUrl": "/collection/beaute-hygiene-e"
             },
             {
               "name": "Soins Capillaires",
-              "imageUrl": "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/soins-capillaires.jpg",
               "targetUrl": "/collection/beaute-hygiene-e"
             },
             {
               "name": "Hygiène Quotidienne",
-              "imageUrl": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400&auto=format&fit=crop",
+              "imageUrl": "/assets/categories/hygiene-quotidienne.jpg",
               "targetUrl": "/collection/beaute-hygiene-e"
             }
           ]
@@ -393,7 +393,7 @@
       "subtitle": "Nos meilleures sélections au meilleur prix",
       "tabStyle": "cdiscount",
       "layout": "grid",
-      "columns": 4,
+      "columns": 5,
       "cardStyle": "standard",
       "tabs": [
         {
@@ -475,7 +475,7 @@
       "selectionMode": "AUTOMATIC",
       "filterType": "LATEST",
       "layout": "grid",
-      "columns": 4,
+      "columns": 5,
       "take": 12,
       "cardStyle": "standard"
     }

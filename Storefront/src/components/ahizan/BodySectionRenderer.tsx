@@ -293,9 +293,9 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
     switch (type) {
         case 'PRODUCT_COLLECTION': {
             return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
+                <div className="w-full mt-2 md:mt-3">
                     <UniversalProductCollection {...config} />
-                </section>
+                </div>
             );
         }
 
@@ -344,7 +344,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         case 'PRODUCT_GRID': {
             // Standard product grid section using the cms/TabbedProductGrid component
             return (
-                <section className={`${wrapper} mt-2 md:mt-3`}>
+                <div className="w-full mt-2 md:mt-3">
                     <TabbedProductGrid
                         {...config}
                         title={config.title}
@@ -353,7 +353,7 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
                         cardStyle={config.cardStyle || 'standard'}
                         tabs={config.tabs}
                     />
-                </section>
+                </div>
             );
         }
 

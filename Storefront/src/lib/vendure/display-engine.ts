@@ -477,10 +477,19 @@ function extractOfferCandidates(rawItems: any[]): {
         const prodId = String(item.productId || item.product?.id || item.id || '');
         if (!prodId) continue;
 
-        const rawAsset = item.featuredAsset?.preview ? item.featuredAsset
-            : (item.productVariantAsset?.preview ? item.productVariantAsset
-            : (item.productAsset?.preview ? item.productAsset
-            : (item.featuredAsset || item.product?.featuredAsset || item.product?.productAsset || item.assets?.[0] || item.product?.assets?.[0])));
+        const rawAsset = (typeof item.featuredAsset === 'string' ? { preview: item.featuredAsset } : (item.featuredAsset?.preview ? item.featuredAsset : null))
+            || (typeof item.productVariantAsset === 'string' ? { preview: item.productVariantAsset } : (item.productVariantAsset?.preview ? item.productVariantAsset : null))
+            || (typeof item.productAsset === 'string' ? { preview: item.productAsset } : (item.productAsset?.preview ? item.productAsset : null))
+            || (typeof item.productPreview === 'string' ? { preview: item.productPreview } : (item.productPreview?.preview ? item.productPreview : null))
+            || (typeof item.imageUrl === 'string' ? { preview: item.imageUrl } : null)
+            || item.featuredAsset 
+            || item.productVariantAsset 
+            || item.productAsset 
+            || item.product?.featuredAsset 
+            || item.product?.productAsset 
+            || item.assets?.[0] 
+            || item.product?.assets?.[0] 
+            || null;
 
         if (!productMap.has(prodId)) {
             productMap.set(prodId, {
@@ -543,7 +552,10 @@ function extractOfferCandidates(rawItems: any[]): {
             };
 
             const vendorId = String(vendorInfo.id || 'main');
-            const vrAsset = (item.featuredAsset?.preview ? item.featuredAsset : (item.productVariantAsset?.preview ? item.productVariantAsset : (vr.featuredAsset?.preview ? vr.featuredAsset : rawAsset)));
+            const vrAsset = (typeof item.featuredAsset === 'string' ? { preview: item.featuredAsset } : (item.featuredAsset?.preview ? item.featuredAsset : null))
+                || (typeof vr.featuredAsset === 'string' ? { preview: vr.featuredAsset } : (vr.featuredAsset?.preview ? vr.featuredAsset : null))
+                || (typeof item.productVariantAsset === 'string' ? { preview: item.productVariantAsset } : (item.productVariantAsset?.preview ? item.productVariantAsset : null))
+                || rawAsset;
             const rawPrice = vr.price ?? item.price ?? vr.priceWithTax?.value ?? vr.priceWithTax?.min ?? item.priceWithTax?.value ?? item.priceWithTax?.min ?? (typeof vr.priceWithTax === 'number' ? vr.priceWithTax : (typeof item.priceWithTax === 'number' ? item.priceWithTax : 0));
             const vrPrice = Number(rawPrice) || 0;
             const onPromotion = Boolean(vr.customFields?.onPromotion ?? item.onPromotion ?? false);
@@ -742,11 +754,18 @@ export function processAndResolveDisplayItems(
             vendor: off.vendor,
             productVariant: off.productVariant,
             selectedVariant: off.productVariant,
+            featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || prod.featuredAsset || prod.productAsset,
             distanceKm: off.distanceKm,
             stock: off.stock,
             sku: off.sku,
             score: off.score,
         };
+
+        const finalAsset = off.featuredAsset 
+            || off.productVariant?.featuredAsset 
+            || prod.featuredAsset 
+            || prod.productAsset 
+            || off.productAsset;
 
         return {
             id: off.id,
@@ -758,9 +777,9 @@ export function processAndResolveDisplayItems(
             declinationName: off.declinationName,
             productVariantName: off.productVariantName,
             slug: prod.slug || off.slug,
-            featuredAsset: off.featuredAsset || off.productVariant?.featuredAsset || prod.featuredAsset,
-            productAsset: off.featuredAsset || off.productVariant?.featuredAsset || prod.productAsset,
-            productVariantAsset: off.featuredAsset || off.productVariantAsset || prod.featuredAsset,
+            featuredAsset: finalAsset,
+            productAsset: finalAsset,
+            productVariantAsset: off.productVariantAsset || finalAsset,
             collections: prod.collections,
             facetValueIds: prod.facetValueIds,
 

@@ -61,6 +61,13 @@ export const LocalMarketsSettings = ({ data, onSave }: LocalMarketsSettingsProps
             bgImage: '',
             bgImageOverlayOpacity: 40,
             gradientBackground: '',
+            marketSvgType: 'brand-device',
+            marketCustomSvg: '',
+            marketSvgPlacement: 'center',
+            marketSvgOpacity: 15,
+            marketSvgHoverOpacity: 40,
+            marketSvgColor: '#ffffff',
+            marketSvgAnimation: 'pulse-zoom',
         };
         setConfig({ ...defaults, ...data });
     }, [data]);
@@ -394,6 +401,114 @@ export const LocalMarketsSettings = ({ data, onSave }: LocalMarketsSettingsProps
                             <input className="input-pro" value={config.backgroundColor || '#ffffff'} onChange={(e) => handleChange('backgroundColor', e.target.value)} />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Filigrane SVG & Animation au Survol sur les Cartes */}
+            <div className="settings-card">
+                <div className="settings-card-header">✨ Filigrane SVG & Animation au Survol (Sans fond / Intégré)</div>
+                <div className="stack" style={{ marginTop: '10px' }}>
+                    <div>
+                        <label className="label-pro">Type de motif SVG sur l'image du marché</label>
+                        <select 
+                            className="input-pro"
+                            value={config.marketSvgType || 'brand-device'}
+                            onChange={(e) => handleChange('marketSvgType', e.target.value)}
+                        >
+                            <option value="brand-device">Signature "Z" Bold Ahizan (Officiel)</option>
+                            <option value="cart">Logo Panier Ahizan</option>
+                            <option value="custom">Tracé SVG Personnalisé</option>
+                            <option value="none">Aucun filigrane SVG</option>
+                        </select>
+                    </div>
+
+                    {config.marketSvgType === 'custom' && (
+                        <div>
+                            <label className="label-pro">Code SVG Personnalisé (&lt;svg&gt;...&lt;/svg&gt; ou &lt;path.../&gt;)</label>
+                            <textarea
+                                className="input-pro"
+                                rows={4}
+                                value={config.marketCustomSvg || ''}
+                                onChange={(e) => handleChange('marketCustomSvg', e.target.value)}
+                                placeholder='<path d="..." fill="currentColor" />'
+                                style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}
+                            />
+                        </div>
+                    )}
+
+                    {config.marketSvgType !== 'none' && (
+                        <>
+                            <div className="grid-2">
+                                <div>
+                                    <label className="label-pro">Positionnement / Couverture</label>
+                                    <select 
+                                        className="input-pro"
+                                        value={config.marketSvgPlacement || 'center'}
+                                        onChange={(e) => handleChange('marketSvgPlacement', e.target.value)}
+                                    >
+                                        <option value="center">Au Centre de la carte (Équilibré)</option>
+                                        <option value="full-cover">Couverture intégrale (Grand filigrane)</option>
+                                        <option value="bottom-right">Coin inférieur droit</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="label-pro">Animation au Survol (Hover)</label>
+                                    <select 
+                                        className="input-pro"
+                                        value={config.marketSvgAnimation || 'pulse-zoom'}
+                                        onChange={(e) => handleChange('marketSvgAnimation', e.target.value)}
+                                    >
+                                        <option value="pulse-zoom">Éveil dynamique (Pulsation & Léger Zoom)</option>
+                                        <option value="rotate">Rotation subtile & Éveil</option>
+                                        <option value="none">Statique (Sans animation)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid-2">
+                                <div>
+                                    <label className="label-pro">Transparence au repos ({config.marketSvgOpacity ?? 15}%)</label>
+                                    <input 
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={config.marketSvgOpacity ?? 15}
+                                        onChange={(e) => handleChange('marketSvgOpacity', parseInt(e.target.value))}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label-pro">Transparence au survol ({config.marketSvgHoverOpacity ?? 40}%)</label>
+                                    <input 
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={config.marketSvgHoverOpacity ?? 40}
+                                        onChange={(e) => handleChange('marketSvgHoverOpacity', parseInt(e.target.value))}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="label-pro">Couleur du motif SVG</label>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <input 
+                                        type="color" 
+                                        value={config.marketSvgColor || '#ffffff'} 
+                                        onChange={(e) => handleChange('marketSvgColor', e.target.value)} 
+                                        style={{ width: '36px', height: '36px', padding: 0, border: 'none', borderRadius: '6px', cursor: 'pointer' }} 
+                                    />
+                                    <input 
+                                        className="input-pro" 
+                                        value={config.marketSvgColor || '#ffffff'} 
+                                        onChange={(e) => handleChange('marketSvgColor', e.target.value)} 
+                                        placeholder="#ffffff ou #DF1B33"
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 

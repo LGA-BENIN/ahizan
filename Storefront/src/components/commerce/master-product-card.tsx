@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Price } from '@/components/commerce/price';
 import { useThemeSettings } from '@/components/providers/theme-provider';
-import { getAssetUrl, getPromoPriceInfo } from '@/lib/vendure/api-utils';
+import { getAssetUrl, getAssetDownloadUrl, getPromoPriceInfo } from '@/lib/vendure/api-utils';
 import { Heart, Loader2, MapPin, ShoppingCart, Store, Zap, Clock, Plus, Star, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import { toggleProductLikeAction, checkProductLikeStatus } from '@/app/(storefront)/likes-actions';
@@ -217,7 +217,26 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
         <>
             <div className={`group/card relative flex flex-col h-full overflow-hidden transition-all duration-300 ${cardThemeClass}`}>
                 {/* Product/Declination Image */}
-                <div className={`relative ${ratioClass} w-full overflow-hidden bg-slate-50 dark:bg-slate-900/50 flex-shrink-0`}>
+                <div 
+                    className={`relative ${ratioClass} w-full overflow-hidden bg-slate-50 dark:bg-slate-900/50 flex-shrink-0 cursor-pointer`}
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        const downloadTarget = rawAsset || displayImageUrl;
+                        const downloadUrl = getAssetDownloadUrl(downloadTarget);
+                        if (downloadUrl) {
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+                            link.setAttribute('download', `ahizan-${productSlug}.jpg`);
+                            link.style.display = 'none';
+                            document.body.appendChild(link);
+                            link.click();
+                            setTimeout(() => {
+                                try { document.body.removeChild(link); } catch (err) {}
+                            }, 500);
+                            toast.success("Téléchargement de l'image officielle protégée...");
+                        }
+                    }}
+                >
                     <Link href={productDetailHref} className="block w-full h-full">
                         {displayImageUrl ? (
                             <Image

@@ -1478,7 +1478,14 @@ export class CMSService {
     async updateSection(ctx: RequestContext, input: any): Promise<PageSection> {
         const section = await this.connection.getEntityOrThrow(ctx, PageSection, input.id);
         const updatedSection = Object.assign(section, input);
-        return this.connection.getRepository(ctx, PageSection).save(updatedSection);
+        const saved = await this.connection.getRepository(ctx, PageSection).save(updatedSection);
+        if (saved.type === 'THEME_SETTINGS') {
+            try {
+                const { CMSPlugin } = require('../cms.plugin');
+                CMSPlugin.watermarkServiceInstance?.clearCache();
+            } catch (e) {}
+        }
+        return saved;
     }
 
     async deleteSection(ctx: RequestContext, id: ID): Promise<DeletionResponse> {

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useThemeSettings } from '@/components/providers/theme-provider';
-import { getAssetUrl } from '@/lib/vendure/api-utils';
+import { getAssetUrl, getAssetDownloadUrl } from '@/lib/vendure/api-utils';
 
 interface ProductImageCarouselProps {
     images: Array<{
@@ -75,10 +75,48 @@ export function ProductImageCarousel({ images }: ProductImageCarouselProps) {
     const currentImage = displayImages[currentIndex];
     const isCurrentGif = isGif(currentImage.source);
 
+    const handleDownload = (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const targetPath = currentImage?.source || currentImage?.preview;
+        const downloadUrl = getAssetDownloadUrl(targetPath);
+        if (downloadUrl) {
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.setAttribute('download', 'ahizan-produit.jpg');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+                try {
+                    document.body.removeChild(link);
+                } catch (err) {}
+            }, 500);
+        }
+    };
+
     return (
         <div className="space-y-3">
             {/* Main Image */}
-            <div className="relative aspect-square bg-muted rounded-xl overflow-hidden group border border-border/40 shadow-sm">
+            <div 
+                className="relative aspect-square bg-muted rounded-xl overflow-hidden group border border-border/40 shadow-sm"
+                onContextMenu={handleDownload}
+                title="Clic droit pour télécharger l'image officielle Ahizan"
+            >
+                {/* Download Official Image Button */}
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Télécharger l'image officielle"
+                    aria-label="Télécharger l'image officielle"
+                    className="absolute right-2 top-2 h-8 w-8 bg-background/60 hover:bg-background/90 backdrop-blur-sm opacity-70 group-hover:opacity-100 transition-all rounded-full border border-border/20 shadow-sm z-10"
+                    onClick={handleDownload}
+                >
+                    <Download className="h-4 w-4 text-foreground/80" />
+                </Button>
+
                 {isCurrentGif ? (
                     <img
                         src={getAssetUrl(currentImage.source)}

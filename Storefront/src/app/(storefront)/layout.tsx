@@ -25,6 +25,7 @@ import { getTopCollections } from "@/lib/vendure/cached";
 import { AhizanContextExposer } from "@/components/ahizan/AhizanContextExposer";
 import { LocationProvider } from "@/contexts/location-context";
 import { NavigationProgress } from "@/components/shared/NavigationProgress";
+import { WatermarkProtection } from "@/components/shared/WatermarkProtection";
 
 // Force dynamic rendering to prevent static generation issues during build
 export const dynamic = 'force-dynamic';
@@ -253,6 +254,16 @@ export default async function StorefrontLayout({ children }: { children: React.R
                 h1, h2, h3, h4, h5, h6 {
                     font-family: var(--heading-font) !important;
                 }
+                html.preloader-dismissed #ahizan-preloader-root {
+                    display: none !important;
+                }
+            ` }} />
+            <script dangerouslySetInnerHTML={{ __html: `
+                try {
+                    if (sessionStorage.getItem('ahizan_preloader_seen') === '1') {
+                        document.documentElement.classList.add('preloader-dismissed');
+                    }
+                } catch(e) {}
             ` }} />
             
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
@@ -260,6 +271,9 @@ export default async function StorefrontLayout({ children }: { children: React.R
                 <Suspense fallback={null}>
                     <NavigationProgress />
                 </Suspense>
+
+                {/* Seamless on-save watermark protection */}
+                <WatermarkProtection />
 
                 {/* Render the Preloader IMMEDIATELY. Since the config is already fetched, it starts animating instantly! */}
                 <AhizanPreloader config={{ preloader: theme?.preloader }} />

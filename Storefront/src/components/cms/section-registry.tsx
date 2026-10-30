@@ -29,6 +29,7 @@ import { HeroSlimBanner } from '@/components/cms/HeroSlimBanner';
 import { QuadCategoryGrid } from '@/components/cms/QuadCategoryCard';
 import { CircularCategoryNav } from '@/components/cms/CircularCategoryNav';
 import { TrustFooterBar } from '@/components/cms/TrustFooterBar';
+import { UniversalProductCollection } from '@/components/cms/UniversalProductCollection';
 
 /**
  * Le registre fait correspondre un "type" de section provenant du CMS Backend Vendure
@@ -79,6 +80,8 @@ export const sectionRegistry: Record<string, React.ComponentType<any>> = {
     'QUAD_GRID': QuadCategoryGrid,
     'CIRCULAR_CATEGORY_NAV': CircularCategoryNav,
     'TRUST_FOOTER_BAR': TrustFooterBar,
+    'PRODUCT_COLLECTION': UniversalProductCollection,
+    'UNIVERSAL_PRODUCT_COLLECTION': UniversalProductCollection,
 };
 
 export function getSectionComponent(type: string): React.ComponentType<any> | null {

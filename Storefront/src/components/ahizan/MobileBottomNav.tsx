@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutGrid, Search, ShoppingCart, UserRound } from "lucide-react";
+import { Home, LayoutGrid, Search, UserRound } from "lucide-react";
+import { AhizanCartIcon } from "@/components/shared/AhizanBrandIcons";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
 
 export function MobileBottomNav({
@@ -37,7 +38,7 @@ export function MobileBottomNav({
         },
         {
             label: "Panier",
-            icon: ShoppingCart,
+            icon: AhizanCartIcon,
             href: "/cart",
             isActive: pathname === "/cart",
             badge: cartCount > 0 ? cartCount : null,

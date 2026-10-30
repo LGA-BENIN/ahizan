@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getShopApiUrl, getAssetUrl } from '@/lib/vendure/api-utils';
+import { AhizanBrandDevice } from '@/components/shared/AhizanBrandIcons';
 
 interface CategoryItem {
     name: string;
@@ -207,25 +208,45 @@ export function CategoryGrid({
                                         href={`/collection/${cat.slug}`}
                                         className="group flex flex-col items-center text-center space-y-2.5 p-1 rounded-2xl hover:bg-muted/30 transition-all no-underline text-inherit"
                                     >
-                                        <div className={
-                                            cardStyle === 'circular'
-                                            ? "relative w-18 h-18 sm:w-22 sm:h-22 md:w-24 md:h-24 rounded-full bg-card overflow-hidden group-hover:shadow-lg group-hover:-translate-y-1 transition-all duration-300 border border-border/70 group-hover:border-primary p-1 shadow-xs"
-                                            : "relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 border border-border/60 group-hover:border-primary/40 p-1.5 shadow-sm"
-                                        }>
-                                            <div className={`relative w-full h-full overflow-hidden bg-muted ${cardStyle === 'circular' ? 'rounded-full' : 'rounded-2xl'}`}>
-                                                {cat.imageUrl ? (
-                                                    isCatGif ? (
-                                                        <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                                    ) : (
-                                                        <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
-                                                    )
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
-                                                        {cat.name.charAt(0)}
+                                        {cardStyle === 'circular' ? (
+                                            <div className="relative w-18 h-18 sm:w-22 sm:h-22 md:w-24 md:h-24 flex items-center justify-center">
+                                                {/* Official Ahizan Brand Device behind circular card */}
+                                                <div className="absolute -inset-3 sm:-inset-4 z-0 pointer-events-none transition-transform duration-500 ease-out group-hover:scale-115 group-hover:rotate-6">
+                                                    <AhizanBrandDevice className="w-full h-full drop-shadow-sm opacity-90 group-hover:opacity-100" color="#DF1B33" />
+                                                </div>
+                                                <div className="relative z-10 w-full h-full rounded-full bg-card overflow-hidden group-hover:shadow-lg transition-all duration-300 border border-border/70 group-hover:border-primary p-1 shadow-xs">
+                                                    <div className="relative w-full h-full overflow-hidden bg-muted rounded-full">
+                                                        {cat.imageUrl ? (
+                                                            isCatGif ? (
+                                                                <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            ) : (
+                                                                <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            )
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
+                                                                {cat.name.charAt(0)}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div className="relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 bg-card rounded-3xl overflow-hidden group-hover:shadow-xl group-hover:-translate-y-1.5 transition-all duration-300 border border-border/60 group-hover:border-primary/40 p-1.5 shadow-sm">
+                                                <div className="relative w-full h-full overflow-hidden bg-muted rounded-2xl">
+                                                    {cat.imageUrl ? (
+                                                        isCatGif ? (
+                                                            <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                        ) : (
+                                                            <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                        )
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
+                                                            {cat.name.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                         <div>
                                             <span className="block font-bold text-xs sm:text-sm uppercase tracking-wide group-hover:text-primary transition-colors line-clamp-1">
                                                 {cat.name}

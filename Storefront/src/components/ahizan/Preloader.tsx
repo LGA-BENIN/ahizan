@@ -4,7 +4,10 @@ import { getAssetUrl } from '@/lib/vendure/api-utils';
 import { LottiePreloader } from '@/components/shared/animations/LottiePreloader';
 
 export function AhizanPreloader({ config }: { config: any }) {
-    const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>('hidden');
+    const isConfigDisabled = config?.preloader?.type === 'none';
+    const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>(
+        isConfigDisabled ? 'hidden' : 'drawing'
+    );
     const [isPageLoaded, setIsPageLoaded] = useState(false);
     const hasRunRef = useRef(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -18,8 +21,6 @@ export function AhizanPreloader({ config }: { config: any }) {
                 setStatus('hidden');
                 hasRunRef.current = true;
                 return;
-            } else {
-                setStatus('drawing');
             }
         } catch (e) {
             setStatus('hidden');
@@ -36,11 +37,11 @@ export function AhizanPreloader({ config }: { config: any }) {
             window.addEventListener('load', handleLoad);
         }
 
-        // Safety timeout to guarantee the preloader disappears smoothly even on slow networks
+        // Ultra fast safety timer: max 650ms
         const absoluteSafetyTimer = setTimeout(() => {
             setIsPageLoaded(true);
             setStatus(prev => (prev !== 'hidden' && prev !== 'fading' ? 'pulse-final' : prev));
-        }, 1600);
+        }, 650);
 
         return () => {
             clearTimeout(absoluteSafetyTimer);
@@ -61,22 +62,22 @@ export function AhizanPreloader({ config }: { config: any }) {
         }
 
         if (type !== 'default') {
-            const durationMs = Math.min((config?.preloader?.duration || 1.0) * 1000, 1800);
+            const durationMs = Math.min((config?.preloader?.duration || 0.6) * 1000, 800);
             const timer = setTimeout(() => {
                 setStatus('fading');
                 setTimeout(() => {
                     setStatus('hidden');
                     hasRunRef.current = true;
                     try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
-                }, 350);
+                }, 180);
             }, durationMs);
             return () => clearTimeout(timer);
         }
 
-        // Default A-Z animated logo
+        // Fast & crisp drawing sequence: 320ms
         const drawingTimer = setTimeout(() => {
             setStatus('pulse-final');
-        }, 850);
+        }, 320);
 
         return () => {
             clearTimeout(drawingTimer);
@@ -88,7 +89,7 @@ export function AhizanPreloader({ config }: { config: any }) {
         if (status === 'pulse-final') {
             const timer = setTimeout(() => {
                 setStatus('fading');
-            }, 300);
+            }, 150);
             return () => clearTimeout(timer);
         }
         if (status === 'fading') {
@@ -96,7 +97,7 @@ export function AhizanPreloader({ config }: { config: any }) {
                 setStatus('hidden');
                 hasRunRef.current = true;
                 try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
-            }, 350);
+            }, 180);
             return () => clearTimeout(timer);
         }
     }, [status]);
@@ -169,6 +170,7 @@ export function AhizanPreloader({ config }: { config: any }) {
 
     return (
         <div 
+            id="ahizan-preloader-root"
             className={`fixed inset-0 z-[99999] flex items-center justify-center ${transitionClass} ${statusClass}`}
             style={overlayStyle}
         >

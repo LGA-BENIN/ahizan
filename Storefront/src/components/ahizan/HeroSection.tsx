@@ -144,10 +144,7 @@ export function HeroSection({ heroConfig, promoConfig, siteCategories }: HeroSec
                     />
                 )}
                 {template === 'slim' && (
-                    <HeroSlimBanner 
-                        slides={config.slides} 
-                        autoplaySpeed={config.autoplaySpeed}
-                    />
+                    <HeroSlimBanner {...config} />
                 )}
             </div>
         </div>

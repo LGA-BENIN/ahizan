@@ -58,6 +58,11 @@ export const config: any = {
                 handler: json({ limit: '50mb' }),
                 route: '/',
                 beforeListen: true,
+            },
+            {
+                handler: (req: any, res: any, next: any) => CMSPlugin.assetWatermarkHandler(req, res, next),
+                route: '/assets',
+                beforeListen: true,
             }
         ],
     },

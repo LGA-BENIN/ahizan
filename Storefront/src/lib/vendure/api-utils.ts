@@ -18,7 +18,16 @@ export function getShopApiUrl(): string {
 }
 
 export function getBaseUrl(): string {
-    // For images and public assets, always resolve to the public URL accessible by browsers
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        if (hostname.includes('ahizan.com')) {
+            return 'https://api.ahizan.com';
+        }
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return `http://${hostname}:3000`;
+        }
+        return `${window.location.protocol}//${hostname}:3000`;
+    }
     const publicUrl = process.env.NEXT_PUBLIC_VENDURE_SHOP_API_URL || 'https://api.ahizan.com/shop-api';
     return publicUrl.replace(/\/shop-api\/?$/, '');
 }
@@ -52,6 +61,29 @@ export function getAssetUrl(path: string | null | undefined): string | undefined
     
     // Encode the path to handle spaces in filenames
     return `${baseUrl}/${encodeURI(cleanPath)}`;
+}
+
+export function getAssetDownloadUrl(path: string | null | undefined): string | undefined {
+    if (!path) return undefined;
+    let clean = path.replace(/\\/g, '/').trim();
+    
+    // If complete URL, extract subpath after /assets/
+    const assetsIdx = clean.indexOf('/assets/');
+    if (assetsIdx !== -1) {
+        clean = clean.substring(assetsIdx + 8);
+    } else if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        try {
+            const u = new URL(clean);
+            clean = u.pathname.replace(/^\/assets\/?/, '').replace(/^\//, '');
+        } catch {
+            clean = clean.replace(/^https?:\/\/[^\/]+\/(assets\/)?/, '');
+        }
+    } else {
+        clean = clean.replace(/^\/?(assets\/)?/, '');
+    }
+
+    const baseUrl = getBaseUrl();
+    return `${baseUrl}/asset-download/${encodeURI(clean)}`;
 }
 
 export interface PromoPriceInfo {

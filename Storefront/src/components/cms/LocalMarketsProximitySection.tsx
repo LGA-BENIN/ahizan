@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Store, MapPin, ChevronLeft, ChevronRight, ArrowRight, ArrowUpRight, Compass } from 'lucide-react';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
+import { AhizanBrandDevice, AhizanCartIcon } from '@/components/shared/AhizanBrandIcons';
 import { fetchWithClientCache } from '@/lib/vendure/client-cache';
 import { useLocation } from '@/contexts/location-context';
 import { interpolateLocalVariables } from '@/lib/cms/interpolation';
@@ -410,8 +411,57 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
     );
 }
 
+// Flexible SVG Watermark Overlay without background box, with hover animation
+function MarketSvgOverlay({ config, isHovered }: { config: any; isHovered: boolean }) {
+    const svgType = config.marketSvgType || 'brand-device';
+    if (svgType === 'none') return null;
+
+    const placement = config.marketSvgPlacement || 'center';
+    const animation = config.marketSvgAnimation || 'pulse-zoom';
+    const color = config.marketSvgColor || '#ffffff';
+    const opacityIdle = (config.marketSvgOpacity ?? 15) / 100;
+    const opacityHover = (config.marketSvgHoverOpacity ?? 40) / 100;
+
+    const placementClass = {
+        'center': 'inset-0 flex items-center justify-center p-8 sm:p-12',
+        'full-cover': 'inset-0 p-3 sm:p-5 flex items-center justify-center',
+        'bottom-right': 'right-2.5 bottom-2.5 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center'
+    }[placement as 'center' | 'full-cover' | 'bottom-right'] || 'inset-0 flex items-center justify-center p-8 sm:p-12';
+
+    const animTransform = isHovered 
+        ? (animation === 'rotate' ? 'scale-105 rotate-12' : animation === 'pulse-zoom' ? 'scale-110 rotate-3' : 'scale-100')
+        : 'scale-95 rotate-0';
+
+    return (
+        <div className={`absolute ${placementClass} pointer-events-none z-10 transition-all duration-500 bg-transparent`}>
+            <div 
+                className={`w-full h-full flex items-center justify-center transform transition-all duration-500 ease-out ${animTransform}`}
+                style={{
+                    color: color,
+                    opacity: isHovered ? opacityHover : opacityIdle,
+                }}
+            >
+                {svgType === 'brand-device' && (
+                    <AhizanBrandDevice className="w-full h-full drop-shadow-md" color={color} />
+                )}
+                {svgType === 'cart' && (
+                    <AhizanCartIcon className="w-full h-full drop-shadow-md" color={color} />
+                )}
+                {svgType === 'custom' && config.marketCustomSvg && (
+                    <div 
+                        className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+                        style={{ color: color }}
+                        dangerouslySetInnerHTML={{ __html: config.marketCustomSvg }}
+                    />
+                )}
+            </div>
+        </div>
+    );
+}
+
 // Unified Card Component supporting 4 rich styles
 function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any; config: any; cardStyle?: string }) {
+    const [isHovered, setIsHovered] = useState(false);
     const marketImageUrl: string = market.image 
         ? (market.image.startsWith('http') ? market.image : (getAssetUrl(market.image) || CURATED_MARKET_IMAGES[0])) 
         : CURATED_MARKET_IMAGES[0];
@@ -441,13 +491,19 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
     if (cardStyle === 'round-circle') {
         return (
             <Link href={marketLink} className={`flex flex-col items-center text-center group cursor-pointer p-2 ${animClass} no-underline`}>
-                <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden p-1 bg-gradient-to-tr from-primary/80 via-primary/30 to-amber-500 shadow-md group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
-                    <div className="w-full h-full rounded-full overflow-hidden bg-slate-900">
-                        <img 
-                            src={marketImageUrl} 
-                            alt={market.name} 
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-115" 
-                        />
+                <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
+                    {/* Ahizan Brand Device behind round market */}
+                    <div className="absolute -inset-2.5 sm:-inset-3 z-0 pointer-events-none transition-transform duration-500 ease-out group-hover:scale-115 group-hover:rotate-6">
+                        <AhizanBrandDevice className="w-full h-full drop-shadow-sm opacity-90 group-hover:opacity-100" color="#DF1B33" />
+                    </div>
+                    <div className="relative z-10 w-full h-full rounded-full overflow-hidden p-1 bg-gradient-to-tr from-primary/80 via-primary/30 to-amber-500 shadow-md group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
+                        <div className="w-full h-full rounded-full overflow-hidden bg-slate-900">
+                            <img 
+                                src={marketImageUrl} 
+                                alt={market.name} 
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-115" 
+                            />
+                        </div>
                     </div>
                     {market.distanceKm !== null && config.showDistance !== false && (
                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
@@ -478,6 +534,8 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                     backgroundColor: config.cardBgColor && config.cardBgColor !== '#0B1E3B' ? config.cardBgColor : undefined,
                     borderColor: config.cardBorderColor || undefined,
                 }}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
             >
                 {/* Left Image Side */}
                 <div className="relative w-5/12 min-w-[130px] sm:min-w-[160px] h-full overflow-hidden bg-slate-900 shrink-0">
@@ -487,8 +545,12 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                    
+                    {/* Filigrane SVG sans fond avec animation d'éveil */}
+                    <MarketSvgOverlay config={config} isHovered={isHovered} />
+
                     {market.distanceKm !== null && config.showDistance !== false && (
-                        <div className="absolute top-2.5 left-2.5 bg-emerald-600/95 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
+                        <div className="absolute top-2.5 left-2.5 bg-emerald-600/95 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm z-20">
                             📍 {market.distanceKm} km
                         </div>
                     )}
@@ -537,6 +599,8 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                     backgroundColor: config.cardBgColor && config.cardBgColor !== '#0B1E3B' ? config.cardBgColor : undefined,
                     borderColor: config.cardBorderColor || undefined,
                 }}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
             >
                 {/* Top Image */}
                 <div className="relative h-44 sm:h-48 w-full overflow-hidden bg-slate-900 shrink-0">
@@ -547,8 +611,11 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
                     
+                    {/* Filigrane SVG sans fond avec animation d'éveil */}
+                    <MarketSvgOverlay config={config} isHovered={isHovered} />
+
                     {/* Floating Badges on Image */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-1.5">
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-1.5 z-20">
                         {market.geoZone?.name && (
                             <span className="text-[10px] font-black text-white bg-black/60 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20">
                                 {market.geoZone.name}
@@ -599,6 +666,8 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                 backgroundColor: config.cardBgColor || '#0B1E3B',
                 borderColor: config.cardBorderColor || undefined,
             }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
             {/* Full Card Background Image */}
             <div className="absolute inset-0 z-0 overflow-hidden bg-slate-900">
@@ -609,6 +678,9 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                 />
                 {/* Subtle gradient vignette for depth */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/35 pointer-events-none" />
+
+                {/* Filigrane SVG sans fond avec animation d'éveil au survol */}
+                <MarketSvgOverlay config={config} isHovered={isHovered} />
             </div>
 
             {/* Top Badges (Distance & Commune) */}

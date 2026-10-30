@@ -57,10 +57,12 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
             defaultProductImage: '',
             applyFlashPromoToProducts: false,
             applyFlashPromoToCollections: false,
-            watermarkUrl: '',
-            watermarkOpacity: 0.4,
-            watermarkSize: 25,
-            watermarkPosition: 'center',
+            watermarkUrl: 'https://api.ahizan.com/assets/source/a6/logo-temp-01.png',
+            watermarkOpacity: 0.7,
+            watermarkSize: 14,
+            watermarkPosition: 'bottom-right',
+            watermarkMargin: 3,
+            watermarkCropProtection: true,
             pushNotificationDelay: 3,
             pushNotificationMaxPerDay: 3,
             pushNotificationInterval: 30
@@ -486,59 +488,86 @@ export const ThemeSettings = ({ data, onSave }: ThemeSettingsProps) => {
 
             {/* ===== WATERMARK SETTINGS ===== */}
             <div className="settings-card">
-                <div className="settings-card-header">🛡️ Paramètres de filigrane (Watermark)</div>
+                <div className="settings-card-header">🛡️ Filigrane officiel (Téléchargements & Exports)</div>
                 <p style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>
-                    Le filigrane sera appliqué sur toutes les images téléchargées et affichées depuis le site.
+                    Le filigrane est invisible pendant la navigation normale pour préserver la qualité du site. Il est appliqué automatiquement et mis en cache lors des téléchargements et exports.
                 </p>
                 <div>
                     <FileUploadField 
-                        label="Image du filigrane" 
+                        label="Logo ou signature du filigrane" 
                         value={config.watermarkUrl || ''} 
                         onChange={(v) => handleChange('watermarkUrl', v)} 
                         accept="image/png,image/jpeg,image/webp,image/*" 
                     />
                 </div>
                 {config.watermarkUrl && (
-                    <div className="grid-3" style={{ marginTop: '1rem' }}>
-                        <div>
-                            <label className="label-pro">Opacité ({Math.round((config.watermarkOpacity ?? 0.4) * 100)}%)</label>
-                            <input 
-                                type="range" 
-                                className="range-pro" 
-                                min="0.1" 
-                                max="1.0" 
-                                step="0.05" 
-                                value={config.watermarkOpacity ?? 0.4} 
-                                onChange={(e) => handleChange('watermarkOpacity', parseFloat(e.target.value))} 
-                            />
+                    <>
+                        <div className="grid-3" style={{ marginTop: '1rem' }}>
+                            <div>
+                                <label className="label-pro">Opacité ({Math.round((config.watermarkOpacity ?? 0.7) * 100)}%)</label>
+                                <input 
+                                    type="range" 
+                                    className="range-pro" 
+                                    min="0.1" 
+                                    max="1.0" 
+                                    step="0.05" 
+                                    value={config.watermarkOpacity ?? 0.7} 
+                                    onChange={(e) => handleChange('watermarkOpacity', parseFloat(e.target.value))} 
+                                />
+                            </div>
+                            <div>
+                                <label className="label-pro">Largeur (% de l'image) : {config.watermarkSize ?? 14}%</label>
+                                <input 
+                                    type="range" 
+                                    className="range-pro" 
+                                    min="5" 
+                                    max="40" 
+                                    step="1" 
+                                    value={config.watermarkSize ?? 14} 
+                                    onChange={(e) => handleChange('watermarkSize', parseInt(e.target.value))} 
+                                />
+                            </div>
+                            <div>
+                                <label className="label-pro">Marge des bords : {config.watermarkMargin ?? 3}%</label>
+                                <input 
+                                    type="range" 
+                                    className="range-pro" 
+                                    min="1" 
+                                    max="10" 
+                                    step="1" 
+                                    value={config.watermarkMargin ?? 3} 
+                                    onChange={(e) => handleChange('watermarkMargin', parseInt(e.target.value))} 
+                                />
+                            </div>
                         </div>
-                        <div>
-                            <label className="label-pro">Taille (% de l'image) : {config.watermarkSize ?? 25}%</label>
-                            <input 
-                                type="range" 
-                                className="range-pro" 
-                                min="10" 
-                                max="80" 
-                                step="5" 
-                                value={config.watermarkSize ?? 25} 
-                                onChange={(e) => handleChange('watermarkSize', parseInt(e.target.value))} 
-                            />
+
+                        <div className="grid-2" style={{ marginTop: '1rem' }}>
+                            <div>
+                                <label className="label-pro">Position principale</label>
+                                <select 
+                                    className="input-pro" 
+                                    value={config.watermarkPosition || 'bottom-right'} 
+                                    onChange={(e) => handleChange('watermarkPosition', e.target.value)}
+                                >
+                                    <option value="bottom-right">Bas-Droite (Recommandé)</option>
+                                    <option value="bottom-left">Bas-Gauche</option>
+                                    <option value="top-right">Haut-Droite</option>
+                                    <option value="top-left">Haut-Gauche</option>
+                                    <option value="center">Centre</option>
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', marginTop: '1.4rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={config.watermarkCropProtection !== false} 
+                                        onChange={(e) => handleChange('watermarkCropProtection', e.target.checked)} 
+                                    />
+                                    Protection anti-recadrage (double signature subtile)
+                                </label>
+                            </div>
                         </div>
-                        <div>
-                            <label className="label-pro">Position</label>
-                            <select 
-                                className="input-pro" 
-                                value={config.watermarkPosition || 'center'} 
-                                onChange={(e) => handleChange('watermarkPosition', e.target.value)}
-                            >
-                                <option value="center">Centre</option>
-                                <option value="bottom-right">Bas-Droite</option>
-                                <option value="bottom-left">Bas-Gauche</option>
-                                <option value="top-right">Haut-Droite</option>
-                                <option value="top-left">Haut-Gauche</option>
-                            </select>
-                        </div>
-                    </div>
+                    </>
                 )}
             </div>
 

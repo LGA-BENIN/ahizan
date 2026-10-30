@@ -260,7 +260,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                 locationId: $locationId, 
                                 latitude: $latitude, 
                                 longitude: $longitude,
-                                options: { filter: { status: { eq: "APPROVED" } } }
+                                options: { filter: { status: { eq: "APPROVED" } }, take: 12 }
                             ) {
                                 items {
                                     id

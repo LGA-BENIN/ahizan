@@ -7,6 +7,7 @@ import {
     Sparkles, ShoppingBag, UtensilsCrossed, Baby, Store 
 } from 'lucide-react';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
+import { AhizanBrandDevice, AhizanCartIcon } from '@/components/shared/AhizanBrandIcons';
 
 export interface CircularCategoryItem {
     id?: string | number;
@@ -22,6 +23,16 @@ export interface CircularCategoryNavProps {
     categories?: CircularCategoryItem[];
     autoFetch?: boolean;
     className?: string;
+    // CMS Customization controls
+    shape?: 'circle' | 'rounded' | 'square';
+    bgSvg?: 'brand-device' | 'cart' | 'custom' | 'none';
+    customSvg?: string;
+    svgColor?: string;
+    svgScale?: number;
+    svgOpacity?: number;
+    borderWidth?: number;
+    borderColor?: string;
+    bgColor?: string;
 }
 
 const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
@@ -89,7 +100,16 @@ export function CircularCategoryNav({
     subtitle,
     categories: manualCategories,
     autoFetch = false,
-    className = ""
+    className = "",
+    shape = 'circle',
+    bgSvg = 'brand-device',
+    customSvg,
+    svgColor = '#DF1B33',
+    svgScale = 110,
+    svgOpacity = 90,
+    borderWidth = 1,
+    borderColor = '#E2E8F0',
+    bgColor = '#FFFFFF'
 }: CircularCategoryNavProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [fetchedCategories, setFetchedCategories] = useState<CircularCategoryItem[]>([]);
@@ -206,28 +226,68 @@ export function CircularCategoryNav({
                     const rawImg = cat.imageUrl || CATEGORY_FALLBACK_IMAGES[cat.slug];
                     const imgSrc = getAssetUrl(rawImg) || rawImg;
                     const CategoryIcon = getCategoryVectorIcon(cat.label, cat.slug);
+                    const shapeClass = shape === 'square' ? 'rounded-none' : shape === 'rounded' ? 'rounded-2xl' : 'rounded-full';
+                    const scaleVal = (svgScale || 110) / 100;
+                    const opacityVal = (svgOpacity ?? 90) / 100;
+                    const hasBorder = (borderWidth ?? 1) > 0;
 
                     return (
                         <Link
                             key={cat.id || cat.slug || idx}
                             href={`/collection/${cat.slug}`}
-                            className="group/avatar flex flex-col items-center text-center flex-shrink-0 snap-start no-underline select-none w-[84px] md:w-[110px] lg:w-[120px]"
+                            className="group/avatar flex flex-col items-center text-center flex-shrink-0 snap-start no-underline select-none w-[88px] md:w-[114px] lg:w-[124px] py-1"
                         >
-                            {/* Circular Avatar Container */}
-                            <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-[104px] lg:h-[104px] rounded-full p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover/avatar:border-primary group-hover/avatar:shadow-md transition-all duration-300 transform group-hover/avatar:scale-105">
-                                <div className="w-full h-full rounded-full overflow-hidden bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-0.5 shadow-inner">
-                                    {imgSrc ? (
-                                        <img
-                                            src={imgSrc}
-                                            alt={cat.label}
-                                            className="w-full h-full object-cover rounded-full group-hover/avatar:scale-110 transition-transform duration-300"
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600">
-                                            <CategoryIcon className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 stroke-[1.75]" />
-                                        </div>
-                                    )}
+                            {/* Avatar Container with Configurable Background Motif */}
+                            <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-[104px] lg:h-[104px] flex items-center justify-center">
+                                {/* Background SVG Motif (Brand Device, Cart, Custom, or None) */}
+                                {bgSvg !== 'none' && (
+                                    <div 
+                                        className="absolute -inset-3 sm:-inset-4 md:-inset-5 z-0 pointer-events-none transition-transform duration-500 ease-out group-hover/avatar:scale-115 group-hover/avatar:rotate-6 flex items-center justify-center"
+                                        style={{
+                                            transform: `scale(${scaleVal})`,
+                                            opacity: opacityVal
+                                        }}
+                                    >
+                                        {bgSvg === 'brand-device' && (
+                                            <AhizanBrandDevice className="w-full h-full drop-shadow-sm" color={svgColor || '#DF1B33'} />
+                                        )}
+                                        {bgSvg === 'cart' && (
+                                            <AhizanCartIcon className="w-full h-full drop-shadow-sm" color={svgColor || '#DA2037'} />
+                                        )}
+                                        {bgSvg === 'custom' && customSvg && (
+                                            <div 
+                                                className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+                                                style={{ color: svgColor }}
+                                                dangerouslySetInnerHTML={{ __html: customSvg }} 
+                                            />
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Image Card Container with Configurable Shape and Border */}
+                                <div 
+                                    className={`relative z-10 w-full h-full ${shapeClass} p-1 group-hover/avatar:shadow-md transition-all duration-300 transform group-hover/avatar:scale-105`}
+                                    style={{
+                                        backgroundColor: bgColor || '#FFFFFF',
+                                        borderWidth: hasBorder ? `${borderWidth ?? 1}px` : '0px',
+                                        borderStyle: hasBorder ? 'solid' : 'none',
+                                        borderColor: hasBorder ? (borderColor || '#E2E8F0') : 'transparent',
+                                    }}
+                                >
+                                    <div className={`w-full h-full ${shapeClass} overflow-hidden bg-slate-50 dark:bg-slate-800 flex items-center justify-center p-0.5 shadow-inner`}>
+                                        {imgSrc ? (
+                                            <img
+                                                src={imgSrc}
+                                                alt={cat.label}
+                                                className={`w-full h-full object-cover ${shapeClass} group-hover/avatar:scale-110 transition-transform duration-300`}
+                                                loading="lazy"
+                                            />
+                                        ) : (
+                                            <div className={`w-full h-full ${shapeClass} bg-red-50 dark:bg-red-950/40 flex items-center justify-center text-red-600`}>
+                                                <CategoryIcon className="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 stroke-[1.75]" />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 

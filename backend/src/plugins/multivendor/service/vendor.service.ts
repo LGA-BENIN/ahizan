@@ -67,6 +67,10 @@ export class VendorService implements OnApplicationBootstrap {
         private replacementEngineService: ReplacementEngineService,
     ) { }
 
+    private vendorProductsCache = new Map<string, { products: any[]; timestamp: number }>();
+    private marketCoordsCache: { data: Map<number, { lat: number; lng: number }>; expiresAt: number } | null = null;
+    private zoneCoordsCache: { data: Map<number, { lat: number; lng: number }>; expiresAt: number } | null = null;
+
     async findAll(
         ctx: RequestContext,
         options?: ListQueryOptions<Vendor>,
@@ -84,9 +88,10 @@ export class VendorService implements OnApplicationBootstrap {
             delete qbOptions.take;
         }
 
+        // Only load essential storefront display relations (avoid heavy KYC files rccm/ifu/idCard)
         const qb = this.listQueryBuilder.build(Vendor, qbOptions, {
             ctx,
-            relations: ['logo', 'coverImage', 'rccmFile', 'ifuFile', 'idCardFile'],
+            relations: ['logo', 'coverImage'],
         });
 
         const [items, totalItems] = await qb.getManyAndCount();
@@ -110,28 +115,38 @@ export class VendorService implements OnApplicationBootstrap {
             return R * c;
         };
 
-        // Pre-load market and zone coordinates for vendor fallback coordinates
-        const marketCoordsMap = new Map<number, { lat: number; lng: number }>();
-        const zoneCoordsMap = new Map<number, { lat: number; lng: number }>();
-        try {
-            const rawMarkets = await this.connection.rawConnection.query(
-                `SELECT id, "centerLatitude", "centerLongitude" FROM market WHERE "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL`
-            );
-            if (Array.isArray(rawMarkets)) {
-                for (const m of rawMarkets) {
-                    marketCoordsMap.set(Number(m.id), { lat: Number(m.centerLatitude), lng: Number(m.centerLongitude) });
+        // Cache market and zone coordinates in memory (5 min TTL) to avoid hitting DB on every single request
+        const now = Date.now();
+        let marketCoordsMap = this.marketCoordsCache?.data;
+        if (!marketCoordsMap || now > (this.marketCoordsCache?.expiresAt || 0)) {
+            marketCoordsMap = new Map<number, { lat: number; lng: number }>();
+            try {
+                const rawMarkets = await this.connection.rawConnection.query(
+                    `SELECT id, "centerLatitude", "centerLongitude" FROM market WHERE "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL`
+                );
+                if (Array.isArray(rawMarkets)) {
+                    for (const m of rawMarkets) {
+                        marketCoordsMap.set(Number(m.id), { lat: Number(m.centerLatitude), lng: Number(m.centerLongitude) });
+                    }
                 }
-            }
-            const rawZones = await this.connection.rawConnection.query(
-                `SELECT id, "centerLatitude", "centerLongitude" FROM geo_zone WHERE "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL`
-            );
-            if (Array.isArray(rawZones)) {
-                for (const z of rawZones) {
-                    zoneCoordsMap.set(Number(z.id), { lat: Number(z.centerLatitude), lng: Number(z.centerLongitude) });
+                this.marketCoordsCache = { data: marketCoordsMap, expiresAt: now + 300000 };
+            } catch (e) {}
+        }
+
+        let zoneCoordsMap = this.zoneCoordsCache?.data;
+        if (!zoneCoordsMap || now > (this.zoneCoordsCache?.expiresAt || 0)) {
+            zoneCoordsMap = new Map<number, { lat: number; lng: number }>();
+            try {
+                const rawZones = await this.connection.rawConnection.query(
+                    `SELECT id, "centerLatitude", "centerLongitude" FROM geo_zone WHERE "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL`
+                );
+                if (Array.isArray(rawZones)) {
+                    for (const z of rawZones) {
+                        zoneCoordsMap.set(Number(z.id), { lat: Number(z.centerLatitude), lng: Number(z.centerLongitude) });
+                    }
                 }
-            }
-        } catch (e) {
-            // Ignore pre-load error
+                this.zoneCoordsCache = { data: zoneCoordsMap, expiresAt: now + 300000 };
+            } catch (e) {}
         }
 
         const getVendorCoords = (v: Vendor): { lat: number; lng: number } | null => {
@@ -3123,7 +3138,13 @@ export class VendorService implements OnApplicationBootstrap {
     }
 
     async findAllProductsForVendor(ctx: RequestContext, vendorId: string): Promise<Product[]> {
-        console.log(`[findAllProductsForVendor] Called for vendorId: ${vendorId}`);
+        // Fast-path in-memory cache check (TTL: 60 seconds)
+        const cached = this.vendorProductsCache.get(vendorId);
+        const now = Date.now();
+        if (cached && (now - cached.timestamp < 60000)) {
+            return cached.products;
+        }
+
         // 1. Get all product IDs created by vendor OR tagged via SellerOffers
         let productIds: string[] = [];
         let rawOffers: any[] = [];
@@ -3146,8 +3167,8 @@ export class VendorService implements OnApplicationBootstrap {
             `, [vendorId]);
 
             productIds = (rawRes || []).map((r: any) => String(r.id));
-            console.log(`[findAllProductsForVendor] Found ${productIds.length} productIds for vendor ${vendorId}:`, productIds);
             if (productIds.length === 0) {
+                this.vendorProductsCache.set(vendorId, { products: [], timestamp: now });
                 return [];
             }
 
@@ -3156,13 +3177,12 @@ export class VendorService implements OnApplicationBootstrap {
                 FROM seller_offer
                 WHERE "vendorId" = $1
             `, [vendorId]);
-            console.log(`[findAllProductsForVendor] Found ${rawOffers.length} rawOffers for vendor ${vendorId}`);
         } catch (err: any) {
-            console.error('[findAllProductsForVendor] Direct query failed:', err.message, err.stack);
+            console.error('[findAllProductsForVendor] Direct query failed:', err.message);
             return [];
         }
 
-        // 2. Load full products with all relations
+        // 2. Load products with essential relations (avoid massive cartesian joins)
         let products: Product[] = [];
         const offerAssetMap = new Map<string, any>();
         try {
@@ -3181,24 +3201,17 @@ export class VendorService implements OnApplicationBootstrap {
                 .createQueryBuilder('product')
                 .leftJoinAndSelect('product.translations', 'translations')
                 .leftJoinAndSelect('product.featuredAsset', 'featuredAsset')
-                .leftJoinAndSelect('product.assets', 'assets')
                 .leftJoinAndSelect('product.variants', 'variants')
                 .leftJoinAndSelect('variants.featuredAsset', 'variantFeaturedAsset')
                 .leftJoinAndSelect('variants.productVariantPrices', 'prices')
-                .leftJoinAndSelect('variants.translations', 'variantTranslations')
                 .leftJoinAndSelect('variants.options', 'options')
                 .leftJoinAndSelect('options.group', 'group')
-                .leftJoinAndSelect('options.translations', 'optionTranslations')
-                .leftJoinAndSelect('group.translations', 'groupTranslations')
-                .leftJoinAndSelect('variants.collections', 'collections')
-                .leftJoinAndSelect('collections.translations', 'collectionTranslations')
                 .where('product.id IN (:...productIds)', { productIds })
                 .andWhere('product.deletedAt IS NULL')
                 .orderBy('product.createdAt', 'DESC')
                 .getMany();
-            console.log(`[findAllProductsForVendor] Loaded ${products.length} products from QueryBuilder`);
         } catch (err: any) {
-            console.error('[findAllProductsForVendor] Products QueryBuilder failed:', err.message, err.stack);
+            console.error('[findAllProductsForVendor] Products QueryBuilder failed:', err.message);
             return [];
         }
 
@@ -3308,7 +3321,7 @@ export class VendorService implements OnApplicationBootstrap {
             resultProducts.push(p);
         }
 
-        console.log(`[findAllProductsForVendor] Returning ${resultProducts.length} resultProducts for vendor ${vendorId}`);
+        this.vendorProductsCache.set(vendorId, { products: resultProducts, timestamp: Date.now() });
         return resultProducts;
     }
 

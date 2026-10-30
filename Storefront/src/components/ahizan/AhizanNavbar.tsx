@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, UserRound, UserRoundCheck, HelpCircle, ShoppingCart, ChevronDown, Heart, X, Menu, ShoppingBag, ArrowLeft, ChevronLeft, Download } from "lucide-react";
+import { Search, UserRound, UserRoundCheck, HelpCircle, ChevronDown, Heart, X, Menu, ShoppingBag, ArrowLeft, ChevronLeft, Download } from "lucide-react";
+import { AhizanCartIcon } from "@/components/shared/AhizanBrandIcons";
 import { useState, useRef, useEffect } from "react";
 import { getAssetUrl } from "@/lib/vendure/api-utils";
 import { useMobileMenu } from "@/contexts/mobile-menu-context";
@@ -389,7 +390,7 @@ export function AhizanNavbar({
                                         )}
                                         {showCartIcon && (
                                             <Link href="/cart" className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors relative">
-                                                <ShoppingCart className="h-4.5 w-4.5" />
+                                                <AhizanCartIcon className="h-4.5 w-4.5" />
                                                 {cartCount > 0 && (
                                                     <span
                                                         className="absolute -top-0.5 -right-0.5 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center"
@@ -643,7 +644,7 @@ export function AhizanNavbar({
                             {showCartIcon && (
                                 <Link href="/cart" className="flex items-center gap-2 hover:opacity-80 transition-opacity relative">
                                     <div className="relative">
-                                        <ShoppingCart className="h-5 w-5" />
+                                        <AhizanCartIcon className="h-5 w-5" />
                                         {cartCount > 0 && (
                                             <span
                                                 className="absolute -top-1.5 -right-1.5 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center"

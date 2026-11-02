@@ -89,7 +89,7 @@ export async function expandProductsWithSellerOffers(
 
     const variantIds = Array.from(
         new Set(items.map(i => i.productVariantId || i.id).filter(Boolean))
-    );
+    ).slice(0, 24);
 
     if (variantIds.length === 0) return items;
 

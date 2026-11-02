@@ -55,6 +55,16 @@ export const config: any = {
         adminListQueryLimit: +(process.env.ADMIN_LIST_QUERY_LIMIT || 1000),
         middleware: [
             {
+                handler: (req: any, res: any, next: any) => {
+                    if (req.app && !req.app.get('trust proxy')) {
+                        req.app.set('trust proxy', 1);
+                    }
+                    next();
+                },
+                route: '/',
+                beforeListen: true,
+            },
+            {
                 handler: json({ limit: '50mb' }),
                 route: '/',
                 beforeListen: true,

@@ -12,7 +12,7 @@ services:
       dockerfile: docker/vendure/Dockerfile
     container_name: ahizan_backend
     restart: unless-stopped
-    privileged: true
+    mem_limit: 1536m
     ports:
       - "3000:3000"
     env_file: .env
@@ -52,7 +52,7 @@ services:
       dockerfile: docker/storefront/Dockerfile
     container_name: ahizan_storefront
     restart: unless-stopped
-    privileged: true
+    mem_limit: 1024m
     ports:
       - "3001:3000"
     env_file: .env
@@ -75,7 +75,7 @@ services:
       dockerfile: docker/seller/Dockerfile
     container_name: ahizan_seller
     restart: unless-stopped
-    privileged: true
+    mem_limit: 768m
     ports:
       - "3002:3000"
     env_file: .env
@@ -98,7 +98,7 @@ services:
       dockerfile: docker/auth/Dockerfile
     container_name: ahizan_auth
     restart: unless-stopped
-    privileged: true
+    mem_limit: 512m
     ports:
       - "3003:3000"
     env_file: .env
@@ -118,7 +118,7 @@ services:
     build: ./docker/media
     container_name: ahizan_media
     restart: unless-stopped
-    privileged: true
+    mem_limit: 256m
     ports:
       - "80"
     volumes:
@@ -136,7 +136,7 @@ services:
     image: postgis/postgis:16-3.4-alpine
     container_name: ahizan_db
     restart: unless-stopped
-    privileged: true
+    mem_limit: 1536m
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -152,6 +152,7 @@ services:
     image: node:22-alpine
     container_name: ahizan_ai
     restart: unless-stopped
+    mem_limit: 512m
     ports:
       - "3005:3005"
     working_dir: /app
@@ -160,10 +161,10 @@ services:
       - ./ahizan-ai:/app
     command: node dist/index.js
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3005/api/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
-      interval: 30s
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3005/api/health || exit 1"]
+      interval: 45s
       timeout: 5s
-      start_period: 10s
+      start_period: 15s
       retries: 3
     labels:
       - "VIRTUAL_HOST=ai.ahizan.com"

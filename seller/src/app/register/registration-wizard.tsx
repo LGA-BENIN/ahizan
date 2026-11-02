@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,6 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Check, ChevronRight, ChevronLeft, Upload, FileText } from 'lucide-react';
 import { registerAction } from './actions';
+import { compressImageClient } from '@/lib/compress-image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -486,26 +487,58 @@ export function RegistrationWizard() {
 }
 
 function FileUploadField({ label, onChange, file }: { label: string, onChange: (f: File | undefined) => void, file?: File }) {
+    const [compressing, setCompressing] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawFile = e.target.files?.[0];
+        if (!rawFile) {
+            onChange(undefined);
+            return;
+        }
+
+        if (rawFile.type.startsWith('image/')) {
+            setCompressing(true);
+            try {
+                const compressed = await compressImageClient(rawFile);
+                onChange(compressed);
+            } catch (err) {
+                console.error("Image compression error:", err);
+                onChange(rawFile);
+            } finally {
+                setCompressing(false);
+            }
+        } else {
+            onChange(rawFile);
+        }
+    };
+
     return (
         <div className="border border-dashed border-input rounded-lg p-4 hover:bg-slate-50 transition-colors text-center cursor-pointer relative group">
             <input
                 type="file"
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                onChange={(e) => onChange(e.target.files?.[0])}
+                onChange={handleFileChange}
                 accept=".pdf,.jpg,.jpeg,.png"
+                disabled={compressing}
             />
             <div className="space-y-2">
-                {file ? (
+                {compressing ? (
+                    <div className="flex flex-col items-center text-primary">
+                        <Loader2 className="w-8 h-8 animate-spin mb-1 text-primary" />
+                        <span className="text-sm font-medium">Optimisation de l'image...</span>
+                        <span className="text-xs text-muted-foreground">Réduction de taille pour réseau mobile</span>
+                    </div>
+                ) : file ? (
                     <div className="flex flex-col items-center text-primary">
                         <FileText className="w-8 h-8" />
                         <span className="text-sm font-medium truncate max-w-[200px]">{file.name}</span>
-                        <span className="text-xs text-muted-foreground">Cliquer pour remplacer</span>
+                        <span className="text-xs text-muted-foreground">({(file.size / 1024).toFixed(0)} Ko) - Cliquer pour remplacer</span>
                     </div>
                 ) : (
                     <div className="flex flex-col items-center text-muted-foreground group-hover:text-foreground">
                         <Upload className="w-8 h-8 mb-1" />
                         <span className="text-sm font-medium">{label}</span>
-                        <span className="text-xs">PDF ou Image</span>
+                        <span className="text-xs">PDF ou Image (optimisée auto)</span>
                     </div>
                 )}
             </div>

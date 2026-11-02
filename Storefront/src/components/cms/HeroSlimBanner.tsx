@@ -42,7 +42,7 @@ const DEFAULT_SLIDES_STYLE_1: SlimBannerSlide[] = [
         bgGradient: "linear-gradient(100deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)",
         highlightBadge: "JUSQU'À -40%",
         badgeBgColor: "#ef4444",
-        productImage: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=80&w=600&auto=format&fit=crop",
+        productImage: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?q=70&w=360&auto=format&fit=crop",
         ctaText: "En profiter",
         ctaUrl: "/flash-deals"
     },
@@ -52,7 +52,7 @@ const DEFAULT_SLIDES_STYLE_1: SlimBannerSlide[] = [
         bgGradient: "linear-gradient(100deg, #701a75 0%, #a21caf 50%, #e879f9 100%)",
         highlightBadge: "-25 000 FCFA",
         badgeBgColor: "#f59e0b",
-        productImage: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?q=80&w=600&auto=format&fit=crop",
+        productImage: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?q=70&w=360&auto=format&fit=crop",
         ctaText: "Découvrir",
         ctaUrl: "/search?category=informatique"
     },
@@ -62,7 +62,7 @@ const DEFAULT_SLIDES_STYLE_1: SlimBannerSlide[] = [
         bgGradient: "linear-gradient(100deg, #064e3b 0%, #059669 50%, #34d399 100%)",
         highlightBadge: "0 FRAIS CACHÉS",
         badgeBgColor: "#10b981",
-        productImage: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=600&auto=format&fit=crop",
+        productImage: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=70&w=360&auto=format&fit=crop",
         ctaText: "Commander",
         ctaUrl: "/local-discovery"
     }
@@ -71,22 +71,22 @@ const DEFAULT_SLIDES_STYLE_1: SlimBannerSlide[] = [
 const DEFAULT_SLIDES_STYLE_2: SlimBannerSlide[] = [
     {
         id: 'promo-1',
-        imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1600&auto=format&fit=crop",
-        mobileImageUrl: "https://images.unsplash.com/photo-1607082349566-187342175e2f?q=80&w=800&auto=format&fit=crop",
+        imageUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=70&w=800&auto=format&fit=crop",
+        mobileImageUrl: "https://images.unsplash.com/photo-1607082349566-187342175e2f?q=70&w=400&auto=format&fit=crop",
         linkUrl: "/flash-deals",
         alt: "Offres Spéciales Flash Deals"
     },
     {
         id: 'promo-2',
-        imageUrl: "https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?q=80&w=1600&auto=format&fit=crop",
-        mobileImageUrl: "https://images.unsplash.com/photo-1593642634367-d91a135587b5?q=80&w=800&auto=format&fit=crop",
+        imageUrl: "https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?q=70&w=800&auto=format&fit=crop",
+        mobileImageUrl: "https://images.unsplash.com/photo-1593642634367-d91a135587b5?q=70&w=400&auto=format&fit=crop",
         linkUrl: "/search?category=informatique",
         alt: "Sélection High-Tech & Gaming"
     },
     {
         id: 'promo-3',
-        imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=1600&auto=format&fit=crop",
-        mobileImageUrl: "https://images.unsplash.com/photo-1552346154-21d32810aba3?q=80&w=800&auto=format&fit=crop",
+        imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=70&w=800&auto=format&fit=crop",
+        mobileImageUrl: "https://images.unsplash.com/photo-1552346154-21d32810aba3?q=70&w=400&auto=format&fit=crop",
         linkUrl: "/flash-deals",
         alt: "Promotions & Nouveautés"
     }

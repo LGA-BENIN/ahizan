@@ -120,17 +120,34 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
                         {errorMsg}
                     </p>
                 </div>
-                <div className="flex flex-col gap-2">
-                    <Link href="/register" className="block">
-                        <Button variant="outline" className="w-full">
-                            Créer un nouveau compte
-                        </Button>
-                    </Link>
-                    <Link href="/sign-in" className="block">
-                        <Button variant="ghost" className="w-full">
-                            Retour à la connexion
-                        </Button>
-                    </Link>
+                <div className="flex flex-col gap-2 pt-2">
+                    {isVendor ? (
+                        <>
+                            <a href="https://seller.ahizan.com/sign-in" className="block">
+                                <Button className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold">
+                                    Se connecter au Portail Vendeur
+                                </Button>
+                            </a>
+                            <a href="https://seller.ahizan.com/onboarding" className="block">
+                                <Button variant="outline" className="w-full">
+                                    Accéder à la création de boutique
+                                </Button>
+                            </a>
+                        </>
+                    ) : (
+                        <>
+                            <Link href="/sign-in" className="block">
+                                <Button className="w-full bg-[#0d213d] hover:bg-[#0d213d]/90 text-white">
+                                    Se connecter à mon compte
+                                </Button>
+                            </Link>
+                            <Link href="/register" className="block">
+                                <Button variant="outline" className="w-full">
+                                    Créer un nouveau compte
+                                </Button>
+                            </Link>
+                        </>
+                    )}
                 </div>
             </CardContent>
         </Card>

@@ -150,7 +150,7 @@ function InlineCategorySection({ config, siteCategories, globalPromoConfig, wrap
                         <Link key={cat.id} href={`/search?category=${cat.slug}`} className="flex-shrink-0 w-36 md:w-44 group snap-start">
                             <div className="aspect-square rounded-2xl bg-slate-100 overflow-hidden mb-3 border border-slate-200/60 group-hover:shadow-md transition-all duration-300">
                                 {displayImg ? (
-                                    <img src={displayImg} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                    <img src={displayImg} alt={cat.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-3xl">📦</div>
                                 )}

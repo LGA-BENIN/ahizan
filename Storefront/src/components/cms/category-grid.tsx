@@ -218,9 +218,9 @@ export function CategoryGrid({
                                                     <div className="relative w-full h-full overflow-hidden bg-muted rounded-full">
                                                         {cat.imageUrl ? (
                                                             isCatGif ? (
-                                                                <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                                <img src={cat.imageUrl} alt={cat.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                                             ) : (
-                                                                <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                                <Image src={cat.imageUrl} alt={cat.name} fill sizes="160px" loading="lazy" className="object-cover group-hover:scale-110 transition-transform duration-500" />
                                                             )
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
@@ -235,9 +235,9 @@ export function CategoryGrid({
                                                 <div className="relative w-full h-full overflow-hidden bg-muted rounded-2xl">
                                                     {cat.imageUrl ? (
                                                         isCatGif ? (
-                                                            <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            <img src={cat.imageUrl} alt={cat.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                                         ) : (
-                                                            <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                            <Image src={cat.imageUrl} alt={cat.name} fill sizes="160px" loading="lazy" className="object-cover group-hover:scale-110 transition-transform duration-500" />
                                                         )
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">
@@ -281,9 +281,9 @@ export function CategoryGrid({
                                     <div className={`relative w-full h-full overflow-hidden bg-muted ${cardStyle === 'circular' ? 'rounded-full' : 'rounded-2xl'}`}>
                                         {cat.imageUrl ? (
                                             isCatGif ? (
-                                                <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                <img src={cat.imageUrl} alt={cat.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                             ) : (
-                                                <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                <Image src={cat.imageUrl} alt={cat.name} fill sizes="160px" loading="lazy" className="object-cover group-hover:scale-110 transition-transform duration-500" />
                                             )
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-2xl sm:text-3xl font-black text-primary/20 bg-primary/5 uppercase">

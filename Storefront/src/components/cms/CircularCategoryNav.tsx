@@ -7,6 +7,7 @@ import {
     Sparkles, ShoppingBag, UtensilsCrossed, Baby, Store 
 } from 'lucide-react';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
+import { fetchWithClientCache } from '@/lib/vendure/client-cache';
 import { AhizanBrandDevice, AhizanCartIcon } from '@/components/shared/AhizanBrandIcons';
 
 export interface CircularCategoryItem {
@@ -141,14 +142,9 @@ export function CircularCategoryNav({
             }
         `;
 
-        fetch(getShopApiUrl(), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query }),
-        })
-            .then(res => res.json())
+        fetchWithClientCache(getShopApiUrl(), query, {})
             .then(data => {
-                const items = data?.data?.collections?.items || [];
+                const items = data?.collections?.items || [];
                 if (items.length > 0) {
                     setFetchedCategories(items.map((c: any) => ({
                         id: c.id,

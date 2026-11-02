@@ -19,42 +19,43 @@ export default function Error({
   }
 
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error("Storefront Application Error:", error);
+    // Log sanitized error
+    console.error("Storefront error intercepted:", error?.message || error);
   }, [error]);
 
+  const handleRetry = () => {
+    try {
+      reset();
+    } catch {
+      window.location.reload();
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes toAndFro {
-          0% { transform: translateX(-30px); }
-          50% { transform: translateX(30px); }
-          100% { transform: translateX(-30px); }
-        }
-        .animate-to-and-fro {
-          display: inline-block;
-          animation: toAndFro 2.5s ease-in-out infinite;
-        }
-      `}} />
-      <h1 className="text-6xl md:text-8xl font-extrabold text-primary mb-6 animate-to-and-fro tracking-widest uppercase">
-        Ahizan
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 text-center">
+      <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-950/40 text-red-600 flex items-center justify-center mb-6">
+        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+
+      <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+        Chargement interrompu
       </h1>
-      <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-4">
-        Ahizan est en maintenance
-      </h2>
-      <p className="text-muted-foreground max-w-lg mx-auto mb-10 text-base md:text-lg">
-        Nous rencontrons actuellement un problème technique ou effectuons une mise à jour. L'équipe est sur le coup ! Veuillez revenir d'ici quelques instants.
+      <p className="text-muted-foreground max-w-md mx-auto mb-8 text-sm md:text-base">
+        La connexion avec nos services a rencontré une brève interruption. Cliquez sur réessayer pour charger vos informations.
       </p>
-      <div className="flex gap-4">
+
+      <div className="flex flex-wrap gap-3 justify-center">
         <button
-          onClick={() => reset()}
-          className="px-6 py-3 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity font-medium"
+          onClick={handleRetry}
+          className="px-6 py-2.5 bg-primary text-primary-foreground rounded-xl hover:opacity-95 transition-opacity font-medium text-sm shadow-sm cursor-pointer"
         >
           Réessayer
         </button>
         <Link
           href="/"
-          className="px-6 py-3 bg-secondary text-secondary-foreground rounded-md hover:opacity-90 transition-opacity font-medium"
+          className="px-6 py-2.5 bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 transition-colors font-medium text-sm"
         >
           Retour à l'accueil
         </Link>

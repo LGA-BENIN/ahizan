@@ -54,12 +54,16 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
 
 self.addEventListener("fetch", (event: FetchEvent) => {
   const url = new URL(event.request.url);
-  // Bypass SW event handling for navigations, shop-api, admin-api, SSE notification streams, and POST/mutations
+  // Bypass SW event handling for navigations, shop-api, admin-api, SSE notification streams, auth, verify and POST/mutations
   if (
     event.request.mode === "navigate" ||
     url.pathname.includes("/shop-api") || 
     url.pathname.includes("/admin-api") || 
     url.pathname.includes("/notifications/stream") ||
+    url.pathname.startsWith("/verify") ||
+    url.pathname.startsWith("/onboarding") ||
+    url.pathname.startsWith("/sign-in") ||
+    url.pathname.startsWith("/register") ||
     event.request.method !== "GET"
   ) {
     return;

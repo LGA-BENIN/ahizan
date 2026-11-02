@@ -384,7 +384,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
             {/* Main Layout Grid (Aside Sidebar + Products Panel) */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Aside Left Sidebar */}
-                <aside className="lg:col-span-1 space-y-6">
+                <aside className="order-2 lg:order-1 lg:col-span-1 space-y-6">
                     {/* Info Card */}
                     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/50 p-5">
                         <h3 className="font-black text-slate-950 dark:text-white mb-4 flex items-center gap-2 uppercase tracking-wider text-xs">
@@ -460,7 +460,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                 </aside>
 
                 {/* Right Panel: Products or Reviews */}
-                <div className="lg:col-span-3">
+                <div className="order-1 lg:order-2 lg:col-span-3">
                     {activeTab === 'reviews' ? (
                         /* Reviews view */
                         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/60 dark:border-slate-700/50 p-6 space-y-6">
@@ -544,7 +544,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                             {processedProducts.length > 0 ? (
                                 <>
                                     {viewMode === 'grid' ? (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5">
                                             {paginatedProducts.map(product => (
                                                 <VendorProductCard 
                                                     key={product.id} 
@@ -562,6 +562,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                                             ratingCount: vendor.ratingCount,
                                                         }
                                                     }} 
+                                                    config={{ hideVendorBadge: true }}
                                                 />
                                             ))}
                                         </div>

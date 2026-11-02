@@ -16,6 +16,17 @@ runMigrations(config)
     .then(async (app) => {
         appInstance = app;
 
+        // Enable trust proxy for Express behind Nginx reverse proxy (fixes express-rate-limit validation errors)
+        try {
+            const expressApp = (app.getHttpAdapter() as any).getInstance();
+            if (expressApp && typeof expressApp.set === 'function') {
+                expressApp.set('trust proxy', 1);
+                console.log('Express trust proxy set to 1.');
+            }
+        } catch (err) {
+            console.error('Error setting trust proxy:', err);
+        }
+
         // Tune HTTP server keep-alive timeouts to prevent idle connection dropouts
         try {
             const server = app.getHttpServer();

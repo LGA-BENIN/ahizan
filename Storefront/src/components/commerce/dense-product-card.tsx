@@ -197,6 +197,7 @@ export function DenseProductCard({
                             src={getAssetUrl(imageUrl)}
                             alt={displayName}
                             className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
                         />
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-850 text-slate-400 p-2">

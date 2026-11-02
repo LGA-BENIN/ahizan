@@ -183,52 +183,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             const shopApiUrl = getShopApiUrl();
             let localProductsList: any[] = [];
 
-            const localQuery = `
-                query GetLocalProducts($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float, $radiusKm: Float) {
-                    vendors(
-                        marketId: $marketId, 
-                        locationId: $locationId, 
-                        latitude: $latitude,
-                        longitude: $longitude,
-                        radiusKm: $radiusKm,
-                        options: { filter: { status: { eq: "APPROVED" } }, take: 100 }
-                    ) {
-                        items {
-                            id
-                            name
-                            physicalMarket { id name }
-                            location { id name }
-                            products {
-                                id
-                                name
-                                slug
-                                featuredAsset { preview }
-                                collections { id }
-                                customFields { approvalStatus }
-                                variants {
-                                    id
-                                    name
-                                    priceWithTax
-                                    featuredAsset { preview }
-                                    options {
-                                        id
-                                        name
-                                        code
-                                        group { id name }
-                                    }
-                                    customFields {
-                                        compareAtPrice
-                                        onPromotion
-                                        promotionalPrice
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            `;
-
-            const candidateTake = Math.min(Math.max((limit || 8) * 6, 48), 80);
+            const candidateTake = Math.min(Math.max((limit || 8) * 2, 12), 24);
             const searchCandidateQuery = `
                 query GetCandidatesForLocal($take: Int!) {
                     search(input: { take: $take, groupByProduct: false }) {
@@ -251,28 +206,15 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 }
             `;
 
-            // Execute local vendor query and search candidate query in parallel
-            const [resultLocal, searchRes] = await Promise.all([
-                fetchWithClientCache(shopApiUrl, localQuery, variables),
-                fetchWithClientCache(shopApiUrl, searchCandidateQuery, { take: candidateTake }).catch(() => null)
-            ]);
-
-            let vendorsList = resultLocal?.vendors?.items || [];
-
-            // Progressive Proximity Fallback:
-            // If the filtered query returned 0 vendors (e.g. user in a subzone without direct local vendors),
-            // seamlessly expand to all approved vendors across the region and let the Display Engine score them by distance/city.
-            if (vendorsList.length === 0 && (variables.marketId || variables.locationId || variables.latitude)) {
-                const globalVendorsResult = await fetchWithClientCache(shopApiUrl, localQuery, {});
-                vendorsList = globalVendorsResult?.vendors?.items || [];
-            }
+            // Fetch search candidate products directly
+            const searchRes = await fetchWithClientCache(shopApiUrl, searchCandidateQuery, { take: candidateTake }).catch(() => null);
 
             const rawVendorProducts: any[] = [];
 
             // Multivendor seller offers to support modern catalog architecture
             try {
                 const sItems = searchRes?.search?.items || [];
-                const variantIds = Array.from(new Set(sItems.map((i: any) => i.productVariantId).filter(Boolean)));
+                const variantIds = Array.from(new Set(sItems.map((i: any) => i.productVariantId).filter(Boolean))).slice(0, 24);
 
                 if (variantIds.length > 0) {
                     const sellerOffersQuery = `

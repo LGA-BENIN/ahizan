@@ -12,6 +12,9 @@ import { Vendor } from '../entities/vendor.entity';
 
 @Injectable()
 export class SellerOfferService {
+    private offersCache = new Map<string, { timestamp: number; data: SellerOffer[] }>();
+    private readonly OFFERS_CACHE_TTL = 60 * 1000; // 60s memory cache
+
     constructor(
         private connection: TransactionalConnection,
         private productVariantService: ProductVariantService,
@@ -34,6 +37,12 @@ export class SellerOfferService {
         if (!variantIds || variantIds.length === 0) return [];
         const numVariantIds = variantIds.map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
         if (numVariantIds.length === 0) return [];
+
+        const cacheKey = `${ctx.apiType}:${numVariantIds.slice().sort((a, b) => a - b).join(',')}`;
+        const cached = this.offersCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < this.OFFERS_CACHE_TTL)) {
+            return cached.data;
+        }
 
         const qb = this.connection.getRepository(ctx, SellerOffer)
             .createQueryBuilder('offer')
@@ -193,6 +202,10 @@ export class SellerOfferService {
             }
         }
 
+        if (this.offersCache.size > 500) {
+            this.offersCache.clear();
+        }
+        this.offersCache.set(cacheKey, { timestamp: Date.now(), data: existingOffers });
         return existingOffers;
     }
 
@@ -526,6 +539,7 @@ export class SellerOfferService {
             console.error('[SellerOfferService] Failed to sync stock level with Vendure StockLocation:', stockErr.message);
         }
 
+        this.offersCache.clear();
         return savedOffer;
     }
 
@@ -575,6 +589,7 @@ export class SellerOfferService {
             console.error('[SellerOfferService] Failed to clear stock level on delete:', err.message);
         }
 
+        this.offersCache.clear();
         return true;
     }
 }

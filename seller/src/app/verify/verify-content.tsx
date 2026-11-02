@@ -102,15 +102,15 @@ export function VerifyContent({searchParams}: VerifyContentProps) {
                         {errorMsg}
                     </p>
                 </div>
-                <div className="flex flex-col gap-2">
-                    <Link href="/register" className="block">
-                        <Button variant="outline" className="w-full">
-                            Créer un nouveau compte
+                <div className="flex flex-col gap-2 pt-2">
+                    <Link href="/sign-in" className="block">
+                        <Button className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-bold">
+                            Se connecter à mon espace Vendeur
                         </Button>
                     </Link>
-                    <Link href="/sign-in" className="block">
-                        <Button variant="ghost" className="w-full">
-                            Retour à la connexion
+                    <Link href="/onboarding" className="block">
+                        <Button variant="outline" className="w-full">
+                            Accéder directement à l'Onboarding
                         </Button>
                     </Link>
                 </div>

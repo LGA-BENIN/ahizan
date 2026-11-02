@@ -101,7 +101,7 @@ export function MarketHubPage({
     const resolvedHeroUrl = market.image 
         ? (market.image.startsWith('http') ? market.image : (getAssetUrl(market.image) || ''))
         : '';
-    const marketHeroImage: string = resolvedHeroUrl || 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=1600&auto=format&fit=crop';
+    const marketHeroImage: string = resolvedHeroUrl || 'https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=70&w=800&auto=format&fit=crop';
 
     // Group Facets dynamically from Vendure
     const groupedFacets = useMemo(() => {

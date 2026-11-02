@@ -325,7 +325,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                 {/* Card Content */}
                 <div className="p-2 sm:p-2.5 flex flex-col flex-1 text-left relative justify-between gap-1 sm:gap-1.5">
                     {/* Store / Vendor Name & Location Badge */}
-                    {Boolean(vendorName || geoTag) && (
+                    {Boolean(!config?.hideVendorBadge && (vendorName || geoTag)) && (
                         <div className="flex items-center justify-between gap-1 text-[10.5px] sm:text-[11px] font-semibold text-muted-foreground truncate">
                             {vendorName ? (
                                 <div className="flex items-center gap-1.5 truncate">

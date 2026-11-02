@@ -29,7 +29,7 @@ const DEFAULT_CARDS: StoryCard[] = [
     {
         title: "Nouvelle Collection High-Tech",
         subtitle: "Smartphones & Accessoires",
-        coverImage: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=80&w=800&auto=format&fit=crop",
+        coverImage: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?q=70&w=360&auto=format&fit=crop",
         linkUrl: "/search?category=electronique",
         tag: "TENDANCE",
         tagColor: "#ef4444",
@@ -38,7 +38,7 @@ const DEFAULT_CARDS: StoryCard[] = [
     {
         title: "Mode & Beauté Africaine",
         subtitle: "Le meilleur du style local",
-        coverImage: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=800&auto=format&fit=crop",
+        coverImage: "https://images.unsplash.com/photo-1509631179647-0177331693ae?q=70&w=360&auto=format&fit=crop",
         linkUrl: "/search?category=mode",
         tag: "EXCLUSIF",
         tagColor: "#f59e0b",
@@ -47,7 +47,7 @@ const DEFAULT_CARDS: StoryCard[] = [
     {
         title: "Maison & Décoration",
         subtitle: "Sublimez votre intérieur",
-        coverImage: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=800&auto=format&fit=crop",
+        coverImage: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=70&w=360&auto=format&fit=crop",
         linkUrl: "/search?category=maison",
         tag: "NOUVEAUTÉ",
         tagColor: "#10b981",
@@ -56,7 +56,7 @@ const DEFAULT_CARDS: StoryCard[] = [
     {
         title: "Marchés Locaux de Cotonou",
         subtitle: "Dantokpa & Commerces de quartier",
-        coverImage: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop",
+        coverImage: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=70&w=360&auto=format&fit=crop",
         linkUrl: "/local-discovery",
         tag: "PROXIMITÉ",
         tagColor: "#8b5cf6",
@@ -65,7 +65,7 @@ const DEFAULT_CARDS: StoryCard[] = [
     {
         title: "Électroménager & Équipement",
         subtitle: "Prix imbattables garantis",
-        coverImage: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?q=80&w=800&auto=format&fit=crop",
+        coverImage: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?q=70&w=360&auto=format&fit=crop",
         linkUrl: "/search?category=electromenager",
         tag: "BONS PLANS",
         tagColor: "#06b6d4",

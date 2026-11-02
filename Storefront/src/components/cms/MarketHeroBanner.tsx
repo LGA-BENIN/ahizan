@@ -20,13 +20,13 @@ import { fetchWithClientCache } from "@/lib/vendure/client-cache";
 import { Button } from "@/components/ui/button";
 
 const CURATED_MARKET_HERO_IMAGES: Record<string, string> = {
-    "1": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=1600&auto=format&fit=crop", // Dantokpa
-    "2": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=1600&auto=format&fit=crop", // PK3
-    "3": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1600&auto=format&fit=crop", // Ganhi
-    "4": "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=1600&auto=format&fit=crop", // Cadjèhoun
-    "12": "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1600&auto=format&fit=crop", // Missèbo
-    "14": "https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?q=80&w=1600&auto=format&fit=crop", // Ouando
-    "default": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=1600&auto=format&fit=crop"
+    "1": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=70&w=800&auto=format&fit=crop", // Dantokpa
+    "2": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=70&w=800&auto=format&fit=crop", // PK3
+    "3": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=70&w=800&auto=format&fit=crop", // Ganhi
+    "4": "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=70&w=800&auto=format&fit=crop", // Cadjèhoun
+    "12": "https://images.unsplash.com/photo-1542838132-92c53300491e?q=70&w=800&auto=format&fit=crop", // Missèbo
+    "14": "https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?q=70&w=800&auto=format&fit=crop", // Ouando
+    "default": "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=70&w=800&auto=format&fit=crop"
 };
 
 interface MarketHeroBannerProps {
@@ -78,6 +78,7 @@ export function MarketHeroBanner({ config = {} }: MarketHeroBannerProps) {
 
     // 2. Load CMS Market Overrides from homepage if not already loaded
     useEffect(() => {
+        if (config.marketOverrides && Object.keys(config.marketOverrides).length > 0) return;
         const query = `
             query GetHomeMarketOverrides {
                 page(slug: "home") {

@@ -23,7 +23,7 @@ const FALLBACK_MARKETS = [
         name: "Marché Dantokpa",
         slug: "marche-dantokpa",
         description: "Le plus grand marché à ciel ouvert de l'Afrique de l'Ouest. Tout le commerce du Bénin réuni en un seul lieu : tissus, quincaillerie, alimentation, électronique.",
-        image: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1200&q=80",
+        image: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=400&q=70",
         geoZone: { name: "Cotonou" }
     },
     {
@@ -31,7 +31,7 @@ const FALLBACK_MARKETS = [
         name: "Marché Missèbo",
         slug: "marche-missebo",
         description: "Le cœur de la mode, du textile et de la friperie de qualité à Cotonou. Vêtements, bazins, chaussures et accessoires au meilleur tarif.",
-        image: "https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=1200&q=80",
+        image: "https://images.unsplash.com/photo-1544441893-675973e31985?auto=format&fit=crop&w=400&q=70",
         geoZone: { name: "Cotonou" }
     },
     {
@@ -39,7 +39,7 @@ const FALLBACK_MARKETS = [
         name: "Marché de Zogbadjè",
         slug: "marche-de-zogbadje",
         description: "Pôle commercial dynamique d'Abomey-Calavi et de la communauté universitaire. Alimentation, fournitures, mode et services rapides.",
-        image: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?auto=format&fit=crop&w=1200&q=80",
+        image: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?auto=format&fit=crop&w=400&q=70",
         geoZone: { name: "Abomey-Calavi" }
     },
     {
@@ -47,7 +47,7 @@ const FALLBACK_MARKETS = [
         name: "Grand Marché de Porto-Novo",
         slug: "marche-porto-novo",
         description: "Le marché historique de la capitale béninoise. Vivres frais, artisanat, épices locales et articles traditionnels.",
-        image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=1200&q=80",
+        image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=400&q=70",
         geoZone: { name: "Porto-Novo" }
     },
     {
@@ -55,7 +55,7 @@ const FALLBACK_MARKETS = [
         name: "Marché Arzèkè (Parakou)",
         slug: "marche-arzeke-parakou",
         description: "Le grand marché du Nord Bénin. Carrefour commercial reliant le Bénin au Niger, Togo et Nigéria.",
-        image: "https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?auto=format&fit=crop&w=1200&q=80",
+        image: "https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?auto=format&fit=crop&w=400&q=70",
         geoZone: { name: "Parakou" }
     },
     {
@@ -63,7 +63,7 @@ const FALLBACK_MARKETS = [
         name: "Marché Kpassè (Ouidah)",
         slug: "marche-kpasse-ouidah",
         description: "Marché historique et culturel de la cité des Kpassè. Produits maraîchers, poissons séchés et artisanat local.",
-        image: "https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=1200&q=80",
+        image: "https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=400&q=70",
         geoZone: { name: "Ouidah" }
     }
 ];
@@ -165,7 +165,7 @@ export default async function MarketsIndexPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {markets.map((m: any) => {
                         const marketUrl = `/marches/${m.slug || m.id}`;
-                        const displayImg = m.image ? (m.image.startsWith('http') ? m.image : getAssetUrl(m.image)) : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1200&q=80';
+                        const displayImg = m.image ? (m.image.startsWith('http') ? m.image : getAssetUrl(m.image)) : 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=400&q=70';
                         return (
                             <article
                                 key={m.id}
@@ -176,6 +176,7 @@ export default async function MarketsIndexPage() {
                                         src={displayImg}
                                         alt={m.name}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                        loading="lazy"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                                     <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white">

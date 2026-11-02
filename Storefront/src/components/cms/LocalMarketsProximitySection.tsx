@@ -12,14 +12,14 @@ import { useLocation } from '@/contexts/location-context';
 import { interpolateLocalVariables } from '@/lib/cms/interpolation';
 
 const CURATED_MARKET_IMAGES = [
-    "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?q=80&w=800&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?q=80&w=800&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1542838132-92c53300491e?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1526470608268-f674ce90ebd4?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?q=70&w=360&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?q=70&w=360&auto=format&fit=crop",
 ];
 
 const FALLBACK_MARKETS = [
@@ -28,7 +28,7 @@ const FALLBACK_MARKETS = [
         name: "Marché Dantokpa", 
         slug: "marche-dantokpa", 
         description: "Le plus grand marché à ciel ouvert de l'Afrique de l'Ouest.",
-        image: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=80&w=800&auto=format&fit=crop",
+        image: "https://images.unsplash.com/photo-1533900298318-6b8da08a523e?q=70&w=360&auto=format&fit=crop",
         centerLatitude: 6.367, 
         centerLongitude: 2.44, 
         geoZone: { name: "Cotonou" } 
@@ -38,7 +38,7 @@ const FALLBACK_MARKETS = [
         name: "Marché Moderne de PK3", 
         slug: "marche-moderne-de-pk3", 
         description: "Hub ultra-moderne entièrement dédié à la friperie et aux grossistes.",
-        image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=80&w=800&auto=format&fit=crop",
+        image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?q=70&w=360&auto=format&fit=crop",
         centerLatitude: 6.388, 
         centerLongitude: 2.47, 
         geoZone: { name: "Cotonou" } 
@@ -48,7 +48,7 @@ const FALLBACK_MARKETS = [
         name: "Marché de Ouando", 
         slug: "marche-de-ouando", 
         description: "Plus grand pôle commercial de Porto-Novo pour les vivriers et l'artisanat.",
-        image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=800&auto=format&fit=crop",
+        image: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=70&w=360&auto=format&fit=crop",
         centerLatitude: 6.505, 
         centerLongitude: 2.618, 
         geoZone: { name: "Porto-Novo" } 
@@ -58,7 +58,7 @@ const FALLBACK_MARKETS = [
         name: "Marché de Cadjèhoun", 
         slug: "marche-de-cadjehoun", 
         description: "Marché sélectif pour vos achats alimentaires frais au cœur de la ville.",
-        image: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=800&auto=format&fit=crop",
+        image: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=70&w=360&auto=format&fit=crop",
         centerLatitude: 6.362, 
         centerLongitude: 2.40, 
         geoZone: { name: "Cotonou" } 
@@ -83,8 +83,8 @@ interface LocalMarketsProximitySectionProps {
 export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProximitySectionProps) {
     const locationContext = useLocation();
     const selectedLocation = locationContext?.selectedLocation;
-    const [rawMarkets, setRawMarkets] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rawMarkets, setRawMarkets] = useState<any[]>(FALLBACK_MARKETS);
+    const [loading, setLoading] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const scroll = (direction: 'left' | 'right') => {
@@ -96,7 +96,6 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
 
     useEffect(() => {
         let isMounted = true;
-        setLoading(true);
 
         const query = `
             query GetMarkets {
@@ -502,6 +501,7 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                                 src={marketImageUrl} 
                                 alt={market.name} 
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-115" 
+                                loading="lazy"
                             />
                         </div>
                     </div>
@@ -543,6 +543,7 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                         src={marketImageUrl} 
                         alt={market.name} 
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
+                        loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                     
@@ -608,6 +609,7 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                         src={marketImageUrl} 
                         alt={market.name} 
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
+                        loading="lazy"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
                     
@@ -675,6 +677,7 @@ function MarketCard({ market, config, cardStyle = 'navy-modern' }: { market: any
                     src={marketImageUrl} 
                     alt={market.name} 
                     className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
+                    loading="lazy"
                 />
                 {/* Subtle gradient vignette for depth */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-black/35 pointer-events-none" />

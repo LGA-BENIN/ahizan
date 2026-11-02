@@ -26,10 +26,15 @@ export const metadata: Metadata = {
         {
             rel: 'apple-touch-icon',
             sizes: '180x180',
-            url: '/logo-light.png',
+            url: '/icons/icon-192x192.png',
         },
     ],
-    openGraph: { type: "website", siteName: SITE_NAME, locale: "en_US" },
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: 'default',
+        title: 'Ahizan',
+    },
+    openGraph: { type: "website", siteName: SITE_NAME, locale: "fr_FR" },
     twitter: { card: "summary_large_image" },
     robots: {
         index: true, follow: true,

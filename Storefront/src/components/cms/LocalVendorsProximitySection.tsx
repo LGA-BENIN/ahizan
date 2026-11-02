@@ -71,8 +71,8 @@ interface LocalVendorsProximitySectionProps {
 export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProximitySectionProps) {
     const locationContext = useLocation();
     const selectedLocation = locationContext?.selectedLocation;
-    const [vendors, setVendors] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [vendors, setVendors] = useState<any[]>(FALLBACK_VENDORS);
+    const [loading, setLoading] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const scroll = (direction: 'left' | 'right') => {
@@ -103,7 +103,6 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
 
     useEffect(() => {
         let isMounted = true;
-        setLoading(true);
 
         const variables: any = {
             options: {
@@ -403,6 +402,7 @@ function VendorCard({ vendor, index, config, userLocation }: { vendor: any; inde
                             src={realImage} 
                             alt={vendor.name} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            loading="lazy"
                         />
                     ) : (
                         /* Clean, Stylish Alphabet Monogram Design */
@@ -423,7 +423,7 @@ function VendorCard({ vendor, index, config, userLocation }: { vendor: any; inde
                     {/* Top-Left Floating Badge */}
                     <div className="absolute top-2 left-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-lg p-0.5 shadow-xs border border-white/60 dark:border-slate-700 flex items-center justify-center min-w-[28px] h-[28px]">
                         {logoUrl ? (
-                            <img src={logoUrl} alt={vendor.name} className="w-5 h-5 object-contain rounded-md" />
+                            <img src={logoUrl} alt={vendor.name} className="w-5 h-5 object-contain rounded-md" loading="lazy" />
                         ) : (
                             <span className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-wider px-1">
                                 {initials}

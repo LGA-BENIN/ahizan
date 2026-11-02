@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { query } from '@/lib/vendure/api';
 import { applyToBecomeVendorAction } from './actions';
+import { compressImageClient } from '@/lib/compress-image';
 
 const GetRegistrationFieldsQuery = `
     query GetRegistrationFields {
@@ -286,7 +287,23 @@ export function OnboardingForm({
                     formData.append('type', sellerType);
                 }
 
-                const result = await applyToBecomeVendorAction(formData);
+                // Compresser automatiquement les images côté client avant l'envoi réseau
+                const finalFormData = new FormData();
+                for (const [key, value] of (formData as any).entries()) {
+                    if (value instanceof File && value.type && value.type.startsWith('image/')) {
+                        try {
+                            const compressed = await compressImageClient(value);
+                            finalFormData.append(key, compressed);
+                        } catch (compErr) {
+                            console.warn('Compression fallback to original:', compErr);
+                            finalFormData.append(key, value);
+                        }
+                    } else {
+                        finalFormData.append(key, value);
+                    }
+                }
+
+                const result = await applyToBecomeVendorAction(finalFormData);
 
                 if (result.error) {
                     setError(result.error);

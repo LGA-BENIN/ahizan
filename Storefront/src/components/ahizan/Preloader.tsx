@@ -5,19 +5,36 @@ import { LottiePreloader } from '@/components/shared/animations/LottiePreloader'
 
 export function AhizanPreloader({ config }: { config: any }) {
     const isConfigDisabled = config?.preloader?.type === 'none';
-    const [status, setStatus] = useState<'drawing' | 'looping' | 'pulse-final' | 'fading' | 'hidden'>(
+    const [status, setStatus] = useState<'drawing' | 'pulse-final' | 'fading' | 'hidden'>(
         isConfigDisabled ? 'hidden' : 'drawing'
     );
-    const [isPageLoaded, setIsPageLoaded] = useState(false);
     const hasRunRef = useRef(false);
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    // Initial check for session preloader: run only once per session
+    const dismiss = React.useCallback(() => {
+        if (hasRunRef.current) return;
+        hasRunRef.current = true;
+        try {
+            sessionStorage.setItem('ahizan_preloader_seen', '1');
+            document.documentElement.classList.add('preloader-dismissed');
+        } catch (e) {}
+
+        setStatus('fading');
+        setTimeout(() => {
+            setStatus('hidden');
+            const el = document.getElementById('ahizan-preloader-root');
+            if (el && el.parentNode) {
+                el.parentNode.removeChild(el);
+            }
+        }, 180);
+    }, []);
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
+
+        // 1. Session check: if already seen, hide instantly
         try {
-            const hasSeen = sessionStorage.getItem('ahizan_preloader_seen');
-            if (hasSeen === '1') {
+            if (sessionStorage.getItem('ahizan_preloader_seen') === '1') {
                 setStatus('hidden');
                 hasRunRef.current = true;
                 return;
@@ -27,80 +44,35 @@ export function AhizanPreloader({ config }: { config: any }) {
             return;
         }
 
-        // Detect if page is already loaded
-        const isReady = document.readyState === 'complete' || document.readyState === 'interactive';
-        if (isReady) {
-            setIsPageLoaded(true);
-        } else {
-            const handleLoad = () => setIsPageLoaded(true);
-            window.addEventListener('DOMContentLoaded', handleLoad);
-            window.addEventListener('load', handleLoad);
-        }
-
-        // Ultra fast safety timer: max 650ms
-        const absoluteSafetyTimer = setTimeout(() => {
-            setIsPageLoaded(true);
-            setStatus(prev => (prev !== 'hidden' && prev !== 'fading' ? 'pulse-final' : prev));
-        }, 650);
-
-        return () => {
-            clearTimeout(absoluteSafetyTimer);
+        // 2. iOS Safari bfcache listener (swipe back/forward)
+        const handlePageShow = (e: PageTransitionEvent) => {
+            if (e.persisted) {
+                dismiss();
+            }
         };
-    }, []);
+        window.addEventListener('pageshow', handlePageShow);
 
-    // Handle animation sequence and config changes
-    useEffect(() => {
-        if (config === null || hasRunRef.current) return;
-
-        const type = config?.preloader?.type || 'default';
-
-        if (type === 'none') {
-            setStatus('hidden');
-            hasRunRef.current = true;
-            try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
-            return;
-        }
-
-        if (type !== 'default') {
-            const durationMs = Math.min((config?.preloader?.duration || 0.6) * 1000, 800);
-            const timer = setTimeout(() => {
-                setStatus('fading');
-                setTimeout(() => {
-                    setStatus('hidden');
-                    hasRunRef.current = true;
-                    try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
-                }, 180);
-            }, durationMs);
-            return () => clearTimeout(timer);
-        }
-
-        // Fast & crisp drawing sequence: 320ms
-        const drawingTimer = setTimeout(() => {
+        // 3. Fast sequence: pulse-final at 280ms, then dismiss at 420ms
+        const pulseTimer = setTimeout(() => {
             setStatus('pulse-final');
-        }, 320);
+        }, 280);
+
+        const dismissTimer = setTimeout(() => {
+            dismiss();
+        }, 420);
+
+        // 4. Absolute safety timer: 600ms max under all conditions
+        const safetyTimer = setTimeout(() => {
+            dismiss();
+        }, 600);
 
         return () => {
-            clearTimeout(drawingTimer);
+            clearTimeout(pulseTimer);
+            clearTimeout(dismissTimer);
+            clearTimeout(safetyTimer);
+            window.removeEventListener('pageshow', handlePageShow);
         };
-    }, [config]);
-
-    // Handle transitions between states
-    useEffect(() => {
-        if (status === 'pulse-final') {
-            const timer = setTimeout(() => {
-                setStatus('fading');
-            }, 150);
-            return () => clearTimeout(timer);
-        }
-        if (status === 'fading') {
-            const timer = setTimeout(() => {
-                setStatus('hidden');
-                hasRunRef.current = true;
-                try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch (e) {}
-            }, 180);
-            return () => clearTimeout(timer);
-        }
-    }, [status]);
+    }, [dismiss]);
 
     const type = config?.preloader?.type || 'default';
     const mediaUrl = config?.preloader?.url ? getAssetUrl(config.preloader.url) : null;
@@ -171,8 +143,11 @@ export function AhizanPreloader({ config }: { config: any }) {
     return (
         <div 
             id="ahizan-preloader-root"
-            className={`fixed inset-0 z-[99999] flex items-center justify-center ${transitionClass} ${statusClass}`}
+            onClick={dismiss}
+            onTouchStart={dismiss}
+            className={`fixed inset-0 z-[99999] flex items-center justify-center cursor-pointer select-none ${transitionClass} ${statusClass}`}
             style={overlayStyle}
+            title="Passer"
         >
             {type === 'default' && (
                 <div className={`flex flex-col items-center justify-center preloader-${status}`}>

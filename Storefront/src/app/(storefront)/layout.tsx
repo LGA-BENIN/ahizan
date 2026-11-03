@@ -254,16 +254,64 @@ export default async function StorefrontLayout({ children }: { children: React.R
                 h1, h2, h3, h4, h5, h6 {
                     font-family: var(--heading-font) !important;
                 }
+                @keyframes ahizanPreloaderSafetyFadeOut {
+                    0%, 65% {
+                        opacity: 1;
+                        pointer-events: auto;
+                    }
+                    92% {
+                        opacity: 0;
+                        pointer-events: none;
+                    }
+                    100% {
+                        opacity: 0;
+                        pointer-events: none;
+                        visibility: hidden;
+                        display: none !important;
+                    }
+                }
+                #ahizan-preloader-root {
+                    animation: ahizanPreloaderSafetyFadeOut 0.85s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+                }
                 html.preloader-dismissed #ahizan-preloader-root {
                     display: none !important;
+                    pointer-events: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
                 }
             ` }} />
             <script dangerouslySetInnerHTML={{ __html: `
-                try {
-                    if (sessionStorage.getItem('ahizan_preloader_seen') === '1') {
+                (function() {
+                    function dismissPreloader() {
                         document.documentElement.classList.add('preloader-dismissed');
+                        var el = document.getElementById('ahizan-preloader-root');
+                        if (el) {
+                            el.style.opacity = '0';
+                            el.style.pointerEvents = 'none';
+                            setTimeout(function() {
+                                if (el && el.parentNode) {
+                                    el.parentNode.removeChild(el);
+                                }
+                            }, 200);
+                        }
+                        try { sessionStorage.setItem('ahizan_preloader_seen', '1'); } catch(e) {}
                     }
-                } catch(e) {}
+                    try {
+                        if (sessionStorage.getItem('ahizan_preloader_seen') === '1') {
+                            dismissPreloader();
+                        }
+                    } catch(e) {}
+                    window.addEventListener('pageshow', function(e) {
+                        if (e.persisted) { dismissPreloader(); }
+                    });
+                    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                        setTimeout(dismissPreloader, 350);
+                    } else {
+                        window.addEventListener('DOMContentLoaded', function() { setTimeout(dismissPreloader, 350); });
+                        window.addEventListener('load', function() { setTimeout(dismissPreloader, 150); });
+                    }
+                    setTimeout(dismissPreloader, 750);
+                })();
             ` }} />
             
             <NextThemesProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>

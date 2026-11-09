@@ -1,10 +1,12 @@
 import { rawQuery } from '@/lib/vendure/raw-api';
 import { Metadata } from 'next';
 import { VendorsListClient } from './vendors-list-client';
+import { Store, ShieldCheck, MapPin, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
-    title: 'Boutiques Partenaires | Ahizan',
-    description: 'Découvrez l\'ensemble de nos vendeurs et boutiques partenaires certifiés sur Ahizan.',
+    title: 'Boutiques & Artisans Partenaires | Ahizan Bénin',
+    description: 'Découvrez l\'ensemble de nos vendeurs certifiés, artisans et boutiques partenaires à Dantokpa, Missèbo, Cotonou, Calavi et partout au Bénin.',
 };
 
 const GET_APPROVED_VENDORS = `
@@ -18,10 +20,13 @@ const GET_APPROVED_VENDORS = `
                 rating
                 ratingCount
                 description
+                latitude
+                longitude
+                verificationStatus
                 logo { preview }
                 coverImage { preview }
                 location { id name }
-                physicalMarket { id name }
+                physicalMarket { id name slug centerLatitude centerLongitude }
                 markets { id name }
             }
         }
@@ -45,18 +50,62 @@ export default async function VendorsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-slate-50/50 dark:bg-slate-900/50 py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="text-center max-w-2xl mx-auto mb-12">
-                    <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-950 dark:text-white uppercase mb-3">
-                        Nos Boutiques Partenaires
-                    </h1>
-                    <p className="text-slate-600 dark:text-slate-400 font-medium text-base">
-                        Achetez directement auprès des meilleurs artisans, créateurs et commerçants certifiés et approuvés par la communauté Ahizan.
-                    </p>
-                    <div className="h-1 w-16 bg-primary mx-auto mt-5 rounded-full" />
-                </div>
+        <main className="min-h-screen bg-slate-50/70 dark:bg-slate-950">
+            {/* HERO SECTION WITH BACKGROUND IMAGE & AHIZAN PALETTE */}
+            <section className="relative overflow-hidden bg-[#07152b] text-white">
+                {/* Background Image with Dark Navy & Red Gradient Overlay */}
+                <div 
+                    className="absolute inset-0 bg-cover bg-center opacity-30 transform scale-105"
+                    style={{
+                        backgroundImage: `url('https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=1600&q=80')`,
+                    }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#07152b] via-[#0c234b]/95 to-[#e31837]/30" />
+                <div className="absolute inset-0 bg-radial at-top-right from-primary/20 via-transparent to-transparent pointer-events-none" />
 
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 lg:py-24">
+                    {/* Breadcrumbs */}
+                    <nav className="flex items-center gap-2 text-xs text-slate-300 font-semibold mb-6">
+                        <Link href="/" className="hover:text-primary transition-colors">Accueil</Link>
+                        <span>/</span>
+                        <span className="text-white">Boutiques Partenaires</span>
+                    </nav>
+
+                    <div className="max-w-3xl space-y-4">
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-black uppercase tracking-wider text-amber-300 shadow-sm">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Réseau Officiel Ahizan</span>
+                        </div>
+
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight uppercase">
+                            Nos Boutiques & Marchands Partenaires
+                        </h1>
+
+                        <p className="text-slate-200 text-sm sm:text-base md:text-lg leading-relaxed font-medium">
+                            Achetez directement auprès des meilleurs artisans, boutiques de grands marchés (Dantokpa, Missèbo, Zogbadjè) et créateurs locaux certifiés au Bénin. Bénéficiez des prix directs et de la livraison de proximité.
+                        </p>
+
+                        {/* Quick Trust Highlights */}
+                        <div className="pt-4 flex flex-wrap gap-4 text-xs font-bold text-slate-200">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
+                                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                <span>100% Boutiques Vérifiées</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
+                                <MapPin className="w-4 h-4 text-primary" />
+                                <span>Géolocalisation & Proximité</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
+                                <Store className="w-4 h-4 text-amber-400" />
+                                <span>Marchés Physiques & Boutiques Indépendantes</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* VENDORS LIST & INTERACTIVE FILTERS */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
                 <VendorsListClient initialVendors={vendors} />
             </div>
         </main>

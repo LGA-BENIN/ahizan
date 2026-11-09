@@ -15,10 +15,34 @@ import { LoginPromptModal } from '@/components/shared/login-prompt-modal';
 import { checkVendorLikeStatus, toggleVendorLikeAction } from '@/app/(storefront)/likes-actions';
 import { ChatWidget } from '@/components/commerce/chat-widget';
 
+import { resolveDeclinationName } from '@/lib/vendure/display-engine';
+
 interface Collection {
     id: string;
     name: string;
     slug: string;
+}
+
+interface VariantOption {
+    id?: string;
+    name: string;
+    code?: string;
+    group?: { id?: string; name: string; code?: string };
+}
+
+interface VariantItem {
+    id: string;
+    name?: string;
+    sku?: string;
+    priceWithTax: number;
+    stockLevel?: string;
+    featuredAsset?: { id?: string; preview: string } | null;
+    options?: VariantOption[];
+    customFields?: {
+        compareAtPrice?: number | null;
+        onPromotion?: boolean | null;
+        promotionalPrice?: number | null;
+    } | null;
 }
 
 interface Product {
@@ -28,14 +52,10 @@ interface Product {
     description?: string;
     enabled?: boolean;
     createdAt?: string;
-    featuredAsset?: { preview: string } | null;
+    featuredAsset?: { id?: string; preview: string } | null;
     customFields?: { approvalStatus?: string } | null;
     collections?: Collection[];
-    variants?: Array<{
-        id: string;
-        priceWithTax: number;
-        customFields?: any;
-    }>;
+    variants?: VariantItem[];
 }
 
 interface Vendor {
@@ -99,11 +119,161 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
     const followersCountValue = vendor.followersCount || 0;
     const productsList = vendor.products || [];
 
-    // Extract unique collections from products for sidebar filters
+    // Expand all approved products into their respective designations/variants
+    // with round-robin interleaving across products to ensure a balanced, diverse catalog
+    const allDesignationItems = useMemo(() => {
+        const groupedByProduct: any[][] = [];
+
+        const approvedProducts = (productsList || []).filter(
+            p => p.enabled !== false && p.customFields?.approvalStatus === 'approved'
+        );
+
+        for (const product of approvedProducts) {
+            const prodVariants = product.variants && product.variants.length > 0
+                ? product.variants
+                : [{
+                    id: product.id,
+                    name: product.name,
+                    priceWithTax: 0,
+                    featuredAsset: product.featuredAsset,
+                }];
+
+            const productItems: any[] = [];
+
+            for (const vr of prodVariants) {
+                const rawPrice = vr.priceWithTax || 0;
+                const promoPrice = (vr.customFields as any)?.promotionalPrice;
+                const compareAt = (vr.customFields as any)?.compareAtPrice;
+                const onPromo = Boolean(
+                    (vr.customFields as any)?.onPromotion === true ||
+                    (promoPrice && promoPrice > 0 && promoPrice < rawPrice) ||
+                    (compareAt && compareAt > rawPrice)
+                );
+                const finalPrice = onPromo && promoPrice && promoPrice > 0 ? promoPrice : rawPrice;
+                const originalPrice = onPromo && compareAt && compareAt > finalPrice 
+                    ? compareAt 
+                    : (onPromo && promoPrice && rawPrice > promoPrice ? rawPrice : 0);
+                const discountPercent = originalPrice > finalPrice && originalPrice > 0
+                    ? Math.round(((originalPrice - finalPrice) / originalPrice) * 100)
+                    : 0;
+
+                const declinationName = resolveDeclinationName(
+                    product.name,
+                    vr.options,
+                    vr.name,
+                    [vr.name]
+                );
+
+                const cleanProd = (product.name || '').trim();
+                const rawDecl = (declinationName || '').trim();
+                let displayTitle = cleanProd;
+
+                if (rawDecl && rawDecl.toLowerCase() !== cleanProd.toLowerCase()) {
+                    if (rawDecl.toLowerCase().startsWith(cleanProd.toLowerCase())) {
+                        displayTitle = rawDecl;
+                    } else if (cleanProd.toLowerCase().includes(rawDecl.toLowerCase())) {
+                        displayTitle = cleanProd;
+                    } else {
+                        displayTitle = `${cleanProd} — ${rawDecl}`;
+                    }
+                }
+
+                const featuredAsset = vr.featuredAsset?.preview 
+                    ? vr.featuredAsset 
+                    : (product.featuredAsset?.preview ? product.featuredAsset : null);
+
+                const item = {
+                    id: `${product.id}-${vr.id}`,
+                    productId: product.id,
+                    productVariantId: vr.id,
+                    productName: product.name,
+                    name: product.name,
+                    declinationName,
+                    displayTitle,
+                    variantName: vr.name || displayTitle,
+                    slug: product.slug,
+                    description: product.description,
+                    createdAt: product.createdAt,
+                    collections: product.collections,
+                    featuredAsset,
+                    price: finalPrice,
+                    priceWithTax: finalPrice,
+                    rawPrice,
+                    promotionalPrice: onPromo ? promoPrice : null,
+                    compareAtPrice: compareAt,
+                    onPromotion: onPromo,
+                    discountPercentage: discountPercent,
+                    sku: vr.sku,
+                    options: vr.options,
+                    stockLevel: vr.stockLevel || 'IN_STOCK',
+                    winningOffer: {
+                        id: `${product.id}-${vr.id}-${vendor.id}`,
+                        price: finalPrice,
+                        promotionalPrice: onPromo ? promoPrice : null,
+                        onPromotion: onPromo,
+                        discountPercentage: discountPercent,
+                        declinationName,
+                        productVariantName: vr.name || displayTitle,
+                        featuredAsset,
+                        productVariant: vr,
+                        selectedVariant: vr,
+                        vendor: {
+                            id: vendor.id,
+                            name: vendor.name,
+                            zone: vendor.zone,
+                            address: vendor.address,
+                            logo: vendor.logo,
+                            rating: vendor.rating,
+                            ratingCount: vendor.ratingCount,
+                        },
+                        stock: 10,
+                        sku: vr.sku,
+                    },
+                    variants: [vr],
+                    vendorId: vendor.id,
+                    vendorName: vendor.name,
+                    vendor: {
+                        id: vendor.id,
+                        name: vendor.name,
+                        zone: vendor.zone,
+                        address: vendor.address,
+                        logo: vendor.logo,
+                        rating: vendor.rating,
+                        ratingCount: vendor.ratingCount,
+                    },
+                };
+
+                productItems.push(item);
+            }
+
+            if (productItems.length > 0) {
+                groupedByProduct.push(productItems);
+            }
+        }
+
+        // Interleave across products to ensure a balanced, diverse catalog
+        // (e.g. Variant 1 of Prod 1, Variant 1 of Prod 2, then Variant 2 of Prod 1, etc.)
+        const interleaved: any[] = [];
+        let maxLen = 0;
+        for (const g of groupedByProduct) {
+            if (g.length > maxLen) maxLen = g.length;
+        }
+        for (let i = 0; i < maxLen; i++) {
+            for (const g of groupedByProduct) {
+                if (i < g.length) {
+                    interleaved.push(g[i]);
+                }
+            }
+        }
+
+        return interleaved;
+    }, [productsList, vendor]);
+
+    // Extract unique collections from all available designation items
     const availableCollections = useMemo(() => {
         const map = new Map<string, { id: string; name: string; count: number }>();
-        productsList.forEach(product => {
-            product.collections?.forEach(col => {
+        allDesignationItems.forEach(item => {
+            item.collections?.forEach((col: any) => {
                 const existing = map.get(col.id);
                 if (existing) {
                     existing.count += 1;
@@ -113,7 +283,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
             });
         });
         return Array.from(map.values());
-    }, [productsList]);
+    }, [allDesignationItems]);
 
     // Handle Category Filter Toggle
     const handleCollectionToggle = (colId: string) => {
@@ -122,63 +292,57 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
         );
     };
 
-    // Filter and Sort Products
+    // Filter and Sort Products / Designations
     const processedProducts = useMemo(() => {
-        // Only show approved/validated products on the public vendor boutique page
-        let list = (productsList || []).filter(p => p.enabled !== false && p.customFields?.approvalStatus === 'approved');
+        let list = [...allDesignationItems];
 
         // 1. Filter by Tab
         if (activeTab === 'deals') {
-            // Real promotions and deals filter
-            list = list.filter(p => {
-                const v = p.variants?.[0];
-                if (!v) return false;
-                const onPromo = (v.customFields as any)?.onPromotion === true;
-                const compareAt = (v.customFields as any)?.compareAtPrice;
-                const promoPrice = (v.customFields as any)?.promotionalPrice;
-                const hasCompareAt = compareAt && compareAt > (v.priceWithTax || 0);
-                const hasPromoPrice = promoPrice && promoPrice > 0 && promoPrice < (v.priceWithTax || 0);
-                return onPromo || hasCompareAt || hasPromoPrice;
-            });
+            list = list.filter(item => item.onPromotion === true);
         } else if (activeTab === 'new') {
-            // New arrivals sorted by createdAt descending
-            list = [...list].sort((a: any, b: any) => {
-                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id) || 0;
-                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id) || 0;
+            list = list.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.productId) || 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.productId) || 0;
                 return dateB - dateA;
             });
         }
 
-        // 2. Filter by Search Term
+        // 2. Filter by Search Term (matches product name, designation, variant options, or SKU)
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
-            list = list.filter(p => 
-                p.name.toLowerCase().includes(term) || (p.description && p.description.toLowerCase().includes(term))
+            list = list.filter(item => 
+                (item.displayTitle && item.displayTitle.toLowerCase().includes(term)) ||
+                (item.productName && item.productName.toLowerCase().includes(term)) ||
+                (item.declinationName && item.declinationName.toLowerCase().includes(term)) ||
+                (item.variantName && item.variantName.toLowerCase().includes(term)) ||
+                (item.sku && item.sku.toLowerCase().includes(term)) ||
+                (item.description && item.description.toLowerCase().includes(term))
             );
         }
 
         // 3. Filter by Selected Categories/Collections
         if (selectedCollections.length > 0) {
-            list = list.filter(p => 
-                p.collections?.some(c => selectedCollections.includes(c.id))
+            list = list.filter(item => 
+                item.collections?.some((c: any) => selectedCollections.includes(c.id))
             );
         }
 
         // 4. Sort
         if (sortBy === 'priceAsc') {
-            list.sort((a, b) => (a.variants?.[0]?.priceWithTax || 0) - (b.variants?.[0]?.priceWithTax || 0));
+            list.sort((a, b) => (a.price || 0) - (b.price || 0));
         } else if (sortBy === 'priceDesc') {
-            list.sort((a, b) => (b.variants?.[0]?.priceWithTax || 0) - (a.variants?.[0]?.priceWithTax || 0));
+            list.sort((a, b) => (b.price || 0) - (a.price || 0));
         } else if (sortBy === 'newest') {
-            list.sort((a: any, b: any) => {
-                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.id) || 0;
-                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.id) || 0;
+            list.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : parseInt(a.productId) || 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : parseInt(b.productId) || 0;
                 return dateB - dateA;
             });
         }
+        // 'recommended' preserves the round-robin interleaved diversity!
 
         return list;
-    }, [productsList, activeTab, searchTerm, selectedCollections, sortBy]);
+    }, [allDesignationItems, activeTab, searchTerm, selectedCollections, sortBy]);
 
     const totalPages = Math.ceil(processedProducts.length / ITEMS_PER_PAGE);
     const paginatedProducts = useMemo(() => {
@@ -345,7 +509,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                             }`}
                         >
-                            <Grid className="h-4.5 w-4.5" /> Tous les produits
+                            <Grid className="h-4.5 w-4.5" /> Tous les articles ({allDesignationItems.length})
                         </button>
                         <button 
                             onClick={() => setActiveTab('deals')}
@@ -355,7 +519,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                             }`}
                         >
-                            <Sparkles className="h-4.5 w-4.5" /> Top Offres
+                            <Sparkles className="h-4.5 w-4.5" /> Top Offres ({allDesignationItems.filter(i => i.onPromotion).length})
                         </button>
                         <button 
                             onClick={() => setActiveTab('new')}
@@ -403,7 +567,7 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                             </li>
                             <li className="flex items-center gap-3">
                                 <Package className="h-5 w-5 text-slate-400 flex-shrink-0" />
-                                <span>{productsList.length} Produits en vente</span>
+                                <span>{allDesignationItems.length} Articles & Déclinaisons</span>
                             </li>
                         </ul>
                         
@@ -545,23 +709,10 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                 <>
                                     {viewMode === 'grid' ? (
                                         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5">
-                                            {paginatedProducts.map(product => (
+                                            {paginatedProducts.map(item => (
                                                 <VendorProductCard 
-                                                    key={product.id} 
-                                                    product={{ 
-                                                        ...product, 
-                                                        vendorId: vendor.id,
-                                                        vendorName: vendor.name,
-                                                        vendor: {
-                                                            id: vendor.id,
-                                                            name: vendor.name,
-                                                            zone: vendor.zone,
-                                                            address: vendor.address,
-                                                            logo: vendor.logo,
-                                                            rating: vendor.rating,
-                                                            ratingCount: vendor.ratingCount,
-                                                        }
-                                                    }} 
+                                                    key={item.id} 
+                                                    product={item} 
                                                     config={{ hideVendorBadge: true }}
                                                 />
                                             ))}
@@ -569,23 +720,17 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                     ) : (
                                         /* List view (simple row design) */
                                         <div className="space-y-4">
-                                            {paginatedProducts.map(product => {
-                                                const v0 = product.variants?.[0];
-                                                const promoPrice = (v0?.customFields as any)?.promotionalPrice;
-                                                const onPromo = (v0?.customFields as any)?.onPromotion || (promoPrice && promoPrice > 0 && promoPrice < (v0?.priceWithTax || 0));
-                                                const rawPrice = v0?.priceWithTax || 0;
-                                                const finalPrice = onPromo && promoPrice ? promoPrice : rawPrice;
-                                                const variantId = v0?.id || '';
-                                                const featuredImageUrl = product.featuredAsset?.preview ? getAssetUrl(product.featuredAsset.preview) : null;
+                                            {paginatedProducts.map(item => {
+                                                const featuredImageUrl = item.featuredAsset?.preview ? getAssetUrl(item.featuredAsset.preview) : null;
                                                 return (
                                                     <Link 
-                                                        key={product.id} 
-                                                        href={`/product/${product.slug}?vendorId=${vendor.id}${variantId ? `&variantId=${variantId}` : ''}`}
+                                                        key={item.id} 
+                                                        href={`/product/${item.slug}?vendorId=${vendor.id}&variantId=${item.productVariantId}`}
                                                         className="flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 hover:shadow-md transition-shadow group no-underline text-inherit"
                                                     >
                                                         <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center">
                                                             {featuredImageUrl ? (
-                                                                <img src={featuredImageUrl} alt={product.name} className="w-full h-full object-contain p-1" />
+                                                                <img src={featuredImageUrl} alt={item.displayTitle} className="w-full h-full object-contain p-1" />
                                                             ) : (
                                                                 <Package className="h-8 w-8 text-slate-300" />
                                                             )}
@@ -593,21 +738,21 @@ export function VendorShopClient({ vendor }: VendorShopClientProps) {
                                                         <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                                                             <div>
                                                                 <h3 className="font-bold text-sm md:text-base text-slate-950 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
-                                                                    {product.name}
+                                                                    {item.displayTitle}
                                                                 </h3>
-                                                                {product.collections && product.collections.length > 0 && (
+                                                                {item.collections && item.collections.length > 0 && (
                                                                     <p className="text-xs text-slate-400 font-semibold mt-1">
-                                                                        {product.collections[0].name}
+                                                                        {item.collections[0].name}
                                                                     </p>
                                                                 )}
                                                             </div>
                                                             <div className="flex items-baseline gap-2">
                                                                 <span className="text-base font-black text-primary">
-                                                                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(finalPrice)}
+                                                                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(item.price)}
                                                                 </span>
-                                                                {onPromo && promoPrice < rawPrice && (
+                                                                {item.onPromotion && item.rawPrice > item.price && (
                                                                     <span className="text-xs text-slate-400 line-through">
-                                                                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(rawPrice)}
+                                                                        {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(item.rawPrice)}
                                                                     </span>
                                                                 )}
                                                             </div>

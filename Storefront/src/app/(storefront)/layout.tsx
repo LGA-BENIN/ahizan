@@ -70,9 +70,9 @@ async function StorefrontMainContent({
     // These queries are dynamic and session-dependent, meaning they will block rendering of this component.
     // However, because this component is placed inside a Suspense boundary, it won't block the preloader or initial HTML stream!
     const [customer, order, collectionsTree] = await Promise.all([
-        getActiveCustomer(),
-        getActiveOrder(),
-        getTopCollections()
+        getActiveCustomer().catch(() => null),
+        getActiveOrder().catch(() => null),
+        getTopCollections().catch(() => [])
     ]);
     
     // We only keep the required fields to reduce payload size, same structure as client used to do
@@ -160,7 +160,7 @@ async function StorefrontMainContent({
 
 // 2. The main layout wrapper that renders the preloader and fonts immediately
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
-    const homePage = await getPageContent('home');
+    const homePage = await getPageContent('home').catch(() => null);
     const sections = homePage?.sections || [];
     const theme = sections.find(s => s.type === 'THEME_SETTINGS')?.data as ThemeSettingsData;
 

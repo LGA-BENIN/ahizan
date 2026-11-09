@@ -99,14 +99,28 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
 
         checkPermissionState();
 
-        const handleOpenRecovery = () => {
+        const handleOpenRecovery = (e?: Event) => {
+            const isExplicit = (e as CustomEvent)?.detail?.explicit === true;
+            try {
+                if (!isExplicit) {
+                    if (sessionStorage.getItem(RECOVERY_DISMISSED_KEY) === '1') return;
+                    const lastDismissed = localStorage.getItem(RECOVERY_DISMISSED_KEY);
+                    if (lastDismissed && (Date.now() - parseInt(lastDismissed, 10) < 7 * 24 * 60 * 60 * 1000)) {
+                        return;
+                    }
+                }
+            } catch {}
             setShowRecoveryModal(true);
         };
 
         const handleOpenPrompt = () => {
             if (typeof window !== 'undefined' && 'Notification' in window) {
                 if (Notification.permission === 'denied') {
-                    setShowRecoveryModal(true);
+                    // Do not harass user if denied unless explicit
+                    try {
+                        if (sessionStorage.getItem(RECOVERY_DISMISSED_KEY) === '1') return;
+                    } catch {}
+                    setShowRecoveryModal(false);
                 } else {
                     setShowPrompt(true);
                 }
@@ -261,6 +275,14 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
         syncPending();
     }, [authToken, vapidKey, shopApiUrl]);
 
+    const handleDismissRecovery = () => {
+        try {
+            sessionStorage.setItem(RECOVERY_DISMISSED_KEY, '1');
+            localStorage.setItem(RECOVERY_DISMISSED_KEY, String(Date.now()));
+        } catch { /* ignore */ }
+        setShowRecoveryModal(false);
+    };
+
     const handleDismissPrompt = () => {
         try {
             const now = Date.now();
@@ -287,8 +309,6 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                 setIsPermissionDenied(true);
                 setTimeout(() => {
                     setShowPrompt(false);
-                    // Automatically open recovery helper when user clicks Deny/Block
-                    setShowRecoveryModal(true);
                 }, 1200);
                 return;
             }
@@ -419,7 +439,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
             {showRecoveryModal && (
                 <div 
                     className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
-                    onClick={() => setShowRecoveryModal(false)}
+                    onClick={handleDismissRecovery}
                 >
                     <div 
                         className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200"
@@ -428,7 +448,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                         {/* Modal Header */}
                         <div className="relative bg-gradient-to-r from-red-500 via-amber-500 to-primary p-6 text-white text-left">
                             <button 
-                                onClick={() => setShowRecoveryModal(false)}
+                                onClick={handleDismissRecovery}
                                 className="absolute top-4 right-4 p-2 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors"
                                 aria-label="Fermer"
                             >
@@ -612,7 +632,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                                     Actualiser la page
                                 </button>
                                 <button
-                                    onClick={() => setShowRecoveryModal(false)}
+                                    onClick={handleDismissRecovery}
                                     className="py-3 px-4 bg-gray-100 text-gray-700 text-xs font-semibold rounded-2xl hover:bg-gray-200 transition-colors"
                                 >
                                     Fermer

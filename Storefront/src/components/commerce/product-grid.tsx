@@ -24,7 +24,7 @@ interface ProductGridProps {
     userLocation?: any;
 }
 
-export async function ProductGrid({productData, productDataPromise, currentPage, take, columns = 3, config, minPrice, maxPrice, userLocation: userLocationProp}: ProductGridProps) {
+export async function ProductGrid({productData, productDataPromise, currentPage, take, columns = 4, config, minPrice, maxPrice, userLocation: userLocationProp}: ProductGridProps) {
     const channel = await getActiveChannel();
 
     const resolvedData = productData || (productDataPromise ? await productDataPromise : null);

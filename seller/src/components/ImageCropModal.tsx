@@ -21,6 +21,7 @@ export default function ImageCropModal({
     isOpen,
     onClose,
     onCropComplete,
+    onSkipCropping,
     imageSrc,
     aspectRatio = 1,
 }: ImageCropModalProps) {
@@ -184,14 +185,14 @@ export default function ImageCropModal({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="relative bg-white w-full h-[45vh] min-h-[220px] md:min-h-[350px] overflow-hidden border-b border-t border-border shrink">
+                    <div className="relative bg-slate-950 w-full h-[45vh] min-h-[240px] md:min-h-[360px] overflow-hidden border-b border-t border-border shrink flex items-center justify-center">
                         {(safeImageSrc || imageSrc) ? (
                             <Cropper
                                 image={safeImageSrc || imageSrc}
                                 crop={crop}
                                 zoom={zoom}
-                                minZoom={0.2}
-                                maxZoom={5.0}
+                                minZoom={0.5}
+                                maxZoom={4.0}
                                 restrictPosition={false}
                                 rotation={rotation}
                                 aspect={aspectRatio}
@@ -205,13 +206,18 @@ export default function ImageCropModal({
                                         left: 0,
                                         right: 0,
                                         bottom: 0,
-                                        backgroundColor: '#ffffff',
+                                        backgroundColor: '#090d16',
                                     },
+                                    cropAreaStyle: {
+                                        border: '2px solid #3b82f6',
+                                        boxShadow: '0 0 0 9999em rgba(0, 0, 0, 0.65)',
+                                    }
                                 }}
                             />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-white">
-                                <p className="text-xs text-muted-foreground">Chargement de l'image...</p>
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 text-slate-400 gap-2">
+                                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                <p className="text-xs">Chargement de l'image...</p>
                             </div>
                         )}
                     </div>
@@ -274,6 +280,18 @@ export default function ImageCropModal({
                                     <X className="w-3.5 h-3.5" />
                                     Annuler
                                 </Button>
+                                {onSkipCropping && (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={onSkipCropping}
+                                        disabled={isProcessing}
+                                        className="gap-1.5 flex-1 sm:flex-none h-9 text-xs"
+                                        title="Conserver l'image telle quelle sans recadrage"
+                                    >
+                                        Conserver l'original
+                                    </Button>
+                                )}
                                 <Button
                                     type="button"
                                     onClick={handleCrop}

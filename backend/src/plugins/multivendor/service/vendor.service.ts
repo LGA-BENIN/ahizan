@@ -1993,6 +1993,142 @@ export class VendorService implements OnApplicationBootstrap {
         }
     }
 
+    async adminDeleteSellerOffer(ctx: RequestContext, offerId: string): Promise<boolean> {
+        try {
+            const offerRepo = this.connection.getRepository(ctx, SellerOffer);
+            const offer = await offerRepo.findOne({
+                where: { id: offerId },
+                relations: ['vendor', 'productVariant', 'productVariant.product']
+            });
+            if (!offer) {
+                throw new Error(`Offre vendeur #${offerId} introuvable.`);
+            }
+
+            const variantId = offer.productVariant?.id || (offer as any).productVariantId;
+
+            // Remove the offer
+            await offerRepo.remove(offer);
+
+            // Recompute pricing & visibility on variant
+            if (variantId) {
+                const minPriceRes = await this.connection.rawConnection.query(
+                    `SELECT MIN(price) as min_price FROM seller_offer WHERE "productVariantId" = $1 AND status = 'approved'`,
+                    [variantId]
+                );
+                const minPrice = minPriceRes[0]?.min_price;
+
+                if (minPrice != null) {
+                    await this.connection.rawConnection.query(
+                        `UPDATE search_index_item SET price = $1, "priceWithTax" = $1 WHERE "productVariantId" = $2`,
+                        [minPrice, variantId]
+                    );
+                } else {
+                    const anyApprovedRes = await this.connection.rawConnection.query(
+                        `SELECT count(*) as cnt FROM seller_offer WHERE "productVariantId" = $1 AND status = 'approved'`,
+                        [variantId]
+                    );
+                    const anyApproved = parseInt(anyApprovedRes[0]?.cnt || '0', 10) > 0;
+                    await this.connection.rawConnection.query(
+                        `UPDATE search_index_item sii
+                         SET enabled = (p.enabled AND $1)
+                         FROM product_variant pv
+                         INNER JOIN product p ON pv."productId" = p.id
+                         WHERE sii."productVariantId" = $2 AND pv.id = $2`,
+                        [anyApproved, variantId]
+                    );
+                }
+            }
+
+            console.log(`[adminDeleteSellerOffer] Successfully deleted offer #${offerId}`);
+            return true;
+        } catch (error: any) {
+            console.error('[adminDeleteSellerOffer] Error deleting seller offer:', error);
+            throw error;
+        }
+    }
+
+    async adminDeleteProductVariant(ctx: RequestContext, variantId: string): Promise<{ result: string; message?: string }> {
+        const adminCtx = await this.getSuperAdminContext(ctx);
+        try {
+            // 0. Safeguard: Block deletion if active seller offers exist on this variant!
+            const activeOffers = await this.connection.rawConnection.query(
+                `SELECT id FROM seller_offer WHERE "productVariantId" = $1 AND "deletedAt" IS NULL`,
+                [variantId]
+            );
+            if (activeOffers && activeOffers.length > 0) {
+                return {
+                    result: 'HAS_OFFERS',
+                    message: `Impossible de supprimer cette déclinaison : elle est liée à ${activeOffers.length} offre(s) vendeur active(s). Veuillez d'abord supprimer ou transférer ces offres.`
+                };
+            }
+
+            // 0. Safeguard: Block deletion if it is the last remaining variant of the product!
+            const variantRow = await this.connection.rawConnection.query(
+                `SELECT "productId" FROM product_variant WHERE id = $1`,
+                [variantId]
+            );
+            if (variantRow && variantRow[0]?.productId) {
+                const siblingVariants = await this.connection.rawConnection.query(
+                    `SELECT id FROM product_variant WHERE "productId" = $1 AND "deletedAt" IS NULL`,
+                    [variantRow[0].productId]
+                );
+                if (siblingVariants && siblingVariants.length <= 1) {
+                    return {
+                        result: 'LAST_VARIANT',
+                        message: `Impossible de supprimer la dernière déclinaison d'un produit. Pour retirer ce produit du catalogue, supprimez directement la fiche produit mère.`
+                    };
+                }
+            }
+
+            // 2. Remove collection associations
+            await this.connection.rawConnection.query(
+                `DELETE FROM collection_product_variants_product_variant WHERE "productVariantId" = $1`,
+                [variantId]
+            );
+
+            // 3. Remove variant channels
+            await this.connection.rawConnection.query(
+                `DELETE FROM product_variant_channels_channel WHERE "productVariantId" = $1`,
+                [variantId]
+            );
+
+            // 4. Remove option relations
+            await this.connection.rawConnection.query(
+                `DELETE FROM product_variant_options_product_option WHERE "productVariantId" = $1`,
+                [variantId]
+            );
+
+            // 5. Remove search index
+            await this.connection.rawConnection.query(
+                `DELETE FROM search_index_item WHERE "productVariantId" = $1`,
+                [variantId]
+            );
+
+            // 6. Remove prices
+            await this.connection.rawConnection.query(
+                `DELETE FROM product_variant_price WHERE "variantId" = $1`,
+                [variantId]
+            );
+
+            // 7. Soft-delete the variant
+            await this.connection.rawConnection.query(
+                `UPDATE product_variant SET "deletedAt" = NOW(), enabled = false, "updatedAt" = NOW() WHERE id = $1`,
+                [variantId]
+            );
+
+            // Try native softDelete if available
+            try {
+                await this.productVariantService.softDelete(adminCtx, variantId);
+            } catch (_) {}
+
+            console.log(`[adminDeleteProductVariant] Successfully deleted variant #${variantId}`);
+            return { result: 'DELETED', message: 'Déclinaison supprimée avec succès' };
+        } catch (error: any) {
+            console.error('[adminDeleteProductVariant] Error deleting variant:', error);
+            return { result: 'NOT_DELETED', message: error?.message || 'Erreur lors de la suppression' };
+        }
+    }
+
     /**
      * Creates a brand new official Ahizan product and attaches the given variant directly to it.
      */
@@ -2613,7 +2749,7 @@ export class VendorService implements OnApplicationBootstrap {
                 [productId]
             );
 
-            for (const v of variants) {
+            await Promise.all(variants.map(async (v: any) => {
                 const optionNamesRes = await this.connection.rawConnection.query(
                     `SELECT COALESCE(pot.name, po.code) as name 
                      FROM product_variant_options_product_option pvo
@@ -2643,7 +2779,7 @@ export class VendorService implements OnApplicationBootstrap {
                         [newVariantName, v.id]
                     );
                 } catch (_) {}
-            }
+            }));
             return true;
         } catch (err) {
             console.error('[synchronizeAllVariantNamesForProduct] Error:', err);

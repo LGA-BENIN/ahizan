@@ -89,11 +89,34 @@ async function getRelatedProducts(
         const expanded = await expandProductsWithSellerOffers(rawItems, {
             pageType: 'PDP_SIMILAR',
             maxVariantsPerCentralProduct: 1,
-            maxItemsPerVendor: 3,
+            maxItemsPerVendor: 2,
             boostCertifiedVendors: true,
         });
 
-        return expanded;
+        // Strict verification: exclude deleted, unapproved, out of stock, or invalid products
+        const validProducts = expanded.filter(p => {
+            // 1. Exclude current product
+            const pId = String(p.productId || p.product?.id || p.id);
+            if (pId === String(currentProductId)) return false;
+
+            // 2. Exclude soft-deleted or archived products
+            if (p.deletedAt || p.product?.deletedAt) return false;
+
+            // 3. Exclude products without valid active price
+            const activePrice = p.price ?? p.winningOffer?.price ?? 0;
+            if (!activePrice || activePrice <= 0) return false;
+
+            // 4. Exclude products from unapproved or disabled vendors
+            const vendorStatus = p.vendor?.status || p.winningOffer?.vendor?.status;
+            if (vendorStatus && vendorStatus !== 'APPROVED') return false;
+
+            // 5. Must have an identifiable title
+            if (!p.productName && !p.name) return false;
+
+            return true;
+        });
+
+        return validProducts;
     } catch (e) {
         console.warn('[getRelatedProducts] Failed to fetch or expand related products:', e);
         return [];
@@ -109,7 +132,7 @@ export async function RelatedProducts({
 }: RelatedProductsProps) {
     const slugs = collectionSlugs || collectionSlug;
     const products = await getRelatedProducts(slugs, currentProductId);
-    const limit = productsCount || 6;
+    const limit = productsCount || 8;
     const finalProducts = products.slice(0, limit);
 
     if (finalProducts.length === 0) {
@@ -118,7 +141,7 @@ export async function RelatedProducts({
 
     return (
         <ProductCarousel
-            title={title || "Produits similaires"}
+            title={title || "Vous aimerez aussi"}
             products={finalProducts}
         />
     );

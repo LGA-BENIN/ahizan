@@ -176,3 +176,17 @@
   0% { transform: translateX(100vw); }
   100% { transform: translateX(-100%); }
 }
+
+/* Hardware accelerated transitions without layout thrashing */
+.will-change-transform {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Reduce paint load on low-power devices */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+

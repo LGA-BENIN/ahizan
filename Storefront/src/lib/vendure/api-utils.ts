@@ -51,7 +51,6 @@ export function getAssetUrl(path: string | null | undefined): string | undefined
         return normalizedPath;
     }
     
-    const baseUrl = getBaseUrl();
     let cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
     
     // Ensure the path begins with 'assets/' if it's a relative asset path (like preview/... or source/...)
@@ -59,7 +58,7 @@ export function getAssetUrl(path: string | null | undefined): string | undefined
         cleanPath = `assets/${cleanPath}`;
     }
     
-    // Encode the path to handle spaces in filenames
+    const baseUrl = getBaseUrl();
     return `${baseUrl}/${encodeURI(cleanPath)}`;
 }
 

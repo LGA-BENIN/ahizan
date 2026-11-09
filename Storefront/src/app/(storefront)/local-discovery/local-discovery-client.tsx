@@ -283,18 +283,18 @@ export function LocalDiscoveryClient({
         return (
             <div 
                 style={customBg} 
-                className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 text-white p-6 sm:p-10 md:p-12 shadow-2xl border border-emerald-500/20"
+                className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#07152b] via-[#0c234b] to-[#07152b] text-white p-6 sm:p-10 md:p-12 shadow-2xl border border-primary/20"
             >
-                <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
 
                 <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                     <div className="space-y-4 max-w-2xl">
                         <div 
                             style={config?.badgeBgColor ? { backgroundColor: config.badgeBgColor } : {}}
-                            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 text-xs font-black uppercase tracking-wider"
+                            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/20 border border-primary/40 text-red-200 text-xs font-black uppercase tracking-wider"
                         >
-                            <Compass className="w-4 h-4 text-emerald-400" />
+                            <Compass className="w-4 h-4 text-primary" />
                             <span>{badgeText}</span>
                         </div>
                         <h1 style={customColor} className="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-tight leading-tight">
@@ -306,8 +306,8 @@ export function LocalDiscoveryClient({
                     </div>
 
                     {/* Geolocation Card */}
-                    <div className="bg-slate-900/90 backdrop-blur-md p-5 rounded-2xl border border-white/10 shadow-xl space-y-3 shrink-0 max-w-sm">
-                        <div className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase tracking-widest">
+                    <div className="bg-[#07152b]/90 backdrop-blur-md p-5 rounded-2xl border border-white/10 shadow-xl space-y-3 shrink-0 max-w-sm">
+                        <div className="flex items-center gap-2 text-xs font-black text-amber-400 uppercase tracking-widest">
                             <MapPin className="w-4 h-4" />
                             <span>Votre Localisation :</span>
                         </div>
@@ -322,7 +322,7 @@ export function LocalDiscoveryClient({
                                 size="sm"
                                 onClick={useGps}
                                 disabled={gpsLoading}
-                                className="w-full h-9 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2"
+                                className="w-full h-9 rounded-xl font-bold text-xs bg-primary hover:bg-red-700 text-white shadow-md shadow-primary/20 flex items-center justify-center gap-2 transition-colors"
                             >
                                 <Navigation className="w-3.5 h-3.5" />
                                 {gpsLoading ? 'Localisation en cours...' : 'Détecter ma position GPS'}
@@ -380,16 +380,16 @@ export function LocalDiscoveryClient({
             <div className="space-y-8">
                 {/* Active Market Banner */}
                 {currentMarket && (
-                    <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-emerald-500/30">
+                    <div className="bg-gradient-to-r from-[#07152b] via-[#0c234b] to-[#07152b] text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden border border-primary/30">
                         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                                        <Building2 className="w-3.5 h-3.5 text-emerald-300" />
+                                        <Building2 className="w-3.5 h-3.5 text-primary" />
                                         Marché Actif
                                     </span>
                                     {currentMarket.distanceKm !== null && (
-                                        <span className="px-3 py-1 bg-white/15 rounded-full text-xs font-bold text-emerald-200">
+                                        <span className="px-3 py-1 bg-white/15 rounded-full text-xs font-bold text-amber-300">
                                             📍 À {currentMarket.distanceKm} km
                                         </span>
                                     )}
@@ -400,7 +400,7 @@ export function LocalDiscoveryClient({
                                     )}
                                 </div>
                                 <h1 className="text-2xl sm:text-3xl font-black">{currentMarket.name}</h1>
-                                <p className="text-emerald-100/90 text-xs sm:text-sm max-w-xl font-medium">
+                                <p className="text-slate-300 text-xs sm:text-sm max-w-xl font-medium">
                                     {currentMarket.description || `Explorez tous les commerçants, boutiques et produits disponibles au ${currentMarket.name}.`}
                                 </p>
                             </div>
@@ -409,7 +409,7 @@ export function LocalDiscoveryClient({
                                 <Button
                                     size="sm"
                                     onClick={() => setActiveTab('vendors')}
-                                    className="bg-white hover:bg-slate-100 text-emerald-950 font-black text-xs rounded-xl shadow-md"
+                                    className="bg-primary hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-md transition-colors"
                                 >
                                     Boutiques ({marketVendorsCount})
                                 </Button>
@@ -480,7 +480,7 @@ export function LocalDiscoveryClient({
                             onClick={() => setOnlyFastSla(!onlyFastSla)}
                             className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
                                 onlyFastSla 
-                                    ? 'bg-emerald-600 text-white shadow-sm' 
+                                    ? 'bg-primary text-white shadow-sm' 
                                     : 'bg-muted/60 text-muted-foreground hover:bg-muted'
                             }`}
                         >
@@ -502,14 +502,14 @@ export function LocalDiscoveryClient({
                 {/* Zone A: Immediate Proximity (< zoneARadius km) */}
                 {categorizedProducts.zoneA.length > 0 && (
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 px-4 py-3 rounded-2xl">
+                        <div className="flex items-center justify-between bg-primary/5 border border-primary/20 px-4 py-3 rounded-2xl">
                             <div className="flex items-center gap-2">
-                                <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-ping" />
-                                <h2 className="font-black text-sm uppercase tracking-wider text-emerald-950 dark:text-emerald-300">
+                                <span className="flex h-2.5 w-2.5 rounded-full bg-primary animate-ping" />
+                                <h2 className="font-black text-sm uppercase tracking-wider text-foreground">
                                     {zoneALabel}
                                 </h2>
                             </div>
-                            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                            <span className="text-xs font-bold text-primary">
                                 {categorizedProducts.zoneA.length} offre{categorizedProducts.zoneA.length > 1 ? 's' : ''}
                             </span>
                         </div>
@@ -612,11 +612,11 @@ export function LocalDiscoveryClient({
                             >
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <span className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600">
+                                        <span className="p-2.5 rounded-xl bg-primary/10 text-primary">
                                             <Building2 className="w-5 h-5" />
                                         </span>
                                         {showDistance && market.distanceKm !== null && (
-                                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                                            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-primary/10 text-primary">
                                                 À {market.distanceKm} km
                                             </span>
                                         )}
@@ -762,7 +762,7 @@ export function LocalDiscoveryClient({
                                             <span className="text-muted-foreground font-normal">({vendor.ratingCount || 0} avis)</span>
                                         </div>
                                         {vendor.distanceKm !== null && (
-                                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                            <span className="font-bold text-primary">
                                                 À {vendor.distanceKm} km
                                             </span>
                                         )}

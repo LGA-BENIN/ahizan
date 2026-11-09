@@ -2769,7 +2769,17 @@ export class ProductShopResolver {
         private connection: TransactionalConnection,
         private vendorService: VendorService,
         private productVariantService: ProductVariantService,
+        private sellerOfferService: SellerOfferService,
     ) {}
+
+    @ResolveField('sellerOffers')
+    async sellerOffers(@Ctx() ctx: RequestContext, @Parent() product: Product): Promise<SellerOffer[]> {
+        try {
+            return await this.sellerOfferService.getOffersForProduct(ctx, String(product.id));
+        } catch (e) {
+            return [];
+        }
+    }
 
     @ResolveField('variants')
     async variants(@Ctx() ctx: RequestContext, @Parent() product: Product): Promise<ProductVariant[]> {

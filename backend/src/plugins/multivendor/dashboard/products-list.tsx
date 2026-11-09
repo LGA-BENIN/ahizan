@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GET_COLLECTIONS, ADMIN_SYNC_PRODUCT_VARIANT_NAMES } from './queries';
 import { AIProductAssistantModal } from './ai-product-assistant-modal';
@@ -41,6 +41,13 @@ export interface VariantItem {
     stockOnHand?: number;
     stockLevel?: string;
     featuredAsset?: { id?: string; preview: string };
+    channels?: Array<{ id: string; code?: string; token?: string }>;
+    vendor?: {
+        id: string;
+        name: string;
+        status?: string;
+        logo?: { preview?: string };
+    };
     customFields?: {
         onPromotion?: boolean;
         promotionalPrice?: number;
@@ -67,6 +74,8 @@ export interface MarketplaceProduct {
     featuredAsset?: { id?: string; preview: string };
     assets?: Array<{ id: string; preview: string }>;
     collections?: Array<{ id: string; name: string; slug?: string }>;
+    channels?: Array<{ id: string; code?: string; token?: string }>;
+    sellerOffers?: SellerOfferItem[];
     customFields?: {
         vendor?: {
             id: string;
@@ -113,6 +122,53 @@ const GET_MARKETPLACE_PRODUCTS = `
                     name
                     slug
                 }
+                channels {
+                    id
+                    code
+                    token
+                }
+                sellerOffers {
+                    id
+                    price
+                    stock
+                    sku
+                    onPromotion
+                    promotionalPrice
+                    status
+                    rejectionReason
+                    featuredAssetId
+                    featuredAsset {
+                        id
+                        preview
+                    }
+                    productVariant {
+                        id
+                        name
+                        sku
+                        featuredAsset {
+                            id
+                            preview
+                        }
+                        options {
+                            id
+                            name
+                            code
+                            group {
+                                id
+                                name
+                                code
+                            }
+                        }
+                    }
+                    vendor {
+                        id
+                        name
+                        status
+                        logo {
+                            preview
+                        }
+                    }
+                }
                 optionGroups {
                     id
                     name
@@ -149,6 +205,38 @@ const GET_MARKETPLACE_PRODUCTS = `
                         id
                         preview
                     }
+                    channels {
+                        id
+                        code
+                        token
+                    }
+                    vendor {
+                        id
+                        name
+                        status
+                        logo {
+                            preview
+                        }
+                    }
+                    sellerOffers {
+                        id
+                        price
+                        stock
+                        sku
+                        status
+                        onPromotion
+                        promotionalPrice
+                        rejectionReason
+                        featuredAssetId
+                        featuredAsset {
+                            id
+                            preview
+                        }
+                        vendor {
+                            id
+                            name
+                        }
+                    }
                     options {
                         id
                         name
@@ -174,11 +262,18 @@ const GET_MARKETPLACE_PRODUCTS = `
 
 const GET_VENDORS_LIST = `
     query GetVendorsList {
-        vendors(options: { take: 200 }) {
+        vendors(options: { take: 500 }) {
             items {
                 id
                 name
                 status
+                zone
+                type
+                channel {
+                    id
+                    code
+                    token
+                }
                 logo {
                     preview
                 }
@@ -230,6 +325,36 @@ const ADMIN_DELETE_PRODUCT = `
         adminDeleteProduct(id: $id) {
             result
             message
+        }
+    }
+`;
+
+const ADMIN_DELETE_SELLER_OFFER = `
+    mutation AdminDeleteSellerOffer($offerId: ID!) {
+        adminDeleteSellerOffer(offerId: $offerId)
+    }
+`;
+
+const ADMIN_DELETE_PRODUCT_VARIANT = `
+    mutation AdminDeleteProductVariant($variantId: ID!) {
+        adminDeleteProductVariant(variantId: $variantId) {
+            result
+            message
+        }
+    }
+`;
+
+const CREATE_OFFICIAL_VARIANT = `
+    mutation CreateOfficialVariant($input: CreateOfficialVariantInput!) {
+        createOfficialVariant(input: $input) {
+            id
+            name
+            sku
+            price
+            featuredAsset {
+                id
+                preview
+            }
         }
     }
 `;
@@ -698,21 +823,361 @@ function AdminImageCropModal({ imageSrc, file, onClose, onCropComplete, onSkip }
     );
 }
 
+interface SearchableVendorFilterProps {
+    vendors: any[];
+    selectedVendor: string;
+    onChange: (vendorId: string) => void;
+    vendorProductCounts: Record<string, number>;
+    officialCount: number;
+}
+
+function SearchableVendorFilter({
+    vendors,
+    selectedVendor,
+    onChange,
+    vendorProductCounts,
+    officialCount,
+}: SearchableVendorFilterProps) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedVendorObj = vendors.find(v => String(v.id) === String(selectedVendor));
+    const isOfficialSelected = selectedVendor === 'ahizan_official';
+    const isAllSelected = selectedVendor === 'all';
+
+    const filteredVendors = useMemo(() => {
+        if (!searchTerm.trim()) return vendors;
+        const term = searchTerm.toLowerCase();
+        return vendors.filter(v => 
+            v.name?.toLowerCase().includes(term) ||
+            String(v.id).includes(term) ||
+            v.zone?.toLowerCase().includes(term)
+        );
+    }, [vendors, searchTerm]);
+
+    return (
+        <div ref={dropdownRef} style={{ position: 'relative', minWidth: '240px', flex: '1 1 240px', maxWidth: '380px' }}>
+            {/* Trigger Button */}
+            <div
+                onClick={() => setIsOpen(prev => !prev)}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: isOpen ? '1.5px solid #2563eb' : (isAllSelected ? '1px solid #cbd5e1' : '1.5px solid #3b82f6'),
+                    background: isAllSelected ? '#f8fafc' : '#eff6ff',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: isAllSelected ? '#334155' : '#1e40af',
+                    boxShadow: isOpen ? '0 0 0 3px rgba(37,99,235,0.1)' : '0 1px 2px rgba(0,0,0,0.03)',
+                    transition: 'all 0.15s ease',
+                    userSelect: 'none',
+                    minHeight: '36px',
+                    boxSizing: 'border-box',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                    {isOfficialSelected ? (
+                        <>
+                            <span style={{ fontSize: '14px' }}>🏛️</span>
+                            <span style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', fontWeight: 700 }}>
+                                Catalogue Officiel Ahizan
+                            </span>
+                            <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>
+                                {officialCount}
+                            </span>
+                        </>
+                    ) : selectedVendorObj ? (
+                        <>
+                            {selectedVendorObj.logo?.preview ? (
+                                <img
+                                    src={selectedVendorObj.logo.preview}
+                                    alt=""
+                                    style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                />
+                            ) : (
+                                <span style={{ fontSize: '14px' }}>🏪</span>
+                            )}
+                            <span style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', fontWeight: 700 }}>
+                                {selectedVendorObj.name}
+                            </span>
+                            <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1e40af', padding: '1px 5px', borderRadius: '4px', fontWeight: 800, flexShrink: 0 }}>
+                                #{selectedVendorObj.id}
+                            </span>
+                            {vendorProductCounts[selectedVendorObj.id] !== undefined && (
+                                <span style={{ fontSize: '10px', background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: '4px', fontWeight: 700, flexShrink: 0 }}>
+                                    {vendorProductCounts[selectedVendorObj.id]} art.
+                                </span>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <span style={{ fontSize: '14px' }}>🏪</span>
+                            <span style={{ color: '#475569', fontWeight: 600 }}>Toutes les boutiques ({vendors.length})</span>
+                        </>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '6px' }}>
+                    {!isAllSelected && (
+                        <span
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onChange('all');
+                            }}
+                            title="Effacer le filtre boutique"
+                            style={{
+                                color: '#94a3b8',
+                                fontSize: '12px',
+                                padding: '1px 4px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}
+                        >
+                            ✕
+                        </span>
+                    )}
+                    <span style={{ fontSize: '10px', color: '#64748b', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }}>
+                        ▼
+                    </span>
+                </div>
+            </div>
+
+            {/* Dropdown Menu */}
+            {isOpen && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 4px)',
+                        left: 0,
+                        right: 0,
+                        background: '#ffffff',
+                        borderRadius: '12px',
+                        border: '1px solid #cbd5e1',
+                        boxShadow: '0 12px 28px -4px rgba(0, 0, 0, 0.15), 0 8px 12px -6px rgba(0, 0, 0, 0.08)',
+                        zIndex: 99999,
+                        padding: '8px',
+                        maxHeight: '380px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                    }}
+                >
+                    {/* Search Field */}
+                    <div style={{ marginBottom: '8px', position: 'relative' }}>
+                        <input
+                            type="text"
+                            placeholder="Rechercher une boutique..."
+                            value={searchTerm}
+                            autoFocus
+                            onChange={e => setSearchTerm(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                width: '100%',
+                                padding: '8px 10px 8px 30px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '12px',
+                                outline: 'none',
+                                background: '#f8fafc',
+                                boxSizing: 'border-box',
+                            }}
+                        />
+                        <span style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#94a3b8', pointerEvents: 'none' }}>
+                            🔍
+                        </span>
+                        {searchTerm && (
+                            <span
+                                onClick={() => setSearchTerm('')}
+                                style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#94a3b8', cursor: 'pointer' }}
+                            >
+                                ✕
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Quick Options */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px', marginBottom: '6px' }}>
+                        <div
+                            onClick={() => {
+                                onChange('all');
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '7px 10px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                background: isAllSelected ? '#eff6ff' : 'transparent',
+                                color: isAllSelected ? '#1e40af' : '#0f172a',
+                                fontWeight: isAllSelected ? 700 : 500,
+                            }}
+                            onMouseEnter={e => {
+                                if (!isAllSelected) e.currentTarget.style.background = '#f8fafc';
+                            }}
+                            onMouseLeave={e => {
+                                if (!isAllSelected) e.currentTarget.style.background = 'transparent';
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>🏪</span>
+                                <span>Toutes les boutiques</span>
+                            </div>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>({vendors.length})</span>
+                        </div>
+
+                        <div
+                            onClick={() => {
+                                onChange('ahizan_official');
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '7px 10px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                background: isOfficialSelected ? '#eff6ff' : 'transparent',
+                                color: isOfficialSelected ? '#1e40af' : '#0f172a',
+                                fontWeight: isOfficialSelected ? 700 : 500,
+                            }}
+                            onMouseEnter={e => {
+                                if (!isOfficialSelected) e.currentTarget.style.background = '#f8fafc';
+                            }}
+                            onMouseLeave={e => {
+                                if (!isOfficialSelected) e.currentTarget.style.background = 'transparent';
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>🏛️</span>
+                                <span>Catalogue Officiel Ahizan</span>
+                            </div>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>({officialCount})</span>
+                        </div>
+                    </div>
+
+                    {/* Vendors Header */}
+                    <div style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', padding: '4px 8px', letterSpacing: '0.5px' }}>
+                        Boutiques Marchandes ({filteredVendors.length})
+                    </div>
+
+                    {/* Vendors Scroll List */}
+                    <div style={{ overflowY: 'auto', flex: 1, maxHeight: '220px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {filteredVendors.length === 0 ? (
+                            <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: '#94a3b8' }}>
+                                Aucune boutique trouvée
+                            </div>
+                        ) : (
+                            filteredVendors.map((v: any) => {
+                                const isSelected = String(v.id) === String(selectedVendor);
+                                const productCount = vendorProductCounts[v.id] || 0;
+                                return (
+                                    <div
+                                        key={v.id}
+                                        onClick={() => {
+                                            onChange(String(v.id));
+                                            setIsOpen(false);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '8px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            cursor: 'pointer',
+                                            background: isSelected ? '#eff6ff' : 'transparent',
+                                            color: isSelected ? '#1e40af' : '#1f2937',
+                                            fontWeight: isSelected ? 700 : 500,
+                                            transition: 'background 0.1s',
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                            {v.logo?.preview ? (
+                                                <img
+                                                    src={v.logo.preview}
+                                                    alt=""
+                                                    style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#e2e8f0', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 800, flexShrink: 0 }}>
+                                                    {v.name?.charAt(0).toUpperCase() || 'V'}
+                                                </div>
+                                            )}
+                                            <div style={{ overflow: 'hidden' }}>
+                                                <div style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', color: '#0f172a', fontWeight: 600 }}>
+                                                    {v.name}
+                                                </div>
+                                                {v.zone && (
+                                                    <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 400 }}>
+                                                        {v.zone}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                            <span style={{ fontSize: '10px', background: productCount > 0 ? '#dcfce7' : '#f1f5f9', color: productCount > 0 ? '#15803d' : '#94a3b8', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                                {productCount} art.
+                                            </span>
+                                            <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#64748b', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                                #{v.id}
+                                            </span>
+                                            {isSelected && <span style={{ color: '#2563eb', fontWeight: 800, fontSize: '13px' }}>✓</span>}
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function ProductListComponent() {
     const queryClient = useQueryClient();
 
     // Helper formatPrice
     const formatPrice = (val?: number | null) => (val ? `${Math.round(val).toLocaleString('fr-FR')} FCFA` : '0 FCFA');
 
-    // Active View Tab: 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings'
-    const [activeTab, setActiveTab] = useState<'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings'>('official');
+    // Active View Tab: 'all' | 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings'
+    const [activeTab, setActiveTab] = useState<'all' | 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings'>('official');
 
     // Search, Filters & Sorting
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedVendor, setSelectedVendor] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
-    const [sortBy, setSortBy] = useState<'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'variants_desc'>('created_desc');
+    const [selectedPromotion, setSelectedPromotion] = useState<'all' | 'on_promo' | 'regular'>('all');
+    const [sortBy, setSortBy] = useState<'created_desc' | 'created_asc' | 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'promo_first' | 'variants_desc'>('created_desc');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
     const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
@@ -896,14 +1361,91 @@ export function ProductListComponent() {
     const vendors = vendorsData?.vendors?.items || [];
     const minPrice = globalSettingsData?.globalSettings?.customFields?.minimumMarketplacePrice ?? 0;
 
+    // Automatically populate offersMap from productsData.sellerOffers on load
+    useEffect(() => {
+        if (productsData?.products?.items) {
+            const initialMap: Record<string, any[]> = {};
+            for (const p of productsData.products.items) {
+                if (p.sellerOffers && p.sellerOffers.length > 0) {
+                    initialMap[p.id] = p.sellerOffers;
+                }
+            }
+            if (Object.keys(initialMap).length > 0) {
+                setOffersMap(prev => ({ ...initialMap, ...prev }));
+            }
+        }
+    }, [productsData]);
+
+    // Comprehensive vendor resolution for a product across direct assignment, seller offers, variants, and channels
+    const getProductVendorIds = useMemo(() => {
+        return (p: MarketplaceProduct): Set<string> => {
+            const ids = new Set<string>();
+            if (p.customFields?.vendor?.id) {
+                ids.add(String(p.customFields.vendor.id));
+            }
+            const offers = [
+                ...(p.sellerOffers || []),
+                ...(offersMap[p.id] || []),
+            ];
+            for (const off of offers) {
+                if (off?.vendor?.id) {
+                    ids.add(String(off.vendor.id));
+                }
+            }
+            for (const v of p.variants || []) {
+                if (v.vendor?.id) {
+                    ids.add(String(v.vendor.id));
+                }
+                if (v.sellerOffers) {
+                    for (const so of v.sellerOffers) {
+                        if (so?.vendor?.id) ids.add(String(so.vendor.id));
+                    }
+                }
+                if (v.channels && Array.isArray(v.channels)) {
+                    for (const ch of v.channels) {
+                        const matchedVendor = vendors.find((vdr: any) => 
+                            (vdr.channel?.id && String(vdr.channel.id) === String(ch.id)) ||
+                            (vdr.channel?.code && vdr.channel.code === ch.code) ||
+                            String(vdr.id) === String(ch.code?.replace('vendor-', ''))
+                        );
+                        if (matchedVendor) ids.add(String(matchedVendor.id));
+                    }
+                }
+            }
+            if (p.channels && Array.isArray(p.channels)) {
+                for (const ch of p.channels) {
+                    const matchedVendor = vendors.find((vdr: any) => 
+                        (vdr.channel?.id && String(vdr.channel.id) === String(ch.id)) ||
+                        (vdr.channel?.code && vdr.channel.code === ch.code) ||
+                        String(vdr.id) === String(ch.code?.replace('vendor-', ''))
+                    );
+                    if (matchedVendor) ids.add(String(matchedVendor.id));
+                }
+            }
+            return ids;
+        };
+    }, [offersMap, vendors]);
+
+    // Compute live count of products per vendor
+    const vendorProductCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const p of products) {
+            const vIds = getProductVendorIds(p);
+            for (const id of vIds) {
+                counts[id] = (counts[id] || 0) + 1;
+            }
+        }
+        return counts;
+    }, [products, getProductVendorIds]);
+
     // KPI Metrics calculation
     const metrics = useMemo(() => {
         const totalProducts = products.length;
-        const officialCount = products.filter(p => !p.customFields?.vendor || p.customFields.vendor.name === 'Ahizan').length;
-        const vendorProposalCount = products.filter(p => !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan').length;
+        const officialCount = products.filter(p => !p.customFields?.vendor || p.customFields.vendor.name === 'Ahizan' || p.customFields.approvalStatus === 'approved').length;
+        const vendorProposalCount = products.filter(p => !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan' && p.customFields?.approvalStatus !== 'approved').length;
         const pendingProducts = products.filter(p => {
             const approvalStatus = p.customFields?.approvalStatus || 'approved';
-            const offers = offersMap[p.id] || [];
+            const offers = [...(offersMap[p.id] || p.sellerOffers || [])];
             const hasPendingOffers = offers.some((off: any) => off.status === 'pending') ||
                 p.variants?.some(v => {
                     const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
@@ -912,7 +1454,7 @@ export function ProductListComponent() {
             return approvalStatus === 'pending' || hasPendingOffers;
         }).length;
         const unvalidatedVariantsCount = products.reduce((acc, p) => {
-            const offers = offersMap[p.id] || [];
+            const offers = [...(offersMap[p.id] || p.sellerOffers || [])];
             const pendingOffersCount = offers.filter((off: any) => off.status === 'pending').length;
             const pendingVariantsCount = p.variants?.filter(v => {
                 const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
@@ -934,14 +1476,13 @@ export function ProductListComponent() {
         };
     }, [products, offersMap]);
 
-    // Tab switcher with clean reset
-    const handleTabChange = (newTab: 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings') => {
+    // Tab switcher without destroying the selected vendor filter
+    const handleTabChange = (newTab: 'all' | 'official' | 'vendor_proposals' | 'pending' | 'unvalidated_variants' | 'settings') => {
         setActiveTab(newTab);
         setCurrentPage(1);
-        setSelectedVendor('all');
-        setSelectedStatus('all');
-        setSelectedCategory('all');
-        setSearchTerm('');
+        if (newTab === 'settings') {
+            setSelectedVendor('all');
+        }
     };
 
     // Filtered Products
@@ -950,7 +1491,7 @@ export function ProductListComponent() {
             const approvalStatus = p.customFields?.approvalStatus || 'approved';
             const vendorId = p.customFields?.vendor?.id || '';
             const isVendorProposal = !!p.customFields?.vendor && p.customFields.vendor.name !== 'Ahizan';
-            const offers = offersMap[p.id] || [];
+            const offers = [...(offersMap[p.id] || p.sellerOffers || [])];
             const hasPendingOffers = offers.some((off: any) => off.status === 'pending') ||
                 p.variants?.some(v => {
                     const st = (v.customFields as any)?.offerStatus || (v as any).customFieldsOfferstatus;
@@ -959,54 +1500,83 @@ export function ProductListComponent() {
             const isPending = approvalStatus === 'pending' || hasPendingOffers;
 
             // Tab restriction
-            if (activeTab === 'pending' && !isPending) {
+            if (activeTab === 'all') {
+                // Pas de restriction par onglet
+            } else if (activeTab === 'pending' && !isPending) {
                 return false;
-            }
-            if (activeTab === 'unvalidated_variants' && !hasPendingOffers) {
+            } else if (activeTab === 'unvalidated_variants' && !hasPendingOffers) {
                 return false;
-            }
-            if (activeTab === 'official' && isVendorProposal && !hasPendingOffers) {
-                return false;
-            }
-            if (activeTab === 'vendor_proposals' && !isVendorProposal && !hasPendingOffers) {
-                return false;
+            } else if (activeTab === 'official') {
+                // Un produit officiel est une fiche mère Ahizan validée ou générale
+                if (isVendorProposal && approvalStatus !== 'approved') {
+                    return false;
+                }
+            } else if (activeTab === 'vendor_proposals') {
+                if (!isVendorProposal || approvalStatus === 'approved') {
+                    return false;
+                }
             }
 
-            // Search query filter
+            // Search query filter (matches name, SKU, ID, vendor name, options)
             if (searchTerm.trim()) {
                 const term = searchTerm.toLowerCase();
                 const matchName = p.name.toLowerCase().includes(term);
+                const matchId = String(p.id) === term.replace('#', '') || (`#${p.id}`).includes(term);
                 const matchSku = p.variants?.some(v => v.sku?.toLowerCase().includes(term));
-                const matchVendor = p.customFields?.vendor?.name?.toLowerCase().includes(term);
-                if (!matchName && !matchSku && !matchVendor) return false;
+                const matchVendor = 
+                    p.customFields?.vendor?.name?.toLowerCase().includes(term) ||
+                    offers.some((off: any) => off.vendor?.name?.toLowerCase().includes(term)) ||
+                    p.variants?.some(v => v.vendor?.name?.toLowerCase().includes(term));
+                const matchOption = p.variants?.some(v => 
+                    v.options?.some(o => o.name?.toLowerCase().includes(term))
+                );
+                if (!matchName && !matchId && !matchSku && !matchVendor && !matchOption) return false;
             }
 
             // Category filter
             if (selectedCategory !== 'all') {
-                const hasCategory = p.collections?.some(c => c.id === selectedCategory || c.name === selectedCategory);
+                const hasCategory = p.collections?.some(c => String(c.id) === String(selectedCategory) || c.name === selectedCategory);
                 if (!hasCategory) return false;
             }
 
             // Vendor filter
             if (selectedVendor !== 'all') {
                 if (selectedVendor === 'ahizan_official') {
-                    if (vendorId) return false;
-                } else if (String(vendorId) !== String(selectedVendor)) {
-                    const hasOfferFromVendor = (offersMap[p.id] || []).some((off: any) => String(off.vendor?.id) === String(selectedVendor));
-                    if (!hasOfferFromVendor) {
+                    if (vendorId && p.customFields?.vendor?.name !== 'Ahizan') return false;
+                } else {
+                    const vendorIds = getProductVendorIds(p);
+                    if (!vendorIds.has(String(selectedVendor))) {
                         return false;
                     }
                 }
             }
 
+            // Promotion filter
+            if (selectedPromotion !== 'all') {
+                const isPromo = 
+                    p.variants?.some(v => v.customFields?.onPromotion || (v.customFields?.promotionalPrice && v.customFields.promotionalPrice > 0)) ||
+                    offers.some((off: any) => off.onPromotion || (off.promotionalPrice && off.promotionalPrice > 0));
+                
+                if (selectedPromotion === 'on_promo' && !isPromo) return false;
+                if (selectedPromotion === 'regular' && isPromo) return false;
+            }
+
             // Status filter
-            if (selectedStatus !== 'all' && approvalStatus !== selectedStatus) {
-                return false;
+            if (selectedStatus !== 'all') {
+                if (selectedStatus === 'approved') {
+                    const isApproved = approvalStatus === 'approved' || offers.some((o: any) => o.status === 'approved');
+                    if (!isApproved) return false;
+                } else if (selectedStatus === 'pending') {
+                    if (!isPending) return false;
+                } else if (selectedStatus === 'rejected') {
+                    const isRejectedState = approvalStatus === 'rejected' || offers.some((o: any) => o.status === 'rejected');
+                    if (!isRejectedState) return false;
+                }
             }
 
             return true;
         });
-    }, [products, activeTab, searchTerm, selectedCategory, selectedVendor, selectedStatus, offersMap]);
+    }, [products, activeTab, searchTerm, selectedCategory, selectedVendor, selectedStatus, selectedPromotion, offersMap, getProductVendorIds]);
 
     // Sorted Products
     const sortedProducts = useMemo(() => {
@@ -1018,6 +1588,13 @@ export function ProductListComponent() {
             if (sortBy === 'price_desc') return (b.variants?.[0]?.price || 0) - (a.variants?.[0]?.price || 0);
             if (sortBy === 'variants_desc') return (b.variants?.length || 0) - (a.variants?.length || 0);
             if (sortBy === 'created_asc') return Number(a.id) - Number(b.id);
+            if (sortBy === 'promo_first') {
+                const promoA = (a.variants?.some(v => v.customFields?.onPromotion || (v.customFields?.promotionalPrice && v.customFields.promotionalPrice > 0)) ||
+                    (offersMap[a.id] || a.sellerOffers || []).some((off: any) => off.onPromotion || (off.promotionalPrice && off.promotionalPrice > 0))) ? 1 : 0;
+                const promoB = (b.variants?.some(v => v.customFields?.onPromotion || (v.customFields?.promotionalPrice && v.customFields.promotionalPrice > 0)) ||
+                    (offersMap[b.id] || b.sellerOffers || []).some((off: any) => off.onPromotion || (off.promotionalPrice && off.promotionalPrice > 0))) ? 1 : 0;
+                return promoB - promoA;
+            }
             
             // Default sort: prioritize recently updated/resubmitted products!
             const timeA = new Date((a as any).updatedAt || (a as any).createdAt || 0).getTime();
@@ -1026,7 +1603,7 @@ export function ProductListComponent() {
             return Number(b.id) - Number(a.id);
         });
         return list;
-    }, [filteredProducts, sortBy]);
+    }, [filteredProducts, sortBy, offersMap]);
 
     // Paginated Products
     const totalPages = Math.max(1, Math.ceil(sortedProducts.length / itemsPerPage));
@@ -1102,6 +1679,65 @@ export function ProductListComponent() {
             alert('Erreur lors de la suppression: ' + err.message);
         },
     });
+
+    const handleDeleteSellerOffer = async (offerId: string, productId: string, vendorName?: string) => {
+        if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement cette offre vendeur (${vendorName || 'Vendeur'}) ? Cette action retirera l'offre du Storefront.`)) {
+            return;
+        }
+        try {
+            const res = await fetchGraphQL(ADMIN_DELETE_SELLER_OFFER, { offerId });
+            if (res?.adminDeleteSellerOffer) {
+                alert("L'offre vendeur a été supprimée avec succès.");
+                await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                if (productId) {
+                    const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId }).catch(() => null);
+                    if (updatedOffers?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [productId]: updatedOffers.sellerOffersForProduct }));
+                    }
+                }
+            } else {
+                alert("Impossible de supprimer cette offre.");
+            }
+        } catch (err: any) {
+            alert("Erreur lors de la suppression de l'offre : " + err.message);
+        }
+    };
+
+    const handleDeleteProductVariant = async (variantId: string, productId: string, variantName?: string) => {
+        // Find product to check sibling count
+        const product = products.find((p: any) => String(p.id) === String(productId));
+        if (product && product.variants && product.variants.length <= 1) {
+            alert("⚠️ Action bloquée : Impossible de supprimer la dernière déclinaison d'un produit. Tout produit du catalogue doit obligatoirement conserver au moins une déclinaison.");
+            return;
+        }
+
+        // Check if there are seller offers attached to this variant
+        const productOffers = offersMap[productId] || product?.sellerOffers || [];
+        const attachedOffers = productOffers.filter((off: any) => String(off.productVariant?.id) === String(variantId) || String(off.customFields?.productVariantId) === String(variantId));
+        if (attachedOffers.length > 0) {
+            alert(`⚠️ Action bloquée : Cette déclinaison est liée à ${attachedOffers.length} offre(s) vendeur.\n\nVous ne pouvez pas supprimer une déclinaison ayant des offres actives. Veuillez d'abord supprimer ou transférer ces offres vendeurs.`);
+            return;
+        }
+
+        if (!confirm(`Êtes-vous sûr de vouloir supprimer définitivement la déclinaison "${variantName || variantId}" ?`)) {
+            return;
+        }
+        try {
+            const res = await fetchGraphQL(ADMIN_DELETE_PRODUCT_VARIANT, { variantId });
+            if (res?.adminDeleteProductVariant?.result === 'DELETED') {
+                alert("La déclinaison a été supprimée avec succès.");
+                await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            } else if (res?.adminDeleteProductVariant?.result === 'HAS_OFFERS') {
+                alert(res?.adminDeleteProductVariant?.message || "⚠️ Impossible de supprimer : des offres vendeurs sont actives sur cette déclinaison.");
+            } else if (res?.adminDeleteProductVariant?.result === 'LAST_VARIANT') {
+                alert(res?.adminDeleteProductVariant?.message || "⚠️ Impossible de supprimer la dernière déclinaison du produit.");
+            } else {
+                alert(res?.adminDeleteProductVariant?.message || "Impossible de supprimer cette déclinaison.");
+            }
+        } catch (err: any) {
+            alert("Erreur lors de la suppression de la déclinaison : " + err.message);
+        }
+    };
 
     // Quick Action Handlers
     const handleQuickApprove = (product: MarketplaceProduct) => {
@@ -1287,14 +1923,15 @@ export function ProductListComponent() {
                 selectedImages: formattedImages.length > 0 ? formattedImages : undefined,
             });
 
-            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
-
-            // Close all modals immediately (No legacy modal redirection)
+            // Close all modals immediately (No blocking delay)
             setIsAiAssistantOpen(false);
             setAiAssistantProductId(null);
             setReviewProduct(null);
             setCreatedOfficialProduct(null);
             setReviewStep(1);
+            setIsSubmittingReview(false);
+
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
 
             alert(`💾 Succès ! La fiche officielle "${cleanTitle}" a été normalisée et enregistrée avec succès au catalogue.`);
         } catch (err: any) {
@@ -1351,20 +1988,22 @@ export function ProductListComponent() {
                 return;
             }
 
-            for (const varId of variantIds) {
-                if (selectedTargetVariantId) {
-                    await fetchGraphQL(MERGE_VARIANT_INTO_TARGET_VARIANT, {
-                        sourceVariantId: varId,
-                        targetVariantId: selectedTargetVariantId,
-                    });
-                } else {
-                    await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
-                        variantId: varId,
-                        targetProductId: targetProduct.id,
-                        approveOffer: false, // We will moderate in Step 2!
-                    });
-                }
-            }
+            await Promise.all(
+                variantIds.map(varId => {
+                    if (selectedTargetVariantId) {
+                        return fetchGraphQL(MERGE_VARIANT_INTO_TARGET_VARIANT, {
+                            sourceVariantId: varId,
+                            targetVariantId: selectedTargetVariantId,
+                        });
+                    } else {
+                        return fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
+                            variantId: varId,
+                            targetProductId: targetProduct.id,
+                            approveOffer: false, // We will moderate in Step 2!
+                        });
+                    }
+                })
+            );
 
             setCreatedOfficialProduct(targetProduct);
 
@@ -1374,9 +2013,10 @@ export function ProductListComponent() {
                 setOffersMap(prev => ({ ...prev, [targetProduct.id]: updatedOffers.sellerOffersForProduct }));
             }
 
-            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
             setSelectedTargetVariantId(null);
             setReviewStep(2);
+            setIsSubmittingReview(false);
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
         } catch (err: any) {
             console.error('Error reassigning variant:', err);
             alert('Erreur lors du raccordement : ' + err.message);
@@ -1442,8 +2082,9 @@ export function ProductListComponent() {
                     }
                 }
 
-                await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
                 setReviewStep(2);
+                setIsSubmittingReview(false);
+                queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
             } catch (err: any) {
                 alert('Erreur lors de la création de la fiche officielle : ' + err.message);
             } finally {
@@ -1455,12 +2096,14 @@ export function ProductListComponent() {
     const handleApproveAllOffers = async (offersList: any[]) => {
         setIsSubmittingReview(true);
         try {
-            for (const off of offersList) {
-                await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
-                    id: off.id || off.productVariant?.id,
-                    status: 'approved',
-                });
-            }
+            await Promise.all(
+                offersList.map(off =>
+                    fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
+                        id: off.id || off.productVariant?.id,
+                        status: 'approved',
+                    })
+                )
+            );
             const prodId = createdOfficialProduct?.id || reviewProduct?.id;
             if (prodId) {
                 const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: prodId });
@@ -1468,7 +2111,8 @@ export function ProductListComponent() {
                     setOffersMap(prev => ({ ...prev, [prodId]: updatedOffers.sellerOffersForProduct }));
                 }
             }
-            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            setIsSubmittingReview(false);
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
         } catch (err: any) {
             alert('Erreur lors de la validation groupée : ' + err.message);
         } finally {
@@ -1483,13 +2127,15 @@ export function ProductListComponent() {
         }
         setIsSubmittingReview(true);
         try {
-            for (const off of offersList) {
-                await fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
-                    id: off.id || off.productVariant?.id,
-                    status: 'rejected',
-                    rejectionReason: reason,
-                });
-            }
+            await Promise.all(
+                offersList.map(off =>
+                    fetchGraphQL(ADMIN_REVIEW_SELLER_OFFER, {
+                        id: off.id || off.productVariant?.id,
+                        status: 'rejected',
+                        rejectionReason: reason,
+                    })
+                )
+            );
             const prodId = createdOfficialProduct?.id || reviewProduct?.id;
             if (prodId) {
                 const updatedOffers = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: prodId });
@@ -1497,7 +2143,8 @@ export function ProductListComponent() {
                     setOffersMap(prev => ({ ...prev, [prodId]: updatedOffers.sellerOffersForProduct }));
                 }
             }
-            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            setIsSubmittingReview(false);
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
         } catch (err: any) {
             alert('Erreur lors du rejet groupé : ' + err.message);
         } finally {
@@ -1729,53 +2376,78 @@ export function ProductListComponent() {
 
     const handleConfirmRegraft = async () => {
         if (!regraftModalData || !selectedTargetProduct) return;
-        const variantId = regraftModalData.variant?.id || regraftModalData.offer?.productVariant?.id;
-        if (!variantId) {
-            alert('Déclinaison introuvable');
+        const variantId = regraftModalData.variant?.id || regraftModalData.offer?.productVariant?.id || regraftModalData.currentProduct?.variants?.[0]?.id;
+        const offerId = regraftModalData.offer?.id;
+
+        if (!variantId && !offerId) {
+            alert('Déclinaison ou offre introuvable');
             return;
         }
 
         setIsSubmittingRegraft(true);
         try {
-            if (selectedTargetVariantId) {
+            let successMessage = '';
+            if (offerId && selectedTargetVariantId) {
+                // Individual offer re-assignment to target variant
+                await fetchGraphQL(REASSIGN_OFFER_TO_TARGET_VARIANT, {
+                    sourceOfferId: offerId,
+                    targetVariantId: selectedTargetVariantId,
+                    deleteSourceVariantIfEmpty: true,
+                });
+                successMessage = `L'offre commerciale du vendeur a été rattachée avec succès à la déclinaison officielle #${selectedTargetVariantId} sous "${selectedTargetProduct.name}" !`;
+            } else if (selectedTargetVariantId && variantId) {
                 // Direct anti-duplicate fusion: source variant merged into target variant, all offers re-linked, source deleted
                 await fetchGraphQL(MERGE_VARIANT_INTO_TARGET_VARIANT, {
                     sourceVariantId: variantId,
                     targetVariantId: selectedTargetVariantId,
                 });
-                alert(`Déclinaison fusionnée avec succès sur la variante officielle #${selectedTargetVariantId} sous "${selectedTargetProduct.name}" ! Le doublon et son produit source ont été nettoyés.`);
-            } else {
+                successMessage = `Déclinaison fusionnée avec succès sur la variante officielle #${selectedTargetVariantId} sous "${selectedTargetProduct.name}" ! Le doublon et son produit source ont été nettoyés.`;
+            } else if (variantId) {
                 await fetchGraphQL(REASSIGN_VARIANT_TO_PRODUCT, {
                     variantId,
                     targetProductId: selectedTargetProduct.id,
                 });
-                alert(`Déclinaison transférée avec succès sous "${selectedTargetProduct.name}" !`);
+                successMessage = `Déclinaison transférée avec succès sous "${selectedTargetProduct.name}" !`;
+            } else {
+                alert('Veuillez sélectionner une déclinaison cible.');
+                setIsSubmittingRegraft(false);
+                return;
             }
 
-            // Invalidate products query
-            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            const currentProdId = regraftModalData.currentProduct?.id;
+            const targetProdId = selectedTargetProduct.id;
 
-            // Refresh offers for current product and target product
-            if (regraftModalData.currentProduct?.id) {
-                const currentData = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: regraftModalData.currentProduct.id });
-                if (currentData?.sellerOffersForProduct) {
-                    setOffersMap(prev => ({ ...prev, [regraftModalData.currentProduct.id]: currentData.sellerOffersForProduct }));
-                }
-            }
-            if (selectedTargetProduct.id) {
-                const targetData = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: selectedTargetProduct.id });
-                if (targetData?.sellerOffersForProduct) {
-                    setOffersMap(prev => ({ ...prev, [selectedTargetProduct.id]: targetData.sellerOffersForProduct }));
-                }
-            }
-
+            // Immediately close modal and unfreeze UI so the user does NOT get stuck on "Transfert en cours..."
             setRegraftModalData(null);
             setSelectedTargetProduct(null);
             setSelectedTargetVariantId(null);
+            setIsSubmittingRegraft(false);
+
+            if (successMessage) {
+                alert(successMessage);
+            }
+
+            // Invalidate products query in background
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+
+            // Refresh offers in background
+            if (currentProdId) {
+                fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: currentProdId }).then(currentData => {
+                    if (currentData?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [currentProdId]: currentData.sellerOffersForProduct }));
+                    }
+                });
+            }
+            if (targetProdId) {
+                fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: targetProdId }).then(targetData => {
+                    if (targetData?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [targetProdId]: targetData.sellerOffersForProduct }));
+                    }
+                });
+            }
         } catch (err: any) {
             console.error('Error regrafting variant to product:', err);
             alert('Erreur lors du transfert : ' + err.message);
-        } finally {
             setIsSubmittingRegraft(false);
         }
     };
@@ -1809,20 +2481,26 @@ export function ProductListComponent() {
                 approveOffer: regraftNewApproveOffer,
             });
 
-            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
-            if (regraftModalData.currentProduct?.id) {
-                const currentData = await fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: regraftModalData.currentProduct.id });
-                if (currentData?.sellerOffersForProduct) {
-                    setOffersMap(prev => ({ ...prev, [regraftModalData.currentProduct.id]: currentData.sellerOffersForProduct }));
-                }
-            }
+            const currentProdId = regraftModalData.currentProduct?.id;
+            const newProductName = data?.createOfficialProductFromVariant?.name || regraftNewTitle;
 
-            alert(`Nouvelle fiche officielle "${data?.createOfficialProductFromVariant?.name || regraftNewTitle}" créée avec succès et déclinaison rattachée !`);
+            // Immediately close modal and unfreeze UI
             setRegraftModalData(null);
+            setIsSubmittingRegraft(false);
+
+            alert(`Nouvelle fiche officielle "${newProductName}" créée avec succès et déclinaison rattachée !`);
+
+            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+            if (currentProdId) {
+                fetchGraphQL(GET_SELLER_OFFERS_FOR_PRODUCT, { productId: currentProdId }).then(currentData => {
+                    if (currentData?.sellerOffersForProduct) {
+                        setOffersMap(prev => ({ ...prev, [currentProdId]: currentData.sellerOffersForProduct }));
+                    }
+                });
+            }
         } catch (err: any) {
             console.error('Error creating official product from variant:', err);
             alert('Erreur lors de la création de la fiche : ' + err.message);
-        } finally {
             setIsSubmittingRegraft(false);
         }
     };
@@ -1907,8 +2585,20 @@ export function ProductListComponent() {
                     </p>
                 </div>
 
-                {/* Navigation 5 Onglets Stricts */}
+                {/* Navigation Onglets */}
                 <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '10px', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => handleTabChange('all')}
+                        style={{
+                            padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+                            background: activeTab === 'all' ? '#0f172a' : 'transparent',
+                            color: activeTab === 'all' ? '#ffffff' : '#64748b',
+                            boxShadow: activeTab === 'all' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.15s',
+                        }}
+                    >
+                        Toutes les fiches ({metrics.totalProducts})
+                    </button>
                     <button
                         onClick={() => handleTabChange('official')}
                         style={{
@@ -2040,80 +2730,220 @@ export function ProductListComponent() {
 
             {/* ── 4. SEARCH & FILTER TOOLBAR ── */}
             {activeTab !== 'settings' && (
-                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
-                    {/* Search Input */}
-                    <div style={{ flex: 1, minWidth: '220px' }}>
-                        <input
-                            type="text"
-                            placeholder="Rechercher par nom de produit, SKU ou vendeur..."
-                            value={searchTerm}
-                            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', background: '#f8fafc' }}
+                <>
+                    <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px', marginBottom: '12px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                        {/* Search Input */}
+                        <div style={{ flex: '1 1 220px', minWidth: '200px', position: 'relative' }}>
+                            <input
+                                type="text"
+                                placeholder="Rechercher par nom, SKU, #ID, vendeur ou attribut..."
+                                value={searchTerm}
+                                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                style={{ width: '100%', padding: '9px 32px 9px 12px', borderRadius: '8px', border: searchTerm ? '1.5px solid #2563eb' : '1px solid #cbd5e1', fontSize: '12px', background: '#f8fafc', boxSizing: 'border-box' }}
+                            />
+                            {searchTerm && (
+                                <span
+                                    onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}
+                                    title="Effacer la recherche"
+                                >
+                                    ✕
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Searchable Vendor Filter */}
+                        <SearchableVendorFilter
+                            vendors={vendors}
+                            selectedVendor={selectedVendor}
+                            onChange={val => {
+                                setSelectedVendor(val);
+                                setCurrentPage(1);
+                            }}
+                            vendorProductCounts={vendorProductCounts}
+                            officialCount={metrics.officialCount}
                         />
-                    </div>
 
-                    {/* Sort Selector */}
-                    <div style={{ minWidth: '170px' }}>
-                        <select
-                            value={sortBy}
-                            onChange={e => { setSortBy(e.target.value as any); setCurrentPage(1); }}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#0f172a', cursor: 'pointer' }}
-                        >
-                            <option value="created_desc">Trier : Plus récents</option>
-                            <option value="created_asc">Trier : Plus anciens</option>
-                            <option value="name_asc">Trier : Nom (A - Z)</option>
-                            <option value="name_desc">Trier : Nom (Z - A)</option>
-                            <option value="price_asc">Trier : Prix croissant</option>
-                            <option value="price_desc">Trier : Prix décroissant</option>
-                            <option value="variants_desc">Trier : Déclinaisons</option>
-                        </select>
-                    </div>
+                        {/* Category Filter */}
+                        <div style={{ minWidth: '150px' }}>
+                            <select
+                                value={selectedCategory}
+                                onChange={e => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: selectedCategory !== 'all' ? '1.5px solid #2563eb' : '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: selectedCategory !== 'all' ? '#eff6ff' : '#f8fafc', color: selectedCategory !== 'all' ? '#1e40af' : '#334155', cursor: 'pointer' }}
+                            >
+                                <option value="all">Toutes les catégories</option>
+                                {collections.map((c: any) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
 
-                    {/* Category Filter */}
-                    <div style={{ minWidth: '160px' }}>
-                        <select
-                            value={selectedCategory}
-                            onChange={e => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                        >
-                            <option value="all">Toutes les catégories</option>
-                            {collections.map((c: any) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Vendor Filter */}
-                    <div style={{ minWidth: '160px' }}>
-                        <select
-                            value={selectedVendor}
-                            onChange={e => { setSelectedVendor(e.target.value); setCurrentPage(1); }}
-                            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
-                        >
-                            <option value="all">Tous les vendeurs</option>
-                            <option value="ahizan_official">Catalogue Officiel Ahizan</option>
-                            {vendors.map((v: any) => (
-                                <option key={v.id} value={v.id}>{v.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Status Filter */}
-                    {activeTab === 'vendor_proposals' && (
-                        <div style={{ minWidth: '140px' }}>
+                        {/* Status Filter */}
+                        <div style={{ minWidth: '135px' }}>
                             <select
                                 value={selectedStatus}
                                 onChange={e => { setSelectedStatus(e.target.value); setCurrentPage(1); }}
-                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#334155', cursor: 'pointer' }}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: selectedStatus !== 'all' ? '1.5px solid #2563eb' : '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: selectedStatus !== 'all' ? '#eff6ff' : '#f8fafc', color: selectedStatus !== 'all' ? '#1e40af' : '#334155', cursor: 'pointer' }}
                             >
                                 <option value="all">Tous les statuts</option>
-                                <option value="approved">Validé (En ligne)</option>
-                                <option value="pending">En attente (Modération)</option>
-                                <option value="rejected">Rejeté</option>
+                                <option value="approved">✅ Validé (En ligne)</option>
+                                <option value="pending">⏳ En attente (Modération)</option>
+                                <option value="rejected">❌ Rejeté</option>
                             </select>
                         </div>
+
+                        {/* Promotion Filter */}
+                        <div style={{ minWidth: '145px' }}>
+                            <select
+                                value={selectedPromotion}
+                                onChange={e => { setSelectedPromotion(e.target.value as any); setCurrentPage(1); }}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: selectedPromotion !== 'all' ? '1.5px solid #ea580c' : '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: selectedPromotion !== 'all' ? '#fff7ed' : '#f8fafc', color: selectedPromotion !== 'all' ? '#c2410c' : '#334155', cursor: 'pointer' }}
+                            >
+                                <option value="all">Toutes les offres</option>
+                                <option value="on_promo">🔥 En promotion vendeur</option>
+                                <option value="regular">🏷️ Prix standard</option>
+                            </select>
+                        </div>
+
+                        {/* Sort Selector */}
+                        <div style={{ minWidth: '160px' }}>
+                            <select
+                                value={sortBy}
+                                onChange={e => { setSortBy(e.target.value as any); setCurrentPage(1); }}
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: '#f8fafc', color: '#0f172a', cursor: 'pointer' }}
+                            >
+                                <option value="created_desc">Trier : Plus récents</option>
+                                <option value="created_asc">Trier : Plus anciens</option>
+                                <option value="promo_first">Trier : 🔥 Promos en premier</option>
+                                <option value="name_asc">Trier : Nom (A - Z)</option>
+                                <option value="name_desc">Trier : Nom (Z - A)</option>
+                                <option value="price_asc">Trier : Prix croissant</option>
+                                <option value="price_desc">Trier : Prix décroissant</option>
+                                <option value="variants_desc">Trier : Déclinaisons</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Active Filters Summary Chips Bar */}
+                    {(selectedVendor !== 'all' || selectedCategory !== 'all' || selectedStatus !== 'all' || selectedPromotion !== 'all' || searchTerm.trim() !== '') && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '10px', padding: '8px 14px', marginBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontSize: '11px', color: '#475569' }}>
+                                <span style={{ fontWeight: 700, color: '#0f172a' }}>Filtres actifs :</span>
+                                {selectedVendor !== 'all' && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                                        Boutique : {selectedVendor === 'ahizan_official' ? 'Catalogue Officiel' : (vendors.find(v => String(v.id) === String(selectedVendor))?.name || `#${selectedVendor}`)}
+                                        <span onClick={() => { setSelectedVendor('all'); setCurrentPage(1); }} style={{ cursor: 'pointer', marginLeft: '2px' }}>✕</span>
+                                    </span>
+                                )}
+                                {selectedCategory !== 'all' && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                                        Catégorie : {collections.find(c => String(c.id) === String(selectedCategory))?.name || selectedCategory}
+                                        <span onClick={() => { setSelectedCategory('all'); setCurrentPage(1); }} style={{ cursor: 'pointer', marginLeft: '2px' }}>✕</span>
+                                    </span>
+                                )}
+                                {selectedStatus !== 'all' && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                                        Statut : {selectedStatus === 'approved' ? 'Validé' : (selectedStatus === 'pending' ? 'En attente' : 'Rejeté')}
+                                        <span onClick={() => { setSelectedStatus('all'); setCurrentPage(1); }} style={{ cursor: 'pointer', marginLeft: '2px' }}>✕</span>
+                                    </span>
+                                )}
+                                {selectedPromotion !== 'all' && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ffedd5', color: '#9a3412', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                                        {selectedPromotion === 'on_promo' ? '🔥 En promotion' : '🏷️ Prix standard'}
+                                        <span onClick={() => { setSelectedPromotion('all'); setCurrentPage(1); }} style={{ cursor: 'pointer', marginLeft: '2px' }}>✕</span>
+                                    </span>
+                                )}
+                                {searchTerm.trim() !== '' && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#f1f5f9', color: '#334155', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                                        Recherche : "{searchTerm}"
+                                        <span onClick={() => { setSearchTerm(''); setCurrentPage(1); }} style={{ cursor: 'pointer', marginLeft: '2px' }}>✕</span>
+                                    </span>
+                                )}
+                                <span style={{ color: '#64748b', marginLeft: '6px' }}>
+                                    ({filteredProducts.length} résultat{filteredProducts.length > 1 ? 's' : ''})
+                                </span>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setSelectedVendor('all');
+                                    setSelectedCategory('all');
+                                    setSelectedStatus('all');
+                                    setSelectedPromotion('all');
+                                    setSearchTerm('');
+                                    setCurrentPage(1);
+                                }}
+                                style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                                Tout réinitialiser
+                            </button>
+                        </div>
                     )}
-                </div>
+
+                    {/* Active Boutique Informational Banner */}
+                    {selectedVendor !== 'all' && selectedVendor !== 'ahizan_official' && (() => {
+                        const vObj = vendors.find(v => String(v.id) === String(selectedVendor));
+                        const totalVendorProds = vendorProductCounts[selectedVendor] || 0;
+                        return (
+                            <div style={{
+                                background: 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '12px',
+                                padding: '12px 18px',
+                                marginBottom: '16px',
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                gap: '12px',
+                                boxShadow: '0 1px 3px rgba(37,99,235,0.05)',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    {vObj?.logo?.preview ? (
+                                        <img src={vObj.logo.preview} alt="" style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #3b82f6' }} />
+                                    ) : (
+                                        <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#2563eb', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: 800 }}>
+                                            {vObj?.name?.charAt(0).toUpperCase() || '🏪'}
+                                        </div>
+                                    )}
+                                    <div>
+                                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            Boutique filtrée : {vObj?.name || `Vendeur #${selectedVendor}`}
+                                            <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '1px 8px', borderRadius: '999px', fontWeight: 700 }}>
+                                                ID: #{selectedVendor}
+                                            </span>
+                                            {vObj?.zone && (
+                                                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>
+                                                    📍 {vObj.zone}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: '#2563eb', marginTop: '2px', fontWeight: 600 }}>
+                                            {filteredProducts.length} produit(s) affiché(s) sur {totalVendorProds} article(s) rattaché(s) à cette boutique
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    {activeTab !== 'all' && (
+                                        <button
+                                            onClick={() => setActiveTab('all')}
+                                            style={{ padding: '6px 12px', borderRadius: '6px', background: '#ffffff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            🌐 Voir tout le catalogue ({totalVendorProds})
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => { setSelectedVendor('all'); setCurrentPage(1); }}
+                                        style={{ padding: '6px 12px', borderRadius: '6px', background: '#fee2e2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        ✕ Retirer le filtre boutique
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </>
             )}
 
             {/* ── 5. PRODUCTS MASTER-DETAIL TABLE ── */}
@@ -2241,7 +3071,7 @@ export function ProductListComponent() {
                                                     {/* Variants Count & Base Price */}
                                                     <td style={{ padding: '12px 18px' }}>
                                                         <div>
-                                                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{product.variants?.length || 1} déclinaison(s)</span>
+                                                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{product.variants?.length ?? 0} déclinaison(s)</span>
                                                             <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
                                                                 {mainVariant?.price ? `${Math.round(mainVariant.price).toLocaleString('fr-FR')} FCFA` : 'Sur offre'}
                                                             </div>
@@ -2671,6 +3501,14 @@ export function ProductListComponent() {
                                                                                                     >
                                                                                                         🔗 Greffer ailleurs
                                                                                                     </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteSellerOffer(offer.id, product.id, offer.vendor?.name)}
+                                                                style={{ padding: '6px 10px', borderRadius: '6px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                                title="Supprimer définitivement cette offre vendeur"
+                                                            >
+                                                                <span>🗑️</span> Supprimer
+                                                            </button>
                                                                                                 </div>
                                                                                             </div>
                                                                                         </div>
@@ -2813,6 +3651,14 @@ export function ProductListComponent() {
                                                                                         >
                                                                                             🔗 Raccorder ailleurs
                                                                                         </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteProductVariant(v.id, product.id, v.name || product.name)}
+                                                    style={{ padding: '5px 10px', borderRadius: '6px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                                    title="Supprimer définitivement cette déclinaison du catalogue central"
+                                                >
+                                                    <span>🗑️</span> Supprimer
+                                                </button>
                                                                                     </div>
                                                                                 </div>
                                                                             );
@@ -3000,7 +3846,7 @@ export function ProductListComponent() {
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>{reviewProduct.name}</div>
                                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                                            Catégorie : <strong>{reviewProduct.collections?.[0]?.name || 'Non classé'}</strong> • <strong>{offersMap[reviewProduct.id]?.length || reviewProduct.variants?.length || 1}</strong> déclinaison(s) soumise(s)
+                                            Catégorie : <strong>{reviewProduct.collections?.[0]?.name || 'Non classé'}</strong> • <strong>{offersMap[reviewProduct.id]?.length || reviewProduct.variants?.length || 0}</strong> déclinaison(s) soumise(s)
                                         </div>
                                     </div>
                                 </div>
@@ -3691,9 +4537,9 @@ export function ProductListComponent() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={async () => {
-                                            await queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
+                                        onClick={() => {
                                             setReviewProduct(null);
+                                            queryClient.invalidateQueries({ queryKey: ['marketplaceProducts'] });
                                             alert('Modération terminée et catalogue mis à jour avec succès !');
                                         }}
                                         style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: '#059669', color: '#ffffff', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}
@@ -4676,7 +5522,7 @@ export function ProductListComponent() {
                                         onClick={async () => {
                                             const idToReview = selectedDeclinationForDetails.id;
                                             try {
-                                                await handleReviewSellerOffer(idToReview, 'approved');
+                                                await handleReviewOffer(idToReview, selectedDeclinationForDetails?.product?.id || '', 'approved');
                                                 setSelectedDeclinationForDetails(null);
                                             } catch (err: any) {
                                                 alert(err.message);
@@ -4708,7 +5554,7 @@ export function ProductListComponent() {
 
             {/* Superadmin Interactive Option Groups & Options Configuration Modal */}
             {editingVariantOptions && (() => {
-                const currentProductForOptions = products.find(p => p.id === editingVariantOptions.productId) || (data?.products?.items || []).find((p: any) => p.id === editingVariantOptions.productId);
+                const currentProductForOptions = products.find(p => p.id === editingVariantOptions.productId);
                 const productOptionGroups: Array<{ id: string; name: string; options?: Array<{ id: string; name: string }> }> = currentProductForOptions?.optionGroups || [];
                 
                 const COMMON_GROUP_PRESETS: Record<string, string[]> = {
@@ -4829,27 +5675,42 @@ export function ProductListComponent() {
                                                         <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
                                                             Groupe d'option
                                                         </label>
-                                                        <input
-                                                            type="text"
-                                                            list={`groups-datalist-${idx}`}
-                                                            placeholder="Ex: Couleur, Taille, Volume..."
-                                                            value={opt.groupName}
+                                                        <select
+                                                            value={allAvailableGroupNames.includes(opt.groupName) ? opt.groupName : (opt.groupName ? '__CUSTOM__' : '')}
                                                             onChange={e => {
                                                                 const val = e.target.value;
                                                                 setEditingVariantOptions(prev => {
                                                                     if (!prev) return prev;
                                                                     const nextOpts = [...prev.options];
-                                                                    nextOpts[idx] = { ...nextOpts[idx], groupName: val };
+                                                                    nextOpts[idx] = { ...nextOpts[idx], groupName: val === '__CUSTOM__' ? '' : val };
                                                                     return { ...prev, options: nextOpts };
                                                                 });
                                                             }}
-                                                            style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700, color: '#0f172a', boxSizing: 'border-box' }}
-                                                        />
-                                                        <datalist id={`groups-datalist-${idx}`}>
+                                                            style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700, color: '#0f172a', background: '#ffffff', boxSizing: 'border-box' }}
+                                                        >
+                                                            <option value="">-- Choisir un attribut --</option>
                                                             {allAvailableGroupNames.map(g => (
-                                                                <option key={g} value={g} />
+                                                                <option key={g} value={g}>{g}</option>
                                                             ))}
-                                                        </datalist>
+                                                            <option value="__CUSTOM__">✍️ Autre attribut personnalisé...</option>
+                                                        </select>
+                                                        {(!allAvailableGroupNames.includes(opt.groupName) || opt.groupName === '') && (
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Saisir le nom (ex: Couleur, Taille...)"
+                                                                value={opt.groupName}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditingVariantOptions(prev => {
+                                                                        if (!prev) return prev;
+                                                                        const nextOpts = [...prev.options];
+                                                                        nextOpts[idx] = { ...nextOpts[idx], groupName: val };
+                                                                        return { ...prev, options: nextOpts };
+                                                                    });
+                                                                }}
+                                                                style={{ width: '100%', marginTop: '6px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, color: '#0f172a', boxSizing: 'border-box' }}
+                                                            />
+                                                        )}
                                                     </div>
 
                                                     {/* Value Selector & Input */}

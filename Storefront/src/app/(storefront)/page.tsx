@@ -34,8 +34,8 @@ async function HomeContent({ presetId }: { presetId?: string }) {
         noStore();
     }
     const [page, collectionsTree] = await Promise.all([
-        presetId ? getPreviewHabillageContent(presetId).catch(() => null) : getPageContent('home'),
-        getTopCollections()
+        presetId ? getPreviewHabillageContent(presetId).catch(() => null) : getPageContent('home').catch(() => null),
+        getTopCollections().catch(() => [])
     ]);
     const sections = page?.sections || [];
 

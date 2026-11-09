@@ -54,8 +54,24 @@ const GET_VENDOR_PROFILE = `
                 }
                 variants {
                     id
+                    name
+                    sku
                     priceWithTax
                     stockLevel
+                    featuredAsset {
+                        id
+                        preview
+                    }
+                    options {
+                        id
+                        name
+                        code
+                        group {
+                            id
+                            name
+                            code
+                        }
+                    }
                     customFields {
                         compareAtPrice
                         onPromotion

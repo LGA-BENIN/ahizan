@@ -39,11 +39,54 @@ export default function CategoryCheckboxTree({
         setExpandedIds((prev: Record<string, boolean>) => ({ ...prev, [id]: !prev[id] }));
     };
 
+    const getAncestorIds = (nodes: CollectionNode[], targetId: string, currentPath: string[] = []): string[] | null => {
+        for (const node of nodes) {
+            if (node.id === targetId) {
+                return currentPath;
+            }
+            if (node.children && node.children.length > 0) {
+                const found = getAncestorIds(node.children, targetId, [...currentPath, node.id]);
+                if (found !== null) return found;
+            }
+        }
+        return null;
+    };
+
+    const getDescendantIds = (nodes: CollectionNode[], targetId: string): string[] => {
+        const findNodeAndGetDescendants = (list: CollectionNode[]): string[] | null => {
+            for (const node of list) {
+                if (node.id === targetId) {
+                    const collect = (n: CollectionNode): string[] => {
+                        let acc: string[] = [];
+                        if (n.children) {
+                            for (const c of n.children) {
+                                acc.push(c.id);
+                                acc.push(...collect(c));
+                            }
+                        }
+                        return acc;
+                    };
+                    return collect(node);
+                }
+                if (node.children && node.children.length > 0) {
+                    const res = findNodeAndGetDescendants(node.children);
+                    if (res !== null) return res;
+                }
+            }
+            return null;
+        };
+        return findNodeAndGetDescendants(nodes) || [];
+    };
+
     const handleCheckboxChange = (id: string, checked: boolean) => {
         if (checked) {
-            onChange([...selectedIds, id]);
+            const ancestors = getAncestorIds(collectionTree, id) || [];
+            const newIds = Array.from(new Set([...selectedIds, id, ...ancestors]));
+            onChange(newIds);
         } else {
-            onChange(selectedIds.filter((x) => x !== id));
+            const descendants = getDescendantIds(collectionTree, id);
+            const toRemove = new Set([id, ...descendants]);
+            onChange(selectedIds.filter((x) => !toRemove.has(x)));
         }
     };
 

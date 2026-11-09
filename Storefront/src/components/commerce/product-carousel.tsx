@@ -110,7 +110,7 @@ export function ProductCarousel({ title, products }: ProductCarouselClientProps)
                         {products.map((product, i) => (
                             <div
                                 key={product.id ? `${product.id}-${i}` : `${id}-${i}`}
-                                className="flex-none w-[170px] sm:w-[195px] md:w-[210px] lg:w-[225px] snap-start"
+                                className="flex-none w-[140px] sm:w-[155px] md:w-[170px] lg:w-[185px] snap-start"
                             >
                                 {product.isMasterResolved || product.winningOffer ? (
                                     <MasterProductCard item={product} />

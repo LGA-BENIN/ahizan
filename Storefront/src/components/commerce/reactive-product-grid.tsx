@@ -97,11 +97,11 @@ export function ReactiveProductGrid({
     }
 
     const gridCols = {
-        2: 'lg:grid-cols-2',
-        3: 'lg:grid-cols-3',
-        4: 'lg:grid-cols-4',
-        5: 'lg:grid-cols-5',
-    }[columns as 2 | 3 | 4 | 5] || 'lg:grid-cols-3';
+        2: 'grid-cols-2',
+        3: 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3',
+        4: 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4',
+        5: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5',
+    }[columns as 2 | 3 | 4 | 5] || 'grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
 
     const pagedItems = useMemo(() => {
         const start = (currentPage - 1) * take;
@@ -118,7 +118,7 @@ export function ReactiveProductGrid({
                 <SortDropdown />
             </div>
 
-            <div className={`grid grid-cols-2 sm:grid-cols-3 ${gridCols} gap-3 sm:gap-4 transition-all duration-300`}>
+            <div className={`grid ${gridCols} gap-2.5 sm:gap-3.5 md:gap-4 transition-all duration-300`}>
                 {pagedItems.map((product, i) => (
                     <MasterProductCard
                         key={product.id || `${product.productId}-${product.productVariantId || i}`}

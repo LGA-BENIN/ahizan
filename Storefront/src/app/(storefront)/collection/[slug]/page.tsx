@@ -219,8 +219,8 @@ function CategoryHeader({ config, collection, totalItems, fallbackCollectionImag
 
 function DynamicProductGrid({ config, productData, currentPage, allowedFacets, allowedFacetIds, userLocation }: { config: any, productData: any, currentPage: number, allowedFacets: any[], allowedFacetIds: string[], userLocation?: any }) {
     const showFilters = config.showFilters !== false;
-    const columns = Number(config.columns) || 3;
-    const productsPerPage = Number(config.productsPerPage) || 12;
+    const columns = Number(config.columns) || 4;
+    const productsPerPage = Number(config.productsPerPage) || 24;
 
     const totalItems = productData?.data?.search?.totalItems || 0;
 
@@ -503,8 +503,8 @@ export default async function CollectionPage({ params, searchParams }: any) {
                                 aria-label="Grille de produits"
                                 productData={productData as any} 
                                 currentPage={page} 
-                                take={12} 
-                                columns={3} 
+                                take={24} 
+                                columns={4} 
                                 userLocation={userLocation}
                             />
                         ) : (

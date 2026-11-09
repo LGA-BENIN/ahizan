@@ -1553,7 +1553,7 @@ export class VendorAdminResolver {
                             console.log(`[adminReviewProduct] Ingesting official image asset from ${targetUrl}...`);
                             const fetchRes = await fetch(targetUrl, {
                                 headers: { 'User-Agent': 'Mozilla/5.0 AhizanBot/1.0' },
-                                signal: AbortSignal.timeout(12000),
+                                signal: AbortSignal.timeout(3500),
                             });
                             if (fetchRes.ok) {
                                 const arrayBuffer = await fetchRes.arrayBuffer();
@@ -2467,6 +2467,24 @@ export class VendorAdminResolver {
         @Args('id') id: string,
     ): Promise<any> {
         return this.vendorService.adminDeleteProduct(ctx, id);
+    }
+
+    @Mutation()
+    @Allow(Permission.SuperAdmin, Permission.UpdateCatalog, Permission.Authenticated)
+    async adminDeleteProductVariant(
+        @Ctx() ctx: RequestContext,
+        @Args('variantId') variantId: string,
+    ): Promise<any> {
+        return this.vendorService.adminDeleteProductVariant(ctx, variantId);
+    }
+
+    @Mutation()
+    @Allow(Permission.SuperAdmin, Permission.UpdateCatalog, Permission.Authenticated)
+    async adminDeleteSellerOffer(
+        @Ctx() ctx: RequestContext,
+        @Args('offerId') offerId: string,
+    ): Promise<boolean> {
+        return this.vendorService.adminDeleteSellerOffer(ctx, offerId);
     }
 
     @Mutation()

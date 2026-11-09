@@ -448,7 +448,10 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
     const handleSearch = useCallback(async (e?: React.FormEvent, customTerm?: string) => {
         if (e) e.preventDefault();
         const q = (customTerm !== undefined ? customTerm : searchTerm).trim();
-        if (!q) return;
+        if (!q) {
+            setSearchResults([]);
+            return;
+        }
 
         setIsSearching(true);
         try {
@@ -464,16 +467,29 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 preview: prod.featuredAsset?.preview || '',
                 variants: prod.variants || []
             })));
-            if (items.length === 0) {
+            if (items.length === 0 && e) {
                 toast.info("Aucun produit officiel correspondant trouvé.");
             }
         } catch (err: any) {
             console.error('[AffiliatePage] Search failed:', err);
-            toast.error('Erreur lors de la recherche: ' + err.message);
+            if (e) toast.error('Erreur lors de la recherche: ' + err.message);
         } finally {
             setIsSearching(false);
         }
     }, [searchTerm]);
+
+    // Instant automatic search as seller types (e.g. typing "B")
+    useEffect(() => {
+        const q = searchTerm.trim();
+        if (!q) {
+            setSearchResults([]);
+            return;
+        }
+        const timer = setTimeout(() => {
+            handleSearch(undefined, q);
+        }, 220);
+        return () => clearTimeout(timer);
+    }, [searchTerm, handleSearch]);
 
     // Step 1 -> Step 2/3: Select Product
     const handleSelectProduct = useCallback(async (productSummary: any, preselectedVariantId?: string | null) => {
@@ -486,63 +502,68 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             const prod = res.data?.product || productSummary;
             setProductDetails(prod);
 
-            // Pre-populate option groups & values from official product
-            if (prod.optionGroups && prod.optionGroups.length > 0) {
-                const groupIds = prod.optionGroups.map((g: any) => String(g.id));
-                setSelectedGroupIds(groupIds);
-                const valMap: Record<string, string[]> = {};
-                for (const og of prod.optionGroups) {
-                    valMap[String(og.id)] = (og.options || []).map((o: any) => o.name);
-                }
-                setGroupValuesMap(valMap);
-            } else {
+            // 1. If seller explicitly clicked "Ajouter une autre option / déclinaison non listée" or has no target variant:
+            if (preselectedVariantId === '__NEW_OPTION__' || !preselectedVariantId) {
+                // Ensure ALL option groups start completely UNCHECKED as requested
                 setSelectedGroupIds([]);
                 setGroupValuesMap({});
-            }
-            setCustomGroups([]);
-
-            // If official variants exist, preload them directly so the seller sees them immediately
-            if (prod.variants && prod.variants.length > 0) {
-                const initialRows: GeneratedVariantRow[] = prod.variants.map((pv: any, idx: number) => {
-                    const optionPairs = (pv.options || []).map((o: any) => ({
-                        groupName: o.group?.name || 'Option',
-                        optName: o.name || o.code,
-                    }));
-                    const isTargetVariant = preselectedVariantId ? String(pv.id) === String(preselectedVariantId) : true;
-                    return {
-                        id: String(pv.id),
-                        key: `existing_${pv.id}`,
-                        enabled: isTargetVariant,
-                        name: pv.name || `${prod.name} ${optionPairs.map((op: any) => op.optName).join(' ')}`,
-                        optionValues: optionPairs,
-                        price: 0,
-                        stock: 0,
-                        sku: `OFFER-${pv.sku || pv.id}`,
-                        onPromotion: false,
-                        promotionalPrice: 0,
-                        featuredAssetId: pv.featuredAsset?.id || prod.featuredAsset?.id,
-                        assetPreview: pv.featuredAsset?.preview || prod.featuredAsset?.preview,
-                        deliveryTimeValue: 2,
-                        deliveryTimeUnit: 'h',
-                        condition: 'NEW',
-                    };
-                });
-                setGeneratedVariants(initialRows);
-                setActiveAffiliateTab('active');
-                setStep(3);
-                if (preselectedVariantId) {
-                    const targetVar = initialRows.find(r => r.enabled);
-                    toast.success(`Déclinaison "${targetVar?.name || 'sélectionnée'}" prête ! Saisissez votre prix et stock.`);
-                } else {
-                    toast.success(`${initialRows.length} déclinaison(s) prête(s) ! Renseignez vos prix et stocks.`);
-                }
-            } else {
+                setCustomGroups([]);
                 setGeneratedVariants([]);
                 setStep(2);
+                toast.info("Cochez les options que vous souhaitez proposer pour ce produit.");
+                return;
             }
+
+            // 2. If a specific existing variant was clicked by the seller:
+            const targetVariant = (prod.variants || []).find((pv: any) => String(pv.id) === String(preselectedVariantId));
+            if (targetVariant) {
+                const optionPairs = (targetVariant.options || []).map((o: any) => ({
+                    groupName: o.group?.name || 'Option',
+                    optName: o.name || o.code,
+                }));
+                const optNames = optionPairs.map((op: any) => op.optName).filter(Boolean).join(' ');
+                const itemDisplayName = optNames ? `${prod.name} – ${optNames}` : (targetVariant.name || prod.name);
+
+                const singleRow: GeneratedVariantRow = {
+                    id: String(targetVariant.id),
+                    key: `existing_${targetVariant.id}`,
+                    enabled: true,
+                    name: itemDisplayName,
+                    optionValues: optionPairs,
+                    price: targetVariant.price ? targetVariant.price / 100 : 0,
+                    stock: 0,
+                    sku: `OFFER-${targetVariant.sku || targetVariant.id}`,
+                    onPromotion: false,
+                    promotionalPrice: 0,
+                    featuredAssetId: targetVariant.featuredAsset?.id || prod.featuredAsset?.id,
+                    assetPreview: targetVariant.featuredAsset?.preview || prod.preview || prod.featuredAsset?.preview,
+                    deliveryTimeValue: 2,
+                    deliveryTimeUnit: 'h',
+                    condition: 'NEW',
+                };
+
+                setSelectedGroupIds([]);
+                setGroupValuesMap({});
+                setCustomGroups([]);
+                setGeneratedVariants([singleRow]);
+                setActiveAffiliateTab('active');
+                setStep(3);
+                toast.success(`Article « ${itemDisplayName} » prêt ! Renseignez votre prix et votre stock.`);
+                return;
+            }
+
+            // Fallback for standard product with no variants
+            setSelectedGroupIds([]);
+            setGroupValuesMap({});
+            setCustomGroups([]);
+            setGeneratedVariants([]);
+            setStep(2);
         } catch (err) {
             console.error('[AffiliatePage] Failed to fetch product details:', err);
             setProductDetails(productSummary);
+            setSelectedGroupIds([]);
+            setGroupValuesMap({});
+            setCustomGroups([]);
             setStep(2);
         } finally {
             setIsLoadingDetails(false);
@@ -824,41 +845,53 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         setGeneratedVariants(prev => prev.map(row => row.key === key ? { ...row, [field]: value } : row));
     };
 
-    // Crop & Upload custom image for a variant
+    // Upload custom image for a variant
     const [cropState, setCropState] = useState<{
         variantKey: string;
         imageSrc: string;
         file: File;
     } | null>(null);
 
-    const handleVariantFileChange = (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleVariantFileChange = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith('image/')) {
-            toast.error('Veuillez sélectionner un fichier image');
+            toast.error('Veuillez sélectionner un fichier image valide');
             return;
         }
-        const reader = new FileReader();
-        reader.onload = () => {
-            setCropState({
-                variantKey: key,
-                imageSrc: reader.result as string,
-                file,
-            });
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
+
+        setUploadingVariantKey(key);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await uploadFileAction(formData);
+            if (res.success && res.asset) {
+                setGeneratedVariants(prev => prev.map(row => row.key === key ? {
+                    ...row,
+                    featuredAssetId: res.asset.id,
+                    assetPreview: res.asset.preview
+                } : row));
+                toast.success('Photo ajoutée avec succès !');
+            } else {
+                toast.error('Erreur upload: ' + (res.error || 'Impossible d’envoyer le fichier'));
+            }
+        } catch (err: any) {
+            console.error('Error uploading variant image:', err);
+            toast.error('Erreur lors de l\'envoi de la photo');
+        } finally {
+            setUploadingVariantKey(null);
+            e.target.value = '';
+        }
     };
 
     const handleCropComplete = async (croppedBlob: Blob) => {
         if (!cropState) return;
         const key = cropState.variantKey;
-        const sourceFile = cropState.file;
         setUploadingVariantKey(key);
         setCropState(null);
 
         try {
-            const croppedFile = new File([croppedBlob], sourceFile.name, { type: 'image/jpeg' });
+            const croppedFile = new File([croppedBlob], `variant-${Date.now()}.jpg`, { type: 'image/jpeg' });
             const formData = new FormData();
             formData.append('file', croppedFile);
             const res = await uploadFileAction(formData);
@@ -868,13 +901,13 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                     featuredAssetId: res.asset.id,
                     assetPreview: res.asset.preview
                 } : row));
-                toast.success('Photo de la déclinaison cadrée et enregistrée !');
+                toast.success('Photo de la déclinaison recadrée et mise à jour !');
             } else {
                 toast.error('Erreur upload: ' + (res.error || 'Impossible d’envoyer le fichier'));
             }
         } catch (err: any) {
             console.error('Error uploading variant image:', err);
-            toast.error('Erreur lors de l\'envoi de l\'image');
+            toast.error('Erreur lors du recadrage de l\'image');
         } finally {
             setUploadingVariantKey(null);
         }
@@ -1085,16 +1118,30 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         <p className="text-xs text-muted-foreground mt-0.5">Saisissez le nom du modèle, la marque ou la référence dans le catalogue marketplace.</p>
                     </div>
 
+                    {/* Interactive Search Bar with instant debounce */}
                     <form onSubmit={handleSearch} className="flex gap-3">
                         <div className="relative flex-1">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <Input
                                 type="text"
-                                placeholder="Ex: iPhone 15 Pro, T-shirt Coton, Robe Africaine, Samsung Galaxy..."
+                                placeholder="Recherche automatique : tapez un nom (ex: Bic, iPhone, T-shirt, Robe...)"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-12 h-13 rounded-2xl bg-muted/20 border-border focus-visible:ring-2 focus-visible:ring-primary/20 text-sm font-semibold"
+                                className="pl-12 pr-10 h-13 rounded-2xl bg-muted/20 border-border focus-visible:ring-2 focus-visible:ring-primary/20 text-sm font-semibold"
                             />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchTerm('');
+                                        setSearchResults([]);
+                                    }}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center text-xs transition-colors cursor-pointer"
+                                    title="Effacer la recherche"
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                         <Button
                             type="submit"
@@ -1105,79 +1152,169 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         </Button>
                     </form>
 
-                    {/* Results List */}
+                    {/* Results Container */}
                     {isSearching ? (
                         <div className="flex flex-col items-center justify-center py-16 space-y-3 text-muted-foreground">
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                            <p className="text-xs font-bold uppercase tracking-widest">Recherche dans le catalogue Ahizan...</p>
+                            <p className="text-xs font-bold uppercase tracking-widest">Recherche en direct dans le catalogue central Ahizan...</p>
                         </div>
-                    ) : flattenedSearchResults.length > 0 ? (
-                        <div className="space-y-4 pt-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                                    <Sparkles className="w-4 h-4 text-primary" />
-                                    <span>{flattenedSearchResults.length} déclinaison(s) trouvée(s) dans le catalogue officiel :</span>
-                                </span>
-                                <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                                    Sélectionnez une déclinaison pour définir directement votre tarif et stock
-                                </span>
+                    ) : searchResults.length > 0 ? (
+                        <div className="space-y-5 pt-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+                                <div>
+                                    <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                        <Sparkles className="w-4 h-4 text-primary" />
+                                        <span>{searchResults.length} produit(s) trouvé(s) dans le catalogue central</span>
+                                    </span>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                        Cliquez sur une déclinaison existante pour la vendre directement, ou créez une nouvelle option si la vôtre n'est pas encore listée.
+                                    </p>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
-                                {(showAllAffiliateSearch ? flattenedSearchResults : flattenedSearchResults.slice(0, 12)).map(item => (
-                                    <div
-                                        key={item.key}
-                                        onClick={() => handleSelectProduct(item.product, item.variantId)}
-                                        className="p-3.5 rounded-2xl border border-border bg-card hover:border-primary hover:shadow-md transition-all flex flex-col justify-between gap-3 group cursor-pointer"
-                                        title={`Vendre la déclinaison "${item.title}"`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-14 h-14 rounded-xl bg-muted/60 border border-border overflow-hidden shrink-0 flex items-center justify-center p-0.5">
-                                                {item.preview ? (
-                                                    <img src={item.preview} alt={item.title} className="w-full h-full object-contain group-hover:scale-105 transition-transform" />
+                            {/* Product Families & Direct Ready-to-Sell Articles Grid */}
+                            <div className="space-y-4">
+                                {searchResults.map((prod: any) => {
+                                    const variants = prod.variants || [];
+                                    return (
+                                        <div
+                                            key={prod.id}
+                                            className="p-4 sm:p-5 rounded-2xl border border-border bg-card shadow-sm space-y-4 hover:border-primary/40 transition-all"
+                                        >
+                                            {/* Product Family Header */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-12 h-12 rounded-xl bg-muted/60 border border-border overflow-hidden shrink-0 flex items-center justify-center p-1">
+                                                        {prod.preview ? (
+                                                            <img src={prod.preview} alt={prod.name} className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <Package className="w-6 h-6 text-muted-foreground" />
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                                                            Modèle Officiel
+                                                        </span>
+                                                        <h3 className="font-bold text-foreground text-sm sm:text-base line-clamp-1 mt-0.5" title={prod.name}>
+                                                            {prod.name}
+                                                        </h3>
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            {variants.length > 0
+                                                                ? `${variants.length} article(s) disponible(s) au catalogue`
+                                                                : 'Modèle standard'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Propose Unlisted Option / Variant */}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => handleSelectProduct(prod, '__NEW_OPTION__')}
+                                                    className="h-8 px-3 rounded-xl border-dashed border-primary/60 text-primary hover:bg-primary hover:text-white text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1.5 transition-all self-start sm:self-auto"
+                                                    title="Vendre une autre variante / couleur / taille non répertoriée ci-dessous"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    <span>➕ Autre option / déclinaison</span>
+                                                </Button>
+                                            </div>
+
+                                            {/* Concrete sellable articles for this model */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {variants.length > 0 ? (
+                                                    variants.map((v: any) => {
+                                                        const optNames = (v.options || [])
+                                                            .map((o: any) => o.name || o.code)
+                                                            .filter(Boolean)
+                                                            .join(' • ');
+                                                        const articleTitle = optNames ? `${prod.name} – ${optNames}` : (v.name || prod.name);
+                                                        const articleImg = v.featuredAsset?.preview || prod.preview;
+
+                                                        return (
+                                                            <div
+                                                                key={v.id}
+                                                                className="p-3.5 rounded-xl border border-border/80 bg-background hover:border-primary/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
+                                                            >
+                                                                <div className="flex items-start gap-3">
+                                                                    <div className="w-12 h-12 rounded-lg bg-muted/40 border border-border/60 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                                                                        {articleImg ? (
+                                                                            <img src={articleImg} alt={articleTitle} className="w-full h-full object-contain" />
+                                                                        ) : (
+                                                                            <Package className="w-6 h-6 text-muted-foreground" />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <h4 className="font-bold text-xs text-foreground line-clamp-2 leading-tight" title={articleTitle}>
+                                                                            {articleTitle}
+                                                                        </h4>
+                                                                        {optNames && (
+                                                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                                {(v.options || []).map((o: any) => (
+                                                                                    <span
+                                                                                        key={o.id || o.name}
+                                                                                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                                                                                    >
+                                                                                        {o.group?.name ? `${o.group.name}: ` : ''}{o.name || o.code}
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                        {v.sku && (
+                                                                            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+                                                                                Réf: {v.sku}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    onClick={() => handleSelectProduct(prod, v.id)}
+                                                                    className="w-full h-8 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                                                                >
+                                                                    <span>Vendre cet article</span>
+                                                                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                                                </Button>
+                                                            </div>
+                                                        );
+                                                    })
                                                 ) : (
-                                                    <Package className="w-6 h-6 text-muted-foreground" />
+                                                    <div className="col-span-full p-4 rounded-xl border border-border/60 bg-background flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <h4 className="font-bold text-xs text-foreground">{prod.name}</h4>
+                                                            <p className="text-[11px] text-muted-foreground">Fiche standard sans déclinaison multiple.</p>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() => handleSelectProduct(prod, null)}
+                                                            className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-bold cursor-pointer flex items-center gap-1.5"
+                                                        >
+                                                            <span>Vendre ce produit</span>
+                                                            <ChevronRight className="w-3.5 h-3.5" />
+                                                        </Button>
+                                                    </div>
                                                 )}
                                             </div>
-                                            <div className="min-w-0 flex-1">
-                                                <h4 className="font-bold text-foreground text-xs sm:text-sm line-clamp-2 group-hover:text-primary transition-colors" title={item.title}>
-                                                    {item.title}
-                                                </h4>
-                                                <p className="text-[10px] text-muted-foreground font-medium mt-1">
-                                                    Réf: {item.sku || 'OFFICIEL'}
-                                                </p>
-                                            </div>
                                         </div>
-
-                                        <Button
-                                            size="sm"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleSelectProduct(item.product, item.variantId);
-                                            }}
-                                            className="w-full h-8 rounded-xl bg-primary/10 group-hover:bg-primary text-primary group-hover:text-white font-bold text-xs uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                                        >
-                                            <span>Vendre cette déclinaison</span>
-                                            <ChevronRight className="w-3.5 h-3.5" />
-                                        </Button>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
-
-                            {flattenedSearchResults.length > 12 && (
-                                <div className="flex justify-center pt-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setShowAllAffiliateSearch(!showAllAffiliateSearch)}
-                                        className="rounded-xl text-xs font-bold cursor-pointer"
-                                    >
-                                        {showAllAffiliateSearch
-                                            ? "Voir moins"
-                                            : `Voir plus (+${flattenedSearchResults.length - 12} autre(s) déclinaison(s))`}
-                                    </Button>
-                                </div>
-                            )}
+                        </div>
+                    ) : searchTerm.trim() ? (
+                        <div className="py-12 px-6 rounded-2xl border border-dashed border-border bg-muted/20 text-center space-y-3">
+                            <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center mx-auto text-xl">🔍</div>
+                            <h3 className="text-sm font-black text-foreground">Aucun produit officiel trouvé pour « {searchTerm} »</h3>
+                            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                                Vous pouvez ajuster vos mots-clés ou proposer directement un nouveau produit au catalogue officiel Ahizan.
+                            </p>
+                            <Link href="/dashboard/products/new">
+                                <Button size="sm" className="mt-2 rounded-xl text-xs font-bold cursor-pointer">
+                                    ➕ Créer un nouveau produit
+                                </Button>
+                            </Link>
                         </div>
                     ) : null}
                 </div>
@@ -1983,17 +2120,34 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                    <label className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-card hover:bg-muted text-[11px] font-bold text-foreground border border-border shadow-xs cursor-pointer transition-colors">
-                                                                        <Camera className="w-3.5 h-3.5 text-primary" />
-                                                                        <span>{row.featuredAssetId ? 'Changer' : 'Ajouter'}</span>
-                                                                        <input
-                                                                            type="file"
-                                                                            accept="image/*"
-                                                                            className="hidden"
-                                                                            disabled={uploadingVariantKey === row.key}
-                                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantFileChange(row.key, e)}
-                                                                        />
-                                                                    </label>
+                                                                    <div className="flex flex-col gap-1">
+                                                                        <label className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-card hover:bg-muted text-[11px] font-bold text-foreground border border-border shadow-xs cursor-pointer transition-colors">
+                                                                            <Camera className="w-3.5 h-3.5 text-primary" />
+                                                                            <span>{row.featuredAssetId ? 'Changer' : 'Ajouter'}</span>
+                                                                            <input
+                                                                                type="file"
+                                                                                accept="image/*"
+                                                                                className="hidden"
+                                                                                disabled={uploadingVariantKey === row.key}
+                                                                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariantFileChange(row.key, e)}
+                                                                            />
+                                                                        </label>
+                                                                        {row.assetPreview && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setCropState({
+                                                                                        variantKey: row.key,
+                                                                                        imageSrc: row.assetPreview!,
+                                                                                        file: new File([], 'variant.jpg')
+                                                                                    });
+                                                                                }}
+                                                                                className="text-[10px] text-primary hover:underline font-bold text-left cursor-pointer"
+                                                                            >
+                                                                                ✂️ Recadrer
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
 

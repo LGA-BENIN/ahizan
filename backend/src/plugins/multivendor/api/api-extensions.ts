@@ -616,6 +616,10 @@ export const commonApiExtensions = `
         condition: ProductCondition
     }
 
+    extend type Product {
+        sellerOffers: [SellerOffer!]
+    }
+
     extend type ProductVariant {
         vendor: Vendor
         sellerOffers: [SellerOffer!]
@@ -902,6 +906,8 @@ export const adminApiExtensions = `
             variantsMatrix: [AdminVariantMatrixInput!]
         ): Product!
         adminDeleteProduct(id: ID!): DeletionResponse!
+        adminDeleteProductVariant(variantId: ID!): DeletionResponse!
+        adminDeleteSellerOffer(offerId: ID!): Boolean!
         adminReviewSellerOffer(id: ID!, status: String!, rejectionReason: String): SellerOffer!
         reassignVariantToProduct(variantId: ID!, targetProductId: ID!, approveOffer: Boolean): ProductVariant!
         reassignOfferToTargetVariant(sourceOfferId: ID!, targetVariantId: ID!, deleteSourceVariantIfEmpty: Boolean): SellerOffer!

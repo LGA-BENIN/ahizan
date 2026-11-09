@@ -155,28 +155,17 @@ export default async function MarketDetailsPage({ params }: any) {
                     }
                 },
                 {
-                    id: `sec_vendors_${market.id}`,
-                    type: 'LOCAL_VENDORS_PROXIMITY',
-                    title: `Boutiques du ${market.name}`,
+                    id: `sec_catalog_${market.id}`,
+                    type: 'MARKET_FACETED_GRID',
+                    title: `Catalogue & Boutiques du ${market.name}`,
                     order: 2,
                     isActive: true,
                     data: {
-                        title: `Boutiques & Commerçants au ${market.name}`,
-                        subtitle: `Achetez auprès des commerçants certifiés présents dans ce marché.`,
+                        title: market.name,
                         marketId: String(market.id),
-                        take: 8,
-                    }
-                },
-                {
-                    id: `sec_catalog_${market.id}`,
-                    type: 'TABBED_PRODUCT_GRID',
-                    title: `Produits du ${market.name}`,
-                    order: 3,
-                    isActive: true,
-                    data: {
-                        title: `Rayons & Produits du ${market.name}`,
-                        marketId: String(market.id),
-                        take: 12,
+                        marketSlug: market.slug,
+                        marketName: market.name,
+                        take: 20,
                     }
                 }
             ]

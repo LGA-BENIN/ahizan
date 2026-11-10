@@ -25,9 +25,17 @@ export function PWAInstallPrompt() {
                 window.matchMedia("(display-mode: standalone)").matches || 
                 window.matchMedia("(display-mode: fullscreen)").matches || 
                 window.matchMedia("(display-mode: minimal-ui)").matches || 
-                (window.navigator as any).standalone === true;
-            setIsStandalone(standalone);
-            return standalone;
+                (window.navigator as any).standalone === true ||
+                document.referrer.includes('android-app://');
+            
+            let isInstalledInStorage = false;
+            try {
+                isInstalledInStorage = localStorage.getItem('ahizan_pwa_installed') === '1';
+            } catch {}
+
+            const isAlreadyInstalled = standalone || isInstalledInStorage;
+            setIsStandalone(isAlreadyInstalled);
+            return isAlreadyInstalled;
         };
 
         if (checkStandalone()) {
@@ -46,6 +54,15 @@ export function PWAInstallPrompt() {
         } else {
             setPlatform("desktop");
         }
+
+        const handleReady = () => {
+            if (checkStandalone()) return;
+            if ((window as any).deferredPrompt) {
+                setDeferredPrompt((window as any).deferredPrompt);
+            }
+            const dismissed = sessionStorage.getItem('ahizan-pwa-dismissed');
+            if (!dismissed) setIsVisible(true);
+        };
 
         // Check if event was already captured globally
         if ((window as any).deferredPrompt) {
@@ -66,48 +83,65 @@ export function PWAInstallPrompt() {
         };
 
         const handleInstalled = () => {
+            try {
+                localStorage.setItem('ahizan_pwa_installed', '1');
+            } catch {}
             setIsVisible(false);
             setShowGuideModal(false);
             setIsStandalone(true);
         };
 
+        window.addEventListener("pwa-install-ready", handleReady);
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
         window.addEventListener("appinstalled", handleInstalled);
 
-        // Show automatically after 3 seconds if not already dismissed
+        // On iOS or after delay if native prompt is unsupported (e.g. in-app browser)
         const timer = setTimeout(() => {
             if (!checkStandalone() && !sessionStorage.getItem('ahizan-pwa-dismissed')) {
                 setIsVisible(true);
             }
-        }, 3000);
+        }, 3500);
 
         return () => {
             clearTimeout(timer);
+            window.removeEventListener("pwa-install-ready", handleReady);
             window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
             window.removeEventListener("appinstalled", handleInstalled);
         };
     }, []);
 
+    const [isInstalling, setIsInstalling] = useState(false);
+
     const handleInstallClick = async () => {
         const promptEvent = deferredPrompt || (window as any).deferredPrompt;
 
-        // 1. If native PWA prompt is ready and supported
+        // 1. If native PWA prompt is ready (Chrome Android, Chrome/Edge PC)
         if (promptEvent) {
+            setIsInstalling(true);
             try {
                 await promptEvent.prompt();
-                const { outcome } = await promptEvent.userChoice;
-                if (outcome === 'accepted') {
+                const choice = await promptEvent.userChoice;
+                if (choice?.outcome === 'accepted') {
                     setDeferredPrompt(null);
                     (window as any).deferredPrompt = null;
                     setIsVisible(false);
-                    return;
                 }
             } catch (err) {
-                console.error("Error triggering native PWA prompt:", err);
+                console.warn("Native PWA prompt error:", err);
+            } finally {
+                setIsInstalling(false);
             }
+            // Always return after native prompt interaction.
+            // Do NOT fall through to the modal if user dismissed/cancelled the native prompt!
+            return;
         }
 
-        // 2. Fallback to guided modal with APK download and visual instructions
+        // 2. On Desktop PC / Mac: never show mobile APK modal
+        if (platform === "desktop") {
+            return;
+        }
+
+        // 3. On Mobile only when native prompt is unavailable (iOS Safari, WhatsApp/Facebook webviews)
         setShowGuideModal(true);
     };
 
@@ -149,10 +183,11 @@ export function PWAInstallPrompt() {
                         <Button
                             size="sm"
                             onClick={handleInstallClick}
-                            className="gap-1 px-3 text-xs font-bold rounded-xl h-8 bg-[#e31837] hover:bg-[#c4122d] text-white shadow-sm cursor-pointer"
+                            disabled={isInstalling}
+                            className="gap-1 px-3 text-xs font-bold rounded-xl h-8 bg-[#e31837] hover:bg-[#c4122d] text-white shadow-sm cursor-pointer disabled:opacity-75"
                         >
                             <Download className="w-3.5 h-3.5" />
-                            Installer
+                            {isInstalling ? "Ouverture..." : "Installer"}
                         </Button>
                         <Button
                             size="icon"

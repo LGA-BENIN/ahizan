@@ -2055,6 +2055,16 @@ export function ProductListComponent() {
             }
             setIsSubmittingReview(true);
             try {
+                const formattedReviewImages = (reviewAssets || []).map((img: any, idx: number) => {
+                    const url = typeof img === 'string' ? img : (img.preview || img.source || (img.id ? String(img.id) : ''));
+                    const isPrimary = (reviewFeaturedAssetId && String(img.id) === String(reviewFeaturedAssetId)) || idx === 0;
+                    return {
+                        url,
+                        isPrimary,
+                        label: img.label || (idx === 0 ? 'Photo Principale' : `Photo secondaire #${idx + 1}`),
+                    };
+                }).filter((img: any) => !!img.url);
+
                 const res = await fetchGraphQL(ADMIN_REVIEW_PRODUCT, {
                     id: reviewProduct.id,
                     status: 'approved',
@@ -2070,6 +2080,7 @@ export function ProductListComponent() {
                     approveVendorOffer: false, // Moderated precisely in Step 2!
                     optionGroups: appliedAiOptionGroups.length > 0 ? appliedAiOptionGroups : undefined,
                     variantsMatrix: appliedAiVariantsMatrix.length > 0 ? appliedAiVariantsMatrix : undefined,
+                    selectedImages: formattedReviewImages.length > 0 ? formattedReviewImages : undefined,
                 });
 
                 const createdProd = res?.adminReviewProduct;

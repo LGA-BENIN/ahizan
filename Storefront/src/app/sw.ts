@@ -35,9 +35,16 @@ const serwist = new Serwist({
       matcher: ({ request }) => request.headers.get("x-next-action") !== null || request.headers.get("next-action") !== null,
       handler: new NetworkOnly(),
     },
-    // Bypass service worker caching for Next.js RSC requests
+    // Bypass SW event handling for navigations, RSC, Next data, Server Actions, API, and mutations
     {
-      matcher: ({ request, url }) => request.headers.get("rsc") === "1" || url.searchParams.has("_next_rsc"),
+      matcher: ({ request, url }) =>
+        request.mode === "navigate" ||
+        request.headers.get("rsc") === "1" ||
+        request.headers.get("RSC") === "1" ||
+        request.headers.get("x-next-action") !== null ||
+        request.headers.get("next-action") !== null ||
+        url.searchParams.has("_next_rsc") ||
+        url.pathname.startsWith("/_next/data/"),
       handler: new NetworkOnly(),
     },
     ...defaultCache,
@@ -54,9 +61,15 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
 
 self.addEventListener("fetch", (event: FetchEvent) => {
   const url = new URL(event.request.url);
-  // Bypass SW event handling for navigations, shop-api, admin-api, SSE notification streams, auth, verify and POST/mutations
+  // Bypass SW event handling for navigations, RSC streaming, Server Actions, shop-api, admin-api, SSE notification streams, auth, verify and POST/mutations
   if (
     event.request.mode === "navigate" ||
+    event.request.headers.get("rsc") === "1" ||
+    event.request.headers.get("RSC") === "1" ||
+    event.request.headers.get("x-next-action") !== null ||
+    event.request.headers.get("next-action") !== null ||
+    url.searchParams.has("_next_rsc") ||
+    url.pathname.startsWith("/_next/data/") ||
     url.pathname.includes("/shop-api") || 
     url.pathname.includes("/admin-api") || 
     url.pathname.includes("/notifications/stream") ||

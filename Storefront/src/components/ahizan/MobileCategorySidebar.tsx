@@ -23,6 +23,49 @@ export function MobileCategorySidebar({ categories = [], menuItems = [] }: { cat
         }
     }
 
+    const [canShowInstall, setCanShowInstall] = useState(false);
+
+    React.useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const checkIfInstalled = () => {
+            const isStandalone = 
+                window.matchMedia("(display-mode: standalone)").matches || 
+                window.matchMedia("(display-mode: fullscreen)").matches || 
+                window.matchMedia("(display-mode: minimal-ui)").matches || 
+                (window.navigator as any).standalone === true ||
+                document.referrer.includes('android-app://');
+            
+            let isInstalledInStorage = false;
+            try {
+                isInstalledInStorage = localStorage.getItem('ahizan_pwa_installed') === '1';
+            } catch {}
+
+            if (isStandalone || isInstalledInStorage) {
+                setCanShowInstall(false);
+            } else {
+                setCanShowInstall(true);
+            }
+        };
+
+        checkIfInstalled();
+
+        const handleInstalled = () => {
+            try {
+                localStorage.setItem('ahizan_pwa_installed', '1');
+            } catch {}
+            setCanShowInstall(false);
+        };
+
+        window.addEventListener("appinstalled", handleInstalled);
+        window.addEventListener("pwa-installed", handleInstalled);
+
+        return () => {
+            window.removeEventListener("appinstalled", handleInstalled);
+            window.removeEventListener("pwa-installed", handleInstalled);
+        };
+    }, []);
+
     // Close on route change is handled by context
 
     return (
@@ -167,19 +210,21 @@ export function MobileCategorySidebar({ categories = [], menuItems = [] }: { cat
                             </div>
                         ))}
                     </div>
-                    {/* Bottom PWA Install Button */}
-                    <div className="p-4 border-t border-border/40 bg-muted/5">
-                        <button
-                            onClick={() => {
-                                setMobileMenuOpen(false);
-                                window.dispatchEvent(new CustomEvent("ahizan:open-pwa-modal"));
-                            }}
-                            className="w-full py-2.5 px-4 bg-primary text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98]"
-                        >
-                            <Download className="w-4 h-4 animate-bounce" />
-                            Installer l'application
-                        </button>
-                    </div>
+                    {/* Bottom PWA Install Button (Only displayed if NOT yet installed) */}
+                    {canShowInstall && (
+                        <div className="p-4 border-t border-border/40 bg-muted/5">
+                            <button
+                                onClick={() => {
+                                    setMobileMenuOpen(false);
+                                    window.dispatchEvent(new CustomEvent("ahizan:open-pwa-modal"));
+                                }}
+                                className="w-full py-2.5 px-4 bg-primary text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98]"
+                            >
+                                <Download className="w-4 h-4 animate-bounce" />
+                                Installer l'application
+                            </button>
+                        </div>
+                    )}
                 </div>
             </aside>
         </>

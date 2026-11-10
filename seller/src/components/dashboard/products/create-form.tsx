@@ -340,8 +340,10 @@ export default function CreateProductForm({
     // Validation state for precise declination error highlighting
     const [errorVariantIndices, setErrorVariantIndices] = useState<number[]>([]);
 
-    // Step 3 UI and Management state: start on 'draft' tab by default
-    const [activeVariantTab, setActiveVariantTab] = useState<'active' | 'draft'>('draft');
+    // Step 3 UI and Management state: start on 'active' tab for single products, 'draft' for multiple
+    const [activeVariantTab, setActiveVariantTab] = useState<'active' | 'draft'>(
+        hasMultipleVariants ? 'draft' : 'active'
+    );
     const [searchVariantFilter, setSearchVariantFilter] = useState('');
     const [expandedVariantIds, setExpandedVariantIds] = useState<Set<string>>(new Set());
     const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
@@ -724,6 +726,7 @@ export default function CreateProductForm({
                 const standard = prev[0] || { id: '1', name: 'Standard', sku: '', price: 0, stock: 0, onPromotion: false, promotionalPrice: 0, enabled: true, featuredAssetId: null, assets: [] };
                 return [{ ...standard, name: 'Standard', enabled: true }];
             });
+            setActiveVariantTab('active');
             return;
         }
 
@@ -825,6 +828,9 @@ export default function CreateProductForm({
             if (selectedCategoryIds.length === 0) {
                 toast.error("Veuillez sélectionner au moins une catégorie.");
                 return;
+            }
+            if (!hasMultipleVariants) {
+                setActiveVariantTab('active');
             }
             setCurrentStep(3);
         }
@@ -1167,9 +1173,9 @@ export default function CreateProductForm({
                 toast.success("Votre fiche a été envoyée pour validation au Super Admin !");
                 if (onSuccess) {
                     onSuccess();
-                } else {
-                    router.push('/dashboard/products');
                 }
+                router.push('/dashboard/products');
+                router.refresh();
             } else {
                 toast.error(res.error || "Une erreur est survenue lors de l'enregistrement.");
             }
@@ -1634,8 +1640,9 @@ export default function CreateProductForm({
                         </p>
                     </div>
 
-                    {/* TWO TABS: Déclinaisons utilisées vs Déclinaisons brouillons */}
-                    <div className="flex items-center gap-2 border-b border-border pb-1">
+                    {/* TWO TABS: Déclinaisons utilisées vs Déclinaisons brouillons (Only when multiple variants exist) */}
+                    {hasMultipleVariants && (
+                        <div className="flex items-center gap-2 border-b border-border pb-1">
                         <button
                             type="button"
                             onClick={() => setActiveVariantTab('active')}
@@ -1676,6 +1683,7 @@ export default function CreateProductForm({
                             </span>
                         </button>
                     </div>
+                    )}
 
                     {/* THE BOX CONTAINER with Internal Search & Bulk Actions */}
                     <div className="border border-border rounded-2xl bg-muted/10 overflow-hidden shadow-xs">
@@ -1815,7 +1823,7 @@ export default function CreateProductForm({
                                 tabFilteredVariants.map((v) => {
                                     const actualIndex = variants.findIndex(item => item.id === v.id);
                                     const isError = errorVariantIndices.includes(actualIndex);
-                                    const isExpanded = expandedVariantIds.has(v.id);
+                                    const isExpanded = !hasMultipleVariants || expandedVariantIds.has(v.id);
                                     const isSelected = selectedVariantIds.has(v.id);
                                     const variantAssets = v.assets || (v.featuredAssetId ? [{ id: v.featuredAssetId, preview: v.featuredAssetPreview || '' }] : []);
 

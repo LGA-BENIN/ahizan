@@ -27,6 +27,25 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
 });
 
 self.addEventListener("fetch", (event: FetchEvent) => {
+  const url = new URL(event.request.url);
+  // Bypass SW event handling for navigations, RSC streaming, Server Actions, shop-api, admin-api, and non-GET requests
+  if (
+    event.request.mode === "navigate" ||
+    event.request.headers.get("rsc") === "1" ||
+    event.request.headers.get("RSC") === "1" ||
+    event.request.headers.get("x-next-action") !== null ||
+    event.request.headers.get("next-action") !== null ||
+    url.searchParams.has("_next_rsc") ||
+    url.pathname.startsWith("/_next/data/") ||
+    url.pathname.includes("/shop-api") || 
+    url.pathname.includes("/admin-api") || 
+    url.pathname.includes("/notifications/stream") ||
+    url.pathname.startsWith("/sign-in") ||
+    url.pathname.startsWith("/onboarding") ||
+    event.request.method !== "GET"
+  ) {
+    return;
+  }
   serwist.handleFetch(event);
 });
 

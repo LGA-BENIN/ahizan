@@ -106,16 +106,32 @@ export async function query<TResult = any, TVariables = any>(
         }
     }
 
-    const response = await fetch(VENDURE_API_URL!, {
-        ...fetchOptions,
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-            query: queryString,
-            variables: variables || {},
-        }),
-        ...(tags && {next: {tags}}),
-    });
+    const executeFetch = async () => {
+        return fetch(VENDURE_API_URL!, {
+            ...fetchOptions,
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                query: queryString,
+                variables: variables || {},
+            }),
+            ...(tags && {next: {tags}}),
+        });
+    };
+
+    let response: Response;
+    try {
+        response = await executeFetch();
+        if (!response.ok && (response.status === 502 || response.status === 503 || response.status === 504)) {
+            // Transient gateway error, retry once after a short pause
+            await new Promise(r => setTimeout(r, 400));
+            response = await executeFetch();
+        }
+    } catch (networkErr: any) {
+        // Network hiccup or connection reset, retry once
+        await new Promise(r => setTimeout(r, 400));
+        response = await executeFetch();
+    }
 
     if (!response.ok) {
         console.error(`[API Query] HTTP Error: ${response.status} ${response.statusText}`);

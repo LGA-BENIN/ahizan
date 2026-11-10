@@ -51,9 +51,17 @@ export function AhizanNavbar({
                 window.matchMedia("(display-mode: standalone)").matches ||
                 window.matchMedia("(display-mode: fullscreen)").matches ||
                 window.matchMedia("(display-mode: minimal-ui)").matches ||
-                (window.navigator as any).standalone === true;
-            setIsStandalone(standalone);
-            return standalone;
+                (window.navigator as any).standalone === true ||
+                document.referrer.includes('android-app://');
+            
+            let isInstalledInStorage = false;
+            try {
+                isInstalledInStorage = localStorage.getItem('ahizan_pwa_installed') === '1';
+            } catch {}
+
+            const isAlreadyInstalled = standalone || isInstalledInStorage;
+            setIsStandalone(isAlreadyInstalled);
+            return isAlreadyInstalled;
         };
 
         const standalone = checkStandalone();
@@ -75,6 +83,9 @@ export function AhizanNavbar({
         };
 
         const handleInstalled = () => {
+            try {
+                localStorage.setItem('ahizan_pwa_installed', '1');
+            } catch {}
             setIsInstallable(false);
             setIsStandalone(true);
         };

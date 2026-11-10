@@ -52,7 +52,17 @@ export async function rawQuery(queryString: string, options?: RawQueryOptions): 
         };
     }
 
-    const response = await fetch(apiUrl, fetchConfig);
+    let response: Response;
+    try {
+        response = await fetch(apiUrl, fetchConfig);
+        if (!response.ok && (response.status === 502 || response.status === 503 || response.status === 504)) {
+            await new Promise(r => setTimeout(r, 400));
+            response = await fetch(apiUrl, fetchConfig);
+        }
+    } catch {
+        await new Promise(r => setTimeout(r, 400));
+        response = await fetch(apiUrl, fetchConfig);
+    }
 
     if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

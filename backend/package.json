@@ -14,9 +14,9 @@
     "start:server": "node ./dist/index.js",
     "start:worker": "node ./dist/index-worker.js",
     "start": "concurrently npm:start:*",
-    "migration:generate": "node node_modules/@vendure/cli/dist/cli.js migrate --generate",
-    "migration:run": "node node_modules/@vendure/cli/dist/cli.js migrate --run",
-    "migration:revert": "node node_modules/@vendure/cli/dist/cli.js migrate --revert",
+    "migration:generate": "node node_modules/@vendure/cli/dist/cli.js migrate --config src/vendure-config.ts --generate",
+    "migration:run": "node node_modules/@vendure/cli/dist/cli.js migrate --config src/vendure-config.ts --run",
+    "migration:revert": "node node_modules/@vendure/cli/dist/cli.js migrate --config src/vendure-config.ts --revert",
     "geo:import-places": "ts-node --transpileOnly src/plugins/geo-engine/scripts/import-osm-neighborhoods.ts"
   },
   "dependencies": {

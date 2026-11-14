@@ -73,17 +73,34 @@ export function PWAInstallPrompt() {
             setIsStandalone(true);
         };
 
+        const handleOpenPrompt = () => {
+            if (checkStandalone()) return;
+            setShowGuideModal(true);
+        };
+
+        const handleTriggerInstall = () => {
+            if (checkStandalone()) return;
+            const prompt = deferredPrompt || (window as any).deferredPrompt;
+            if (prompt) {
+                handleInstallClick();
+            } else {
+                setShowGuideModal(true);
+            }
+        };
+
         window.addEventListener("pwa-install-ready", handleReady);
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
         window.addEventListener("pwa-installed", handleInstalled);
         window.addEventListener("appinstalled", handleInstalled);
+        window.addEventListener("pwa-open-guide", handleOpenPrompt);
+        window.addEventListener("pwa-trigger-install", handleTriggerInstall);
 
-        // Show automatically after 3 seconds if not already dismissed
+        // Show automatically after 1.5 seconds if not standalone
         const timer = setTimeout(() => {
             if (!checkStandalone() && !sessionStorage.getItem('ahizan-seller-pwa-dismissed')) {
                 setIsVisible(true);
             }
-        }, 3000);
+        }, 1500);
 
         return () => {
             clearTimeout(timer);
@@ -91,8 +108,10 @@ export function PWAInstallPrompt() {
             window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
             window.removeEventListener("pwa-installed", handleInstalled);
             window.removeEventListener("appinstalled", handleInstalled);
+            window.removeEventListener("pwa-open-guide", handleOpenPrompt);
+            window.removeEventListener("pwa-trigger-install", handleTriggerInstall);
         };
-    }, []);
+    }, [deferredPrompt]);
 
     const handleInstallClick = async () => {
         const promptEvent = deferredPrompt || (window as any).deferredPrompt;
@@ -113,17 +132,10 @@ export function PWAInstallPrompt() {
             } finally {
                 setIsInstalling(false);
             }
-            // Always return after native prompt interaction.
-            // Do NOT fall through to the modal if user dismissed/cancelled the native prompt!
             return;
         }
 
-        // 2. On Desktop PC / Mac: never show mobile APK modal
-        if (platform === "desktop") {
-            return;
-        }
-
-        // 3. On Mobile only when native prompt is unavailable (iOS Safari, WhatsApp/Facebook webviews)
+        // 2. When native prompt is not ready, show the guide modal (mobile or desktop)
         setShowGuideModal(true);
     };
 

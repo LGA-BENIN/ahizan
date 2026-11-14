@@ -273,22 +273,22 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
 
                         for (const item of searchItems) {
                             const vId = String(item.productVariantId);
-                            // Candidate offer filtering by physical market
-                            let matchingOffers = offers.filter(o => {
+                            // Candidate offer filtering strictly by physical market
+                            const matchingOffers = offers.filter(o => {
                                 if (String(o.productVariant?.id) !== vId || !o.vendor?.id) return false;
                                 if (effectiveMarketId) {
                                     const vMarketId = String(o.vendor.physicalMarket?.id || '');
                                     const vMarketName = (o.vendor.physicalMarket?.name || '').toLowerCase();
-                                    const isLocal = vMarketId === String(effectiveMarketId) || (effectiveMarketName && vMarketName.includes(effectiveMarketName.toLowerCase()));
+                                    const matchesMarkets = Array.isArray(o.vendor.markets) && o.vendor.markets.some((m: any) => 
+                                        String(m.id) === String(effectiveMarketId) || (m.name && m.name.toLowerCase().includes(effectiveMarketName.toLowerCase()))
+                                    );
+                                    const isLocal = vMarketId === String(effectiveMarketId) || 
+                                        (effectiveMarketName && vMarketName.includes(effectiveMarketName.toLowerCase())) ||
+                                        matchesMarkets;
                                     return isLocal;
                                 }
                                 return true;
                             });
-
-                            // Intelligent Fallback: If no vendor is specifically tagged for this market, fallback to available verified offers
-                            if (matchingOffers.length === 0 && offers.length > 0) {
-                                matchingOffers = offers.filter(o => String(o.productVariant?.id) === vId && o.vendor?.id);
-                            }
                             
                             // Map collection IDs to full collection objects
                             const itemCollections = (item.collectionIds || [])
@@ -461,7 +461,7 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
 
             // Price bounds
             const rawPrice = item.price ?? item.winningOffer?.price ?? 0;
-            const price = rawPrice > 1000 ? Math.round(rawPrice / 100) : rawPrice; // handle subunits if present
+            const price = (item.onPromotion && item.promotionalPrice) ? item.promotionalPrice : rawPrice;
             if (minPriceInput && price < Number(minPriceInput)) return false;
             if (maxPriceInput && price > Number(maxPriceInput)) return false;
             if (!maxPriceInput && priceRangeSlider < 500000 && price > priceRangeSlider) return false;
@@ -927,15 +927,16 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                     : "space-y-3"
                             }>
                                 {paginatedProducts.map((item) => {
-                                    const rawPrice = item.price ?? item.winningOffer?.price ?? 0;
-                                    const activePrice = rawPrice > 1000 ? Math.round(rawPrice / 100) : rawPrice;
-                                    const isPromo = Boolean(item.onPromotion || item.winningOffer?.onPromotion);
-                                    const promoPrice = item.promotionalPrice ?? item.winningOffer?.promotionalPrice;
-                                    const displayActivePrice = isPromo && promoPrice ? (promoPrice > 1000 ? Math.round(promoPrice / 100) : promoPrice) : activePrice;
-                                    const displayOldPrice = isPromo && promoPrice ? activePrice : Math.round(activePrice * 1.2);
-                                    const discountPercent = item.discountPercentage || item.winningOffer?.discountPercentage || 15;
+                                    const rawPrice = Number(item.price ?? item.winningOffer?.price ?? 0);
+                                    const promoPrice = (item.promotionalPrice ?? item.winningOffer?.promotionalPrice) ? Number(item.promotionalPrice ?? item.winningOffer?.promotionalPrice) : null;
+                                    const isPromo = Boolean((item.onPromotion || item.winningOffer?.onPromotion) && promoPrice && promoPrice < rawPrice);
+                                    const displayActivePrice = isPromo && promoPrice ? promoPrice : rawPrice;
+                                    const displayOldPrice = isPromo && rawPrice > (promoPrice || 0) ? rawPrice : null;
+                                    const discountPercent = isPromo && rawPrice > 0 && promoPrice ? Math.round(((rawPrice - promoPrice) / rawPrice) * 100) : 0;
                                     const isLiked = Boolean(likedProducts[item.productId || item.id]);
                                     const isAdding = addingCartId === item.id;
+
+                                    const productHref = `/product/${item.slug}?marketId=${effectiveMarketId}${item.vendorId ? `&vendorId=${item.vendorId}&sellerId=${item.vendorId}` : ''}${item.productVariantId ? `&variantId=${item.productVariantId}&variant=${item.productVariantId}` : ''}`;
 
                                     const imageUrl = item.featuredAsset?.preview ? getAssetUrl(item.featuredAsset.preview) : (
                                         item.productAsset?.preview ? getAssetUrl(item.productAsset.preview) : null
@@ -956,14 +957,16 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                                     <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
                                                 </button>
 
-                                                <span className="bg-primary text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-2xs">
-                                                    -{discountPercent}%
-                                                </span>
+                                                {discountPercent > 0 ? (
+                                                    <span className="bg-primary text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-2xs">
+                                                        -{discountPercent}%
+                                                    </span>
+                                                ) : <span />}
                                             </div>
 
                                             {/* Centered Product Image */}
                                             <Link 
-                                                href={`/product/${item.slug}?marketId=${effectiveMarketId}`} 
+                                                href={productHref} 
                                                 className="block aspect-square w-full relative overflow-hidden my-1 flex items-center justify-center"
                                             >
                                                 {imageUrl ? (
@@ -984,7 +987,7 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                             <div className="space-y-1 pt-1 text-left flex-1 flex flex-col justify-between">
                                                 <div>
                                                     <Link 
-                                                        href={`/product/${item.slug}?marketId=${effectiveMarketId}`}
+                                                        href={productHref}
                                                         className="font-bold text-xs sm:text-[13px] text-slate-900 dark:text-white line-clamp-1 hover:text-primary transition-colors block"
                                                         title={item.productName || item.name}
                                                     >
@@ -996,9 +999,11 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                                         <span className="text-primary font-black text-xs sm:text-sm">
                                                             {displayActivePrice.toLocaleString()} FCFA
                                                         </span>
-                                                        <span className="line-through text-slate-400 text-[10px] font-semibold">
-                                                            {displayOldPrice.toLocaleString()} FCFA
-                                                        </span>
+                                                        {displayOldPrice && (
+                                                            <span className="line-through text-slate-400 text-[10px] font-semibold">
+                                                                {displayOldPrice.toLocaleString()} FCFA
+                                                            </span>
+                                                        )}
                                                     </div>
 
                                                     {/* Rating ⭐ */}
@@ -1067,17 +1072,33 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                         </div>
                     ) : (
                         <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-8 shadow-xs">
-                            <Store className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-                            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1">Aucun produit ne correspond à vos critères</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-xs max-w-sm mx-auto mb-4">
-                                Modifiez vos critères de recherche ou réinitialisez vos filtres pour afficher l&apos;ensemble des articles du {effectiveMarketName}.
+                            <Store className="h-10 w-10 text-primary mx-auto mb-3" />
+                            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1">
+                                {products.length === 0 
+                                    ? `Les boutiques du ${effectiveMarketName} rejoignent Ahizan !`
+                                    : "Aucun produit ne correspond à vos critères"}
+                            </h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs max-w-md mx-auto mb-4">
+                                {products.length === 0 
+                                    ? `Les commerçants et artisans du ${effectiveMarketName} sont en cours de vérification. Découvrez nos boutiques partenaires certifiées partout au Bénin.`
+                                    : `Modifiez vos critères de recherche ou réinitialisez vos filtres pour afficher l'ensemble des articles disponibles.`}
                             </p>
-                            <button
-                                onClick={resetFilters}
-                                className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-red-700 transition-colors shadow-xs cursor-pointer"
-                            >
-                                Réinitialiser tous les filtres
-                            </button>
+                            {products.length === 0 ? (
+                                <Link
+                                    href="/vendors"
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:bg-red-700 transition-colors shadow-xs"
+                                >
+                                    <span>Explorer toutes les boutiques vérifiées</span>
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={resetFilters}
+                                    className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-red-700 transition-colors shadow-xs cursor-pointer"
+                                >
+                                    Réinitialiser tous les filtres
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

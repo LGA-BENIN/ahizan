@@ -63,41 +63,41 @@ export default async function VendorsPage() {
                 <div className="absolute inset-0 bg-gradient-to-r from-[#07152b] via-[#0c234b]/95 to-[#e31837]/30" />
                 <div className="absolute inset-0 bg-radial at-top-right from-primary/20 via-transparent to-transparent pointer-events-none" />
 
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 lg:py-24">
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 sm:py-9 lg:py-10">
                     {/* Breadcrumbs */}
-                    <nav className="flex items-center gap-2 text-xs text-slate-300 font-semibold mb-6">
+                    <nav className="flex items-center gap-2 text-xs text-slate-300 font-semibold mb-3">
                         <Link href="/" className="hover:text-primary transition-colors">Accueil</Link>
                         <span>/</span>
                         <span className="text-white">Boutiques Partenaires</span>
                     </nav>
 
-                    <div className="max-w-3xl space-y-4">
-                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-black uppercase tracking-wider text-amber-300 shadow-sm">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <div className="max-w-3xl space-y-2.5">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[11px] font-black uppercase tracking-wider text-amber-300 shadow-sm">
+                            <Sparkles className="w-3 h-3 text-amber-400" />
                             <span>Réseau Officiel Ahizan</span>
                         </div>
 
-                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight uppercase">
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight uppercase">
                             Nos Boutiques & Marchands Partenaires
                         </h1>
 
-                        <p className="text-slate-200 text-sm sm:text-base md:text-lg leading-relaxed font-medium">
-                            Achetez directement auprès des meilleurs artisans, boutiques de grands marchés (Dantokpa, Missèbo, Zogbadjè) et créateurs locaux certifiés au Bénin. Bénéficiez des prix directs et de la livraison de proximité.
+                        <p className="text-slate-200 text-xs sm:text-sm md:text-base leading-relaxed font-medium">
+                            Achetez directement auprès des meilleurs artisans, boutiques de grands marchés (Dantokpa, Missèbo, Zogbadjè) et créateurs locaux certifiés au Bénin.
                         </p>
 
                         {/* Quick Trust Highlights */}
-                        <div className="pt-4 flex flex-wrap gap-4 text-xs font-bold text-slate-200">
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
-                                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                        <div className="pt-2 flex flex-wrap gap-2.5 text-[11px] sm:text-xs font-bold text-slate-200">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                                 <span>100% Boutiques Vérifiées</span>
                             </div>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
-                                <MapPin className="w-4 h-4 text-primary" />
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
+                                <MapPin className="w-3.5 h-3.5 text-primary" />
                                 <span>Géolocalisation & Proximité</span>
                             </div>
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
-                                <Store className="w-4 h-4 text-amber-400" />
-                                <span>Marchés Physiques & Boutiques Indépendantes</span>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
+                                <Store className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Marchés & Boutiques</span>
                             </div>
                         </div>
                     </div>

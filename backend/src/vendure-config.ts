@@ -1,4 +1,5 @@
 import {
+    VendureConfig,
     defaultCollectionFilters,
     defaultShippingCalculator,
     DefaultSearchPlugin,
@@ -45,8 +46,7 @@ export const emailSenderNode = new DynamicEmailSender();
 const IS_DEV = process.env.APP_ENV === 'dev';
 const serverPort = +process.env.PORT || 3000;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const config: any = {
+export const config: VendureConfig = {
     apiOptions: {
         port: serverPort,
         adminApiPath: 'admin-api',
@@ -102,7 +102,7 @@ export const config: any = {
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME || 'vendure',
         schema: process.env.DB_SCHEMA || 'public',
-        synchronize: true, 
+        synchronize: process.env.DB_SYNCHRONIZE === 'true', 
         logging: false,
         migrations: [path.join(__dirname, './migrations/*.+(js|ts)')],
     },

@@ -12,7 +12,8 @@ export function ConditionalLayout({
     footer: React.ReactNode; 
 }) {
     const pathname = usePathname();
-    const isDashboard = pathname?.startsWith('/dashboard') || 
+    const isStandalone = pathname === '/' ||
+                      pathname?.startsWith('/dashboard') || 
                       pathname?.startsWith('/pending') || 
                       pathname?.startsWith('/rejected') ||
                       pathname?.startsWith('/sign-in') ||
@@ -24,7 +25,7 @@ export function ConditionalLayout({
                       pathname?.startsWith('/resubmit') ||
                       pathname?.startsWith('/onboarding');
 
-    if (isDashboard) {
+    if (isStandalone) {
         return <>{children}</>;
     }
 

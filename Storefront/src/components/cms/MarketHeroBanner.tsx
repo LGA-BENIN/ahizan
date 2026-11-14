@@ -124,10 +124,14 @@ export function MarketHeroBanner({ config = {} }: MarketHeroBannerProps) {
                             </div>
                             <div>
                                 <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-                                    {liveVendorsCount ? `${liveVendorsCount}+` : '500+'}
+                                    {liveVendorsCount !== null && liveVendorsCount > 0 
+                                        ? `${liveVendorsCount}` 
+                                        : 'En expansion'}
                                 </div>
                                 <div className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
-                                    Boutiques partenaires
+                                    {liveVendorsCount !== null && liveVendorsCount > 0
+                                        ? `Boutique${liveVendorsCount > 1 ? 's' : ''} partenaire${liveVendorsCount > 1 ? 's' : ''}`
+                                        : 'Commerçants locaux'}
                                 </div>
                             </div>
                         </div>
@@ -142,10 +146,14 @@ export function MarketHeroBanner({ config = {} }: MarketHeroBannerProps) {
                             </div>
                             <div>
                                 <div className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-                                    {liveProductsCount ? `${liveProductsCount}+` : '10K+'}
+                                    {liveProductsCount !== null && liveProductsCount > 0 
+                                        ? `${liveProductsCount}` 
+                                        : 'Catalogue vérifié'}
                                 </div>
                                 <div className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-semibold whitespace-nowrap">
-                                    Produits disponibles
+                                    {liveProductsCount !== null && liveProductsCount > 0
+                                        ? `Produit${liveProductsCount > 1 ? 's' : ''} disponible${liveProductsCount > 1 ? 's' : ''}`
+                                        : 'Articles en stock'}
                                 </div>
                             </div>
                         </div>

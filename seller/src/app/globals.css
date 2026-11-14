@@ -320,6 +320,11 @@
   to { transform: translateX(-100%); }
 }
 
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
 .header-glass {
   background-color: rgba(255, 248, 247, 0.8);
   backdrop-filter: blur(12px);

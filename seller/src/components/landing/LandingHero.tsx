@@ -67,7 +67,7 @@ export function LandingHero({ ctaUrl, ctaText, dashboardUrl = '/dashboard' }: La
                                     <p className="flex items-center justify-between text-xs font-medium text-white/90 xl:text-sm">
                                         <span className="flex items-center gap-1.5 truncate text-white">
                                             <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
-                                            Boutique Mode Cotonou
+                                            Marché Sainte-Rita • Pagnes & Tissus
                                         </span>
                                         <button 
                                             type="button" 
@@ -105,7 +105,7 @@ export function LandingHero({ ctaUrl, ctaText, dashboardUrl = '/dashboard' }: La
                                     <p className="flex items-center justify-between text-xs font-medium text-white/90 xl:text-sm">
                                         <span className="flex items-center gap-1.5 truncate text-white">
                                             <span className="size-2 rounded-full bg-[#d8263e] animate-pulse" />
-                                            Commandes en cours
+                                            Marché de Quartier • Commandes directes
                                         </span>
                                         <button 
                                             type="button" 
@@ -143,7 +143,7 @@ export function LandingHero({ ctaUrl, ctaText, dashboardUrl = '/dashboard' }: La
                                 
                                 <div className="relative z-1 flex flex-col gap-1.5 w-full">
                                     <p className="flex items-center justify-between text-xs font-medium text-white/90 xl:text-sm">
-                                        <span className="truncate text-white">Épicerie & Produits Locaux</span>
+                                        <span className="truncate text-white">Grand Marché Dantokpa • Épices & Vivres</span>
                                         <button 
                                             type="button" 
                                             onClick={() => setShowAmount3(!showAmount3)} 
@@ -184,7 +184,7 @@ export function LandingHero({ ctaUrl, ctaText, dashboardUrl = '/dashboard' }: La
                                 className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-xs sm:text-sm font-semibold text-white transition-all w-fit group shadow-lg"
                             >
                                 <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
-                                <span className="font-bold text-[#FCF8E8]">Espace Vendeur</span>
+                                <span className="font-bold text-[#FCF8E8]">Marchands & Marchés du Bénin</span>
                                 <span className="text-white/40">•</span>
                                 <span className="group-hover:text-white transition-colors flex items-center gap-1">
                                     Accéder à votre tableau de bord <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
@@ -192,11 +192,11 @@ export function LandingHero({ ctaUrl, ctaText, dashboardUrl = '/dashboard' }: La
                             </Link>
 
                             <h1 data-hero="title" className="text-[36px] leading-10 font-black text-white md:text-[40px] md:leading-11 xl:text-5xl xl:leading-12 2xl:text-[72px] 2xl:leading-20">
-                                <span className="block">Vendez seul.</span>
-                                <span className="block">Grandissez ensemble.</span>
+                                <span className="block">Tous nos marchés.</span>
+                                <span className="block">Réunis en ligne.</span>
                             </h1>
                             <p data-hero="lead" className="max-w-120.5 text-base leading-[160%] font-normal text-white/90 md:text-lg">
-                                Vendez via Mobile Money, suivez chaque franc et commande en direct, expédiez dans les 77 communes du Bénin sans quitter votre boutique.
+                                Nouveaux marchés modernes, marchés de quartier ou commerces de proximité : digitalisez votre étal sur Ahizan. Retrouvez vos clients, encaissez par Mobile Money et livrez dans tout le Bénin sans quitter votre place.
                             </p>
 
                             {/* Prominent Action Buttons (Visible on Desktop & Mobile) */}

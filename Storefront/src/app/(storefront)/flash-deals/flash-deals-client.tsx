@@ -386,11 +386,11 @@ export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientP
         const columns = Number(config?.columns) || 4;
         const displayItems = filteredFlashProducts.slice(0, take);
 
-        let gridColsClass = "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4";
-        if (columns === 2) gridColsClass = "grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2";
+        let gridColsClass = "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4";
+        if (columns === 2) gridColsClass = "grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2";
         else if (columns === 3) gridColsClass = "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3";
-        else if (columns === 5) gridColsClass = "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
-        else if (columns === 6) gridColsClass = "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6";
+        else if (columns === 5) gridColsClass = "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5";
+        else if (columns === 6) gridColsClass = "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6";
 
         if (displayItems.length === 0) {
             return (
@@ -423,11 +423,17 @@ export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientP
                 <div className="flex items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
                     <span>{displayItems.length} offre{displayItems.length > 1 ? 's' : ''} en vente flash</span>
                 </div>
-                <div className={`grid ${gridColsClass} gap-3 sm:gap-4 md:gap-6`}>
+                <div className={`grid ${gridColsClass} gap-2.5 sm:gap-4 md:gap-5`}>
                     {displayItems.map((item, idx) => (
                         <MasterProductCard
                             key={`${item.vendorId || 'v'}-${item.productVariantId || item.productId || idx}`}
                             item={item}
+                            config={{
+                                cardTheme: 'default',
+                                imageRatio: 'square',
+                                showQuickAddButton: true,
+                                ...config
+                            }}
                         />
                     ))}
                 </div>
@@ -457,11 +463,16 @@ export function FlashDealsClient({ initialProducts, cmsPage }: FlashDealsClientP
                     </Button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-4 md:gap-5">
                     {catalogResults.map((item, idx) => (
                         <MasterProductCard
                             key={`cat-${item.productVariantId || item.productId || idx}`}
                             item={item}
+                            config={{
+                                cardTheme: 'default',
+                                imageRatio: 'square',
+                                showQuickAddButton: true,
+                            }}
                         />
                     ))}
                 </div>

@@ -52,7 +52,7 @@ export function LandingAdvantagesSection() {
                                 <span>K</span>
                             </h5>
                             <p className="text-center text-sm leading-5 font-semibold text-[#0d213d] md:text-base">
-                                commerçants & artisans inscrits
+                                marchands & vendeurs de marchés
                             </p>
                         </motion.div>
 
@@ -68,7 +68,7 @@ export function LandingAdvantagesSection() {
                                 <Counter target={77} active={hasAnimated} />
                             </h5>
                             <p className="text-center text-sm leading-5 font-semibold text-[#0d213d] md:text-base">
-                                communes couvertes au Bénin
+                                communes & marchés connectés
                             </p>
                         </motion.div>
 
@@ -85,7 +85,7 @@ export function LandingAdvantagesSection() {
                                 <span className="ms-1.5 text-[#d8263e]">★</span>
                             </h5>
                             <p className="text-center text-sm leading-5 font-semibold text-[#0d213d] md:text-base">
-                                très bien noté par les vendeurs
+                                satisfaction de nos marchands
                             </p>
                         </motion.div>
 
@@ -103,7 +103,7 @@ export function LandingAdvantagesSection() {
                                 <span>m</span>
                             </h5>
                             <p className="text-center text-sm leading-5 font-semibold text-[#0d213d] md:text-base">
-                                de FCFA vendus sur Ahizan
+                                de FCFA générés sur nos marchés
                             </p>
                         </motion.div>
 
@@ -119,7 +119,7 @@ export function LandingAdvantagesSection() {
                         transition={{ duration: 0.6 }}
                         className="text-[28px] leading-8 font-black text-[#0d213d] md:text-[38px] md:leading-10 lg:text-[46px] lg:leading-[1.15]"
                     >
-                        Débutez vos ventes <br className="hidden sm:inline" />
+                        Rassemblez votre marché en ligne <br className="hidden sm:inline" />
                         sans dépenser 1 franc !
                     </motion.h2>
                     <motion.p 
@@ -129,7 +129,7 @@ export function LandingAdvantagesSection() {
                         transition={{ duration: 0.6 }}
                         className="text-sm leading-[160%] font-medium text-gray-700 md:text-base max-w-md"
                     >
-                        Publiez vos produits, encaissez via Mobile Money et gérez vos expéditions nationales en toute simplicité.
+                        Que votre marché ait été réorganisé, déplacé ou que vous vendiez en quartier : exposez vos articles, gardez vos clients et conquérez tout le Bénin.
                     </motion.p>
                 </div>
 
@@ -155,10 +155,10 @@ export function LandingAdvantagesSection() {
                                         <Store className="size-7 text-[#0d213d]" />
                                     </div>
                                     <span className="text-xs font-bold text-[#0d213d] uppercase tracking-wider">
-                                        Boutique Ahizan
+                                        Étal de Marché Digital
                                     </span>
                                     <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-semibold">
-                                        Active en ligne
+                                        Accessible 24h/24
                                     </span>
                                 </div>
                             </div>
@@ -166,10 +166,10 @@ export function LandingAdvantagesSection() {
 
                         <div className="flex flex-col items-start justify-start gap-2 p-2">
                             <h6 className="text-xl leading-7 font-black md:text-[24px] md:leading-8 text-[#0d213d]">
-                                Sans tracasseries techniques
+                                Votre étal visible en ligne
                             </h6>
                             <p className="text-xs leading-[160%] font-normal md:text-sm text-gray-700">
-                                Créez votre boutique en 3 minutes avec votre numéro de téléphone. Zéro paperasse, zéro code, zéro agence à payer.
+                                Créez votre boutique en 3 minutes depuis votre téléphone. Vos anciens clients et les acheteurs de tout le pays retrouvent vos articles sans se déplacer.
                             </p>
                         </div>
                     </motion.div>
@@ -206,10 +206,10 @@ export function LandingAdvantagesSection() {
 
                         <div className="flex flex-col items-start justify-start gap-2 p-2">
                             <h6 className="text-xl leading-7 font-black md:text-[24px] md:leading-8 text-[#0d213d]">
-                                100 % Mobile Money
+                                100 % Mobile Money direct
                             </h6>
                             <p className="text-xs leading-[160%] font-normal md:text-sm text-gray-700">
-                                MTN MoMo, Moov, Celtiis, Wave : vos acheteurs règlent facilement et vous retirez vos gains directement sur votre opérateur.
+                                MTN MoMo, Moov, Celtiis, Wave : vos acheteurs règlent facilement et vous encaissez directement sur votre numéro personnel, sans tracasseries.
                             </p>
                         </div>
                     </motion.div>
@@ -241,10 +241,10 @@ export function LandingAdvantagesSection() {
 
                         <div className="flex flex-col items-start justify-start gap-2 p-2">
                             <h6 className="text-xl leading-7 font-black md:text-[24px] md:leading-8 text-white">
-                                Tout sous vos yeux
+                                Zéro perte de clientèle
                             </h6>
                             <p className="text-xs leading-[160%] font-normal md:text-sm text-white/90">
-                                Soldes, historiques, alertes de stock et reçus automatiques : chaque franc est visible en temps réel partout où vous êtes.
+                                Même si votre marché physique change ou se réorganise, vos ventes continuent. Suivez chaque commande, chaque franc et chaque colis en temps réel.
                             </p>
                         </div>
                     </motion.div>

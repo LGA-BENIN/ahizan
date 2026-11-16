@@ -14,19 +14,19 @@ export function LandingTrustSecurity() {
                     className="text-center max-w-2xl mx-auto space-y-2"
                 >
                     <span className="text-xs font-bold uppercase tracking-widest text-[#d8263e] bg-[#d8263e]/10 px-3 py-1 rounded-full">
-                        Sérénité & Traçabilité
+                        Sérénité & Confiance Locale
                     </span>
                     <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0d213d] tracking-tight">
-                        Tout est sous contrôle.
+                        La confiance des marchés, la sécurité du digital.
                     </h2>
                     <p className="text-base text-gray-600">
-                        Nous protégeons vos produits, vos fonds et vos relations avec vos clients.
+                        Nous protégeons vos articles, vos recettes Mobile Money et assurons la livraison traçable à vos clients.
                     </p>
                 </motion.div>
 
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                     
-                    {/* Card 1: Identités & Paiements vérifiés */}
+                    {/* Card 1: Marchands & Clients vérifiés */}
                     <motion.div 
                         initial={{ opacity: 0, x: -40 }}
                         whileInView={{ opacity: 1, x: 0 }}
@@ -44,10 +44,10 @@ export function LandingTrustSecurity() {
                         </div>
                         <div className="flex flex-col items-start justify-start gap-2 p-3">
                             <h6 className="text-2xl leading-8 font-black md:text-[28px] md:leading-9 text-[#0d213d]">
-                                Identités & Paiements vérifiés
+                                Marchands & Clients vérifiés
                             </h6>
                             <p className="text-sm leading-[160%] font-normal md:text-base text-gray-700">
-                                Chaque client et chaque transaction sont vérifiés. Vos paiements transitent par des canaux certifiés et sécurisés.
+                                Chaque vendeur et chaque acheteur sont identifiés. La réputation de votre étal est protégée et vos transactions s'effectuent en toute sécurité.
                             </p>
                         </div>
                     </motion.div>
@@ -70,10 +70,10 @@ export function LandingTrustSecurity() {
                         </div>
                         <div className="flex flex-col items-start justify-start gap-2 p-3">
                             <h6 className="text-2xl leading-8 font-black md:text-[28px] md:leading-9 text-white">
-                                Tout est tracé
+                                Chaque vente est tracée
                             </h6>
                             <p className="text-sm leading-[160%] font-normal md:text-base text-white/90">
-                                Historique complet, bordereau de livraison et reçu automatique à chaque transaction. La confiance, noir sur blanc.
+                                Bordereau de livraison, confirmation de remise au client et reçu électronique immédiat. Vos recettes sont garanties noir sur blanc.
                             </p>
                         </div>
                     </motion.div>

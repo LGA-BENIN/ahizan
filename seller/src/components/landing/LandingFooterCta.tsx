@@ -40,10 +40,10 @@ export function LandingFooterCta({ ctaUrl, ctaText }: LandingFooterCtaProps) {
 
                     {/* Headline & Description */}
                     <h2 className="max-w-150 text-center text-[32px] leading-10 font-black text-white md:text-5xl md:leading-14 xl:text-[68px] xl:leading-18">
-                        Rejoignez Ahizan maintenant
+                        Tous les marchés du Bénin réunis sur Ahizan
                     </h2>
                     <p className="mt-4 max-w-130 text-center text-base leading-[160%] font-normal text-white/95 md:text-lg">
-                        Créez votre boutique en 3 minutes et vendez à des milliers de clients partout au Bénin en toute sécurité !
+                        Mettez votre étal en ligne en 3 minutes et vendez à des milliers de clients partout au Bénin en toute confiance !
                     </p>
 
                     {/* Action CTA Button */}
@@ -81,7 +81,7 @@ export function LandingFooterCta({ ctaUrl, ctaText }: LandingFooterCtaProps) {
 
                 {/* Bottom Legal Notice */}
                 <div className="mt-10 flex w-full flex-col items-center gap-6 border-t border-white/12 pt-8 md:mt-12 md:flex-row md:justify-between md:gap-10 text-xs md:text-sm text-white/70">
-                    <p>La marketplace des commerçants et artisans du Bénin.</p>
+                    <p>L'infrastructure numérique des marchés, commerçants et artisans du Bénin.</p>
                     <div className="flex items-center gap-6">
                         <a className="hover:text-white transition-colors" href="/cgu">Conditions générales d'utilisation</a>
                         <a className="hover:text-white transition-colors" href="/privacy">Confidentialité</a>

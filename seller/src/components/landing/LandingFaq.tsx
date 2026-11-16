@@ -13,24 +13,24 @@ export function LandingFaq() {
 
     const faqs: FaqItem[] = [
         {
-            question: "Combien coûte l'ouverture d'une boutique sur Ahizan ?",
-            answer: "L'ouverture et la gestion de votre boutique sur Ahizan sont 100% gratuites. Aucun abonnement mensuel, aucun frais de dossier. Nous ne prélevons une commission minime que lorsque vous réalisez une vente effective."
+            question: "Comment Ahizan m'aide si mon marché a été réorganisé ou déplacé ?",
+            answer: "C'est la mission première d'Ahizan ! Que vous soyez installé dans l'un des nouveaux marchés modernes, dans un petit marché de quartier ou en boutique indépendante, Ahizan réunit tous les marchés sur une seule plateforme. Vos anciens clients vous retrouvent en un clic et de nouveaux acheteurs de tout le pays découvrent vos articles chaque jour."
         },
         {
-            question: "Comment se passe la livraison de mes commandes ?",
-            answer: "Dès qu'une commande est confirmée et payée, notre réseau logistique prend le relais. Un livreur partenaire passe récupérer le colis préparé à votre adresse et assure l'acheminement sécurisé chez votre client, partout au Bénin."
+            question: "Combien coûte l'ouverture de mon étal en ligne sur Ahizan ?",
+            answer: "L'ouverture et la gestion de votre boutique sur Ahizan sont 100% gratuites. Aucun abonnement mensuel, aucun loyer numérique. Nous ne prélevons une commission minime que lorsque vous réalisez une vente effective."
+        },
+        {
+            question: "Comment se passe la livraison si je vends au marché physique ?",
+            answer: "Vous n'avez pas besoin de quitter votre étal ! Dès qu'une commande est confirmée et préparée, notre livreur partenaire passe directement récupérer le colis à votre point de vente au marché et assure la livraison sécurisée au client partout au Bénin."
         },
         {
             question: "Quand et comment puis-je retirer mes gains ?",
-            answer: "Dès la confirmation de livraison, les fonds sont immédiatement crédités sur votre solde vendeur. Vous pouvez déclencher un virement instantané vers votre compte MTN Mobile Money, Moov Money, Celtiis Cash ou par virement bancaire 24h/24."
+            answer: "Dès que le client reçoit son colis, vos fonds sont crédités sur votre portefeuille vendeur. Vous pouvez demander un retrait immédiat vers votre compte MTN Mobile Money, Moov Money, Celtiis Cash ou par virement bancaire 24h/24."
         },
         {
-            question: "Quels documents sont nécessaires pour m'inscrire ?",
-            answer: "Pour vous inscrire et débuter, une simple pièce d'identité valide (CIP, CNI, Passeport ou permis) et un numéro de téléphone Mobile Money suffisent. Votre compte est activé en quelques minutes."
-        },
-        {
-            question: "Puis-je vendre si je n'ai pas de magasin physique ?",
-            answer: "Oui, tout à fait ! Que vous soyez commerçant avec pignon sur rue, créateur à domicile, grossiste ou artisan, Ahizan est fait pour vous. Nos transporteurs viennent ramasser vos commandes à l'adresse de votre choix."
+            question: "Puis-je vendre si je suis dans un petit marché de quartier ou à domicile ?",
+            answer: "Oui, absolument ! Ahizan a été conçu pour rassembler TOUS les commerces béninois : grands marchés (Dantokpa, Ouando, Missèbo), nouveaux marchés urbains (Cadjèhoun, Sainte-Rita, Gbégamey, Tokplegbe), petits marchés de quartier, artisans et créateurs à domicile."
         },
         {
             question: "Mes clients peuvent-ils payer par Mobile Money ?",

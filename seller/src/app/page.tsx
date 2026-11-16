@@ -15,17 +15,17 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
     title: {
-        absolute: `${SITE_NAME} - Espace Vendeur | Vendez partout au Bénin`,
+        absolute: `${SITE_NAME} - Espace Marchands & Vendeurs | Tous les marchés du Bénin réunis en ligne`,
     },
     description:
-        "Ouvrez votre boutique en ligne sur Ahizan. Encaissez via Mobile Money, bénéficiez de notre réseau de livraison dans les 77 communes du Bénin et développez vos ventes sans frais cachés.",
+        "Digitalisez votre étal de marché sur Ahizan. Nouveaux marchés urbains, marchés de quartier ou commerces de proximité : rassemblez vos produits en ligne, encaissez par Mobile Money et touchez des clients dans les 77 communes du Bénin.",
     alternates: {
         canonical: buildCanonicalUrl("/"),
     },
     openGraph: {
-        title: `${SITE_NAME} - Espace Vendeur | Vendez partout au Bénin`,
+        title: `${SITE_NAME} - Espace Marchands & Vendeurs | Tous les marchés du Bénin réunis en ligne`,
         description:
-            "Ouvrez votre boutique en ligne sur Ahizan. Encaissez via Mobile Money, bénéficiez de notre logistique dans les 77 communes et développez vos ventes.",
+            "Digitalisez votre étal sur Ahizan. Rassemblez tous vos articles en ligne, encaissez via Mobile Money et bénéficiez de notre logistique dans les 77 communes.",
         type: "website",
         url: SITE_URL,
     },

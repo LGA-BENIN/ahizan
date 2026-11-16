@@ -18,19 +18,19 @@ interface Slide {
 const slides: Slide[] = [
     {
         id: 1,
-        title: "Vendez seul à votre rythme, pour vos projets...",
-        description: "Ajoutez vos articles en quelques clics depuis votre smartphone. Catalogue libre pour vendre vos créations, gestion de stock en direct et alertes automatiques à chaque vente.",
+        title: "Votre étal et vos articles réunis en ligne...",
+        description: "Photographiez vos articles et publiez-les en direct depuis votre smartphone. Grands marchés modernes, petits marchés de quartier ou commerces indépendants : vos articles sont immédiatement visibles par des milliers de clients.",
         bgClass: "bg-[#F3EFE0]",
         textClass: "text-[#0d213d]",
         subTextClass: "text-gray-700",
-        badgeLabel: "Étape 1 : Boutique en ligne",
+        badgeLabel: "Étape 1 : Votre étal digital",
         imageSrc: "/images/screen-apercu.jpg",
         isApercu: true
     },
     {
         id: 2,
-        title: "Livrez vos clients dans les 77 communes...",
-        description: "Ne vous déplacez plus pour les expéditions ! Dès qu'une commande est confirmée, un livreur partenaire passe ramasser le colis directement chez vous et livre vos clients en 24h-48h.",
+        title: "Vos clients commandent sans se déplacer...",
+        description: "Plus besoin pour vos clients de braver la circulation ou de chercher votre place au marché. Dès qu'une commande est validée, un livreur passe récupérer le colis à votre étal et l'achemine dans les 77 communes.",
         bgClass: "bg-[#d8263e]",
         textClass: "text-white",
         subTextClass: "text-white/95",
@@ -40,8 +40,8 @@ const slides: Slide[] = [
     },
     {
         id: 3,
-        title: "Encaissez et suivez chaque franc en temps réel.",
-        description: "Chaque franc encaissé est tracé, sécurisé et immédiatement visible. Demandez votre retrait vers votre compte MTN Mobile Money, Moov, Celtiis ou banque à tout moment.",
+        title: "Encaissez et développez vos revenus en direct.",
+        description: "Chaque commande livrée est immédiatement créditée sur votre solde vendeur. Retirez vos gains 24h/24 vers votre compte MTN Mobile Money, Moov Money, Celtiis Cash ou banque sans tracasseries.",
         bgClass: "bg-[#0d213d]",
         textClass: "text-white",
         subTextClass: "text-white/90",

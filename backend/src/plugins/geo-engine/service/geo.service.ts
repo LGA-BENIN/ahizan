@@ -87,18 +87,34 @@ export class GeoService {
             SELECT id
             FROM geo_zone
             WHERE status = 'ACTIVE' AND (
-                (boundary IS NOT NULL AND ST_Contains(boundary, ST_SetSRID(ST_Point($1, $2), 4326)))
+                (boundary IS NOT NULL AND ST_GeometryType(boundary) != 'ST_Point' AND ST_Contains(boundary, ST_SetSRID(ST_Point($1, $2), 4326)))
                 OR
                 (boundary IS NULL AND "centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL AND "radiusMeters" IS NOT NULL AND
                  ST_Distance(ST_SetSRID(ST_Point("centerLongitude", "centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($1, $2), 4326)::geography) <= "radiusMeters")
             )
         `;
         const raw = await this.connection.rawConnection.query(query, [lng, lat]);
-        if (raw.length === 0) {
+        const ids: number[] = raw.map((r: any) => r.id);
+
+        // Also check if an active NEIGHBORHOOD point exists within 1500m
+        const nearbyNeighQuery = `
+            SELECT id
+            FROM geo_zone
+            WHERE status = 'ACTIVE' AND type = 'NEIGHBORHOOD'
+              AND ("centerLatitude" IS NOT NULL AND "centerLongitude" IS NOT NULL)
+              AND ST_Distance(ST_SetSRID(ST_Point("centerLongitude", "centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($1, $2), 4326)::geography) <= 1500
+            ORDER BY ST_Distance(ST_SetSRID(ST_Point("centerLongitude", "centerLatitude"), 4326)::geography, ST_SetSRID(ST_Point($1, $2), 4326)::geography) ASC
+            LIMIT 1
+        `;
+        const rawNeigh = await this.connection.rawConnection.query(nearbyNeighQuery, [lng, lat]);
+        if (rawNeigh.length > 0 && !ids.includes(rawNeigh[0].id)) {
+            ids.push(rawNeigh[0].id);
+        }
+
+        if (ids.length === 0) {
             return [];
         }
 
-        const ids = raw.map((r: any) => r.id);
         const zones = await this.connection.getRepository(ctx, GeoZone).find({
             where: { id: In(ids) },
             relations: ['parent'],
@@ -137,6 +153,8 @@ export class GeoService {
         let neighborhood = '';
         let specificZone: GeoZone | null = null;
         let confidence = 0.3;
+        let isLearnedLocation = false;
+        let source = zones.length > 0 ? 'LOCAL_POSTGIS' : 'LOCAL_FALLBACK';
 
         if (zones.length > 0) {
             confidence = 1.0;
@@ -150,7 +168,49 @@ export class GeoService {
             }
         }
 
-        const displayName = specificZone?.name || neighborhood || arrondissement || commune || department || 'Cotonou';
+        // If no neighborhood was resolved locally, consult external provider (OSM Nominatim)
+        if (!neighborhood && this.osmProvider.reverseGeocode) {
+            try {
+                const osm = await this.osmProvider.reverseGeocode(lat, lng);
+                if (osm) {
+                    if (osm.neighborhood) neighborhood = osm.neighborhood;
+                    if (osm.arrondissement && !arrondissement) arrondissement = osm.arrondissement;
+                    if (osm.commune && (!commune || commune === 'Bénin')) commune = osm.commune;
+                    if (osm.department && !department) department = osm.department;
+                    confidence = 0.95;
+                    source = 'HYBRID_RESOLVED';
+
+                    // Dynamically persist discovered neighborhood in geo_zone for fast subsequent hits
+                    if (neighborhood) {
+                        try {
+                            const parentCommuneZone = zones.find(z => z.type === GeoZoneType.COMMUNE);
+                            const slug = neighborhood.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                            const existing = await this.connection.rawConnection.query(
+                                `SELECT id FROM geo_zone WHERE slug = $1 LIMIT 1`,
+                                [slug]
+                            );
+                            if (existing.length === 0) {
+                                const ins = await this.connection.rawConnection.query(
+                                    `INSERT INTO geo_zone (name, slug, "geoId", type, status, "centerLatitude", "centerLongitude", boundary, "parentId", "createdAt", "updatedAt")
+                                     VALUES ($1, $2, $3, 'NEIGHBORHOOD', 'ACTIVE', $4, $5, ST_SetSRID(ST_Point($6, $7), 4326), $8, NOW(), NOW())
+                                     RETURNING id, "geoId"`,
+                                    [neighborhood, slug, `GEO-BJ-N-${Date.now().toString().slice(-6)}`, lat, lng, lng, lat, parentCommuneZone?.id || null]
+                                );
+                                if (ins.length > 0) {
+                                    isLearnedLocation = true;
+                                }
+                            }
+                        } catch (persistErr) {
+                            // Non-blocking persistence error
+                        }
+                    }
+                }
+            } catch (err) {
+                // Non-blocking OSM fallback error
+            }
+        }
+
+        const displayName = neighborhood || specificZone?.name || arrondissement || commune || department || 'Cotonou';
         const permanentGeoId = specificZone?.geoId || (specificZone?.id ? `GEO-BJ-${String(specificZone.id).padStart(8, '0')}` : 'GEO-BJ-FALLBACK');
         const hierarchicalCode = this.generateHierarchicalCode(zones);
 
@@ -158,9 +218,17 @@ export class GeoService {
         let marketName: string | null = null;
         const nearbyMarkets = await this.getNearbyMarkets(ctx, lat, lng, 3000);
         if (nearbyMarkets.length > 0) {
-            marketId = nearbyMarkets[0].id;
-            marketName = nearbyMarkets[0].name;
-            if (zones.length === 0) confidence = 0.8;
+            // Strictly check if coordinates are within the physical market radius (default 500m)
+            const closestMarket = nearbyMarkets[0];
+            const marketRadius = closestMarket.radiusMeters || 500;
+            const distQuery = `SELECT ST_Distance(ST_SetSRID(ST_Point($1, $2), 4326)::geography, ST_SetSRID(ST_Point($3, $4), 4326)::geography) AS dist`;
+            const distRes = await this.connection.rawConnection.query(distQuery, [lng, lat, closestMarket.centerLongitude, closestMarket.centerLatitude]);
+            const distMeters = parseFloat(distRes[0]?.dist ?? '99999');
+
+            if (distMeters <= marketRadius) {
+                marketId = closestMarket.id;
+                marketName = closestMarket.name;
+            }
         }
 
         const matchingPrices = await this.getMatchingZonePrices(ctx, { lat, lng });
@@ -184,8 +252,8 @@ export class GeoService {
             displayName,
             formattedAddress: [displayName, commune, country].filter(Boolean).join(', '),
             confidence,
-            isLearnedLocation: false,
-            source: zones.length > 0 ? 'LOCAL_POSTGIS' : 'LOCAL_FALLBACK',
+            isLearnedLocation,
+            source,
         };
 
         this.logResolution(ctx, lat, lng, permanentGeoId, specificZone?.id, marketId, confidence, displayName).catch(() => {});

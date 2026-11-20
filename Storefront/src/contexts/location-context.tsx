@@ -253,7 +253,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             if (loc) {
                 const finalNeighborhood = loc.neighborhood || closestNeigh?.item?.name;
                 const finalCommune = loc.commune || closestNeigh?.item?.commune || closestCity?.item?.name || 'Cotonou';
-                const finalMarketId = loc.marketId ? String(loc.marketId) : (closestMkt && closestMkt.distanceMeters <= 3000 ? String(closestMkt.item.id) : undefined);
+                const finalMarketId = loc.marketId ? String(loc.marketId) : (closestMkt && closestMkt.distanceMeters <= (closestMkt.item.radiusMeters || 500) ? String(closestMkt.item.id) : undefined);
                 const finalMarketName = loc.marketName || (finalMarketId && closestMkt ? closestMkt.item.name : undefined);
 
                 return {
@@ -278,7 +278,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
         // High-precision local spatial fallback
         const bestNeigh = closestNeigh?.item;
-        const bestMkt = (closestMkt && closestMkt.distanceMeters <= 3000) ? closestMkt.item : null;
+        const bestMkt = (closestMkt && closestMkt.distanceMeters <= (closestMkt.item.radiusMeters || 500)) ? closestMkt.item : null;
         const bestCityName = bestNeigh?.commune || closestCity?.item?.name || 'Cotonou';
 
         return {
@@ -440,11 +440,18 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 resolve();
             };
 
-            // Fast initial location retrieval (network/Wi-Fi/cell, returns in ~150ms)
+            // Request high-precision GPS directly (satellites on mobile, high-accuracy Wi-Fi scanning on desktop)
             navigator.geolocation.getCurrentPosition(
                 handleSuccess,
-                (err) => handleError(err, false),
-                { enableHighAccuracy: false, timeout: 3500, maximumAge: 60000 }
+                (err) => {
+                    // If high accuracy times out, fallback to low accuracy
+                    navigator.geolocation.getCurrentPosition(
+                        handleSuccess,
+                        (fallbackErr) => handleError(fallbackErr, true),
+                        { enableHighAccuracy: false, timeout: 6000, maximumAge: 10000 }
+                    );
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         });
     };

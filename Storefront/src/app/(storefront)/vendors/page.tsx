@@ -25,7 +25,7 @@ const GET_APPROVED_VENDORS = `
                 verificationStatus
                 logo { preview }
                 coverImage { preview }
-                location { id name }
+                location { id name centerLatitude centerLongitude }
                 physicalMarket { id name slug centerLatitude centerLongitude }
                 markets { id name }
             }
@@ -40,7 +40,7 @@ export default async function VendorsPage() {
             variables: {
                 options: {
                     filter: { status: { eq: 'APPROVED' } },
-                    sort: { rating: 'DESC' },
+                    take: 100,
                 },
             },
         });

@@ -400,12 +400,14 @@
           "id": "tab-bestsellers",
           "label": "Meilleures Ventes",
           "filterType": "FEATURED",
+          "selectionMode": "AUTOMATIC",
           "take": 8
         },
         {
           "id": "tab-latest",
           "label": "Nouveautés",
           "filterType": "LATEST",
+          "selectionMode": "AUTOMATIC",
           "take": 8
         },
         {

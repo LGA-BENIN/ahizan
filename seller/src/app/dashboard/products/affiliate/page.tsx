@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { query, mutate } from '@/lib/vendure/api';
 import { toast } from 'sonner';
@@ -233,17 +233,24 @@ function sortOptionGroupsByCanonicalOrder<T extends { code?: string; name?: stri
     });
 }
 
-interface AffiliateProductPageProps {
+export interface AffiliateProductPageProps {
     initialSelectedProduct?: any;
     initialSearchTerm?: string;
     initialSelectedVariantId?: string | null;
+    marketplaceSettings?: {
+        minimumMarketplacePrice: number;
+        minimumMarketplaceStock: number;
+    };
     onBack?: () => void;
 }
 
-function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm, initialSelectedVariantId, onBack }: AffiliateProductPageProps = {}) {
+function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm, initialSelectedVariantId, marketplaceSettings, onBack }: AffiliateProductPageProps = {}) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const productIdFromQuery = searchParams?.get('id') || searchParams?.get('productId') || searchParams?.get('term');
+
+    const minPrice = marketplaceSettings?.minimumMarketplacePrice ?? 300;
+    const minStock = marketplaceSettings?.minimumMarketplaceStock ?? 1;
 
     // Step state: 1: Search & Select | 2: Option Groups & Combinations Config | 3: Grid Offers Configuration
     const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -406,13 +413,21 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
     };
 
     const handleBulkSetPrice = (priceVal: number) => {
-        if (selectedAffiliateKeys.size === 0 || priceVal <= 0) return;
+        if (selectedAffiliateKeys.size === 0) return;
+        if (priceVal < minPrice) {
+            toast.error(`Le prix doit être au minimum de ${minPrice} FCFA.`);
+            return;
+        }
         setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.map((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key) ? { ...v, price: priceVal } : v));
         toast.success(`Prix (${priceVal.toLocaleString('fr-FR')} FCFA) appliqué à ${selectedAffiliateKeys.size} déclinaison(s) !`);
     };
 
     const handleBulkSetStock = (stockVal: number) => {
         if (selectedAffiliateKeys.size === 0) return;
+        if (stockVal < minStock) {
+            toast.error(`Le stock doit être au minimum de ${minStock} unité(s).`);
+            return;
+        }
         setGeneratedVariants((prev: GeneratedVariantRow[]) => prev.map((v: GeneratedVariantRow) => selectedAffiliateKeys.has(v.key) ? { ...v, stock: stockVal } : v));
         toast.success(`Stock (${stockVal}) appliqué à ${selectedAffiliateKeys.size} déclinaison(s) !`);
     };
@@ -444,12 +459,23 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         fetchGlobalGroups();
     }, []);
 
+    // Local in-memory search cache to avoid hammering the backend on repeated keystrokes
+    const searchCacheRef = useRef<Map<string, any[]>>(new Map());
+
     // Step 1 Search Handler
     const handleSearch = useCallback(async (e?: React.FormEvent, customTerm?: string) => {
         if (e) e.preventDefault();
         const q = (customTerm !== undefined ? customTerm : searchTerm).trim();
-        if (!q) {
+        if (!q || q.length < 2) {
             setSearchResults([]);
+            return;
+        }
+
+        // Fast-path: Check memory cache first
+        const cacheKey = q.toLowerCase();
+        if (searchCacheRef.current.has(cacheKey)) {
+            setSearchResults(searchCacheRef.current.get(cacheKey)!);
+            setIsSearching(false);
             return;
         }
 
@@ -460,14 +486,16 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                 take: 40
             });
             const items = result.data?.searchOfficialProducts?.items || [];
-            setSearchResults(items.map((prod: any) => ({
+            const mapped = items.map((prod: any) => ({
                 id: prod.id,
                 name: prod.name,
                 slug: prod.slug,
                 preview: prod.featuredAsset?.preview || '',
                 variants: prod.variants || []
-            })));
-            if (items.length === 0 && e) {
+            }));
+            searchCacheRef.current.set(cacheKey, mapped);
+            setSearchResults(mapped);
+            if (mapped.length === 0 && e) {
                 toast.info("Aucun produit officiel correspondant trouvé.");
             }
         } catch (err: any) {
@@ -478,16 +506,16 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         }
     }, [searchTerm]);
 
-    // Instant automatic search as seller types (e.g. typing "B")
+    // Instant automatic search as seller types with 350ms debounce and min 2 characters
     useEffect(() => {
         const q = searchTerm.trim();
-        if (!q) {
-            setSearchResults([]);
+        if (!q || q.length < 2) {
+            if (!q) setSearchResults([]);
             return;
         }
         const timer = setTimeout(() => {
             handleSearch(undefined, q);
-        }, 220);
+        }, 350);
         return () => clearTimeout(timer);
     }, [searchTerm, handleSearch]);
 
@@ -830,6 +858,14 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
     // Bulk Apply Values to All Active Combinations
     const handleApplyBulkSettings = () => {
         if (!bulkPrice && !bulkStock) return;
+        if (bulkPrice && Number(bulkPrice) < minPrice) {
+            toast.error(`Le prix groupé doit être au minimum de ${minPrice} FCFA.`);
+            return;
+        }
+        if (bulkStock && Number(bulkStock) < minStock) {
+            toast.error(`Le stock groupé doit être au minimum de ${minStock} unité(s).`);
+            return;
+        }
 
         setGeneratedVariants(prev => prev.map(v => ({
             ...v,
@@ -940,8 +976,14 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         }
 
         const priceVal = missingVariantPrice ? Number(missingVariantPrice) : (bulkPrice ? Number(bulkPrice) : 0);
-        if (priceVal <= 0) {
-            toast.error("Veuillez indiquer un prix valide.");
+        if (priceVal < minPrice) {
+            toast.error(`Veuillez indiquer un prix valide (au minimum ${minPrice} FCFA).`);
+            return;
+        }
+
+        const stockVal = missingVariantStock ? Number(missingVariantStock) : (bulkStock ? Number(bulkStock) : minStock);
+        if (stockVal < minStock) {
+            toast.error(`Veuillez indiquer un stock valide (au minimum ${minStock} unité(s)).`);
             return;
         }
 
@@ -954,7 +996,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             name: variantName,
             optionValues: optionPairs,
             price: priceVal,
-            stock: missingVariantStock ? Number(missingVariantStock) : (bulkStock ? Number(bulkStock) : 0),
+            stock: stockVal,
             sku: `OFFER-NEW-${Date.now().toString().slice(-4)}`,
             onPromotion: false,
             promotionalPrice: 0,
@@ -998,15 +1040,25 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             return;
         }
 
-        // Validate prices
+        // Validate prices & stocks
         for (const row of activeRows) {
-            if (!row.price || row.price <= 0) {
-                toast.error(`Prix invalide pour la variante: ${row.name}`);
+            if (!row.price || row.price < minPrice) {
+                toast.error(`Le prix de la déclinaison "${row.name}" (${row.price || 0} F) doit être au minimum de ${minPrice} FCFA.`);
                 return;
             }
-            if (row.onPromotion && (!row.promotionalPrice || row.promotionalPrice >= row.price)) {
-                toast.error(`Le prix promotionnel doit être inférieur au prix normal pour: ${row.name}`);
+            if (row.stock === undefined || row.stock === null || row.stock < minStock) {
+                toast.error(`Le stock de la déclinaison "${row.name}" (${row.stock || 0}) doit être au minimum de ${minStock} unité(s).`);
                 return;
+            }
+            if (row.onPromotion) {
+                if (!row.promotionalPrice || row.promotionalPrice < minPrice) {
+                    toast.error(`Le prix promotionnel pour "${row.name}" doit être au minimum de ${minPrice} FCFA.`);
+                    return;
+                }
+                if (row.promotionalPrice >= row.price) {
+                    toast.error(`Le prix promotionnel (${row.promotionalPrice} F) doit être inférieur au prix normal (${row.price} F) pour: ${row.name}`);
+                    return;
+                }
             }
         }
 
@@ -1065,8 +1117,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
 
             setGeneratedVariants(prev => prev.map(v => ({ ...v, rejectionReason: null })));
             toast.success(`Vos ${offersPayload.length} offre(s) ont été greffées au produit avec succès !`);
-            router.push('/dashboard/products');
-            router.refresh();
+            window.location.href = '/dashboard/products';
         } catch (err: any) {
             console.error('[AffiliatePage] Submission failed:', err);
             toast.error('Erreur lors de la soumission de vos offres: ' + err.message);
@@ -1079,33 +1130,33 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
         <div className="max-w-6xl mx-auto space-y-8 pb-24 animate-in fade-in duration-500">
             <LocationRequiredModal />
             {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-4">
-                    <Link href="/dashboard/products" className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground transition-all cursor-pointer">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <Link href="/dashboard/products" className="p-2 sm:p-2.5 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground transition-all cursor-pointer">
                         <ArrowLeft className="w-4 h-4" />
                     </Link>
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-serif font-black tracking-tight text-foreground">
+                        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-black tracking-tight text-foreground">
                             Vendre un Article Existant
                         </h1>
-                        <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
-                            Recherchez l'article dans le catalogue Ahizan et indiquez simplement vos prix et stocks pour commencer à vendre.
+                        <p className="text-[11px] sm:text-xs text-muted-foreground font-medium mt-0.5">
+                            Recherchez l'article dans le catalogue Ahizan et indiquez vos prix et stocks.
                         </p>
                     </div>
                 </div>
 
-                {/* Step Indicators */}
-                <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
-                    <span className={cn("px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all", step === 1 ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
+                {/* Step Indicators - Responsive */}
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-muted/40 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-border w-full sm:w-auto justify-between sm:justify-start">
+                    <span className={cn("px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl text-[10px] font-black uppercase tracking-wider transition-all", step === 1 ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground")}>
                         1. Recherche
                     </span>
                     <span className="text-muted-foreground/40 text-xs">➔</span>
-                    <span className={cn("px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all", step === 2 ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
-                        2. Déclinaisons &amp; Options
+                    <span className={cn("px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl text-[10px] font-black uppercase tracking-wider transition-all", step === 2 ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground")}>
+                        2. Options
                     </span>
                     <span className="text-muted-foreground/40 text-xs">➔</span>
-                    <span className={cn("px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all", step === 3 ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
-                        3. Grille des Tarifs
+                    <span className={cn("px-2.5 sm:px-3 py-1 rounded-lg sm:rounded-xl text-[10px] font-black uppercase tracking-wider transition-all", step === 3 ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground")}>
+                        3. Tarifs
                     </span>
                 </div>
             </div>
@@ -1119,15 +1170,15 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                     </div>
 
                     {/* Interactive Search Bar with instant debounce */}
-                    <form onSubmit={handleSearch} className="flex gap-3">
+                    <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                         <div className="relative flex-1">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                            <Search className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 w-4 sm:w-5 h-4 sm:h-5 text-muted-foreground" />
                             <Input
                                 type="text"
-                                placeholder="Recherche automatique : tapez un nom (ex: Bic, iPhone, T-shirt, Robe...)"
+                                placeholder="Tapez un nom de produit (ex: Cactus, Robe, Chaussures, Sac...)"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-12 pr-10 h-13 rounded-2xl bg-muted/20 border-border focus-visible:ring-2 focus-visible:ring-primary/20 text-sm font-semibold"
+                                className="pl-10 sm:pl-12 pr-10 h-11 sm:h-13 rounded-xl sm:rounded-2xl bg-muted/20 border-border focus-visible:ring-2 focus-visible:ring-primary/20 text-xs sm:text-sm font-semibold"
                             />
                             {searchTerm && (
                                 <button
@@ -1136,7 +1187,7 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                                         setSearchTerm('');
                                         setSearchResults([]);
                                     }}
-                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center text-xs transition-colors cursor-pointer"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center text-xs transition-colors cursor-pointer"
                                     title="Effacer la recherche"
                                 >
                                     ✕
@@ -1146,9 +1197,14 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                         <Button
                             type="submit"
                             disabled={isSearching}
-                            className="h-13 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-widest transition-all cursor-pointer shadow-md"
+                            className="h-11 sm:h-13 px-6 sm:px-8 rounded-xl sm:rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm sm:shadow-md shrink-0 flex items-center justify-center gap-1.5"
                         >
-                            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Rechercher'}
+                            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                                <>
+                                    <Search className="w-4 h-4 sm:hidden" />
+                                    <span>Rechercher</span>
+                                </>
+                            )}
                         </Button>
                     </form>
 
@@ -1176,127 +1232,169 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                             <div className="space-y-4">
                                 {searchResults.map((prod: any) => {
                                     const variants = prod.variants || [];
-                                    return (
-                                        <div
-                                            key={prod.id}
-                                            className="p-4 sm:p-5 rounded-2xl border border-border bg-card shadow-sm space-y-4 hover:border-primary/40 transition-all"
-                                        >
-                                            {/* Product Family Header */}
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50 pb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 rounded-xl bg-muted/60 border border-border overflow-hidden shrink-0 flex items-center justify-center p-1">
-                                                        {prod.preview ? (
-                                                            <img src={prod.preview} alt={prod.name} className="w-full h-full object-contain" />
+                                    const hasSingleVariant = variants.length <= 1;
+
+                                    if (hasSingleVariant) {
+                                        const v = variants[0];
+                                        const prodImg = v?.featuredAsset?.preview || prod.preview;
+                                        return (
+                                            <div
+                                                key={prod.id}
+                                                className="p-4 sm:p-6 rounded-3xl border border-border bg-card shadow-sm hover:border-primary/50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                                            >
+                                                <div className="flex items-center gap-4 min-w-0 flex-1">
+                                                    {/* Large Clear Product Photo */}
+                                                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-muted/40 border border-border/80 overflow-hidden shrink-0 flex items-center justify-center p-2 shadow-2xs">
+                                                        {prodImg ? (
+                                                            <img src={prodImg} alt={prod.name} className="w-full h-full object-contain" />
                                                         ) : (
-                                                            <Package className="w-6 h-6 text-muted-foreground" />
+                                                            <Package className="w-10 h-10 text-muted-foreground/40" />
                                                         )}
                                                     </div>
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 flex-1 space-y-1">
                                                         <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 text-primary">
                                                             Modèle Officiel
                                                         </span>
-                                                        <h3 className="font-bold text-foreground text-sm sm:text-base line-clamp-1 mt-0.5" title={prod.name}>
+                                                        <h3 className="font-black text-foreground text-sm sm:text-base leading-snug line-clamp-2" title={prod.name}>
                                                             {prod.name}
                                                         </h3>
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            {variants.length > 0
-                                                                ? `${variants.length} article(s) disponible(s) au catalogue`
-                                                                : 'Modèle standard'}
+                                                        {(!v?.sku || !v.sku.startsWith('OFFER-')) && (
+                                                            <p className="text-[11px] text-muted-foreground font-mono">
+                                                                Réf: {v?.sku || prod.slug}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-border/40">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => handleSelectProduct(prod, v?.id || null)}
+                                                        className="h-11 sm:h-10 px-6 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-black cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                                                    >
+                                                        <span>Vendre cet article</span>
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleSelectProduct(prod, '__NEW_OPTION__')}
+                                                        className="h-9 px-3 text-xs text-muted-foreground hover:text-primary font-bold flex items-center justify-center gap-1 cursor-pointer"
+                                                        title="Ajouter une autre variante ou couleur non répertoriée"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                        <span>Autre déclinaison</span>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    // Multi-variant product: Clean family container with large photos and subtle row dividers (no nested boxes)
+                                    return (
+                                        <div
+                                            key={prod.id}
+                                            className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden hover:border-primary/40 transition-all"
+                                        >
+                                            {/* Product Family Header Banner */}
+                                            <div className="p-4 sm:p-5 bg-muted/20 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="flex items-center gap-3.5 min-w-0">
+                                                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-background border border-border/80 overflow-hidden shrink-0 flex items-center justify-center p-1.5 shadow-2xs">
+                                                        {prod.preview ? (
+                                                            <img src={prod.preview} alt={prod.name} className="w-full h-full object-contain" />
+                                                        ) : (
+                                                            <Package className="w-8 h-8 text-muted-foreground/40" />
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                                                            Modèle Officiel
+                                                        </span>
+                                                        <h3 className="font-black text-foreground text-sm sm:text-base line-clamp-1 mt-0.5" title={prod.name}>
+                                                            {prod.name}
+                                                        </h3>
+                                                        <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+                                                            {variants.length} déclinaison(s) disponible(s) au catalogue
                                                         </p>
                                                     </div>
                                                 </div>
 
-                                                {/* Propose Unlisted Option / Variant */}
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() => handleSelectProduct(prod, '__NEW_OPTION__')}
-                                                    className="h-8 px-3 rounded-xl border-dashed border-primary/60 text-primary hover:bg-primary hover:text-white text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1.5 transition-all self-start sm:self-auto"
-                                                    title="Vendre une autre variante / couleur / taille non répertoriée ci-dessous"
+                                                    className="h-9 px-3.5 rounded-xl border-dashed border-primary/50 text-foreground hover:text-primary hover:border-primary text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1.5 transition-all self-start sm:self-auto"
+                                                    title="Vendre une autre variante / couleur / taille non répertoriée"
                                                 >
-                                                    <Plus className="w-3.5 h-3.5" />
-                                                    <span>➕ Autre option / déclinaison</span>
+                                                    <Plus className="w-3.5 h-3.5 text-primary" />
+                                                    <span>Ajouter autre option</span>
                                                 </Button>
                                             </div>
 
-                                            {/* Concrete sellable articles for this model */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                {variants.length > 0 ? (
-                                                    variants.map((v: any) => {
-                                                        const optNames = (v.options || [])
-                                                            .map((o: any) => o.name || o.code)
-                                                            .filter(Boolean)
-                                                            .join(' • ');
-                                                        const articleTitle = optNames ? `${prod.name} – ${optNames}` : (v.name || prod.name);
-                                                        const articleImg = v.featuredAsset?.preview || prod.preview;
+                                            {/* Clean visual list of variants separated by subtle dividers (NO nested boxes) */}
+                                            <div className="divide-y divide-border/60 bg-card">
+                                                {variants.map((v: any) => {
+                                                    const optNames = (v.options || [])
+                                                        .map((o: any) => o.name || o.code)
+                                                        .filter(Boolean)
+                                                        .join(' • ');
+                                                    const articleTitle = optNames ? `${prod.name} – ${optNames}` : (v.name || prod.name);
+                                                    const articleImg = v.featuredAsset?.preview || prod.preview;
 
-                                                        return (
-                                                            <div
-                                                                key={v.id}
-                                                                className="p-3.5 rounded-xl border border-border/80 bg-background hover:border-primary/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
-                                                            >
-                                                                <div className="flex items-start gap-3">
-                                                                    <div className="w-12 h-12 rounded-lg bg-muted/40 border border-border/60 overflow-hidden shrink-0 flex items-center justify-center p-1">
-                                                                        {articleImg ? (
-                                                                            <img src={articleImg} alt={articleTitle} className="w-full h-full object-contain" />
-                                                                        ) : (
-                                                                            <Package className="w-6 h-6 text-muted-foreground" />
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="min-w-0 flex-1">
-                                                                        <h4 className="font-bold text-xs text-foreground line-clamp-2 leading-tight" title={articleTitle}>
-                                                                            {articleTitle}
-                                                                        </h4>
-                                                                        {optNames && (
-                                                                            <div className="flex flex-wrap gap-1 mt-1.5">
-                                                                                {(v.options || []).map((o: any) => (
-                                                                                    <span
-                                                                                        key={o.id || o.name}
-                                                                                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
-                                                                                    >
-                                                                                        {o.group?.name ? `${o.group.name}: ` : ''}{o.name || o.code}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        )}
-                                                                        {v.sku && (
-                                                                            <div className="text-[10px] text-muted-foreground font-mono mt-1">
-                                                                                Réf: {v.sku}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
+                                                    return (
+                                                        <div
+                                                            key={v.id}
+                                                            className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-muted/15 transition-colors group"
+                                                        >
+                                                            {/* Large Photo & Variant Specifics */}
+                                                            <div className="flex items-center gap-4 min-w-0 flex-1">
+                                                                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-muted/40 border border-border/80 overflow-hidden shrink-0 flex items-center justify-center p-1.5 shadow-2xs group-hover:scale-102 transition-transform">
+                                                                    {articleImg ? (
+                                                                        <img src={articleImg} alt={articleTitle} className="w-full h-full object-contain" />
+                                                                    ) : (
+                                                                        <Package className="w-8 h-8 text-muted-foreground/40" />
+                                                                    )}
                                                                 </div>
+                                                                <div className="min-w-0 flex-1 space-y-1">
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                                        {(v.options || []).map((o: any) => (
+                                                                            <span
+                                                                                key={o.id || o.name}
+                                                                                className="text-[10px] font-black px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20"
+                                                                            >
+                                                                                {o.group?.name ? `${o.group.name}: ` : ''}{o.name || o.code}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                    <h4 className="font-bold text-xs sm:text-sm text-foreground line-clamp-2 leading-snug" title={articleTitle}>
+                                                                        {articleTitle}
+                                                                    </h4>
+                                                                    {v.sku && !v.sku.startsWith('OFFER-') && (
+                                                                        <p className="text-[10px] text-muted-foreground font-mono">
+                                                                            Réf: {v.sku}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
 
+                                                            {/* Action Button */}
+                                                            <div className="w-full sm:w-auto shrink-0 pt-2 sm:pt-0">
                                                                 <Button
                                                                     type="button"
                                                                     size="sm"
                                                                     onClick={() => handleSelectProduct(prod, v.id)}
-                                                                    className="w-full h-8 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95"
+                                                                    className="w-full sm:w-auto h-10 px-5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-black cursor-pointer flex items-center justify-center gap-2 shadow-2xs transition-all active:scale-95"
                                                                 >
                                                                     <span>Vendre cet article</span>
                                                                     <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                                                                 </Button>
                                                             </div>
-                                                        );
-                                                    })
-                                                ) : (
-                                                    <div className="col-span-full p-4 rounded-xl border border-border/60 bg-background flex items-center justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <h4 className="font-bold text-xs text-foreground">{prod.name}</h4>
-                                                            <p className="text-[11px] text-muted-foreground">Fiche standard sans déclinaison multiple.</p>
                                                         </div>
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            onClick={() => handleSelectProduct(prod, null)}
-                                                            className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-bold cursor-pointer flex items-center gap-1.5"
-                                                        >
-                                                            <span>Vendre ce produit</span>
-                                                            <ChevronRight className="w-3.5 h-3.5" />
-                                                        </Button>
-                                                    </div>
-                                                )}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     );
@@ -1331,31 +1429,68 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                     </div>
                 ) : (
                 <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-                    {/* Chosen Product Summary Card */}
-                    <div className="bg-card p-5 rounded-2xl border border-border flex items-center justify-between gap-4 shadow-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-muted/50 border border-border overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                {productDetails?.featuredAsset?.preview || selectedProductSummary?.preview ? (
-                                    <img src={productDetails?.featuredAsset?.preview || selectedProductSummary?.preview} alt="" className="object-cover w-full h-full" />
-                                ) : (
-                                    <Package className="w-6 h-6 text-muted-foreground" />
-                                )}
+                    {/* Chosen Product Summary Card - Responsive & Airy */}
+                    <div className="bg-card p-4 sm:p-5 rounded-3xl border border-border shadow-sm space-y-3">
+                        <div className="flex items-start justify-between gap-3 sm:gap-4">
+                            <div className="flex items-start gap-3.5 sm:gap-4 min-w-0 flex-1">
+                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-muted/40 border border-border overflow-hidden shrink-0 flex items-center justify-center p-1.5 shadow-2xs">
+                                    {(productDetails?.featuredAsset?.preview || selectedProductSummary?.preview) ? (
+                                        <img
+                                            src={productDetails?.featuredAsset?.preview || selectedProductSummary?.preview}
+                                            alt=""
+                                            className="w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <Package className="w-8 h-8 text-muted-foreground/40" />
+                                    )}
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-primary px-2 py-0.5 rounded-md bg-primary/10 inline-block">
+                                        Modèle sélectionné
+                                    </span>
+                                    <h2 className="text-sm sm:text-base font-black text-foreground leading-snug line-clamp-2 sm:line-clamp-none">
+                                        {productDetails?.name || selectedProductSummary?.name}
+                                    </h2>
+                                    <p className="text-[11px] text-muted-foreground font-medium">
+                                        Catégorie : {
+                                            (() => {
+                                                const rawCollections = productDetails?.collections || selectedProductSummary?.collections || [];
+                                                const validNames = rawCollections
+                                                    .map((c: any) => c.name)
+                                                    .filter((n: string) => n && typeof n === 'string' && !n.includes('__root_') && n.toLowerCase() !== 'root');
+                                                if (validNames.length > 0) return validNames.join(' › ');
+
+                                                const summaryCat = selectedProductSummary?.category;
+                                                if (summaryCat && typeof summaryCat === 'string' && !summaryCat.includes('__root_') && summaryCat.toLowerCase() !== 'root') {
+                                                    return summaryCat;
+                                                }
+                                                return 'Catalogue Général';
+                                            })()
+                                        }
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-primary">Produit Central Sélectionné</span>
-                                <h2 className="text-base font-bold text-foreground">{productDetails?.name || selectedProductSummary?.name}</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    Catégorie : {productDetails?.collections?.[0]?.name || 'Catalogue Ahizan'}
-                                </p>
-                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setStep(1)}
+                                className="rounded-xl text-xs font-bold cursor-pointer shrink-0 hidden sm:flex items-center gap-1.5"
+                            >
+                                Changer de produit
+                            </Button>
                         </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => setStep(1)}
-                            className="rounded-xl text-xs font-bold cursor-pointer"
-                        >
-                            Changer de produit
-                        </Button>
+
+                        {/* On mobile: clean full-width button to prevent squishing text */}
+                        <div className="sm:hidden pt-2 border-t border-border/50">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setStep(1)}
+                                className="w-full h-9 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground"
+                            >
+                                ← Choisir un autre produit
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Option Groups Selector */}
@@ -1537,14 +1672,24 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                             </div>
                         )}
 
-                        {/* Action: Generate Variants */}
-                        <div className="pt-6 border-t border-border flex justify-end">
+                        {/* Step 2 Bottom Actions: Responsive & Balanced */}
+                        <div className="pt-6 border-t border-border flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
                             <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setStep(1)}
+                                className="h-11 sm:h-12 px-6 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                ← Retour aux résultats
+                            </Button>
+                            <Button
+                                type="button"
                                 onClick={handleGenerateCombinations}
-                                className="h-12 px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                                className="h-11 sm:h-12 px-6 sm:px-8 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
                             >
                                 <Sparkles className="w-4 h-4" />
-                                Générer les combinaisons (Variantes)
+                                <span>Valider les options &amp; Continuer</span>
+                                <ChevronRight className="w-4 h-4" />
                             </Button>
                         </div>
                     </div>
@@ -1555,193 +1700,92 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
             {/* ── STEP 3: INTERACTIVE COMBINATIONS & OFFERS GRID ── */}
             {step === 3 && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
-                    {/* Quick Configuration Toolbar */}
-                    <div className="bg-card p-6 rounded-3xl border border-border shadow-sm space-y-4">
+                    {/* Step 3 Header & Action Guidance Banner */}
+                    <div className="bg-card p-4 sm:p-6 rounded-3xl border border-border shadow-sm space-y-4">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div>
-                                <h3 className="text-base font-black text-foreground">Remplissage Rapide des Tarifs &amp; Stocks</h3>
-                                <p className="text-xs text-muted-foreground mt-0.5">Appliquez un prix et une quantité par défaut ou activez uniquement les déclinaisons que vous possédez.</p>
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                                        {generatedVariants.length > 1 ? `${generatedVariants.length} déclinaisons` : 'Article sélectionné'}
+                                    </span>
+                                </div>
+                                <h3 className="text-base sm:text-lg font-black text-foreground">
+                                    {generatedVariants.length > 1 ? "Tarifs & Disponibilités par déclinaison" : "Indiquez votre prix et stock disponible"}
+                                </h3>
+                                <p className="text-xs text-muted-foreground max-w-xl">
+                                    {generatedVariants.length > 1
+                                        ? "Renseignez vos prix et quantités pour chaque déclinaison que vous possédez ci-dessous."
+                                        : "Indiquez simplement votre prix de vente et la quantité en stock pour lancer votre offre."}
+                                </p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsAddingMissingVariant(!isAddingMissingVariant);
-                                        if (!isAddingMissingVariant && productDetails) {
-                                            const initVals: Record<string, string> = {};
-                                            (productDetails.optionGroups || []).forEach((og: any) => {
-                                                initVals[og.name] = '';
-                                            });
-                                            setMissingVariantValues(initVals);
-                                        }
-                                    }}
-                                    className="rounded-xl text-xs font-black bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center gap-1.5 cursor-pointer"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Ajouter une variante manquante
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setStep(2)}
-                                    className="rounded-xl text-xs font-bold cursor-pointer"
-                                >
-                                    Configurateur d'options
-                                </Button>
-                            </div>
+
+                            {/* Intuitive Redirection button if this is not the right variant */}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setStep(2)}
+                                className="w-full sm:w-auto h-10 px-4 rounded-xl text-xs font-bold border-dashed border-primary/50 text-foreground hover:text-primary hover:border-primary flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-2xs"
+                                title="Si votre article a d'autres couleurs, tailles ou caractéristiques"
+                            >
+                                <SlidersHorizontal className="w-4 h-4 text-primary" />
+                                <span>{generatedVariants.length > 1 ? "Modifier les caractéristiques" : "Pas votre déclinaison ? Choisir vos options"}</span>
+                            </Button>
                         </div>
 
-                        {/* Inline Missing Variant Creator Panel */}
-                        {isAddingMissingVariant && (
-                            <div className="bg-primary/5 border-2 border-dashed border-primary/30 p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Sparkles className="w-4 h-4 text-primary" />
-                                        <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Ajouter une déclinaison manquante</h4>
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setIsAddingMissingVariant(false)}
-                                        className="rounded-lg h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                    >
-                                        ✕
-                                    </Button>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    Indiquez la caractéristique de votre article (ex: taille ou couleur) si elle n'est pas encore listée dans le catalogue :
-                                </p>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
-                                    {(productDetails?.optionGroups && productDetails.optionGroups.length > 0) ? (
-                                        productDetails.optionGroups.map((og: any) => (
-                                            <div key={og.id || og.name}>
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                    {og.name} *
-                                                </Label>
-                                                <Input
-                                                    type="text"
-                                                    placeholder={`Ex: ${og.options?.[0]?.name || 'XL, Rouge, etc.'}`}
-                                                    value={missingVariantValues[og.name] || ''}
-                                                    onChange={e => setMissingVariantValues({ ...missingVariantValues, [og.name]: e.target.value })}
-                                                    className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
-                                                />
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div>
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                Caractéristique / Option *
-                                            </Label>
-                                            <Input
-                                                type="text"
-                                                placeholder="Ex: Taille XL ou 128 Go"
-                                                value={missingVariantValues['Option'] || ''}
-                                                onChange={e => setMissingVariantValues({ ...missingVariantValues, ['Option']: e.target.value })}
-                                                className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
-                                            />
-                                        </div>
-                                    )}
-
+                        {/* Only show bulk parameters when there are multiple variants */}
+                        {generatedVariants.length > 1 && (
+                            <div className="pt-3 border-t border-border/60">
+                                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">
+                                    Paramétrage groupé (appliquer à toutes les {generatedVariants.length} déclinaisons) :
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                                     <div>
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                            Prix Vendeur (FCFA) *
-                                        </Label>
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Vendeur (FCFA) - Min: {minPrice} F</Label>
                                         <Input
                                             type="number"
-                                            min="1"
-                                            placeholder={bulkPrice || "Ex: 15000"}
-                                            value={missingVariantPrice}
-                                            onChange={e => setMissingVariantPrice(e.target.value)}
-                                            className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
+                                            min={minPrice}
+                                            placeholder={`Ex: ${minPrice}`}
+                                            value={bulkPrice}
+                                            onChange={e => setBulkPrice(e.target.value)}
+                                            className="h-10 sm:h-11 rounded-xl mt-1 font-bold"
                                         />
                                     </div>
-
                                     <div>
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                            Stock *
-                                        </Label>
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stock Disponible - Min: {minStock}</Label>
                                         <Input
                                             type="number"
-                                            min="0"
-                                            placeholder="5"
-                                            value={missingVariantStock}
-                                            onChange={e => setMissingVariantStock(e.target.value)}
-                                            className="h-10 rounded-xl mt-1 text-xs font-bold bg-card"
+                                            min={minStock}
+                                            placeholder={`Ex: ${minStock}`}
+                                            value={bulkStock}
+                                            onChange={e => setBulkStock(e.target.value)}
+                                            className="h-10 sm:h-11 rounded-xl mt-1 font-bold"
                                         />
                                     </div>
-                                </div>
-
-                                <div className="flex justify-end gap-2 pt-2 border-t border-primary/20">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setIsAddingMissingVariant(false)}
-                                        className="rounded-xl text-xs font-bold"
-                                    >
-                                        Annuler
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        onClick={handleAddMissingVariantRow}
-                                        className="rounded-xl text-xs font-black bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5"
-                                    >
-                                        <Check className="w-3.5 h-3.5" />
-                                        Ajouter cette déclinaison
-                                    </Button>
+                                    <div>
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">État de l'Article</Label>
+                                        <Select value={bulkCondition} onValueChange={setBulkCondition}>
+                                            <SelectTrigger className="h-10 sm:h-11 rounded-xl mt-1 font-bold">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="NEW">Neuf</SelectItem>
+                                                <SelectItem value="USED">Occasion</SelectItem>
+                                                <SelectItem value="REFURBISHED">Reconditionné</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="flex items-end">
+                                        <Button
+                                            type="button"
+                                            onClick={handleApplyBulkSettings}
+                                            className="w-full h-10 sm:h-11 rounded-xl bg-secondary text-secondary-foreground font-bold text-xs uppercase tracking-wider cursor-pointer"
+                                        >
+                                            Appliquer à tous
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         )}
-
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
-                            <div>
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Prix Vendeur (FCFA)</Label>
-                                <Input
-                                    type="number"
-                                    min="1"
-                                    placeholder="Ex: 15000"
-                                    value={bulkPrice}
-                                    onChange={e => setBulkPrice(e.target.value)}
-                                    className="h-11 rounded-xl mt-1 font-bold"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stock Disponible</Label>
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    placeholder="Ex: 5"
-                                    value={bulkStock}
-                                    onChange={e => setBulkStock(e.target.value)}
-                                    className="h-11 rounded-xl mt-1 font-bold"
-                                />
-                            </div>
-                            <div>
-                                <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">État de l'Article</Label>
-                                <Select value={bulkCondition} onValueChange={setBulkCondition}>
-                                    <SelectTrigger className="h-11 rounded-xl mt-1 font-bold">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="NEW">Neuf</SelectItem>
-                                        <SelectItem value="USED">Occasion</SelectItem>
-                                        <SelectItem value="REFURBISHED">Reconditionné</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-end">
-                                <Button
-                                    type="button"
-                                    onClick={handleApplyBulkSettings}
-                                    className="w-full h-11 rounded-xl bg-secondary text-secondary-foreground font-bold text-xs uppercase tracking-wider cursor-pointer"
-                                >
-                                    Appliquer à tous
-                                </Button>
-                            </div>
-                        </div>
                     </div>
 
                     {/* ── STEP 3: TABS & SCROLLABLE BOX CONTAINER ── */}
@@ -2001,100 +2045,116 @@ function AffiliateProductPageContent({ initialSelectedProduct, initialSearchTerm
                                                         </div>
                                                     </div>
 
-                                                    {/* Right: Quick Price + Quick Stock + Expand Button */}
-                                                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <div className="w-28">
+                                                    {/* Right: Quick Price + Quick Stock + Action Buttons */}
+                                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-2 shrink-0 pt-2.5 sm:pt-0 border-t border-border/50 sm:border-0 w-full md:w-auto">
+                                                        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+                                                            <div className="sm:w-28">
+                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block sm:hidden mb-1">Prix (FCFA)</span>
                                                                 <div className="relative">
                                                                     <Input
                                                                         type="number"
-                                                                        min="1"
-                                                                        placeholder="Prix (F)"
+                                                                        min={minPrice}
+                                                                        placeholder={`Min ${minPrice} F`}
                                                                         value={row.price || ''}
                                                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateVariantRow(row.key, 'price', Number(e.target.value))}
-                                                                        className="h-8 text-xs font-black rounded-xl pr-6 bg-background"
+                                                                        className="h-9 sm:h-8 text-xs font-black rounded-xl pr-6 bg-background w-full"
                                                                     />
                                                                     <span className="text-[9px] font-bold text-muted-foreground absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">F</span>
                                                                 </div>
                                                             </div>
-                                                            <div className="w-20">
+                                                            <div className="sm:w-24">
+                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block sm:hidden mb-1">Stock</span>
                                                                 <Input
                                                                     type="number"
-                                                                    min="0"
-                                                                    placeholder="Stock"
+                                                                    min={minStock}
+                                                                    placeholder={`Min ${minStock}`}
                                                                     value={row.stock || ''}
                                                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpdateVariantRow(row.key, 'stock', Math.max(0, Number(e.target.value) || 0))}
-                                                                    className="h-8 text-xs font-bold rounded-xl bg-background"
+                                                                    className="h-9 sm:h-8 text-xs font-bold rounded-xl bg-background w-full"
                                                                 />
                                                             </div>
                                                         </div>
 
-                                                        {!row.enabled ? (
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    const hasPrice = row.price && Number(row.price) > 0;
-                                                                    const hasStock = row.stock !== undefined && row.stock !== null && Number(row.stock) > 0;
+                                                        <div className="flex items-center justify-end gap-1.5 shrink-0">
+                                                            {!row.enabled ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        const hasPrice = row.price && Number(row.price) > 0;
+                                                                        const hasStock = row.stock !== undefined && row.stock !== null && Number(row.stock) > 0;
 
-                                                                    if (hasPrice && !hasStock) {
-                                                                        toast.error(`Veuillez entrer le stock de la déclinaison "${row.name}" ou effacer son prix pour l'enlever de la liste.`);
-                                                                        return;
-                                                                    }
-                                                                    if (!hasPrice && hasStock) {
-                                                                        toast.error(`Veuillez entrer le prix de la déclinaison "${row.name}" ou effacer son stock pour l'enlever de la liste.`);
-                                                                        return;
-                                                                    }
-                                                                    if (!hasPrice && !hasStock) {
-                                                                        toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${row.name}" avant de l'enregistrer.`);
-                                                                        return;
-                                                                    }
-                                                                    if (row.onPromotion) {
-                                                                        if (!row.promotionalPrice || Number(row.promotionalPrice) <= 0) {
-                                                                            toast.error(`Veuillez renseigner le prix promotionnel pour "${row.name}".`);
+                                                                        if (hasPrice && !hasStock) {
+                                                                            toast.error(`Veuillez entrer le stock de la déclinaison "${row.name}" ou effacer son prix pour l'enlever de la liste.`);
                                                                             return;
                                                                         }
-                                                                        if (Number(row.promotionalPrice) >= Number(row.price)) {
-                                                                            toast.error(`Le prix promo (${row.promotionalPrice} F) doit être inférieur au prix normal (${row.price} F) pour "${row.name}".`);
+                                                                        if (!hasPrice && hasStock) {
+                                                                            toast.error(`Veuillez entrer le prix de la déclinaison "${row.name}" ou effacer son stock pour l'enlever de la liste.`);
                                                                             return;
                                                                         }
-                                                                    }
-                                                                    handleUpdateVariantRow(row.key, 'enabled', true);
-                                                                    toast.success(`"${row.name}" enregistrée dans vos déclinaisons utilisées !`);
-                                                                }}
-                                                                className="h-8 px-2.5 rounded-xl text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer shrink-0"
-                                                                title="Enregistrer et ajouter aux déclinaisons utilisées"
-                                                            >
-                                                                <Check className="w-3.5 h-3.5" />
-                                                                <span>Enregistrer</span>
-                                                            </Button>
-                                                        ) : (
+                                                                        if (!hasPrice && !hasStock) {
+                                                                            toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${row.name}" avant de l'enregistrer.`);
+                                                                            return;
+                                                                        }
+                                                                        if (Number(row.price) < minPrice) {
+                                                                            toast.error(`Le prix de "${row.name}" (${row.price} F) doit être au minimum de ${minPrice} FCFA.`);
+                                                                            return;
+                                                                        }
+                                                                        if (Number(row.stock) < minStock) {
+                                                                            toast.error(`Le stock de "${row.name}" (${row.stock}) doit être au minimum de ${minStock} unité(s).`);
+                                                                            return;
+                                                                        }
+                                                                        if (row.onPromotion) {
+                                                                            if (!row.promotionalPrice || Number(row.promotionalPrice) <= 0) {
+                                                                                toast.error(`Veuillez renseigner le prix promotionnel pour "${row.name}".`);
+                                                                                return;
+                                                                            }
+                                                                            if (Number(row.promotionalPrice) < minPrice) {
+                                                                                toast.error(`Le prix promo de "${row.name}" doit être au minimum de ${minPrice} FCFA.`);
+                                                                                return;
+                                                                            }
+                                                                            if (Number(row.promotionalPrice) >= Number(row.price)) {
+                                                                                toast.error(`Le prix promo (${row.promotionalPrice} F) doit être inférieur au prix normal (${row.price} F) pour "${row.name}".`);
+                                                                                return;
+                                                                            }
+                                                                        }
+                                                                        handleUpdateVariantRow(row.key, 'enabled', true);
+                                                                        toast.success(`"${row.name}" activée et ajoutée à vos offres !`);
+                                                                    }}
+                                                                    className="h-9 sm:h-8 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer flex-1 sm:flex-none justify-center"
+                                                                    title="Activer cette déclinaison pour la vente"
+                                                                >
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                    <span>Activer</span>
+                                                                </Button>
+                                                            ) : (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => {
+                                                                        handleUpdateVariantRow(row.key, 'enabled', false);
+                                                                        toast.info(`"${row.name}" passée en brouillon.`);
+                                                                    }}
+                                                                    className="h-9 sm:h-8 px-2.5 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                                                                    title="Passer en brouillon"
+                                                                >
+                                                                    <EyeOff className="w-3.5 h-3.5" />
+                                                                    <span className="inline">Brouillon</span>
+                                                                </Button>
+                                                            )}
+
                                                             <Button
                                                                 type="button"
-                                                                size="sm"
                                                                 variant="ghost"
-                                                                onClick={() => {
-                                                                    handleUpdateVariantRow(row.key, 'enabled', false);
-                                                                    toast.info(`"${row.name}" passée en brouillon.`);
-                                                                }}
-                                                                className="h-8 px-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer shrink-0"
-                                                                title="Passer en brouillon"
+                                                                size="sm"
+                                                                onClick={() => toggleExpandVariantKey(row.key)}
+                                                                className="h-9 w-9 sm:h-8 sm:w-8 p-0 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                                                                title={isExpanded ? "Replier les détails" : "Déplier les détails"}
                                                             >
-                                                                <EyeOff className="w-3.5 h-3.5" />
-                                                                <span className="hidden sm:inline">Brouillon</span>
+                                                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                                             </Button>
-                                                        )}
-
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => toggleExpandVariantKey(row.key)}
-                                                            className="h-8 w-8 p-0 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                                                            title={isExpanded ? "Replier les détails" : "Déplier les détails"}
-                                                        >
-                                                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                                        </Button>
+                                                        </div>
                                                     </div>
                                                 </div>
 

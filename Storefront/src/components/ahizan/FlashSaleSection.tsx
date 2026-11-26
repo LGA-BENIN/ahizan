@@ -22,7 +22,11 @@ interface FlashSaleSectionProps {
 
 const isGif = (url: string) => url?.toLowerCase().endsWith('.gif');
 
-export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps) {
+export function FlashSaleSection({ config: rawConfig }: FlashSaleSectionProps) {
+    const activeFlash = (rawConfig?.flashVersions && Array.isArray(rawConfig.flashVersions))
+        ? { ...rawConfig, ...(rawConfig.flashVersions.find((v: any) => v.isActive) || rawConfig.flashVersions[0]) }
+        : rawConfig;
+
     const hasExplicitCountdown = !activeFlash?.isUnlimited && 
         activeFlash?.showCountdown !== false && 
         Boolean(activeFlash?.countdownEnd || activeFlash?.endTime);
@@ -109,17 +113,21 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
     }, [activeFlash?.viewAllLink, activeFlash?.collectionSlug, activeFlash?.collectionId, activeFlash?.filterCriteria, activeFlash?.collectionIds, activeFlash?.marketId, activeFlash?.selectionType, clientLoc?.id]);
 
     useEffect(() => {
-        if (!hasExplicitCountdown || !endTimeStr) return;
+        if (!hasExplicitCountdown) return;
         
         const updateTimer = () => {
             const now = new Date();
-            const end = new Date(endTimeStr);
-            const start = activeFlash.startTime ? new Date(activeFlash.startTime) : now;
+            let end = endTimeStr ? new Date(endTimeStr) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            if (isNaN(end.getTime()) || end.getTime() <= now.getTime()) {
+                // Auto-cycle to end of current day for continuous flash campaign urgency
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            }
+            const start = activeFlash?.startTime ? new Date(activeFlash.startTime) : now;
             
             const isActive = now >= start && now <= end;
-            const isSimple = activeFlash.isSimpleMode;
+            const isSimple = activeFlash?.isSimpleMode;
 
-            if (!isActive && !isSimple) {
+            if (!isActive && !isSimple && end.getTime() <= now.getTime()) {
                 setTimeLeft({ h: '00', m: '00', s: '00' });
                 return;
             }
@@ -158,14 +166,6 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
         const manualProductIds = (activeFlashObj.manualProductIds || []).map(String).filter(Boolean);
         const collectionIds = (activeFlashObj.filterCriteria?.collectionIds || activeFlashObj.collectionIds || []).map(String).filter(Boolean);
         const collectionSlug = activeFlashObj.collectionSlug || activeFlashObj.filterCriteria?.collectionSlug;
-
-        // 1. Strict Empty Check:
-        // If in FILTER mode (or default) and NO collections are selected -> DO NOT show random products.
-        if (!isLocalMode && !isManualMode && collectionIds.length === 0 && !collectionSlug) {
-            setFlashProducts([]);
-            setLoading(false);
-            return;
-        }
 
         // If in MANUAL mode and NO product IDs -> show nothing.
         if (isManualMode && manualProductIds.length === 0) {
@@ -300,6 +300,35 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         const r = await fetchWithClientCache(shopApiUrl, searchFlashQuery, { 
                             input: { collectionSlug, take: 200, groupByProduct: false } 
                         });
+                        const items = r?.search?.items || [];
+                        for (const item of items) {
+                            baseItems.push({
+                                productId: item.productId,
+                                productVariantId: item.productVariantId,
+                                id: item.productId,
+                                name: item.productName,
+                                productName: item.productName,
+                                productVariantName: item.productVariantName,
+                                slug: item.slug,
+                                featuredAsset: item.productAsset || item.productVariantAsset,
+                                productAsset: item.productAsset,
+                                productVariantAsset: item.productVariantAsset,
+                                variants: [{
+                                    id: item.productVariantId,
+                                    name: item.productVariantName || item.productName,
+                                    priceWithTax: item.priceWithTax?.value ?? item.priceWithTax?.min ?? 0,
+                                    featuredAsset: item.productVariantAsset || item.productAsset,
+                                }],
+                                priceWithTax: item.priceWithTax,
+                                inStock: item.inStock !== false,
+                            });
+                        }
+                    } else {
+                        // AUTOMATIC / CATALOG FLASH CAMPAIGN:
+                        // Fetch candidates from entire catalog so that top deals and promotions are discovered
+                        const r = await fetchWithClientCache(shopApiUrl, searchFlashQuery, { 
+                            input: { take: 100, groupByProduct: false } 
+                        }).catch(() => null);
                         const items = r?.search?.items || [];
                         for (const item of items) {
                             baseItems.push({
@@ -489,10 +518,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                         }
                                     });
                                 }
-                            } else {
-                                // Default catalog variant if no seller offer
-                                rawCandidates.push(item);
                             }
+                        }
+                        if (rawCandidates.length === 0) {
+                            rawCandidates = baseItems;
                         }
                     } catch (offerErr) {
                         console.warn('Error fetching seller offers for flash sale:', offerErr);
@@ -501,6 +530,9 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                 } else {
                     rawCandidates = baseItems;
                 }
+
+                const rawLimit = activeFlashObj.filterCriteria?.take ?? activeFlashObj.limit ?? activeFlashObj.take ?? 12;
+                const limit = Number(rawLimit) > 0 ? Number(rawLimit) : 12;
 
                 // 3. Score candidates with GeoEngine based on user's active location
                 let resolved = processAndResolveDisplayItems(rawCandidates, {
@@ -516,6 +548,15 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     requirePromotion: false,
                     requireVariantsWithOptions: false,
                     maxVariantsPerCentralProduct: 2,
+                    limit,
+                });
+
+                // Prioritize promotions first, then rank by local proximity score
+                resolved.sort((a: any, b: any) => {
+                    const promoA = a.winningOffer?.onPromotion || a.onPromotion ? 1 : 0;
+                    const promoB = b.winningOffer?.onPromotion || b.onPromotion ? 1 : 0;
+                    if (promoA !== promoB) return promoB - promoA;
+                    return (b.score || 0) - (a.score || 0);
                 });
 
                 // 4. Apply price filters if configured
@@ -531,8 +572,6 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                     }
                 }
 
-                const rawLimit = activeFlashObj.filterCriteria?.take ?? activeFlashObj.limit ?? activeFlashObj.take ?? 12;
-                const limit = Number(rawLimit) > 0 ? Number(rawLimit) : 12;
                 setFlashProducts(resolved.slice(0, limit));
             } catch (err) {
                 console.error('Fetch error for flash sale:', err);
@@ -615,7 +654,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             ) : activeFlash.headerStyle === 'jumia' || (!activeFlash.isSimpleMode && !activeFlash.headerStyle && (!activeFlash.bgColor || activeFlash.bgColor === '#0f172a' || activeFlash.bgColor === '#b91c1c')) ? (
                 /* --- JUMIA STYLE THEMATIC HEADER (Full width, dark crimson, centered timer pill) --- */
                 <div 
-                    className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 overflow-hidden relative w-full text-white rounded-t-2xl sm:rounded-t-3xl p-3 sm:p-4 shadow-md border-b border-red-900/30"
+                    className="overflow-hidden relative w-full text-white rounded-t-2xl sm:rounded-t-3xl p-2.5 sm:px-5 sm:py-3.5 shadow-md border-b border-red-900/30"
                     style={{
                         backgroundColor: activeFlash.bgColor || '#b91c1c',
                         backgroundImage: activeFlash.bgImageUrl ? `url(${getAssetUrl(activeFlash.bgImageUrl)})` : 'linear-gradient(135deg, #991b1b 0%, #b91c1c 50%, #dc2626 100%)',
@@ -623,47 +662,103 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                         backgroundPosition: 'center',
                     }}
                 >
-                    {/* Left: Title & Subtitle */}
-                    <div className="flex items-center gap-3 relative z-10 w-full sm:w-auto justify-between sm:justify-start">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-lg sm:text-xl shadow-inner shrink-0">
-                            {DynamicIcon ? <DynamicIcon className="w-5 h-5 text-white fill-white" /> : <Zap className="w-5 h-5 text-white fill-white stroke-[2]" />}
+                    {/* Desktop Layout: 1 Sleek Row (Title + Timer on Left, CTA on Right) */}
+                    <div className="hidden sm:flex items-center justify-between gap-4 relative z-10 w-full">
+                        {/* Left: Icon + Title + Countdown Pill */}
+                        <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shadow-inner shrink-0">
+                                {DynamicIcon ? <DynamicIcon className="w-5 h-5 text-white fill-white" /> : <Zap className="w-5 h-5 text-white fill-white stroke-[2]" />}
+                            </div>
+                            <div className="text-left min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h2 className="font-black text-lg md:text-xl tracking-tight leading-tight">
+                                        {(activeFlash?.title || "Ventes Flash").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || "Ventes Flash"}
+                                    </h2>
+                                    <span className="text-white/60 font-semibold text-xs hidden lg:inline">| Chaque jour</span>
+                                </div>
+                                <p className="text-xs font-bold text-white/80 uppercase tracking-wider">
+                                    {(activeFlash?.subtitle || "Offres limitées • Jusqu'à épuisement des stocks").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                                </p>
+                            </div>
+
+                            {/* Countdown Timer adjacent to title */}
+                            {hasExplicitCountdown && (
+                                <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-inner ml-3 shrink-0">
+                                    <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+                                    <span className="text-[11px] font-bold text-white/70 uppercase">Fini dans:</span>
+                                    <div className="flex items-center gap-1 font-mono font-black text-xs sm:text-sm text-white">
+                                        <span className="bg-black/60 px-1.5 py-0.5 rounded">{timeLeft.h}h</span>:
+                                        <span className="bg-black/60 px-1.5 py-0.5 rounded">{timeLeft.m}m</span>:
+                                        <span className="bg-black/60 px-1.5 py-0.5 rounded text-amber-400">{timeLeft.s}s</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div className="text-left">
-                            <h2 className="font-black text-sm sm:text-lg md:text-xl tracking-tight leading-tight flex items-center gap-1.5">
-                                <span>{(activeFlash?.title || "Ventes Flash").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || "Ventes Flash"}</span>
-                                <span className="text-white/60 font-semibold text-xs sm:text-sm hidden sm:inline">| Chaque jour</span>
-                            </h2>
-                            <p className="text-[10px] sm:text-xs font-bold text-white/90 uppercase tracking-wider">
-                                {(activeFlash?.subtitle || "Offres limitées • Jusqu'à épuisement des stocks").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
-                            </p>
+
+                        {/* Right: CTA Button */}
+                        <div className="shrink-0">
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                asChild 
+                                className="bg-white/15 hover:bg-white hover:text-red-700 text-white font-extrabold text-xs px-4 py-1.5 h-8 rounded-full backdrop-blur-xs transition-all flex items-center gap-1 shadow-xs"
+                            >
+                                <Link href={targetViewAllLink}>
+                                    <span>Voir plus</span>
+                                    <ChevronRight className="w-3.5 h-3.5 stroke-[3px]" />
+                                </Link>
+                            </Button>
                         </div>
                     </div>
 
-                    {/* Center: Dynamic Countdown Pill */}
-                    {hasExplicitCountdown && (
-                        <div className="relative z-10 flex items-center gap-2 bg-black/40 backdrop-blur-md px-3 sm:px-4 py-1.5 rounded-full border border-white/10 shadow-inner">
-                            <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
-                            <div className="flex items-center gap-1 font-mono font-black text-xs sm:text-sm text-white">
-                                <span className="bg-black/60 px-1.5 py-0.5 rounded">{timeLeft.h}h</span>:
-                                <span className="bg-black/60 px-1.5 py-0.5 rounded">{timeLeft.m}m</span>:
-                                <span className="bg-black/60 px-1.5 py-0.5 rounded text-amber-400">{timeLeft.s}s</span>
+                    {/* Mobile Layout: 2 Compact, Well-Balanced Rows */}
+                    <div className="sm:hidden flex flex-col gap-2 relative z-10 w-full">
+                        {/* Row 1: Icon + Title on Left, "Voir plus" on Right */}
+                        <div className="flex items-center justify-between gap-2 w-full">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center text-base shadow-inner shrink-0">
+                                    {DynamicIcon ? <DynamicIcon className="w-4 h-4 text-white fill-white" /> : <Zap className="w-4 h-4 text-white fill-white stroke-[2]" />}
+                                </div>
+                                <div className="text-left min-w-0">
+                                    <h2 className="font-black text-sm tracking-tight leading-tight truncate">
+                                        {(activeFlash?.title || "Ventes Flash").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim() || "Ventes Flash"}
+                                    </h2>
+                                    <p className="text-[9px] font-bold text-white/80 uppercase tracking-wider truncate">
+                                        {(activeFlash?.subtitle || "Offres limitées • Stock limité").replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '').trim()}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
 
-                    {/* Right: CTA Button */}
-                    <div className="relative z-10 w-full sm:w-auto flex justify-end">
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            asChild 
-                            className="bg-white/15 hover:bg-white hover:text-red-700 text-white font-extrabold text-xs px-3 sm:px-4 py-1.5 rounded-full backdrop-blur-xs transition-all flex items-center gap-1 shadow-xs"
-                        >
-                            <Link href={targetViewAllLink}>
-                                <span>Voir plus</span>
-                                <ChevronRight className="w-3.5 h-3.5 stroke-[3px]" />
-                            </Link>
-                        </Button>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                asChild 
+                                className="bg-white/15 hover:bg-white hover:text-red-700 text-white font-extrabold text-[11px] px-2.5 py-1 h-7 rounded-full backdrop-blur-xs transition-all flex items-center gap-0.5 shrink-0 shadow-xs"
+                            >
+                                <Link href={targetViewAllLink}>
+                                    <span>Voir plus</span>
+                                    <ChevronRight className="w-3 h-3 stroke-[3px]" />
+                                </Link>
+                            </Button>
+                        </div>
+
+                        {/* Row 2: Countdown Timer Pill & Urgency */}
+                        {hasExplicitCountdown && (
+                            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-white/15">
+                                <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 shadow-inner">
+                                    <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+                                    <span className="text-[10px] font-bold text-white/70 uppercase">Fini dans :</span>
+                                    <div className="flex items-center gap-0.5 font-mono font-black text-[11px] text-white">
+                                        <span className="bg-black/60 px-1 py-0.5 rounded">{timeLeft.h}h</span>:
+                                        <span className="bg-black/60 px-1 py-0.5 rounded">{timeLeft.m}m</span>:
+                                        <span className="bg-black/60 px-1 py-0.5 rounded text-amber-400">{timeLeft.s}s</span>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-wider">
+                                    ⚡ Durée limitée
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : (
@@ -793,10 +888,10 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
             {/* Product Carousel / Grid */}
             <div 
                 ref={activeFlash.displayLayout !== 'vertical_grid' ? scrollContainerRef : null}
-                className={`${activeFlash.displayLayout === 'vertical_grid' ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 overflow-visible' : 'flex overflow-x-auto snap-x snap-mandatory'} gap-3 sm:gap-4 pb-4 ${
+                className={`${activeFlash.displayLayout === 'vertical_grid' ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 overflow-visible' : 'flex overflow-x-auto snap-x snap-mandatory'} gap-2 sm:gap-2.5 pb-2 ${
                     activeFlash.isSimpleMode 
-                    ? 'pt-5' 
-                    : 'bg-white border-x border-b border-border/30 rounded-b-xl p-3 sm:p-4 md:p-5'
+                    ? 'pt-3' 
+                    : 'bg-white border-x border-b border-border/30 rounded-b-xl p-2 sm:p-3'
                 }`}
                 style={activeFlash.displayLayout !== 'vertical_grid' ? {
                     scrollbarWidth: 'none',
@@ -822,8 +917,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 key={i} 
                                 className={
                                     activeFlash.displayLayout === 'vertical_grid'
-                                    ? "w-full aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
-                                    : "snap-start flex-shrink-0 w-[160px] sm:w-[180px] md:w-[200px] lg:w-[220px] aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-4"
+                                    ? "w-full aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-2"
+                                    : "snap-start flex-shrink-0 w-[130px] sm:w-[145px] md:w-[155px] lg:w-[165px] aspect-square bg-white rounded-xl border border-border/30 flex items-center justify-center p-2"
                                 }
                                 style={{
                                     width: activeFlash.cardWidth || undefined,
@@ -831,7 +926,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                     height: activeFlash.cardHeight || undefined,
                                 }}
                             >
-                                <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                                <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
                             </div>
                         );
                     }
@@ -842,7 +937,7 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                             className={
                                 activeFlash.displayLayout === 'vertical_grid'
                                 ? "w-full"
-                                : "snap-start flex-shrink-0 w-[200px] sm:w-[220px] md:w-[240px] lg:w-[260px]"
+                                : "snap-start flex-shrink-0 w-[130px] sm:w-[145px] md:w-[155px] lg:w-[165px]"
                             }
                             style={{
                                 width: activeFlash.cardWidth || undefined,
@@ -854,7 +949,8 @@ export function FlashSaleSection({ config: activeFlash }: FlashSaleSectionProps)
                                 item={p} 
                                 config={{
                                     ...activeFlash,
-                                    showQuickAddButton: true,
+                                    showQuickAddButton: false,
+                                    hideQuickAddButton: true,
                                     isFlashSaleCard: true,
                                     showStockGauge: true,
                                 }} 

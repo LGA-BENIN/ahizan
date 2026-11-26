@@ -56,18 +56,46 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: num
     return R * c;
 }
 
+const KNOWN_BENIN_COORDS: Record<string, { lat: number; lon: number }> = {
+    'dantokpa': { lat: 6.367, lon: 2.44 },
+    'missebo': { lat: 6.363, lon: 2.435 },
+    'ganhi': { lat: 6.357, lon: 2.43 },
+    'cadjehoun': { lat: 6.362, lon: 2.40 },
+    'gbegamey': { lat: 6.365, lon: 2.408 },
+    'menontin': { lat: 6.371, lon: 2.385 },
+    'aidjedo': { lat: 6.377, lon: 2.418 },
+    'wologuede': { lat: 6.372, lon: 2.413 },
+    'zongo': { lat: 6.366, lon: 2.422 },
+    'hlakome': { lat: 6.3754, lon: 2.4468 },
+    'gankpodo': { lat: 6.3873, lon: 2.4572 },
+    'cotonou': { lat: 6.3654, lon: 2.4183 },
+    'ouando': { lat: 6.505, lon: 2.618 },
+    'porto-novo': { lat: 6.4969, lon: 2.6289 },
+    'godomey': { lat: 6.415, lon: 2.355 },
+    'zogbadje': { lat: 6.422, lon: 2.342 },
+    'calavi': { lat: 6.4486, lon: 2.3556 },
+    'abomey-calavi': { lat: 6.4486, lon: 2.3556 },
+    'pk3': { lat: 6.388, lon: 2.47 },
+    'seme-kpodji': { lat: 6.388, lon: 2.47 },
+    'parakou': { lat: 9.3371, lon: 2.6303 },
+    'bohicon': { lat: 7.1783, lon: 2.0667 },
+    'ouidah': { lat: 6.3631, lon: 2.0851 },
+};
+
 export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
     const { selectedLocation } = useLocation();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedMarket, setSelectedMarket] = useState('all');
     const [selectedCommune, setSelectedCommune] = useState('all');
-    const [sortBy, setSortBy] = useState<'rating' | 'distance' | 'reviews' | 'name'>('rating');
+    const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'reviews' | 'name'>('distance');
 
     // User coordinates from general header if available
-    const userLat = selectedLocation?.latitude ? Number(selectedLocation.latitude) : null;
-    const userLon = selectedLocation?.longitude ? Number(selectedLocation.longitude) : null;
-    const hasUserCoordinates = Boolean(userLat && userLon && !isNaN(userLat) && !isNaN(userLon) && userLat !== 0);
+    const userLat = selectedLocation?.latitude ? Number(selectedLocation.latitude) : (selectedLocation as any)?.centerLatitude ? Number((selectedLocation as any).centerLatitude) : null;
+    const userLon = selectedLocation?.longitude ? Number(selectedLocation.longitude) : (selectedLocation as any)?.centerLongitude ? Number((selectedLocation as any).centerLongitude) : null;
+    const effectiveUserLat = (userLat && !isNaN(userLat)) ? userLat : 6.3654;
+    const effectiveUserLon = (userLon && !isNaN(userLon)) ? userLon : 2.4183;
+    const hasUserCoordinates = true;
 
     // Extract all distinct physical markets
     const availableMarkets = useMemo(() => {
@@ -93,18 +121,35 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
         return initialVendors.map(vendor => {
             let distanceKm: number | null = null;
 
-            if (hasUserCoordinates && userLat && userLon) {
-                // Try vendor's direct coordinates
-                const vLat = vendor.latitude ? Number(vendor.latitude) : null;
-                const vLon = vendor.longitude ? Number(vendor.longitude) : null;
+            // Direct coordinates
+            const vLat = vendor.latitude ? Number(vendor.latitude) : null;
+            const vLon = vendor.longitude ? Number(vendor.longitude) : null;
 
-                if (vLat && vLon && !isNaN(vLat) && !isNaN(vLon)) {
-                    distanceKm = calculateDistanceKm(userLat, userLon, vLat, vLon);
-                } else if (vendor.physicalMarket?.centerLatitude && vendor.physicalMarket?.centerLongitude) {
-                    distanceKm = calculateDistanceKm(userLat, userLon, Number(vendor.physicalMarket.centerLatitude), Number(vendor.physicalMarket.centerLongitude));
+            let lat = (vLat && !isNaN(vLat)) ? vLat : null;
+            let lon = (vLon && !isNaN(vLon)) ? vLon : null;
+
+            if (!lat || !lon) {
+                if (vendor.physicalMarket?.centerLatitude && vendor.physicalMarket?.centerLongitude) {
+                    lat = Number(vendor.physicalMarket.centerLatitude);
+                    lon = Number(vendor.physicalMarket.centerLongitude);
                 } else if (vendor.location?.centerLatitude && vendor.location?.centerLongitude) {
-                    distanceKm = calculateDistanceKm(userLat, userLon, Number(vendor.location.centerLatitude), Number(vendor.location.centerLongitude));
+                    lat = Number(vendor.location.centerLatitude);
+                    lon = Number(vendor.location.centerLongitude);
+                } else {
+                    const text = `${vendor.zone || ''} ${vendor.address || ''} ${vendor.name || ''}`.toLowerCase();
+                    for (const [key, coords] of Object.entries(KNOWN_BENIN_COORDS)) {
+                        if (text.includes(key)) {
+                            lat = coords.lat;
+                            lon = coords.lon;
+                            break;
+                        }
+                    }
                 }
+            }
+
+            if (lat && lon) {
+                const dist = calculateDistanceKm(effectiveUserLat, effectiveUserLon, lat, lon);
+                distanceKm = Math.round(dist * 10) / 10;
             }
 
             return {
@@ -112,7 +157,7 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                 distanceKm,
             };
         });
-    }, [initialVendors, hasUserCoordinates, userLat, userLon]);
+    }, [initialVendors, effectiveUserLat, effectiveUserLon]);
 
     // Filter & Sort vendors
     const processedVendors = useMemo(() => {
@@ -143,12 +188,16 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
 
         // Sorting
         result.sort((a, b) => {
-            if (sortBy === 'distance' && hasUserCoordinates) {
+            if (sortBy === 'distance') {
                 if (a.distanceKm != null && b.distanceKm != null) {
                     return a.distanceKm - b.distanceKm;
                 }
                 if (a.distanceKm != null) return -1;
                 if (b.distanceKm != null) return 1;
+                const rA = a.rating || 0;
+                const rB = b.rating || 0;
+                if (rB !== rA) return rB - rA;
+                return (a.name || '').localeCompare(b.name || '');
             }
 
             if (sortBy === 'rating') {
@@ -170,7 +219,7 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
         });
 
         return result;
-    }, [vendorsWithDistance, searchTerm, selectedMarket, selectedCommune, sortBy, hasUserCoordinates]);
+    }, [vendorsWithDistance, searchTerm, selectedMarket, selectedCommune, sortBy]);
 
     return (
         <div className="space-y-6 sm:space-y-8">
@@ -186,23 +235,14 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                                 Position active : <span className="text-primary">{selectedLocation.name}</span>
                             </p>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                Coopère avec le sélecteur général pour vous proposer les boutiques les plus proches
+                                Les boutiques les plus proches de votre position sont affichées en premier
                             </p>
                         </div>
                     </div>
-                    {hasUserCoordinates && (
-                        <button
-                            onClick={() => setSortBy('distance')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto ${
-                                sortBy === 'distance'
-                                    ? 'bg-primary text-white shadow-xs'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                            }`}
-                        >
-                            <Navigation className="w-3.5 h-3.5" />
-                            <span>Voir les plus proches</span>
-                        </button>
-                    )}
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200/80 dark:border-emerald-800/80 shrink-0 self-start sm:self-auto">
+                        <Navigation className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Trié par proximité</span>
+                    </div>
                 </div>
             )}
 
@@ -260,8 +300,8 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                                 onChange={(e) => setSortBy(e.target.value as any)}
                                 className="block w-full px-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs font-bold focus:outline-hidden focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                             >
+                                <option value="distance">Plus proches 📍</option>
                                 <option value="rating">Mieux notées ⭐</option>
-                                {hasUserCoordinates && <option value="distance">Plus proches 📍</option>}
                                 <option value="reviews">Nombre d&apos;avis</option>
                                 <option value="name">Nom (A-Z)</option>
                             </select>
@@ -274,13 +314,13 @@ export function VendorsListClient({ initialVendors }: VendorsListClientProps) {
                     <span className="font-bold text-slate-700 dark:text-slate-300">
                         {processedVendors.length} boutique{processedVendors.length > 1 ? 's' : ''} disponible{processedVendors.length > 1 ? 's' : ''}
                     </span>
-                    {(searchTerm || selectedMarket !== 'all' || selectedCommune !== 'all') && (
+                    {(searchTerm || selectedMarket !== 'all' || selectedCommune !== 'all' || sortBy !== 'distance') && (
                         <button
                             onClick={() => {
                                 setSearchTerm('');
                                 setSelectedMarket('all');
                                 setSelectedCommune('all');
-                                setSortBy('rating');
+                                setSortBy('distance');
                             }}
                             className="text-primary hover:underline font-bold text-xs"
                         >

@@ -203,7 +203,14 @@ export function LocalVendorsProximitySection({ config = {} }: LocalVendorsProxim
         return null;
     }
 
-    const displayVendors = vendors.length > 0 ? vendors : FALLBACK_VENDORS;
+    const displayVendors = React.useMemo(() => {
+        const raw = vendors.length > 0 ? vendors : FALLBACK_VENDORS;
+        return [...raw].sort((a, b) => {
+            const distA = getSmartDistanceKm(a, selectedLocation, 0);
+            const distB = getSmartDistanceKm(b, selectedLocation, 0);
+            return distA - distB;
+        });
+    }, [vendors, selectedLocation]);
 
     return (
         <section className="w-full my-6 md:my-10 max-w-[1720px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8">

@@ -77,15 +77,6 @@ export async function createProductAction(prevState: any, formData: FormData) {
     const draftId = formData.get('draftId') as string;
 
     try {
-        if (draftId && draftId.trim() !== '' && draftId !== 'undefined' && draftId !== 'null') {
-            try {
-                console.log(`[ACTION] Replacing previous draft ${draftId}...`);
-                await mutate(DeleteMyProductMutation, { id: draftId }, { useAuthToken: true });
-            } catch (delErr) {
-                console.warn(`[ACTION] Could not delete previous draft ${draftId}:`, delErr);
-            }
-        }
-
         console.log(`[ACTION] Creating product: ${name} (isDraft: ${isDraft})`);
         const { data } = await mutate(CreateMyProductMutation, {
             input: {
@@ -115,8 +106,21 @@ export async function createProductAction(prevState: any, formData: FormData) {
             },
         } as any, { useAuthToken: true });
 
-        console.log(`[ACTION] Product created successfully: ${(data as any)?.createMyProduct?.id}`);
-        return { success: true, product: (data as any)?.createMyProduct };
+        const createdProduct = (data as any)?.createMyProduct;
+        console.log(`[ACTION] Product created successfully: ${createdProduct?.id}`);
+
+        // ONLY delete the previous draft AFTER the new product has been successfully created in DB!
+        // This prevents deleting the vendor's draft when validation or server errors occur.
+        if (draftId && draftId.trim() !== '' && draftId !== 'undefined' && draftId !== 'null' && createdProduct?.id && createdProduct.id !== draftId) {
+            try {
+                console.log(`[ACTION] Cleaning up replaced draft ${draftId}...`);
+                await mutate(DeleteMyProductMutation, { id: draftId }, { useAuthToken: true });
+            } catch (delErr) {
+                console.warn(`[ACTION] Could not delete previous draft ${draftId}:`, delErr);
+            }
+        }
+
+        return { success: true, product: createdProduct };
     } catch (e: any) {
         console.error(`[ACTION] Error creating product: ${e.message}`);
         return { success: false, error: e.message };

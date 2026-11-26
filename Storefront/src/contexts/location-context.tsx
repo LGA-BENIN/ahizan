@@ -5,6 +5,7 @@ import { getShopApiUrl } from "@/lib/vendure/api-utils";
 import { clearClientCache } from "@/lib/vendure/client-cache";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { syncCustomerActiveLocationAction } from "@/lib/vendure/location-actions";
 
 export interface LocationData {
     id: string;
@@ -23,6 +24,7 @@ export interface LocationData {
 
 interface LocationContextType {
     selectedLocation: LocationData | null;
+    hasUserChosenLocation: boolean;
     markets: any[];
     neighborhoods: any[];
     cities: any[];
@@ -70,8 +72,28 @@ const FALLBACK_CITIES = [
     { id: "2", name: "Porto-Novo", slug: "porto-novo", type: "COMMUNE", centerLatitude: 6.4935, centerLongitude: 2.6247 }
 ];
 
+export const BENIN_MAJOR_CITIES: LocationData[] = [
+    { id: "cotonou", name: "Cotonou", latitude: 6.3654, longitude: 2.4183, type: "COMMUNE", commune: "Cotonou", department: "Littoral" },
+    { id: "porto-novo", name: "Porto-Novo", latitude: 6.4969, longitude: 2.6289, type: "COMMUNE", commune: "Porto-Novo", department: "Ouémé" },
+    { id: "abomey-calavi", name: "Abomey-Calavi", latitude: 6.4486, longitude: 2.3556, type: "COMMUNE", commune: "Abomey-Calavi", department: "Atlantique" },
+    { id: "parakou", name: "Parakou", latitude: 9.3371, longitude: 2.6303, type: "COMMUNE", commune: "Parakou", department: "Borgou" },
+    { id: "bohicon", name: "Bohicon", latitude: 7.1783, longitude: 2.0667, type: "COMMUNE", commune: "Bohicon", department: "Zou" },
+    { id: "ouidah", name: "Ouidah", latitude: 6.3631, longitude: 2.0851, type: "COMMUNE", commune: "Ouidah", department: "Atlantique" },
+];
+
+export const DEFAULT_FALLBACK_LOCATION: LocationData = {
+    id: "18",
+    name: "Cotonou",
+    latitude: 6.3654,
+    longitude: 2.4183,
+    type: "COMMUNE",
+    commune: "Cotonou",
+    department: "Littoral",
+};
+
 export function LocationProvider({ children }: { children: ReactNode }) {
-    const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
+    const [selectedLocation, setSelectedLocation] = useState<LocationData>(DEFAULT_FALLBACK_LOCATION);
+    const [hasUserChosenLocation, setHasUserChosenLocation] = useState<boolean>(false);
     const [markets, setMarkets] = useState<any[]>(FALLBACK_MARKETS);
     const [neighborhoods, setNeighborhoods] = useState<any[]>([]);
     const [cities, setCities] = useState<any[]>(FALLBACK_CITIES);
@@ -82,11 +104,28 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     const watchIdRef = useRef<number | null>(null);
     const lastAutoUpdateRef = useRef<{ lat: number; lon: number } | null>(null);
 
-    // 1. Restore location from localStorage on mount
+    // 1. Sync active customer location to backend database
+    const syncCustomerLocationToBackend = async (loc: LocationData) => {
+        if (!loc || typeof window === 'undefined') return;
+        try {
+            await syncCustomerActiveLocationAction(loc);
+        } catch {
+            // Fails silently if guest or offline
+        }
+    };
+
+    // 1b. Restore location from localStorage on mount & sync
     useEffect(() => {
         try {
             const stored = localStorage.getItem('ahizan_client_location');
-            if (stored) setSelectedLocation(JSON.parse(stored));
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                setSelectedLocation(parsed);
+                setHasUserChosenLocation(true);
+                syncCustomerLocationToBackend(parsed);
+            } else {
+                setHasUserChosenLocation(false);
+            }
         } catch (e) {
             console.error('Failed to parse stored location:', e);
         }
@@ -300,11 +339,13 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     // 4. Internal apply (no toast) — used by auto-tracking
     const _applyLocation = (loc: LocationData) => {
         setSelectedLocation(loc);
+        setHasUserChosenLocation(true);
         localStorage.setItem('ahizan_client_location', JSON.stringify(loc));
         if (typeof window !== 'undefined') {
             document.cookie = `ahizan_client_location=${encodeURIComponent(JSON.stringify(loc))}; path=/; max-age=31536000; SameSite=Lax`;
             window.dispatchEvent(new Event('ahizan_location_changed'));
         }
+        syncCustomerLocationToBackend(loc);
     };
 
     // 5. Public select/clear with user feedback
@@ -319,7 +360,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     const clearLocation = () => {
         clearClientCache();
-        setSelectedLocation(null);
+        setSelectedLocation(DEFAULT_FALLBACK_LOCATION);
+        setHasUserChosenLocation(false);
         localStorage.removeItem('ahizan_client_location');
         if (watchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
             navigator.geolocation.clearWatch(watchIdRef.current);
@@ -456,98 +498,75 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         });
     };
 
-    // 8. On mount — auto-GPS logic based on permission state
+    // 8. On mount — safe, non-blocking GPS permission check (Safari iOS, Android & WebView resilient)
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
         const nav = window.navigator as Navigator;
-        if (!nav.geolocation) return;
+        if (!nav || !nav.geolocation) return;
 
         const geo = nav.geolocation;
 
         const doReverseAndApply = async (latitude: number, longitude: number, silent = false) => {
-            const stored = localStorage.getItem('ahizan_client_location');
-            const current = stored ? (JSON.parse(stored) as LocationData) : null;
+            try {
+                const stored = localStorage.getItem('ahizan_client_location');
+                const current = stored ? (JSON.parse(stored) as LocationData) : null;
 
-            // If user has a manual location selected, NEVER overwrite with GPS!
-            if (current && current.type !== 'GPS') {
-                return;
-            }
+                // If user has a manual location selected, NEVER overwrite with GPS!
+                if (current && current.type !== 'GPS') {
+                    return;
+                }
 
-            lastAutoUpdateRef.current = { lat: latitude, lon: longitude };
-            const loc = await reverseGeocode(latitude, longitude);
-            loc.type = 'GPS';
+                lastAutoUpdateRef.current = { lat: latitude, lon: longitude };
+                const loc = await reverseGeocode(latitude, longitude);
+                loc.type = 'GPS';
 
-            if (!stored || (current && current.type === 'GPS')) {
-                _applyLocation(loc);
-                if (!silent) toast.info(`📍 Zone mise à jour : ${loc.name}`, { duration: 4000 });
-                startWatchPosition();
-            }
-        };
-
-        const runAutoGps = (permState: PermissionState) => {
-            const stored = localStorage.getItem('ahizan_client_location');
-            const current = stored ? (JSON.parse(stored) as LocationData) : null;
-
-            // If user has a manual selection, do not trigger auto-GPS
-            if (current && current.type !== 'GPS') {
-                return;
-            }
-
-            if (permState === 'granted') {
-                // Already granted & GPS mode / no selection → silent position fix + watch
-                geo.getCurrentPosition(
-                    async (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, true),
-                    (err) => console.warn('Silent GPS init failed:', err),
-                    { enableHighAccuracy: true, timeout: 9000, maximumAge: 0 }
-                );
-            } else if (permState === 'prompt' && !stored) {
-                // Not yet asked AND no saved location → trigger native browser prompt automatically
-                geo.getCurrentPosition(
-                    async (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, false),
-                    (err) => console.info('Auto GPS prompt declined:', err.code),
-                    { enableHighAccuracy: true, timeout: 15000 }
-                );
+                if (!stored || (current && current.type === 'GPS')) {
+                    _applyLocation(loc);
+                    if (!silent) toast.info(`📍 Zone mise à jour : ${loc.name}`, { duration: 4000 });
+                    startWatchPosition();
+                }
+            } catch (err) {
+                console.warn('GPS reverse geocode error:', err);
             }
         };
 
-        const tryDirectGps = () => {
-            const stored = localStorage.getItem('ahizan_client_location');
-            const current = stored ? (JSON.parse(stored) as LocationData) : null;
-            if (!stored || current?.type === 'GPS') {
-                geo.getCurrentPosition(
-                    async (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, false),
-                    (err) => console.info('Auto GPS (no PermAPI) declined:', err.code),
-                    { enableHighAccuracy: true, timeout: 15000 }
-                );
-            }
-        };
-
-        const permissionsApi = (nav as any).permissions as Permissions | undefined;
-
-        if (permissionsApi) {
-            permissionsApi.query({ name: 'geolocation' as PermissionName }).then((result) => {
-                setGpsPermission(result.state);
-                runAutoGps(result.state);
-
-                result.addEventListener('change', () => {
-                    setGpsPermission(result.state);
-                    if (result.state === 'granted') {
-                        const stored = localStorage.getItem('ahizan_client_location');
-                        const current = stored ? (JSON.parse(stored) as LocationData) : null;
-                        if (!current || current.type === 'GPS') {
-                            startWatchPosition();
+        // Only query permissions if genuinely supported and safe
+        try {
+            const permissionsApi = (nav as any).permissions as Permissions | undefined;
+            if (permissionsApi && typeof permissionsApi.query === 'function') {
+                permissionsApi.query({ name: 'geolocation' as any })
+                    .then((result) => {
+                        setGpsPermission(result.state);
+                        // Only auto-locate if permission is ALREADY explicitly granted
+                        if (result.state === 'granted') {
+                            geo.getCurrentPosition(
+                                (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, true),
+                                (err) => console.warn('Silent GPS init failed:', err),
+                                { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+                            );
                         }
-                    } else if (result.state === 'denied' && watchIdRef.current !== null) {
-                        geo.clearWatch(watchIdRef.current);
-                        watchIdRef.current = null;
-                    }
-                });
-            }).catch(() => {
-                tryDirectGps();
-            });
-        } else {
-            tryDirectGps();
+
+                        result.addEventListener('change', () => {
+                            setGpsPermission(result.state);
+                            if (result.state === 'granted') {
+                                geo.getCurrentPosition(
+                                    (pos) => doReverseAndApply(pos.coords.latitude, pos.coords.longitude, true),
+                                    (err) => console.warn('GPS change error:', err),
+                                    { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+                                );
+                            } else if (result.state === 'denied' && watchIdRef.current !== null) {
+                                geo.clearWatch(watchIdRef.current);
+                                watchIdRef.current = null;
+                            }
+                        });
+                    })
+                    .catch(() => {
+                        // Permissions API failed or rejected (e.g. Safari iOS) - fail gracefully without prompting
+                    });
+            }
+        } catch (e) {
+            // Permissions API unsupported on this browser
         }
 
         return () => {
@@ -614,6 +633,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     return (
         <LocationContext.Provider value={{
             selectedLocation,
+            hasUserChosenLocation,
             markets,
             neighborhoods,
             cities,

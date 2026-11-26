@@ -83,6 +83,14 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
         const newTabs = [...config.tabs];
         newTabs[index] = { ...newTabs[index], [field]: value };
         
+        if (field === 'filterType') {
+            if (value === 'AUTOMATIC') {
+                newTabs[index].selectionMode = 'AUTOMATIC';
+            } else if (value === 'COLLECTION') {
+                newTabs[index].selectionMode = 'COLLECTIONS';
+            }
+        }
+
         // Auto-update collectionSlug if we're setting collectionIds
         if (field === 'collectionIds' && Array.isArray(value)) {
             let firstSlug = '';
@@ -260,9 +268,10 @@ export const TabbedProductGridSettings = ({ data, onSave }: TabbedProductGridSet
                             <div>
                                 <Label htmlFor={`tab-filter-${activeTabIdx}`}>Source de produits</Label>
                                 <Select id={`tab-filter-${activeTabIdx}`} value={currentTab.filterType} onChange={(e) => updateTab(activeTabIdx, 'filterType', e.target.value)}>
-                                    <option value="LATEST">Derniers arrivages</option>
-                                    <option value="BEST_SELLERS">Meilleures ventes</option>
-                                    <option value="COLLECTION">Par collection</option>
+                                    <option value="AUTOMATIC">⚡ Moteur de Produit (Géolocalisé & Vendeurs Locaux)</option>
+                                    <option value="BEST_SELLERS">🔥 Meilleures ventes</option>
+                                    <option value="LATEST">✨ Derniers arrivages</option>
+                                    <option value="COLLECTION">📁 Par collection</option>
                                 </Select>
                             </div>
                             <div>

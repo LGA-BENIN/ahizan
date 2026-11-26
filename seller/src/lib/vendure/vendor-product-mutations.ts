@@ -231,3 +231,34 @@ export const GetGlobalOptionGroupsQuery = graphql(`
     }
 `);
 
+export const GetMarketplaceSettingsQuery = `
+    query GetMarketplaceSettings {
+        marketplaceSettings {
+            minimumMarketplacePrice
+            minimumMarketplaceStock
+        }
+    }
+`;
+
+export interface MarketplaceSettingsData {
+    minimumMarketplacePrice: number;
+    minimumMarketplaceStock: number;
+}
+
+export async function fetchMarketplaceSettings(): Promise<MarketplaceSettingsData> {
+    try {
+        const { query } = await import('@/lib/vendure/api');
+        const res = await query(GetMarketplaceSettingsQuery, {}, { useAuthToken: false });
+        const settings = res.data?.marketplaceSettings;
+        return {
+            minimumMarketplacePrice: typeof settings?.minimumMarketplacePrice === 'number' ? settings.minimumMarketplacePrice : 300,
+            minimumMarketplaceStock: typeof settings?.minimumMarketplaceStock === 'number' ? settings.minimumMarketplaceStock : 1,
+        };
+    } catch (e) {
+        return {
+            minimumMarketplacePrice: 300,
+            minimumMarketplaceStock: 1,
+        };
+    }
+}
+

@@ -3,3 +3,5 @@
 **/.next
 **/.env*
 !frontend/.env.local
+backend/static/assets/**
+

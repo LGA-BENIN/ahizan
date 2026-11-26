@@ -306,7 +306,7 @@ export function NotificationBell({
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 top-full mt-2 w-[calc(100vw-24px)] max-w-[380px] sm:w-96 bg-white rounded-3xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                <div className="fixed right-3 left-auto top-14 sm:absolute sm:right-0 sm:left-auto sm:top-full mt-1.5 w-[calc(100vw-24px)] max-w-[340px] sm:w-84 md:w-88 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                     {/* Blocked / Recovery Alert Banner */}
                     {permissionState === 'denied' && (
                         <div className="bg-gradient-to-r from-red-500/10 via-amber-500/10 to-primary/10 border-b border-red-100 p-3 flex items-start gap-2.5 text-left">

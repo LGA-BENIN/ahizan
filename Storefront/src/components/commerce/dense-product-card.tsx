@@ -33,6 +33,12 @@ function formatCFA(price: number): string {
 }
 
 function getPrice(product: any): number {
+    if (product.price !== undefined && product.price !== null && !isNaN(Number(product.price)) && Number(product.price) > 0) {
+        return Number(product.price);
+    }
+    if (product.winningOffer?.price !== undefined && product.winningOffer?.price !== null && !isNaN(Number(product.winningOffer.price)) && Number(product.winningOffer.price) > 0) {
+        return Number(product.winningOffer.price);
+    }
     if (product.priceWithTax?.__typename === 'SinglePrice') return product.priceWithTax.value;
     return product.priceWithTax?.min ?? 0;
 }
@@ -153,6 +159,13 @@ export function DenseProductCard({
         if (priceInfo.showBothPrices) {
             oldPrice = priceInfo.originalPrice;
             discountPercent = priceInfo.discountPercentage;
+        }
+    } else if ((product.onPromotion || product.winningOffer?.onPromotion) && (product.promotionalPrice || product.winningOffer?.promotionalPrice)) {
+        const promoVal = Number(product.promotionalPrice || product.winningOffer?.promotionalPrice);
+        if (promoVal > 0 && promoVal < price) {
+            displayPrice = promoVal;
+            oldPrice = price;
+            discountPercent = product.discountPercentage || product.winningOffer?.discountPercentage || Math.round(((price - promoVal) / price) * 100);
         }
     } else {
         if (showStrikethroughPrice && maxPrice && maxPrice > price) {

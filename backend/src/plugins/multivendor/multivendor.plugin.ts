@@ -140,6 +140,15 @@ ${shopApiExtensions}
         });
 
         pushUnique(config.customFields.GlobalSettings, {
+            name: 'minimumMarketplaceStock',
+            type: 'int',
+            public: true,
+            nullable: true,
+            defaultValue: 1,
+            label: [{ languageCode: 'fr' as any, value: 'Stock minimal sur la marketplace' }],
+        });
+
+        pushUnique(config.customFields.GlobalSettings, {
             name: 'whatsappNumber',
             type: 'string',
             public: true,

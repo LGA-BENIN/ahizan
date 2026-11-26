@@ -274,25 +274,25 @@ export function NotificationBell({
 
             {/* Dropdown */}
             {isOpen && (
-                <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 top-full mt-2 w-[calc(100vw-24px)] max-w-[380px] sm:w-96 bg-white dark:bg-card rounded-2xl shadow-2xl border border-gray-100 dark:border-border z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200">
+                <div className="fixed right-3 top-14 sm:absolute sm:top-full sm:right-0 mt-1.5 w-[calc(100vw-24px)] sm:w-80 max-w-[320px] bg-white dark:bg-card rounded-2xl shadow-2xl border border-gray-100 dark:border-border z-[9999] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                     {/* Blocked / Recovery Alert Banner */}
                     {permissionState === 'denied' && (
-                        <div className="bg-gradient-to-r from-red-500/10 via-amber-500/10 to-primary/10 border-b border-red-100 dark:border-red-900/30 p-3 flex items-start gap-2.5 text-left">
-                            <Lock className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                        <div className="bg-gradient-to-r from-red-500/10 via-amber-500/10 to-primary/10 border-b border-red-100 dark:border-red-900/30 p-2.5 flex items-start gap-2 text-left">
+                            <Lock className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-gray-900 dark:text-foreground">Notifications de commandes bloquées 🔒</p>
-                                <p className="text-[11px] text-gray-600 dark:text-muted-foreground mt-0.5">
-                                    Votre navigateur bloque les alertes. Vous risquez de manquer des nouvelles commandes.
+                                <p className="text-xs font-bold text-gray-900 dark:text-foreground">Notifications bloquées 🔒</p>
+                                <p className="text-[11px] text-gray-600 dark:text-muted-foreground mt-0.5 leading-tight">
+                                    Votre navigateur bloque les alertes de commandes.
                                 </p>
                                 <button
                                     onClick={() => {
                                         setIsOpen(false);
                                         window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
                                     }}
-                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-red-600 text-white rounded-lg text-[11px] font-bold hover:bg-red-700 transition-colors shadow-sm"
+                                    className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 bg-red-600 text-white rounded-md text-[11px] font-bold hover:bg-red-700 transition-colors shadow-xs"
                                 >
                                     <Lock className="w-3 h-3" />
-                                    Guide de déblocage 🔒
+                                    Débloquer
                                 </button>
                             </div>
                         </div>
@@ -300,41 +300,41 @@ export function NotificationBell({
 
                     {/* Default (Not yet granted) Prompt Banner */}
                     {permissionState === 'default' && (
-                        <div className="bg-blue-50/80 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/30 p-3 flex items-start gap-2.5 text-left">
-                            <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        <div className="bg-blue-50/80 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/30 p-2.5 flex items-start gap-2 text-left">
+                            <Sparkles className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-gray-900 dark:text-foreground">Activez les alertes commandes 🔔</p>
-                                <p className="text-[11px] text-gray-600 dark:text-muted-foreground mt-0.5">
-                                    Soyez averti instantanément sur votre téléphone ou PC à chaque vente.
+                                <p className="text-xs font-bold text-gray-900 dark:text-foreground">Activez les alertes 🔔</p>
+                                <p className="text-[11px] text-gray-600 dark:text-muted-foreground mt-0.5 leading-tight">
+                                    Recevez chaque vente instantanément sur votre téléphone.
                                 </p>
                                 <button
                                     onClick={() => {
                                         setIsOpen(false);
                                         window.dispatchEvent(new CustomEvent('ahizan:open-push-prompt'));
                                     }}
-                                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-primary text-white rounded-lg text-[11px] font-bold hover:bg-primary/90 transition-colors shadow-sm"
+                                    className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-white rounded-md text-[11px] font-bold hover:bg-primary/90 transition-colors shadow-xs"
                                 >
                                     <Bell className="w-3 h-3" />
-                                    Activer les alertes
+                                    Activer
                                 </button>
                             </div>
                         </div>
                     )}
 
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-border">
-                        <span className="font-semibold text-sm text-gray-900 dark:text-foreground">
+                    <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-gray-100 dark:border-border bg-gray-50/40 dark:bg-muted/20">
+                        <span className="font-semibold text-xs text-gray-900 dark:text-foreground flex items-center gap-1.5">
                             Notifications
                             {unreadCount > 0 && (
-                                <span className="ml-2 px-2 py-0.5 text-xs bg-red-100 text-red-600 rounded-full font-medium">
-                                    {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+                                <span className="px-1.5 py-0.2 text-[10px] bg-red-100 text-red-600 rounded-full font-bold">
+                                    {unreadCount}
                                 </span>
                             )}
                         </span>
                         {unreadCount > 0 && (
                             <button
                                 onClick={markAllRead}
-                                className="text-xs text-primary font-medium flex items-center gap-1 hover:underline"
+                                className="text-[11px] text-primary font-medium flex items-center gap-1 hover:underline"
                             >
                                 <CheckCheck className="h-3 w-3" />
                                 Tout marquer lu
@@ -343,52 +343,52 @@ export function NotificationBell({
                     </div>
 
                     {/* List */}
-                    <div className="max-h-96 overflow-y-auto divide-y divide-gray-50 dark:divide-border">
+                    <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto divide-y divide-gray-50 dark:divide-border">
                         {isLoading ? (
-                            <div className="flex items-center justify-center py-10">
+                            <div className="flex items-center justify-center py-8">
                                 <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                             </div>
                         ) : notifications.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-                                <Bell className="h-8 w-8 mb-2 opacity-40" />
-                                <p className="text-sm font-medium">Aucune notification</p>
+                            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                                <Bell className="h-7 w-7 mb-1.5 opacity-40" />
+                                <p className="text-xs font-medium">Aucune notification</p>
                             </div>
                         ) : (
                             notifications.map((notif) => (
                                 <div
                                     key={notif.id}
-                                    className={`flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-muted/50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-blue-50/40 dark:bg-blue-950/10' : ''}`}
+                                    className={`flex gap-2.5 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-muted/50 transition-colors cursor-pointer ${!notif.isRead ? 'bg-blue-50/30 dark:bg-blue-950/10' : ''}`}
                                     onClick={() => {
                                         if (!notif.isRead) markOneRead(notif.id);
                                         if (notif.actionUrl) window.location.href = notif.actionUrl;
                                     }}
                                 >
                                     {/* Icon */}
-                                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
+                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
                                         {notif.iconUrl ? (
-                                            <img src={notif.iconUrl} alt="" className="w-5 h-5 object-contain" />
+                                            <img src={notif.iconUrl} alt="" className="w-4 h-4 object-contain" />
                                         ) : (
-                                            <Bell className="h-4 w-4 text-primary" />
+                                            <Bell className="h-3.5 w-3.5 text-primary" />
                                         )}
                                     </div>
 
                                     {/* Content */}
                                     <div className="flex-1 min-w-0">
-                                        <p className={`text-sm leading-snug ${!notif.isRead ? 'font-semibold text-gray-900 dark:text-foreground' : 'font-medium text-gray-700 dark:text-muted-foreground'}`}>
+                                        <p className={`text-xs leading-snug ${!notif.isRead ? 'font-bold text-gray-900 dark:text-foreground' : 'font-medium text-gray-700 dark:text-muted-foreground'}`}>
                                             {notif.title}
                                         </p>
                                         {notif.body && (
-                                            <p className="text-xs text-gray-500 dark:text-muted-foreground mt-0.5 line-clamp-2">{notif.body}</p>
+                                            <p className="text-[11px] text-gray-500 dark:text-muted-foreground mt-0.5 line-clamp-2 leading-tight">{notif.body}</p>
                                         )}
-                                        <p className="text-[10px] text-gray-400 mt-1">{formatDate(notif.createdAt)}</p>
+                                        <p className="text-[9px] text-gray-400 mt-0.5">{formatDate(notif.createdAt)}</p>
                                     </div>
 
                                     {/* Right controls (unread dot & delete icon) */}
-                                    <div className="flex flex-col items-center justify-between gap-2 self-stretch flex-shrink-0">
+                                    <div className="flex flex-col items-center justify-between gap-1 self-stretch flex-shrink-0">
                                         {!notif.isRead ? (
-                                            <div className="w-2 h-2 rounded-full bg-blue-500 mt-2" />
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1" />
                                         ) : (
-                                            <div className="w-2 h-2" />
+                                            <div className="w-1.5 h-1.5" />
                                         )}
                                         <button
                                             onClick={(e) => {
@@ -396,9 +396,9 @@ export function NotificationBell({
                                                 deleteNotification(notif.id);
                                             }}
                                             className="text-gray-400 hover:text-red-500 p-1 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-colors"
-                                            title="Supprimer cette notification"
+                                            title="Supprimer"
                                         >
-                                            <Trash2 className="h-3.5 w-3.5" />
+                                            <Trash2 className="h-3 w-3" />
                                         </button>
                                     </div>
                                 </div>
@@ -407,14 +407,14 @@ export function NotificationBell({
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-gray-100 dark:border-border px-4 py-2.5 flex items-center justify-between text-xs text-gray-500 dark:text-muted-foreground bg-gray-50/50 dark:bg-muted/30">
+                    <div className="border-t border-gray-100 dark:border-border px-3 py-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-muted-foreground bg-gray-50/60 dark:bg-muted/30">
                         <span>Alertes Push</span>
                         <button
                             onClick={() => {
                                 setIsOpen(false);
                                 window.dispatchEvent(new CustomEvent('ahizan:open-push-recovery'));
                             }}
-                            className="text-primary hover:underline font-medium flex items-center gap-1"
+                            className="text-primary hover:underline font-semibold flex items-center gap-1"
                         >
                             Guide / Débloquer 🔒
                         </button>

@@ -626,17 +626,23 @@ export const commonApiExtensions = `
     }
 
     input CreateAssistedCustomerInput {
-        firstName: String!
+        customerId: ID
+        firstName: String
         lastName: String
-        phoneNumber: String!
-        city: String!
+        phoneNumber: String
+        emailAddress: String
+        city: String
         neighborhood: String
+        province: String
+        latitude: Float
+        longitude: Float
     }
 
     input CreateAssistedItemInput {
         productVariantId: ID!
         quantity: Int!
         vendorId: ID
+        sellerOfferId: ID
     }
 
     input CreateAssistedOrderInput {
@@ -651,6 +657,43 @@ export const commonApiExtensions = `
         optionGroups: [CreateVendorOptionGroupInput!]
         offers: [TagVariantOfferInput!]!
     }
+
+    input SetCustomerActiveLocationInput {
+        customerId: ID
+        city: String!
+        neighborhood: String
+        province: String
+        latitude: Float!
+        longitude: Float!
+        locationName: String
+        locationType: String
+        marketId: ID
+    }
+
+    type CustomerActiveLocationResult {
+        success: Boolean!
+        customerId: ID
+        city: String
+        streetLine1: String
+        latitude: Float
+        longitude: Float
+        message: String
+    }
+
+    type DeliveryCalculationResult {
+        shippingFee: Int!
+        distanceKm: Float!
+        vendorName: String
+        vendorCity: String
+        clientLatitude: Float!
+        clientLongitude: Float!
+        eligible: Boolean!
+    }
+
+    type MarketplaceSettings {
+        minimumMarketplacePrice: Int!
+        minimumMarketplaceStock: Int!
+    }
 `;
 
 export const shopApiExtensions = `
@@ -662,6 +705,7 @@ export const shopApiExtensions = `
 
     extend type Query {
         publicPlatformStats: PlatformPublicStats!
+        marketplaceSettings: MarketplaceSettings!
         vendor(id: ID!): Vendor
         vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID, radiusKm: Float): VendorList!
         myVendorProfile: Vendor
@@ -710,6 +754,7 @@ export const shopApiExtensions = `
         officialProductDetail(id: ID!): Product
         vendorSettlements(vendorId: ID!): [Settlement!]!
         vendorAvailableBalance(vendorId: ID!): VendorBalanceResult!
+        calculateGeoEngineDeliveryFee(latitude: Float!, longitude: Float!, variantIds: [ID!]!): DeliveryCalculationResult!
     }
 
     extend type Mutation {
@@ -762,6 +807,7 @@ export const shopApiExtensions = `
         tagProductWithVariantOffers(input: TagProductWithVariantOffersInput!): [SellerOffer!]!
         updateMyVariantOffers(offers: [TagVariantOfferInput!]!): [SellerOffer!]!
         normalizeProductWithAI(id: ID!): Product!
+        setCustomerActiveLocation(input: SetCustomerActiveLocationInput!): CustomerActiveLocationResult!
     }
 `;
 
@@ -769,9 +815,11 @@ export const shopApiExtensions = `
 export const adminApiExtensions = `
     extend type Query {
         publicPlatformStats: PlatformPublicStats!
+        marketplaceSettings: MarketplaceSettings!
         vendors(options: VendorListOptions, latitude: Float, longitude: Float, marketId: ID, locationId: ID): VendorList!
         vendor(id: ID!): Vendor
         adminVendorProducts(options: ProductListOptions): ProductList!
+        searchPlatformCustomers(term: String): [Customer!]!
         myVendorProfile: Vendor
         myVendorProducts(options: ProductListOptions): ProductList!
         myVendorOrders(options: OrderListOptions): OrderList!
@@ -799,6 +847,7 @@ export const adminApiExtensions = `
         officialProductDetail(id: ID!): Product
         vendorSettlements(vendorId: ID!): [Settlement!]!
         vendorAvailableBalance(vendorId: ID!): VendorBalanceResult!
+        calculateGeoEngineDeliveryFee(latitude: Float!, longitude: Float!, variantIds: [ID!]!): DeliveryCalculationResult!
     }
 
     input OptionGroupInput {
@@ -955,5 +1004,6 @@ export const adminApiExtensions = `
         updateMyVariantOffers(offers: [TagVariantOfferInput!]!): [SellerOffer!]!
         normalizeProductWithAI(id: ID!): Product!
         createAssistedOrder(input: CreateAssistedOrderInput!): Order!
+        setCustomerActiveLocation(input: SetCustomerActiveLocationInput!): CustomerActiveLocationResult!
     }
 `;

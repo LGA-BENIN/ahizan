@@ -86,9 +86,13 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
     // Offers for this product (passed from server or fetched dynamically)
     const [sellerOffers, setSellerOffers] = useState<any[]>(allOffers || []);
 
-    // Fallback client-side fetch if allOffers was not supplied
+    // Fallback client-side fetch if allOffers was not supplied or if the requested vendor is missing from cached offers
     useEffect(() => {
-        if (!allOffers || allOffers.length === 0) {
+        const urlVendor = searchParams?.vendorId || currentSearchParams?.get('vendorId');
+        const targetVendorId = urlVendor ? String(Array.isArray(urlVendor) ? urlVendor[0] : urlVendor) : null;
+        const hasRequestedVendor = targetVendorId ? sellerOffers.some(o => String(o.vendor?.id) === targetVendorId) : true;
+
+        if (!allOffers || allOffers.length === 0 || !hasRequestedVendor) {
             const vIds = (product.variants || []).map((v) => v.id);
             if (vIds.length > 0) {
                 getSellerOffersForProductVariants(vIds)
@@ -100,7 +104,7 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                     .catch(() => {});
             }
         }
-    }, [allOffers, product.variants]);
+    }, [allOffers, product.variants, searchParams, currentSearchParams]);
 
     // 1. Identify the Selected Vendor
     const initialVendorId = useMemo(() => {
@@ -455,6 +459,13 @@ export function ProductInfo({product, searchParams, config, whatsappNumber, allO
                     description: `${product.name} (${selectedVariant.name || ''}) a été ajouté à votre panier`,
                 });
                 router.refresh();
+
+                // Contextual notification prompt: ask to track order/cart delivery when adding to cart
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                    setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('ahizan:open-push-prompt'));
+                    }, 2000);
+                }
 
                 // Reset the added button state after 2 seconds
                 setTimeout(() => setIsAdded(false), 2000);

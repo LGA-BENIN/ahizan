@@ -50,6 +50,10 @@ interface CreateProductFormProps {
     initialProduct?: any;
     onSuccess?: () => void;
     onSwitchToGraft?: (productOrTerm: any, variantId?: string) => void;
+    marketplaceSettings?: {
+        minimumMarketplacePrice: number;
+        minimumMarketplaceStock: number;
+    };
     className?: string;
 }
 
@@ -251,8 +255,11 @@ export default function CreateProductForm({
     initialProduct,
     onSuccess, 
     onSwitchToGraft,
+    marketplaceSettings,
     className 
 }: CreateProductFormProps) {
+    const minPrice = marketplaceSettings?.minimumMarketplacePrice ?? 300;
+    const minStock = marketplaceSettings?.minimumMarketplaceStock ?? 1;
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
     const [currentDraftId, setCurrentDraftId] = useState<string | null>(initialProduct?.id || null);
@@ -432,19 +439,19 @@ export default function CreateProductForm({
         // Check if any selected variant has incomplete price or stock
         const selectedList = variants.filter(v => selectedVariantIds.has(v.id));
         for (const v of selectedList) {
-            const hasPrice = v.price && Number(v.price) > 0;
-            const hasStock = v.stock !== undefined && v.stock !== null && Number(v.stock) > 0;
+            const hasPrice = v.price && Number(v.price) >= minPrice;
+            const hasStock = v.stock !== undefined && v.stock !== null && Number(v.stock) >= minStock;
 
-            if (hasPrice && !hasStock) {
-                toast.error(`Veuillez entrer le stock de la déclinaison "${v.name}" ou effacer son prix pour l'enlever de la liste.`);
+            if (v.price && Number(v.price) < minPrice) {
+                toast.error(`Le prix de la déclinaison "${v.name}" doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
                 return;
             }
-            if (!hasPrice && hasStock) {
-                toast.error(`Veuillez entrer le prix de la déclinaison "${v.name}" ou effacer son stock pour l'enlever de la liste.`);
+            if (v.stock !== undefined && v.stock !== null && Number(v.stock) < minStock) {
+                toast.error(`Le stock de la déclinaison "${v.name}" doit être d'au moins ${minStock}.`);
                 return;
             }
-            if (!hasPrice && !hasStock) {
-                toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${v.name}" avant de l'enregistrer.`);
+            if (!hasPrice || !hasStock) {
+                toast.error(`Veuillez renseigner le prix (min. ${minPrice.toLocaleString('fr-FR')} FCFA) et le stock (min. ${minStock}) de la déclinaison "${v.name}" avant de l'enregistrer.`);
                 return;
             }
         }
@@ -464,8 +471,8 @@ export default function CreateProductForm({
     };
 
     const handleBulkApplyPrice = (priceVal: number) => {
-        if (priceVal <= 0) {
-            toast.error("Veuillez indiquer un prix supérieur à 0 FCFA.");
+        if (priceVal < minPrice) {
+            toast.error(`Le prix doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
             return;
         }
         setVariants((prev: VariantRow[]) => prev.map((v: VariantRow) => selectedVariantIds.has(v.id) ? { ...v, price: priceVal } : v));
@@ -475,7 +482,10 @@ export default function CreateProductForm({
     };
 
     const handleBulkApplyStock = (stockVal: number) => {
-        if (stockVal < 0) return;
+        if (stockVal < minStock) {
+            toast.error(`Le stock doit être d'au moins ${minStock}.`);
+            return;
+        }
         setVariants((prev: VariantRow[]) => prev.map((v: VariantRow) => selectedVariantIds.has(v.id) ? { ...v, stock: stockVal } : v));
         toast.success(`Stock de ${stockVal} appliqué à ${selectedVariantIds.size} déclinaison(s).`);
         setBulkStockInput('');
@@ -494,7 +504,8 @@ export default function CreateProductForm({
 
     const activeVariants = useMemo(() => variants.filter((v: VariantRow) => v.enabled !== false), [variants]);
     const draftVariants = useMemo(() => variants.filter((v: VariantRow) => v.enabled === false), [variants]);
-    const tabVariants = activeVariantTab === 'active' ? activeVariants : draftVariants;
+    // Single-variant products always show all variants without splitting into tabs
+    const tabVariants = !hasMultipleVariants ? variants : (activeVariantTab === 'active' ? activeVariants : draftVariants);
 
     const tabFilteredVariants = useMemo(() => {
         if (!searchVariantFilter.trim()) return tabVariants;
@@ -941,17 +952,11 @@ export default function CreateProductForm({
                     }));
                 } catch (lsErr) {}
 
-                toast.success("Brouillon sauvegardé !", {
-                    description: `Enregistré à ${timeStr}. Vous pouvez continuer votre saisie en toute sérénité.`,
-                    action: {
-                        label: "Voir mes produits",
-                        onClick: () => router.push('/dashboard/products')
-                    }
-                });
-
+                toast.success("Brouillon sauvegardé avec succès !");
                 if (onSuccess) {
                     onSuccess();
                 }
+                window.location.href = '/dashboard/products';
             } else {
                 toast.error(res.error || "Erreur lors de l'enregistrement du brouillon.");
             }
@@ -1002,47 +1007,89 @@ export default function CreateProductForm({
             }
         }
 
-        // 2. Auto-promote any draft variant where both price and stock are filled
-        const effectiveVariants = variants.map(v => {
-            if (v.enabled === false && v.price && Number(v.price) > 0 && v.stock !== undefined && Number(v.stock) > 0) {
-                return { ...v, enabled: true };
-            }
-            return v;
-        });
-        setVariants(effectiveVariants);
+        let activeVariants: VariantRow[] = [];
+        let effectiveVariants: VariantRow[] = [];
 
-        // 3. Filter active/registered variants only - Draft variants are NOT sent to the DB
-        const activeVariants = effectiveVariants.filter(v => v.enabled !== false && v.price && Number(v.price) > 0 && v.stock && Number(v.stock) > 0);
-        if (activeVariants.length === 0) {
-            toast.error("Veuillez renseigner le prix et le stock d'au moins une déclinaison à vendre.");
-            setActiveVariantTab('draft');
-            return;
+        // Special validation for simple product without multiple variants
+        if (!hasMultipleVariants) {
+            const standardVariant = variants[0] || { id: '1', name: 'Standard', sku: '', price: 0, stock: 0, onPromotion: false, promotionalPrice: 0, enabled: true, featuredAssetId: null, assets: [] };
+            const p = Number(standardVariant.price || 0);
+            const s = Number(standardVariant.stock ?? 0);
+
+            if (!p || p < minPrice) {
+                toast.error(`Le prix de vente (${p || 0} FCFA) doit être au minimum de ${minPrice.toLocaleString('fr-FR')} FCFA.`);
+                setErrorVariantIndices([0]);
+                const el = document.getElementById('variant-card-0');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            if (standardVariant.stock === undefined || standardVariant.stock === null || s < minStock || isNaN(s)) {
+                toast.error(`Le stock disponible doit être au minimum de ${minStock} unité(s).`);
+                setErrorVariantIndices([0]);
+                const el = document.getElementById('variant-card-0');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            if (standardVariant.onPromotion) {
+                const promo = Number(standardVariant.promotionalPrice || 0);
+                if (!promo || promo < minPrice) {
+                    toast.error(`Le prix promotionnel doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
+                    setErrorVariantIndices([0]);
+                    return;
+                }
+                if (promo >= p) {
+                    toast.error(`Le prix promo (${promo.toLocaleString('fr-FR')} FCFA) doit être inférieur au prix normal (${p.toLocaleString('fr-FR')} FCFA).`);
+                    setErrorVariantIndices([0]);
+                    return;
+                }
+            }
+
+            effectiveVariants = [{ ...standardVariant, enabled: true }];
+            activeVariants = effectiveVariants;
+            setVariants(effectiveVariants);
+        } else {
+            // Multi-variants logic
+            effectiveVariants = variants.map(v => {
+                if (v.enabled === false && v.price && Number(v.price) >= minPrice && v.stock !== undefined && Number(v.stock) >= minStock) {
+                    return { ...v, enabled: true };
+                }
+                return v;
+            });
+            setVariants(effectiveVariants);
+
+            // Filter active/registered variants only - Draft variants are NOT sent to the DB
+            activeVariants = effectiveVariants.filter(v => v.enabled !== false && v.price && Number(v.price) >= minPrice && v.stock !== undefined && Number(v.stock) >= minStock);
+            if (activeVariants.length === 0) {
+                toast.error(`Veuillez renseigner le prix (min. ${minPrice.toLocaleString('fr-FR')} FCFA) et le stock (min. ${minStock}) d'au moins une déclinaison à vendre.`);
+                setActiveVariantTab('draft');
+                return;
+            }
         }
 
         // 4. Granular validation on active declinations ONLY
         const variantErrors: { index: number; name: string; reason: string }[] = [];
         activeVariants.forEach((v) => {
             const actualIdx = effectiveVariants.findIndex(item => item.id === v.id);
-            if (!v.price || Number(v.price) <= 0) {
+            if (!v.price || Number(v.price) < minPrice) {
                 variantErrors.push({
                     index: actualIdx + 1,
                     name: v.name,
-                    reason: "Le prix de vente est obligatoire et doit être supérieur à 0 FCFA."
+                    reason: `Le prix de vente est obligatoire et doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`
                 });
             }
-            if (v.stock === undefined || v.stock === null || Number(v.stock) <= 0 || isNaN(Number(v.stock))) {
+            if (v.stock === undefined || v.stock === null || Number(v.stock) < minStock || isNaN(Number(v.stock))) {
                 variantErrors.push({
                     index: actualIdx + 1,
                     name: v.name,
-                    reason: "Le stock disponible doit être supérieur à 0."
+                    reason: `Le stock disponible doit être d'au moins ${minStock}.`
                 });
             }
             if (v.onPromotion) {
-                if (!v.promotionalPrice || Number(v.promotionalPrice) <= 0) {
+                if (!v.promotionalPrice || Number(v.promotionalPrice) < minPrice) {
                     variantErrors.push({
                         index: actualIdx + 1,
                         name: v.name,
-                        reason: "Le prix promotionnel doit être renseigné et supérieur à 0 FCFA."
+                        reason: `Le prix promotionnel doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`
                     });
                 } else if (v.price && Number(v.promotionalPrice) >= Number(v.price)) {
                     variantErrors.push({
@@ -1174,8 +1221,7 @@ export default function CreateProductForm({
                 if (onSuccess) {
                     onSuccess();
                 }
-                router.push('/dashboard/products');
-                router.refresh();
+                window.location.href = '/dashboard/products';
             } else {
                 toast.error(res.error || "Une erreur est survenue lors de l'enregistrement.");
             }
@@ -1405,13 +1451,11 @@ export default function CreateProductForm({
                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                             Catégorie de l'article <span className="text-destructive">*</span>
                         </Label>
-                        <div className="border border-border rounded-xl p-3 bg-muted/10 max-h-60 overflow-y-auto">
-                            <CategoryCheckboxTree
-                                collectionTree={collectionTree}
-                                selectedIds={selectedCategoryIds}
-                                onChange={setSelectedCategoryIds}
-                            />
-                        </div>
+                        <CategoryCheckboxTree
+                            collectionTree={collectionTree}
+                            selectedIds={selectedCategoryIds}
+                            onChange={setSelectedCategoryIds}
+                        />
                     </div>
 
                     {/* Déclinaisons / Groupes d'options */}
@@ -1883,100 +1927,110 @@ export default function CreateProductForm({
                                                 </div>
 
                                                 {/* Right / Bottom on mobile: Quick Price, Quick Stock & Actions */}
-                                                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-border/40">
-                                                    {/* Quick Price Input */}
-                                                    <div className="flex-1 sm:w-28 min-w-[110px]">
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Prix (FCFA)"
-                                                            value={v.price || ''}
-                                                            onChange={(e) => {
-                                                                const val = Math.max(0, parseInt(e.target.value) || 0);
-                                                                // Keeps variant in current tab without jumping to 'active' automatically
-                                                                setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, price: val } : item));
-                                                                if (errorVariantIndices.includes(actualIndex)) {
-                                                                    setErrorVariantIndices(prev => prev.filter(i => i !== actualIndex));
-                                                                }
-                                                            }}
-                                                            className={cn(
-                                                                "h-9 sm:h-8 text-xs font-bold rounded-lg w-full bg-background",
-                                                                isError && (!v.price || v.price <= 0) && "border-red-500 bg-red-50/20"
-                                                            )}
-                                                        />
-                                                    </div>
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-2 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-0 border-border/40">
+                                                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+                                                        {/* Quick Price Input */}
+                                                        <div className="sm:w-28">
+                                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block sm:hidden mb-1">Prix (FCFA)</span>
+                                                            <div className="relative">
+                                                                <Input
+                                                                    type="number"
+                                                                    min={minPrice}
+                                                                    placeholder={`Min ${minPrice} F`}
+                                                                    value={v.price || ''}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                                        // Keeps variant in current tab without jumping to 'active' automatically
+                                                                        setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, price: val } : item));
+                                                                        if (errorVariantIndices.includes(actualIndex)) {
+                                                                            setErrorVariantIndices(prev => prev.filter(i => i !== actualIndex));
+                                                                        }
+                                                                    }}
+                                                                    className={cn(
+                                                                        "h-9 sm:h-8 text-xs font-bold rounded-xl w-full bg-background pr-5",
+                                                                        isError && (!v.price || v.price < minPrice) && "border-red-500 bg-red-50/20"
+                                                                    )}
+                                                                />
+                                                                <span className="text-[9px] font-bold text-muted-foreground absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">F</span>
+                                                            </div>
+                                                        </div>
 
-                                                    {/* Quick Stock Input */}
-                                                    <div className="w-20 sm:w-20 min-w-[70px]">
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            placeholder="Stock"
-                                                            value={v.stock || ''}
-                                                            onChange={(e) => {
-                                                                const val = Math.max(0, parseInt(e.target.value) || 0);
-                                                                setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, stock: val } : item));
-                                                            }}
-                                                            className="h-9 sm:h-8 text-xs font-bold rounded-lg w-full bg-background"
-                                                        />
+                                                        {/* Quick Stock Input */}
+                                                        <div className="sm:w-20">
+                                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block sm:hidden mb-1">Stock</span>
+                                                            <Input
+                                                                type="number"
+                                                                min={minStock}
+                                                                placeholder={`Min ${minStock}`}
+                                                                value={v.stock || ''}
+                                                                onChange={(e) => {
+                                                                    const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                                    setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, stock: val } : item));
+                                                                }}
+                                                                className="h-9 sm:h-8 text-xs font-bold rounded-xl w-full bg-background"
+                                                            />
+                                                        </div>
                                                     </div>
 
                                                     {/* Action Button & Chevron */}
-                                                    <div className="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
-                                                        {/* Enregistrer / Activer Button when in draft tab */}
-                                                        {activeVariantTab === 'draft' ? (
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    const hasPrice = v.price && Number(v.price) > 0;
-                                                                    const hasStock = v.stock !== undefined && v.stock !== null && Number(v.stock) > 0;
+                                                    <div className="flex items-center justify-end gap-1.5 shrink-0">
+                                                        {/* Activer / Brouillon Button only when in multiple variants mode */}
+                                                        {hasMultipleVariants && (
+                                                            activeVariantTab === 'draft' ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        const hasPrice = v.price && Number(v.price) >= minPrice;
+                                                                        const hasStock = v.stock !== undefined && v.stock !== null && Number(v.stock) >= minStock;
 
-                                                                    if (hasPrice && !hasStock) {
-                                                                        toast.error(`Veuillez entrer le stock de la déclinaison "${v.name}" ou effacer son prix pour l'enlever de la liste.`);
-                                                                        return;
-                                                                    }
-                                                                    if (!hasPrice && hasStock) {
-                                                                        toast.error(`Veuillez entrer le prix de la déclinaison "${v.name}" ou effacer son stock pour l'enlever de la liste.`);
-                                                                        return;
-                                                                    }
-                                                                    if (!hasPrice && !hasStock) {
-                                                                        toast.error(`Veuillez renseigner le prix et le stock de la déclinaison "${v.name}" avant de l'enregistrer.`);
-                                                                        return;
-                                                                    }
-                                                                    if (v.onPromotion) {
-                                                                        if (!v.promotionalPrice || Number(v.promotionalPrice) <= 0) {
-                                                                            toast.error(`Veuillez renseigner le prix promotionnel pour "${v.name}".`);
+                                                                        if (v.price && Number(v.price) < minPrice) {
+                                                                            toast.error(`Le prix de "${v.name}" doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
                                                                             return;
                                                                         }
-                                                                        if (Number(v.promotionalPrice) >= Number(v.price)) {
-                                                                            toast.error(`Le prix promo (${v.promotionalPrice} F) doit être inférieur au prix normal (${v.price} F) pour "${v.name}".`);
+                                                                        if (v.stock !== undefined && v.stock !== null && Number(v.stock) < minStock) {
+                                                                            toast.error(`Le stock de "${v.name}" doit être d'au moins ${minStock}.`);
                                                                             return;
                                                                         }
-                                                                    }
-                                                                    setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: true } : item));
-                                                                    toast.success(`"${v.name}" enregistrée dans les déclinaisons utilisées !`);
-                                                                }}
-                                                                className="h-9 sm:h-8 px-3 sm:px-2.5 rounded-lg text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer shrink-0 shadow-xs"
-                                                                title="Enregistrer et déplacer vers les déclinaisons utilisées"
-                                                            >
-                                                                <Check className="w-3.5 h-3.5" />
-                                                                <span>Enregistrer</span>
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() => {
-                                                                    setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: false } : item));
-                                                                    toast.info(`"${v.name}" passée en brouillon.`);
-                                                                }}
-                                                                className="h-9 sm:h-8 px-2.5 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer shrink-0 border border-border/50 sm:border-0"
-                                                                title="Passer en brouillon"
-                                                            >
-                                                                <EyeOff className="w-3.5 h-3.5" />
-                                                                <span>Brouillon</span>
-                                                            </Button>
+                                                                        if (!hasPrice || !hasStock) {
+                                                                            toast.error(`Veuillez renseigner un prix (min. ${minPrice.toLocaleString('fr-FR')} FCFA) et un stock (min. ${minStock}) valides pour "${v.name}".`);
+                                                                            return;
+                                                                        }
+                                                                        if (v.onPromotion) {
+                                                                            if (!v.promotionalPrice || Number(v.promotionalPrice) < minPrice) {
+                                                                                toast.error(`Le prix promotionnel pour "${v.name}" doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
+                                                                                return;
+                                                                            }
+                                                                            if (Number(v.promotionalPrice) >= Number(v.price)) {
+                                                                                toast.error(`Le prix promo (${v.promotionalPrice} F) doit être inférieur au prix normal (${v.price} F) pour "${v.name}".`);
+                                                                                return;
+                                                                            }
+                                                                        }
+                                                                        setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: true } : item));
+                                                                        toast.success(`"${v.name}" activée et prête pour la vente !`);
+                                                                    }}
+                                                                    className="h-9 sm:h-8 px-3 sm:px-2.5 rounded-lg text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 cursor-pointer shrink-0 shadow-xs"
+                                                                    title="Activer et déplacer vers les déclinaisons utilisées"
+                                                                >
+                                                                    <Check className="w-3.5 h-3.5" />
+                                                                    <span>Activer</span>
+                                                                </Button>
+                                                            ) : (
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => {
+                                                                        setVariants(prev => prev.map((item, i) => i === actualIndex ? { ...item, enabled: false } : item));
+                                                                        toast.info(`"${v.name}" passée en brouillon.`);
+                                                                    }}
+                                                                    className="h-9 sm:h-8 px-2.5 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer shrink-0 border border-border/50 sm:border-0"
+                                                                    title="Passer en brouillon"
+                                                                >
+                                                                    <EyeOff className="w-3.5 h-3.5" />
+                                                                    <span>Brouillon</span>
+                                                                </Button>
+                                                            )
                                                         )}
 
                                                         {/* Chevron toggle to expand/collapse */}
@@ -2097,35 +2151,34 @@ export default function CreateProductForm({
                                                                             className="w-full h-full object-contain select-none" 
                                                                         />
 
-                                                                        {/* Starred Badge */}
-                                                                        {isStarred && (
-                                                                            <div className="absolute top-1 left-1 z-10 bg-amber-500 text-white rounded-md p-0.5 shadow-sm">
-                                                                                <Star className="w-2.5 h-2.5 fill-current" />
-                                                                            </div>
-                                                                        )}
+                                                                        {/* Starred Badge / Set Primary Button */}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleSetPrimaryVariantImage(actualIndex, asset.id, asset.preview);
+                                                                            }}
+                                                                            className={cn(
+                                                                                "absolute top-1 left-1 z-20 rounded-md p-1 shadow-sm transition-all cursor-pointer",
+                                                                                isStarred ? "bg-amber-500 text-white" : "bg-black/50 text-white/80 hover:bg-amber-500 hover:text-white"
+                                                                            )}
+                                                                            title={isStarred ? "Photo principale" : "Définir comme photo principale"}
+                                                                        >
+                                                                            <Star className={cn("w-3 h-3", isStarred && "fill-current")} />
+                                                                        </button>
 
-                                                                        {/* Actions Overlay */}
-                                                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleSetPrimaryVariantImage(actualIndex, asset.id, asset.preview)}
-                                                                                className={cn(
-                                                                                    "p-1.5 rounded-lg transition-colors cursor-pointer",
-                                                                                    isStarred ? "bg-amber-500 text-white" : "bg-white/80 text-foreground hover:bg-amber-500 hover:text-white"
-                                                                                )}
-                                                                                title="Définir comme photo principale de la déclinaison"
-                                                                            >
-                                                                                <Star className={cn("w-3.5 h-3.5", isStarred && "fill-current")} />
-                                                                            </button>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleRemoveVariantImage(actualIndex, asset.id)}
-                                                                                className="p-1.5 rounded-lg bg-red-500/90 hover:bg-red-600 text-white transition-colors cursor-pointer"
-                                                                                title="Supprimer cette photo"
-                                                                            >
-                                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                                            </button>
-                                                                        </div>
+                                                                        {/* Delete Button (Always accessible) */}
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleRemoveVariantImage(actualIndex, asset.id);
+                                                                            }}
+                                                                            className="absolute top-1 right-1 z-20 w-6 h-6 rounded-md bg-red-600/90 hover:bg-red-700 text-white flex items-center justify-center shadow-sm active:scale-90 transition-all cursor-pointer"
+                                                                            title="Supprimer cette photo"
+                                                                        >
+                                                                            <Trash2 className="w-3 h-3" />
+                                                                        </button>
                                                                     </div>
                                                                 );
                                                             })}
@@ -2260,12 +2313,12 @@ export default function CreateProductForm({
                             </button>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Indiquez le prix en FCFA à appliquer aux {selectedVariantIds.size} déclinaison(s) sélectionnée(s) :
+                            Indiquez le prix en FCFA (min. {minPrice.toLocaleString('fr-FR')} FCFA) à appliquer aux {selectedVariantIds.size} déclinaison(s) sélectionnée(s) :
                         </p>
                         <Input
                             type="number"
-                            min="1"
-                            placeholder="Ex: 15000"
+                            min={minPrice}
+                            placeholder={`Ex: ${Math.max(15000, minPrice)}`}
                             value={bulkPriceInput}
                             onChange={(e) => setBulkPriceInput(e.target.value)}
                             className="h-10 text-sm font-bold rounded-xl"

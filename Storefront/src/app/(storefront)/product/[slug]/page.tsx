@@ -79,18 +79,25 @@ const getProductData = React.cache(async (slugOrId: string) => {
         try {
             const GET_PRODUCT_BY_VARIANT_ID = `
                 query GetProductByVariant($variantId: ID!) {
-                    productVariant(id: $variantId) {
+                    sellerOffersForVariants(variantIds: [$variantId]) {
                         id
-                        product {
+                        productVariant {
                             id
-                            slug
+                            product {
+                                id
+                                slug
+                            }
                         }
                     }
                 }
             `;
             const variantRes = await rawQuery(GET_PRODUCT_BY_VARIANT_ID, { variables: { variantId: decoded } });
-            const prodId = variantRes?.productVariant?.product?.id;
-            if (prodId) {
+            const prodId = variantRes?.sellerOffersForVariants?.[0]?.productVariant?.product?.id;
+            const prodSlug = variantRes?.sellerOffersForVariants?.[0]?.productVariant?.product?.slug;
+            if (prodSlug) {
+                result = await query(GetProductDetailQuery, { slug: prodSlug });
+                if (result?.data?.product) return result;
+            } else if (prodId) {
                 result = await query(GetProductDetailQuery, { id: prodId });
                 if (result?.data?.product) return result;
             }

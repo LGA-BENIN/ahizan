@@ -110,23 +110,13 @@ export function LocalDiscoveryClient({
             };
         });
 
-        const sameCommune = list.filter((m: any) => m.isSameCommune);
-        if (sameCommune.length > 0) {
-            sameCommune.sort((a: any, b: any) => {
-                if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
-                return (a.name || '').localeCompare(b.name || '');
-            });
-            const others = list.filter((m: any) => !m.isSameCommune).sort((a: any, b: any) => {
-                if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
-                return 0;
-            });
-            return [...sameCommune, ...others];
-        }
-
         list.sort((a: any, b: any) => {
             if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
             if (a.distanceKm !== null) return -1;
-            return 0;
+            if (b.distanceKm !== null) return 1;
+            if (a.isSameCommune && !b.isSameCommune) return -1;
+            if (!a.isSameCommune && b.isSameCommune) return 1;
+            return (a.name || '').localeCompare(b.name || '');
         });
         return list;
     }, [markets, userLat, userLon, selectedLocation]);
@@ -142,9 +132,13 @@ export function LocalDiscoveryClient({
     const vendorsWithDistance = useMemo(() => {
         let list = (vendors || []).map((v: any) => {
             let distanceKm: number | null = null;
-            if (userLat && userLon && v.latitude && v.longitude) {
-                const d = calculateDistanceKm(userLat, userLon, Number(v.latitude), Number(v.longitude));
-                distanceKm = Math.round(d * 10) / 10;
+            if (userLat && userLon) {
+                const vLat = v.latitude ? Number(v.latitude) : (v.physicalMarket?.centerLatitude ? Number(v.physicalMarket.centerLatitude) : (v.location?.centerLatitude ? Number(v.location.centerLatitude) : null));
+                const vLon = v.longitude ? Number(v.longitude) : (v.physicalMarket?.centerLongitude ? Number(v.physicalMarket.centerLongitude) : (v.location?.centerLongitude ? Number(v.location.centerLongitude) : null));
+                if (vLat && vLon && !isNaN(vLat) && !isNaN(vLon)) {
+                    const d = calculateDistanceKm(userLat, userLon, vLat, vLon);
+                    distanceKm = Math.round(d * 10) / 10;
+                }
             }
             return {
                 ...v,
@@ -168,6 +162,8 @@ export function LocalDiscoveryClient({
 
         list.sort((a: any, b: any) => {
             if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
+            if (a.distanceKm !== null) return -1;
+            if (b.distanceKm !== null) return 1;
             return (b.rating || 0) - (a.rating || 0);
         });
 

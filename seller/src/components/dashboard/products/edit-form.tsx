@@ -94,6 +94,10 @@ export function sortOptionGroupsByCanonicalOrder<T extends { code?: string; name
 interface EditProductFormProps {
     product: any;
     collectionTree: any[];
+    marketplaceSettings?: {
+        minimumMarketplacePrice: number;
+        minimumMarketplaceStock: number;
+    };
 }
 
 interface VariantOfferRow {
@@ -123,7 +127,9 @@ interface OptionGroupSelection {
     customValues: string[];
 }
 
-export default function EditProductForm({ product, collectionTree }: EditProductFormProps) {
+export default function EditProductForm({ product, collectionTree, marketplaceSettings }: EditProductFormProps) {
+    const minPrice = marketplaceSettings?.minimumMarketplacePrice ?? 300;
+    const minStock = marketplaceSettings?.minimumMarketplaceStock ?? 1;
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showOfficialDetails, setShowOfficialDetails] = useState(false);
@@ -376,13 +382,23 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
 
         // Validate prices & stocks
         for (const off of activeOffers) {
-            if (!off.price || off.price <= 0) {
-                toast.error(`Le prix de la déclinaison "${off.name}" doit être supérieur à 0 FCFA.`);
+            if (!off.price || off.price < minPrice) {
+                toast.error(`Le prix de la déclinaison "${off.name}" doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
+                setIsSubmitting(false);
+                return;
+            }
+            if (off.stock === undefined || off.stock === null || off.stock < minStock) {
+                toast.error(`Le stock de la déclinaison "${off.name}" doit être d'au moins ${minStock}.`);
                 setIsSubmitting(false);
                 return;
             }
             if (off.onPromotion) {
-                if (!off.promotionalPrice || off.promotionalPrice >= off.price) {
+                if (!off.promotionalPrice || off.promotionalPrice < minPrice) {
+                    toast.error(`Le prix promotionnel pour "${off.name}" doit être d'au moins ${minPrice.toLocaleString('fr-FR')} FCFA.`);
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (off.promotionalPrice >= off.price) {
                     toast.error(`Le prix promotionnel pour "${off.name}" doit être inférieur au prix normal (${off.price.toLocaleString('fr-FR')} FCFA).`);
                     setIsSubmitting(false);
                     return;
@@ -437,8 +453,7 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                 }
                 setVariantOffers(prev => prev.map(v => ({ ...v, rejectionReason: null })));
                 toast.success('Vos offres ont été mises à jour avec succès !');
-                router.push('/dashboard/products');
-                router.refresh();
+                window.location.href = '/dashboard/products';
             } else {
                 toast.error(res.error || 'Erreur lors de la mise à jour de vos offres');
             }
@@ -865,15 +880,15 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                 <div className="space-y-1.5">
                                     <Label className="text-xs font-bold text-foreground flex items-center gap-1">
                                         <Tag className="w-3.5 h-3.5 text-primary" />
-                                        Prix normal (FCFA) *
+                                        Prix normal (FCFA) * <span className="text-[10px] text-muted-foreground font-normal">(min: {minPrice} F)</span>
                                     </Label>
                                     <Input
                                         type="number"
-                                        min={1}
+                                        min={minPrice}
                                         required
                                         value={variant.price || ''}
                                         onChange={(e) => handleVariantChange(variant.id, 'price', parseInt(e.target.value) || 0)}
-                                        placeholder="Ex: 5000"
+                                        placeholder={`Min. ${minPrice}`}
                                         className="h-9 text-xs font-bold rounded-xl"
                                     />
                                 </div>
@@ -882,15 +897,15 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                 <div className="space-y-1.5">
                                     <Label className="text-xs font-bold text-foreground flex items-center gap-1">
                                         <Package className="w-3.5 h-3.5 text-primary" />
-                                        Stock disponible *
+                                        Stock disponible * <span className="text-[10px] text-muted-foreground font-normal">(min: {minStock})</span>
                                     </Label>
                                     <Input
                                         type="number"
-                                        min={0}
+                                        min={minStock}
                                         required
                                         value={variant.stock !== undefined ? variant.stock : ''}
                                         onChange={(e) => handleVariantChange(variant.id, 'stock', Math.max(0, parseInt(e.target.value) || 0))}
-                                        placeholder="Ex: 10"
+                                        placeholder={`Min. ${minStock}`}
                                         className="h-9 text-xs font-bold rounded-xl"
                                     />
                                 </div>
@@ -969,12 +984,12 @@ export default function EditProductForm({ product, collectionTree }: EditProduct
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
                                                 <div>
                                                     <Label className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
-                                                        Prix Promo (FCFA) *
+                                                        Prix Promo (FCFA) * <span className="font-normal">(min: {minPrice} F)</span>
                                                     </Label>
                                                     <Input
                                                         type="number"
-                                                        min={1}
-                                                        placeholder="Ex: 4000"
+                                                        min={minPrice}
+                                                        placeholder={`Min. ${minPrice}`}
                                                         value={variant.promotionalPrice || ''}
                                                         onChange={(e) => handleVariantChange(variant.id, 'promotionalPrice', parseInt(e.target.value) || 0)}
                                                         className="h-9 text-xs font-bold text-rose-600 bg-background border-rose-200 dark:border-rose-900/50 rounded-xl mt-1"

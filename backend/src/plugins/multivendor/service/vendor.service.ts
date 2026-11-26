@@ -71,6 +71,14 @@ export class VendorService implements OnApplicationBootstrap {
     private marketCoordsCache: { data: Map<number, { lat: number; lng: number }>; expiresAt: number } | null = null;
     private zoneCoordsCache: { data: Map<number, { lat: number; lng: number }>; expiresAt: number } | null = null;
 
+    invalidateVendorProductsCache(vendorId?: string) {
+        if (vendorId) {
+            this.vendorProductsCache.delete(String(vendorId));
+        } else {
+            this.vendorProductsCache.clear();
+        }
+    }
+
     async findAll(
         ctx: RequestContext,
         options?: ListQueryOptions<Vendor>,
@@ -2200,6 +2208,10 @@ export class VendorService implements OnApplicationBootstrap {
 
         // 4. Assign collections if provided
         if (input.collectionIds && input.collectionIds.length > 0) {
+            await this.connection.rawConnection.query(
+                `DELETE FROM collection_product_variants_product_variant WHERE "productVariantId" = $1`,
+                [input.variantId]
+            );
             for (const colId of input.collectionIds) {
                 try {
                     await this.connection.rawConnection.query(
@@ -2228,7 +2240,7 @@ export class VendorService implements OnApplicationBootstrap {
             }
         }
 
-        // 6. Inherit channels
+        // 6. Inherit channels and link to default channel 1
         if (variant.channels && variant.channels.length > 0) {
             for (const chan of variant.channels) {
                 try {
@@ -2239,8 +2251,48 @@ export class VendorService implements OnApplicationBootstrap {
                 } catch (_) {}
             }
         }
+        await this.connection.rawConnection.query(
+            `INSERT INTO product_channels_channel ("productId", "channelId") VALUES ($1, 1) ON CONFLICT DO NOTHING;
+             INSERT INTO product_variant_channels_channel ("productVariantId", "channelId") VALUES ($2, 1) ON CONFLICT DO NOTHING;`,
+            [newProduct.id, input.variantId]
+        );
 
-        // 7. If old product was a vendor proposition, ensure it is disabled or cleaned up
+        // 7. Update variant translation with new official product name
+        const optionNamesRes = await this.connection.rawConnection.query(
+            `SELECT COALESCE(pot.name, po.code) as name 
+             FROM product_variant_options_product_option pvo
+             JOIN product_option po ON po.id = pvo."productOptionId"
+             LEFT JOIN product_option_translation pot ON pot."baseId" = po.id
+             WHERE pvo."productVariantId" = $1
+             ORDER BY po.id ASC`,
+            [input.variantId]
+        );
+        const optList = Array.from(new Set(optionNamesRes.map((r: any) => r.name).filter(Boolean)));
+        const newVariantName = optList.length > 0 ? `${input.name.trim()} – ${optList.join(' - ')}` : input.name.trim();
+
+        for (const lang of ['fr', 'en']) {
+            await this.connection.rawConnection.query(`
+                INSERT INTO product_variant_translation ("baseId", "languageCode", name, "createdAt", "updatedAt")
+                VALUES ($1, $2, $3, NOW(), NOW())
+                ON CONFLICT ("baseId", "languageCode") DO UPDATE
+                SET name = EXCLUDED.name, "updatedAt" = NOW()
+            `, [input.variantId, lang, newVariantName]);
+        }
+
+        // 8. Direct update of search_index_item for real-time storefront synchronization
+        await this.connection.rawConnection.query(`
+            UPDATE search_index_item
+            SET "productId" = $1,
+                "productName" = $2,
+                "productVariantName" = $3,
+                "slug" = $4,
+                "enabled" = true,
+                "collectionIds" = COALESCE((SELECT string_agg(DISTINCT cpv."collectionId"::text, ',') FROM collection_product_variants_product_variant cpv WHERE cpv."productVariantId" = $5), ''),
+                "collectionSlugs" = COALESCE((SELECT string_agg(DISTINCT ct.slug, ',') FROM collection_product_variants_product_variant cpv INNER JOIN collection_translation ct ON ct."baseId" = cpv."collectionId" WHERE cpv."productVariantId" = $5), '')
+            WHERE "productVariantId" = $5
+        `, [newProduct.id, input.name.trim(), newVariantName, slug, input.variantId]);
+
+        // 9. If old product was a vendor proposition, ensure it is disabled or cleaned up
         if (oldProductId && String(oldProductId) !== String(newProduct.id)) {
             await this.connection.rawConnection.query(
                 `UPDATE product SET enabled = false, "updatedAt" = NOW() WHERE id = $1 AND "customFieldsVendorid" IS NOT NULL`,
@@ -2260,6 +2312,19 @@ export class VendorService implements OnApplicationBootstrap {
                 }
             }
         }
+
+        // 10. Automatically harmonize and sync variant names for new and old product
+        await this.synchronizeAllVariantNamesForProduct(ctx, String(newProduct.id));
+        if (oldProductId && String(oldProductId) !== String(newProduct.id)) {
+            await this.synchronizeAllVariantNamesForProduct(ctx, String(oldProductId));
+        }
+
+        try {
+            const finalProduct = await this.productService.findOne(ctx, newProduct.id);
+            if (finalProduct) {
+                this.eventBus.publish(new ProductEvent(ctx, finalProduct, 'created', { id: newProduct.id }));
+            }
+        } catch (_) {}
 
         return newProduct;
     }
@@ -2768,15 +2833,19 @@ export class VendorService implements OnApplicationBootstrap {
                     newVariantName = prodName;
                 }
 
-                await this.connection.rawConnection.query(
-                    `UPDATE product_variant_translation SET name = $1 WHERE "baseId" = $2`,
-                    [newVariantName, v.id]
-                );
+                for (const lang of ['fr', 'en']) {
+                    await this.connection.rawConnection.query(`
+                        INSERT INTO product_variant_translation ("baseId", "languageCode", name, "createdAt", "updatedAt")
+                        VALUES ($1, $2, $3, NOW(), NOW())
+                        ON CONFLICT ("baseId", "languageCode") DO UPDATE
+                        SET name = EXCLUDED.name, "updatedAt" = NOW()
+                    `, [v.id, lang, newVariantName]);
+                }
 
                 try {
                     await this.connection.rawConnection.query(
-                        `UPDATE search_index_item SET "productVariantName" = $1 WHERE "productVariantId" = $2`,
-                        [newVariantName, v.id]
+                        `UPDATE search_index_item SET "productVariantName" = $1, "productName" = $2, "productId" = $3 WHERE "productVariantId" = $4`,
+                        [newVariantName, prodName, productId, v.id]
                     );
                 } catch (_) {}
             }));
@@ -3426,10 +3495,13 @@ export class VendorService implements OnApplicationBootstrap {
                         {
                             id: 'offer-' + v.id,
                             price: offerPrice,
+                            channelId: ctx.channelId,
                             currencyCode: ((ctx.channel as any)?.currencyCode || (ctx.channel as any)?.defaultCurrencyCode || 'XOF') as any,
                         } as any,
                     ];
                     (v as any).listPrice = offerPrice;
+                    Object.defineProperty(v, 'price', { value: offerPrice, writable: true, configurable: true, enumerable: true });
+                    Object.defineProperty(v, 'priceWithTax', { value: offerPrice, writable: true, configurable: true, enumerable: true });
                     (v as any).stockOnHand = offerStock;
                     if (offer.sku) v.sku = offer.sku;
 
@@ -3446,6 +3518,11 @@ export class VendorService implements OnApplicationBootstrap {
                         offerStatus: offer.status,
                         rejectionReason: offer.rejectionReason,
                     } as any;
+                } else if ((v as any).listPrice || (v as any).price) {
+                    const fallbackPrice = Number((v as any).listPrice || (v as any).price);
+                    (v as any).listPrice = fallbackPrice;
+                    Object.defineProperty(v, 'price', { value: fallbackPrice, writable: true, configurable: true, enumerable: true });
+                    Object.defineProperty(v, 'priceWithTax', { value: fallbackPrice, writable: true, configurable: true, enumerable: true });
                 }
             }
 
@@ -4892,9 +4969,9 @@ export class VendorService implements OnApplicationBootstrap {
                 `UPDATE product_variant SET "deletedAt" = NOW() WHERE "productId" IN (SELECT id FROM product WHERE "customFieldsVendorid" = $1)`,
                 [vendorId]
             );
-            // Soft delete products
+            // Soft delete products AND unlink vendor
             await this.connection.rawConnection.query(
-                `UPDATE product SET "deletedAt" = NOW() WHERE "customFieldsVendorid" = $1`,
+                `UPDATE product SET "deletedAt" = NOW(), "customFieldsVendorid" = NULL WHERE "customFieldsVendorid" = $1`,
                 [vendorId]
             );
         } else {
@@ -4905,8 +4982,23 @@ export class VendorService implements OnApplicationBootstrap {
             );
         }
 
+        // Clean up seller offers for this vendor
+        try {
+            await this.connection.rawConnection.query(
+                `DELETE FROM seller_offer WHERE "vendorId" = $1`,
+                [vendorId]
+            );
+        } catch (e) {
+            console.log('Skipping seller_offer delete:', (e as any).message);
+        }
+
         // 2. Handle Orders
         if (deleteOrders) {
+            // Unlink order lines assigned vendor
+            await this.connection.rawConnection.query(
+                `UPDATE order_line SET "customFieldsAssignedvendorid" = NULL WHERE "customFieldsAssignedvendorid" = $1`,
+                [vendorId]
+            );
             // Delete order lines of vendor's orders
             await this.connection.rawConnection.query(
                 `DELETE FROM order_line WHERE "orderId" IN (SELECT id FROM "order" WHERE "customFieldsVendorid" = $1)`,
@@ -4936,71 +5028,97 @@ export class VendorService implements OnApplicationBootstrap {
                 [vendorId]
             );
         } else {
-            // Unlink orders from this vendor
+            // Unlink orders and order lines from this vendor
             await this.connection.rawConnection.query(
                 `UPDATE "order" SET "customFieldsVendorid" = NULL WHERE "customFieldsVendorid" = $1`,
                 [vendorId]
             );
+            await this.connection.rawConnection.query(
+                `UPDATE order_line SET "customFieldsAssignedvendorid" = NULL WHERE "customFieldsAssignedvendorid" = $1`,
+                [vendorId]
+            );
         }
 
-        // 3. Delete user account and associated customer, administrator
-        if (userId) {
-            // Delete customer
-            try {
-                await this.connection.rawConnection.query(
-                    `DELETE FROM customer WHERE "userId" = $1`,
-                    [userId]
-                );
-            } catch (e) {
-                console.log('Failed to delete customer:', (e as any).message);
-            }
+        // 3. Clean up other vendor references before deletion
+        try {
+            await this.connection.rawConnection.query(
+                `DELETE FROM withdrawal_request WHERE "vendorId" = $1`,
+                [vendorId]
+            );
+        } catch (e) {}
 
-            // Delete administrator
-            try {
-                await this.connection.rawConnection.query(
-                    `DELETE FROM administrator WHERE "userId" = $1`,
-                    [userId]
-                );
-            } catch (e) {
-                console.log('Failed to delete administrator:', (e as any).message);
-            }
+        try {
+            await this.connection.rawConnection.query(
+                `DELETE FROM vendor_markets_market WHERE "vendorId" = $1`,
+                [vendorId]
+            );
+        } catch (e) {}
 
-            // Delete authentication method
-            try {
-                await this.connection.rawConnection.query(
-                    `DELETE FROM native_authentication_method WHERE "userId" = $1`,
-                    [userId]
-                );
-            } catch (e) {
-                console.log('Failed to delete auth method:', (e as any).message);
-            }
+        try {
+            await this.connection.rawConnection.query(
+                `DELETE FROM vendor_like WHERE "vendorId" = $1`,
+                [vendorId]
+            );
+        } catch (e) {}
 
-            // Delete role mappings
-            try {
-                await this.connection.rawConnection.query(
-                    `DELETE FROM user_roles_role WHERE "userId" = $1`,
-                    [userId]
-                );
-            } catch (e) {
-                console.log('Failed to delete user_roles_role:', (e as any).message);
-            }
-
-            // Delete user
-            try {
-                await this.connection.rawConnection.query(
-                    `DELETE FROM "user" WHERE id = $1`,
-                    [userId]
-                );
-            } catch (e) {
-                console.log('Failed to delete user:', (e as any).message);
-            }
-        }
+        // Unlink user from vendor before deleting
+        await this.connection.rawConnection.query(
+            `UPDATE vendor SET "userId" = NULL WHERE id = $1`,
+            [vendorId]
+        );
 
         // 4. Finally delete the Vendor record itself
         await this.connection.rawConnection.query(
             `DELETE FROM vendor WHERE id = $1`,
             [vendorId]
         );
+
+        // 5. Clean up user credentials if vendor-only (or keep customer profile if also a buyer)
+        if (userId) {
+            try {
+                // Remove vendor role from user
+                const vendorRoles = await this.connection.rawConnection.query(
+                    `SELECT id FROM role WHERE code IN ('vendor', 'vendor-role')`
+                );
+                for (const r of (vendorRoles || [])) {
+                    await this.connection.rawConnection.query(
+                        `DELETE FROM user_roles_role WHERE "userId" = $1 AND "roleId" = $2`,
+                        [userId, r.id]
+                    );
+                }
+
+                // Check if user is also a customer
+                const customerRecords = await this.connection.rawConnection.query(
+                    `SELECT id FROM customer WHERE "userId" = $1`,
+                    [userId]
+                );
+
+                if (!customerRecords || customerRecords.length === 0) {
+                    await this.connection.rawConnection.query(
+                        `DELETE FROM session WHERE "userId" = $1`,
+                        [userId]
+                    );
+                    await this.connection.rawConnection.query(
+                        `DELETE FROM administrator WHERE "userId" = $1`,
+                        [userId]
+                    );
+                    await this.connection.rawConnection.query(
+                        `DELETE FROM authentication_method WHERE "userId" = $1`,
+                        [userId]
+                    );
+                    await this.connection.rawConnection.query(
+                        `DELETE FROM user_roles_role WHERE "userId" = $1`,
+                        [userId]
+                    );
+                    await this.connection.rawConnection.query(
+                        `DELETE FROM "user" WHERE id = $1`,
+                        [userId]
+                    );
+                }
+            } catch (e) {
+                console.log('Failed to clean up user/auth:', (e as any).message);
+            }
+        }
 
         return true;
     }

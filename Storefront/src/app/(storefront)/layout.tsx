@@ -305,12 +305,12 @@ export default async function StorefrontLayout({ children }: { children: React.R
                         if (e.persisted) { dismissPreloader(); }
                     });
                     if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                        setTimeout(dismissPreloader, 350);
+                        setTimeout(dismissPreloader, 250);
                     } else {
-                        window.addEventListener('DOMContentLoaded', function() { setTimeout(dismissPreloader, 350); });
+                        window.addEventListener('DOMContentLoaded', function() { setTimeout(dismissPreloader, 250); });
                         window.addEventListener('load', function() { setTimeout(dismissPreloader, 150); });
                     }
-                    setTimeout(dismissPreloader, 750);
+                    setTimeout(dismissPreloader, 400);
                 })();
             ` }} />
             

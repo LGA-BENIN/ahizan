@@ -185,6 +185,11 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                     toast.success('Ajouté au panier !', {
                         description: `${displayTitle} (${vendorName})`,
                     });
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                        setTimeout(() => {
+                            window.dispatchEvent(new CustomEvent('ahizan:open-push-prompt'));
+                        }, 2000);
+                    }
                 } else {
                     toast.error(res.error || "Impossible d'ajouter l'article au panier");
                 }
@@ -195,17 +200,28 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
     };
 
     // Card Theme styling
+    const isFlash = Boolean(config?.isFlashSaleCard);
     const cardTheme = config?.cardTheme || config?.cardStyle || 'default';
-    let cardThemeClass = "bg-card rounded-2xl border border-border/70 hover:border-primary/50 hover:shadow-lg transition-all duration-300";
+    let cardThemeClass = isFlash
+        ? "bg-card rounded-xl border border-border/70 hover:border-primary/50 shadow-2xs hover:shadow-md transition-all duration-300"
+        : "bg-card rounded-2xl border border-border/70 hover:border-primary/50 hover:shadow-lg transition-all duration-300";
     if (cardTheme === 'flat') {
-        cardThemeClass = "shadow-none border border-border bg-card hover:border-slate-400 dark:hover:border-slate-700";
+        cardThemeClass = isFlash
+            ? "shadow-none border border-border bg-card rounded-xl"
+            : "shadow-none border border-border bg-card hover:border-slate-400 dark:hover:border-slate-700";
     } else if (cardTheme === 'glassmorphism') {
-        cardThemeClass = "bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-slate-800/50 shadow-md hover:shadow-xl";
+        cardThemeClass = isFlash
+            ? "bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-slate-800/50 rounded-xl shadow-xs"
+            : "bg-white/10 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-slate-800/50 shadow-md hover:shadow-xl";
     } else if (cardTheme === 'elevated') {
-        cardThemeClass = "bg-card rounded-2xl border border-primary/20 shadow-md hover:shadow-xl";
+        cardThemeClass = isFlash
+            ? "bg-card rounded-xl border border-primary/20 shadow-xs hover:shadow-md"
+            : "bg-card rounded-2xl border border-primary/20 shadow-md hover:shadow-xl";
     }
 
-    const ratioClass = config?.imageRatio === '4:3' 
+    const ratioClass = isFlash
+        ? 'aspect-square'
+        : config?.imageRatio === '4:3' 
         ? 'aspect-[4/3]' 
         : config?.imageRatio === '3:4' 
         ? 'aspect-[3/4]' 
@@ -248,9 +264,9 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                                 unoptimized={isDisplayGif}
                             />
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-850 text-slate-400 p-4 transition-colors">
-                                <ShoppingBag className="w-9 h-9 text-slate-300 dark:text-slate-600 stroke-[1.25] mb-1.5" />
-                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 line-clamp-1 text-center px-2">
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-850 text-slate-400 p-2 sm:p-4 transition-colors">
+                                <ShoppingBag className={`${isFlash ? 'w-6 h-6' : 'w-9 h-9'} text-slate-300 dark:text-slate-600 stroke-[1.25] mb-1`} />
+                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 line-clamp-1 text-center px-1">
                                     {displayTitle}
                                 </span>
                             </div>
@@ -258,9 +274,9 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                     </Link>
 
                     {/* Corner Badges: Contextual (Cdiscount) & Promo (Jumia) */}
-                    <div className="absolute top-2 left-2 flex flex-col gap-1 z-10 max-w-[70%]">
+                    <div className={`absolute ${isFlash ? 'top-1 left-1' : 'top-2 left-2'} flex flex-col gap-0.5 z-10 max-w-[75%]`}>
                         {Boolean(item.contextBadge || config?.contextBadge) && (
-                            <span className={`inline-flex items-center text-[10px] font-black px-2 py-0.5 rounded-md shadow-xs text-white uppercase tracking-wider ${
+                            <span className={`inline-flex items-center ${isFlash ? 'text-[8.5px] px-1.5 py-0.2' : 'text-[10px] px-2 py-0.5'} font-black rounded-md shadow-xs text-white uppercase tracking-wider ${
                                 (item.contextBadge || config?.contextBadge)?.toLowerCase().includes('bon plan') 
                                     ? 'bg-blue-600'
                                     : (item.contextBadge || config?.contextBadge)?.toLowerCase().includes('meilleur') 
@@ -273,8 +289,8 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                             </span>
                         )}
                         {isPromoActive && (
-                            <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs w-fit">
-                                <Zap className="w-2.5 h-2.5 fill-white stroke-[1.5]" />
+                            <span className={`inline-flex items-center gap-0.5 bg-red-600 text-white ${isFlash ? 'text-[8.5px] px-1 py-0.2' : 'text-[10px] px-2 py-0.5'} font-bold rounded-md shadow-xs w-fit`}>
+                                <Zap className={`${isFlash ? 'w-2 h-2' : 'w-2.5 h-2.5'} fill-white stroke-[1.5]`} />
                                 {discountPercent > 0 ? `-${discountPercent}%` : 'PROMO'}
                             </span>
                         )}
@@ -285,17 +301,17 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                         onClick={handleLike}
                         disabled={isPending}
                         aria-label="Ajouter aux favoris"
-                        className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md dark:bg-black/80 flex items-center justify-center text-foreground hover:text-red-500 hover:scale-110 shadow-xs transition-all"
+                        className={`absolute ${isFlash ? 'top-1 right-1 w-5 h-5 sm:w-6 sm:h-6' : 'top-2 right-2 w-8 h-8'} z-10 rounded-full bg-white/90 backdrop-blur-md dark:bg-black/80 flex items-center justify-center text-foreground hover:text-red-500 hover:scale-110 shadow-xs transition-all`}
                     >
                         {isPending ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <Loader2 className={`${isFlash ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} animate-spin`} />
                         ) : (
-                            <Heart className={`w-4 h-4 transition-colors ${isLiked ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
+                            <Heart className={`${isFlash ? 'w-2.5 h-2.5 sm:w-3 sm:h-3' : 'w-4 h-4'} transition-colors ${isLiked ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
                         )}
                     </button>
 
-                    {/* Quick Add '+' Button (Jumia style - immediate action without leaving page) */}
-                    {(config?.showQuickAddButton || config?.actionStyle === 'quick_add' || config?.isFlashSaleCard) ? (
+                    {/* Quick Add '+' Button (Suppressed on Flash Sale Cards per user instruction) */}
+                    {(!isFlash && !config?.hideQuickAddButton && (config?.showQuickAddButton || config?.actionStyle === 'quick_add')) ? (
                         <button
                             onClick={handleAddToCart}
                             disabled={isPending}
@@ -309,7 +325,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                                 <Plus className="w-4 h-4 stroke-[3px]" />
                             )}
                         </button>
-                    ) : config?.showQuickAddToCart ? (
+                    ) : (!isFlash && !config?.hideQuickAddButton && config?.showQuickAddToCart) ? (
                         <button
                             onClick={handleAddToCart}
                             disabled={isPending}
@@ -323,19 +339,19 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                 </div>
 
                 {/* Card Content */}
-                <div className="p-2 sm:p-2.5 flex flex-col flex-1 text-left relative justify-between gap-1 sm:gap-1.5">
+                <div className={`${isFlash ? 'p-1.5 sm:p-2 gap-0.5 sm:gap-1' : 'p-2 sm:p-2.5 gap-1 sm:gap-1.5'} flex flex-col flex-1 text-left relative justify-between`}>
                     {/* Store / Vendor Name & Location Badge */}
                     {Boolean(!config?.hideVendorBadge && (vendorName || geoTag)) && (
-                        <div className="flex items-center justify-between gap-1 text-[10.5px] sm:text-[11px] font-semibold text-muted-foreground truncate">
+                        <div className={`flex items-center justify-between gap-1 ${isFlash ? 'text-[8.5px] sm:text-[9px]' : 'text-[10.5px] sm:text-[11px]'} font-semibold text-muted-foreground truncate`}>
                             {vendorName ? (
-                                <div className="flex items-center gap-1.5 truncate">
+                                <div className="flex items-center gap-1 truncate">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                                     <span className="truncate text-foreground font-bold">{vendorName}</span>
                                 </div>
                             ) : <div />}
                             {geoTag && (
-                                <span className="text-[9.5px] sm:text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5">
-                                    <MapPin className="w-2.5 h-2.5" />
+                                <span className={`${isFlash ? 'text-[8.5px]' : 'text-[9.5px] sm:text-[10px]'} font-bold text-primary bg-primary/10 px-1 py-0.2 rounded shrink-0 flex items-center gap-0.5`}>
+                                    <MapPin className="w-2 h-2" />
                                     {geoTag}
                                 </span>
                             )}
@@ -345,15 +361,15 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                     {/* Title with Declination */}
                     <Link href={productDetailHref} className="block flex-1 min-w-0 mt-0.5">
                         <h3 
-                            className="font-bold text-xs sm:text-[13px] text-foreground hover:text-primary transition-colors line-clamp-2 leading-snug break-words"
+                            className={`font-bold ${isFlash ? 'text-[10.5px] sm:text-[11.5px] line-clamp-2 leading-tight' : 'text-xs sm:text-[13px] line-clamp-2 leading-snug'} text-foreground hover:text-primary transition-colors break-words`}
                             title={displayTitle}
                         >
-                            <span className="sm:hidden">{truncateString(displayTitle, 48)}</span>
-                            <span className="hidden sm:inline">{truncateString(displayTitle, 70)}</span>
+                            <span className="sm:hidden">{truncateString(displayTitle, isFlash ? 44 : 48)}</span>
+                            <span className="hidden sm:inline">{truncateString(displayTitle, isFlash ? 58 : 70)}</span>
                         </h3>
                     </Link>
 
-                    {rawDecl && rawDecl.length <= 25 && !displayTitle.toLowerCase().includes(rawDecl.toLowerCase()) && (
+                    {rawDecl && rawDecl.length <= 25 && !displayTitle.toLowerCase().includes(rawDecl.toLowerCase()) && !isFlash && (
                         <div className="flex items-center gap-1.5 flex-wrap max-w-full overflow-hidden">
                             <span className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-muted/80 text-foreground border border-border/50 max-w-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block shrink-0" />
@@ -363,7 +379,7 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                     )}
 
                     {/* Social Proof / Rating */}
-                    {Boolean(item.rating || item.score || item.reviewCount || config?.showRating) && (
+                    {Boolean(!isFlash && (item.rating || item.score || item.reviewCount || config?.showRating)) && (
                         <div className="flex items-center gap-1 text-[11px] text-amber-500 font-bold">
                             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                             <span>{(item.rating || item.score || 4.5).toFixed(1)}</span>
@@ -377,20 +393,20 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
 
                     {/* Stock Urgency / Scarcity Gauge (FOMO) */}
                     {(Boolean(item.stockRemaining != null || config?.stockRemaining != null) || config?.showStockGauge) && (
-                        <div className="space-y-1 my-1">
+                        <div className={`${isFlash ? 'space-y-0.5 my-0.5' : 'space-y-1 my-1'}`}>
                             {(() => {
                                 const remaining = item.stockRemaining ?? config?.stockRemaining ?? 12;
                                 const total = item.stockTotal ?? config?.stockTotal ?? 30;
                                 const percent = Math.min(100, Math.max(10, Math.round((remaining / total) * 100)));
                                 return (
                                     <>
-                                        <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
-                                            <span className="text-red-600 dark:text-red-400 font-extrabold flex items-center gap-1">
-                                                <Clock className="w-2.5 h-2.5 inline" />
-                                                {remaining <= 5 ? `Plus que ${remaining} en stock !` : `${remaining} restants`}
+                                        <div className={`flex items-center justify-between ${isFlash ? 'text-[8.5px]' : 'text-[10px]'} font-bold text-muted-foreground`}>
+                                            <span className="text-red-600 dark:text-red-400 font-extrabold flex items-center gap-0.5">
+                                                <Clock className={`${isFlash ? 'w-2 h-2' : 'w-2.5 h-2.5'} inline`} />
+                                                {remaining <= 5 ? `Plus que ${remaining} !` : `${remaining} restants`}
                                             </span>
                                         </div>
-                                        <Progress value={percent} className="h-1.5 bg-muted rounded-full" />
+                                        <Progress value={percent} className={`${isFlash ? 'h-1' : 'h-1.5'} bg-muted rounded-full`} />
                                     </>
                                 );
                             })()}
@@ -398,13 +414,13 @@ export function MasterProductCard({ item, config }: MasterProductCardProps) {
                     )}
 
                     {/* Price Block */}
-                    <div className="pt-1.5 border-t border-border/40 flex items-baseline justify-between gap-1 mt-auto">
-                        <div className="flex items-baseline gap-1.5 flex-wrap">
-                            <span className="text-sm sm:text-base font-black text-foreground">
+                    <div className={`${isFlash ? 'pt-1' : 'pt-1.5'} border-t border-border/40 flex items-baseline justify-between gap-1 mt-auto`}>
+                        <div className="flex items-baseline gap-1 flex-wrap">
+                            <span className={`${isFlash ? 'text-[11px] sm:text-xs' : 'text-sm sm:text-base'} font-black text-foreground`}>
                                 <Price value={activePrice} currencyCode="XOF" />
                             </span>
                             {isPromoActive && originalPrice > activePrice && (
-                                <span className="text-[10px] sm:text-xs text-muted-foreground line-through font-medium">
+                                <span className={`${isFlash ? 'text-[8.5px]' : 'text-[10px] sm:text-xs'} text-muted-foreground line-through font-medium`}>
                                     <Price value={originalPrice} currencyCode="XOF" />
                                 </span>
                             )}

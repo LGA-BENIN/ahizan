@@ -52,7 +52,7 @@ services:
       dockerfile: docker/storefront/Dockerfile
     container_name: ahizan_storefront
     restart: unless-stopped
-    mem_limit: 1024m
+    mem_limit: 3072m
     ports:
       - "3001:3000"
     env_file: .env

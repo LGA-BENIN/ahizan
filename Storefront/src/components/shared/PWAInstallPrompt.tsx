@@ -55,20 +55,42 @@ export function PWAInstallPrompt() {
             setPlatform("desktop");
         }
 
+        const hasLocationAlready = () => {
+            try {
+                return !!localStorage.getItem('ahizan_client_location');
+            } catch {
+                return false;
+            }
+        };
+
+        let pwaTimer: NodeJS.Timeout | null = null;
+
+        const showPwaPrompt = () => {
+            if (checkStandalone()) return;
+            if (sessionStorage.getItem('ahizan-pwa-dismissed')) return;
+            setIsVisible(true);
+        };
+
+        const scheduleShow = (delayMs: number) => {
+            if (pwaTimer) clearTimeout(pwaTimer);
+            pwaTimer = setTimeout(() => {
+                showPwaPrompt();
+            }, delayMs);
+        };
+
         const handleReady = () => {
             if (checkStandalone()) return;
             if ((window as any).deferredPrompt) {
                 setDeferredPrompt((window as any).deferredPrompt);
             }
-            const dismissed = sessionStorage.getItem('ahizan-pwa-dismissed');
-            if (!dismissed) setIsVisible(true);
+            if (hasLocationAlready()) {
+                scheduleShow(2500);
+            }
         };
 
         // Check if event was already captured globally
         if ((window as any).deferredPrompt) {
             setDeferredPrompt((window as any).deferredPrompt);
-            const dismissed = sessionStorage.getItem('ahizan-pwa-dismissed');
-            if (!dismissed) setIsVisible(true);
         }
 
         const handleBeforeInstallPrompt = (e: Event) => {
@@ -76,9 +98,8 @@ export function PWAInstallPrompt() {
             e.preventDefault();
             (window as any).deferredPrompt = e;
             setDeferredPrompt(e);
-            const dismissed = sessionStorage.getItem('ahizan-pwa-dismissed');
-            if (!dismissed) {
-                setIsVisible(true);
+            if (hasLocationAlready()) {
+                scheduleShow(2500);
             }
         };
 
@@ -95,15 +116,11 @@ export function PWAInstallPrompt() {
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
         window.addEventListener("appinstalled", handleInstalled);
 
-        // On iOS or after delay if native prompt is unsupported (e.g. in-app browser)
-        const timer = setTimeout(() => {
-            if (!checkStandalone() && !sessionStorage.getItem('ahizan-pwa-dismissed')) {
-                setIsVisible(true);
-            }
-        }, 3500);
+        // Relaxed schedule: Never trigger on location close. Only show banner after 45s of calm browsing
+        scheduleShow(45000);
 
         return () => {
-            clearTimeout(timer);
+            if (pwaTimer) clearTimeout(pwaTimer);
             window.removeEventListener("pwa-install-ready", handleReady);
             window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
             window.removeEventListener("appinstalled", handleInstalled);

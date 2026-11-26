@@ -1,4 +1,4 @@
-import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService, ChannelService, ProductOptionGroupService, ProductOptionService, ProductOption, ProductOptionGroup, ProductPriceApplicator, Logger, RoleService } from '@vendure/core';
+import { Allow, Ctx, RequestContext, ProductService, Product, PaginatedList, OrderService, Order, Permission, OrderStateTransitionError, ProductVariantService, LanguageCode, AssetService, Asset, EventBus, ProductEvent, TransactionalConnection, Collection, CollectionService, SearchService, ProductVariant, User, GlobalSettingsService, ChannelService, ProductOptionGroupService, ProductOptionService, ProductOption, ProductOptionGroup, ProductPriceApplicator, Logger, RoleService, CustomerService, Customer, Address } from '@vendure/core';
 import { In, Not, IsNull } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
@@ -32,6 +32,7 @@ export class VendorShopResolver {
         private aiNormalizerService: AiNormalizerService,
         private roleService: RoleService,
         private notificationsService: NotificationsService,
+        private customerService: CustomerService,
     ) { }
 
     /**
@@ -538,6 +539,14 @@ export class VendorShopResolver {
 
             for (let i = 0; i < input.offers.length; i++) {
                 const offerInput = input.offers[i];
+
+                // Validate minimum price & stock for this offer
+                await this.validateMinimumPrice(ctx, offerInput.price);
+                await this.validateMinimumStock(ctx, offerInput.stock);
+                if (offerInput.onPromotion && offerInput.promotionalPrice !== undefined) {
+                    await this.validateMinimumPrice(ctx, offerInput.promotionalPrice);
+                }
+
                 let targetVariant: ProductVariant | null = null;
 
                 const targetVariantId = (offerInput as any).variantId || (offerInput as any).productVariantId;
@@ -830,6 +839,7 @@ export class VendorShopResolver {
                     }
                 }
 
+                this.vendorService.invalidateVendorProductsCache(vendor.id.toString());
                 return createdOffers;
             } catch (err: any) {
                 console.error('[tagProductWithVariantOffers] ERROR STACK TRACE:', err.message, err.stack);
@@ -850,11 +860,21 @@ export class VendorShopResolver {
 
         const updated: SellerOffer[] = [];
         for (const off of offers) {
+            if (off.price !== undefined) {
+                await this.validateMinimumPrice(ctx, off.price);
+            }
+            if (off.stock !== undefined) {
+                await this.validateMinimumStock(ctx, off.stock);
+            }
+            if (off.onPromotion && off.promotionalPrice !== undefined) {
+                await this.validateMinimumPrice(ctx, off.promotionalPrice);
+            }
             if (off.variantId) {
                 const res = await this.sellerOfferService.createOrUpdateOffer(ctx, vendor, off.variantId, off);
                 updated.push(res);
             }
         }
+        this.vendorService.invalidateVendorProductsCache(vendor.id.toString());
         return updated;
     }
 
@@ -1158,15 +1178,23 @@ export class VendorShopResolver {
         const isDraft = (input as any).isDraft === true || (input as any).approvalStatus === 'draft';
         const targetApprovalStatus = isDraft ? 'draft' : 'pending';
         
-        // 1. Pre-validation checks (Price and SKU uniqueness - bypassed for rough drafts)
+        // 1. Pre-validation checks (Price, Stock and SKU uniqueness - bypassed for rough drafts)
         if (!isDraft) {
             if ((input as any).variants && (input as any).variants.length > 0) {
                 for (const v of (input as any).variants) {
                     await this.validateMinimumPrice(ctx, v.price);
+                    await this.validateMinimumStock(ctx, v.stock);
+                    if (v.onPromotion && v.promotionalPrice !== undefined) {
+                        await this.validateMinimumPrice(ctx, v.promotionalPrice);
+                    }
                     await this.validateSkuUniqueness(ctx, v.sku);
                 }
             } else {
                 await this.validateMinimumPrice(ctx, input.price);
+                await this.validateMinimumStock(ctx, (input as any).stock);
+                if ((input as any).onPromotion && (input as any).promotionalPrice !== undefined) {
+                    await this.validateMinimumPrice(ctx, (input as any).promotionalPrice);
+                }
                 await this.validateSkuUniqueness(ctx, (input as any).sku);
             }
         }
@@ -1278,15 +1306,13 @@ export class VendorShopResolver {
                 const variantNames = (input as any).variants.map((v: any, idx: number) => {
                     let vName = v.name || `${input.name} - Option ${idx + 1}`;
                     if (input.name && vName.startsWith(input.name)) {
-                        vName = vName.substring(input.name.length);
-                        if (vName.startsWith(' - ')) {
-                            vName = vName.substring(3);
-                        } else if (vName.startsWith('-')) {
-                            vName = vName.substring(1);
+                        let sub = vName.substring(input.name.length).trim();
+                        if (sub.startsWith('-') || sub.startsWith('—') || sub.startsWith(':') || sub.startsWith('/')) {
+                            sub = sub.replace(/^[-—:/ ]+/, '').trim();
                         }
-                        vName = vName.trim();
+                        vName = sub || vName;
                     }
-                    return vName;
+                    return vName || input.name || `Option ${idx + 1}`;
                 });
                 const splitNames = variantNames.map((name: string) => name.split(' - ').map((p: string) => p.trim()));
                 
@@ -1374,15 +1400,13 @@ export class VendorShopResolver {
                 const variantNames = (input as any).variants.map((v: any, idx: number) => {
                     let vName = v.name || `${input.name} - Option ${idx + 1}`;
                     if (input.name && vName.startsWith(input.name)) {
-                        vName = vName.substring(input.name.length);
-                        if (vName.startsWith(' - ')) {
-                            vName = vName.substring(3);
-                        } else if (vName.startsWith('-')) {
-                            vName = vName.substring(1);
+                        let sub = vName.substring(input.name.length).trim();
+                        if (sub.startsWith('-') || sub.startsWith('—') || sub.startsWith(':') || sub.startsWith('/')) {
+                            sub = sub.replace(/^[-—:/ ]+/, '').trim();
                         }
-                        vName = vName.trim();
+                        vName = sub || vName;
                     }
-                    return vName;
+                    return vName || input.name || `Option ${idx + 1}`;
                 });
                 const splitNames = variantNames.map((name: string) => name.split(' - ').map((p: string) => p.trim()));
                 const firstLen = splitNames[0]?.length || 1;
@@ -1659,11 +1683,17 @@ export class VendorShopResolver {
             vendor = await this.vendorService.ensureNativeSellerAndChannel(ctx, vendor);
         }
 
-        // 1. Pre-validation checks (Price and SKU uniqueness)
+        // 1. Pre-validation checks (Price, Stock and SKU uniqueness)
         if (variants && Array.isArray(variants)) {
             for (const v of variants) {
                 if (v.price !== undefined) {
                     await this.validateMinimumPrice(ctx, v.price);
+                }
+                if (v.stock !== undefined) {
+                    await this.validateMinimumStock(ctx, v.stock);
+                }
+                if (v.onPromotion && v.promotionalPrice !== undefined) {
+                    await this.validateMinimumPrice(ctx, v.promotionalPrice);
                 }
                 if (v.sku !== undefined) {
                     await this.validateSkuUniqueness(ctx, v.sku, v.id && !String(v.id).startsWith('new_') ? v.id : undefined);
@@ -2127,9 +2157,15 @@ export class VendorShopResolver {
             throw new Error('You do not have permission to update this product variant');
         }
 
-        // 1. Pre-validation checks (Price and SKU uniqueness)
+        // 1. Pre-validation checks (Price, Stock and SKU uniqueness)
         if (input.price !== undefined) {
             await this.validateMinimumPrice(ctx, input.price);
+        }
+        if (input.stock !== undefined) {
+            await this.validateMinimumStock(ctx, input.stock);
+        }
+        if ((input as any).onPromotion && (input as any).promotionalPrice !== undefined) {
+            await this.validateMinimumPrice(ctx, (input as any).promotionalPrice);
         }
         if ((input as any).sku !== undefined) {
             await this.validateSkuUniqueness(ctx, (input as any).sku, input.id);
@@ -2257,8 +2293,31 @@ export class VendorShopResolver {
         const globalSettings = await this.globalSettingsService.getSettings(ctx);
         const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
         if (price !== undefined && price !== null && price < minPrice) {
-            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+            throw new Error(`Le prix du produit (${price} FCFA) doit être au minimum de ${minPrice} FCFA.`);
         }
+    }
+
+    /**
+     * Enforce minimum marketplace stock on a stock value
+     */
+    private async validateMinimumStock(ctx: RequestContext, stock?: number): Promise<void> {
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minStock = (globalSettings.customFields as any)?.minimumMarketplaceStock ?? 1;
+        if (stock !== undefined && stock !== null && stock < minStock) {
+            throw new Error(`Le stock du produit (${stock}) doit être au minimum de ${minStock} unité(s).`);
+        }
+    }
+
+    @Query()
+    @Allow(Permission.Public)
+    async marketplaceSettings(@Ctx() ctx: RequestContext): Promise<{ minimumMarketplacePrice: number; minimumMarketplaceStock: number }> {
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice ?? 0;
+        const minStock = (globalSettings.customFields as any)?.minimumMarketplaceStock ?? 1;
+        return {
+            minimumMarketplacePrice: minPrice,
+            minimumMarketplaceStock: minStock,
+        };
     }
 
     private async updatePricesInSellerChannel(
@@ -2761,6 +2820,112 @@ export class VendorShopResolver {
         }
         return index === 0 ? 'Couleur' : 'Taille';
     }
+
+    @Mutation()
+    @Allow(Permission.Public, Permission.Authenticated, Permission.Owner)
+    async setCustomerActiveLocation(
+        @Ctx() ctx: RequestContext,
+        @Args('input') input: any,
+    ): Promise<{
+        success: boolean;
+        customerId?: string;
+        city?: string;
+        streetLine1?: string;
+        latitude?: number;
+        longitude?: number;
+        message?: string;
+    }> {
+        let customer: Customer | null = null;
+
+        // 1. If explicit customerId is provided (e.g. from Admin / Assisted Order)
+        if (input.customerId) {
+            customer = (await this.customerService.findOne(ctx, input.customerId)) ?? null;
+        }
+
+        // 2. Otherwise find customer via active user session (Storefront client)
+        if (!customer && ctx.activeUserId) {
+            customer = (await this.customerService.findOneByUserId(ctx, ctx.activeUserId)) ?? null;
+        }
+
+        if (!customer) {
+            return {
+                success: false,
+                message: 'Aucun compte client identifié pour synchroniser la localisation.',
+            };
+        }
+
+        const rawConnection = this.connection.rawConnection;
+        const addressRepo = rawConnection.getRepository(Address);
+
+        // Find existing default shipping address or any address for this customer
+        let address = await addressRepo.findOne({
+            where: { customer: { id: customer.id }, defaultShippingAddress: true },
+            order: { id: 'DESC' },
+        });
+
+        if (!address) {
+            address = await addressRepo.findOne({
+                where: { customer: { id: customer.id } },
+                order: { id: 'DESC' },
+            });
+        }
+
+        const city = (input.city || 'Cotonou').trim();
+        const street = (input.neighborhood || input.locationName || city).trim();
+        const lat = Number(input.latitude);
+        const lng = Number(input.longitude);
+        const fullName = `${customer.firstName} ${customer.lastName || ''}`.trim() || 'Client Ahizan';
+
+        // Set previous addresses to defaultShippingAddress = false to ensure uniqueness
+        await addressRepo.update(
+            { customer: { id: customer.id } },
+            { defaultShippingAddress: false }
+        );
+
+        if (address) {
+            address.city = city;
+            address.streetLine1 = street;
+            if (input.province) address.province = input.province;
+            address.defaultShippingAddress = true;
+            address.customFields = {
+                ...(address.customFields || {}),
+                latitude: lat,
+                longitude: lng,
+            };
+            address.updatedAt = new Date();
+            await addressRepo.save(address);
+        } else {
+            const newAddress = addressRepo.create({
+                customer,
+                fullName,
+                company: '',
+                streetLine1: street,
+                streetLine2: '',
+                city,
+                province: input.province || 'Littoral',
+                postalCode: '',
+                phoneNumber: customer.phoneNumber || '',
+                defaultShippingAddress: true,
+                defaultBillingAddress: true,
+                country: { id: 1 } as any,
+                customFields: {
+                    latitude: lat,
+                    longitude: lng,
+                },
+            });
+            address = await addressRepo.save(newAddress);
+        }
+
+        return {
+            success: true,
+            customerId: String(customer.id),
+            city: address.city,
+            streetLine1: address.streetLine1,
+            latitude: lat,
+            longitude: lng,
+            message: 'Localisation client synchronisée avec succès.',
+        };
+    }
 }
 
 @Resolver('Product')
@@ -2973,7 +3138,10 @@ export class ProductVariantShopResolver {
 
     @ResolveField('customFields')
     async customFields(@Ctx() ctx: RequestContext, @Parent() variant: ProductVariant): Promise<any> {
-        let baseCustomFields = variant.customFields || {};
+        let baseCustomFields = (variant.customFields || {}) as any;
+        if (baseCustomFields && (baseCustomFields.onPromotion !== undefined || baseCustomFields.offerStatus !== undefined)) {
+            return baseCustomFields;
+        }
         try {
             const vendor = ctx.activeUserId ? await this.vendorService.findByUserId(ctx, ctx.activeUserId.toString()).catch(() => null) : null;
             if (vendor) {
@@ -3026,6 +3194,14 @@ export class ProductVariantShopResolver {
     }
 
     private async getCustomVariantPrice(ctx: RequestContext, variant: ProductVariant, withTax: boolean): Promise<number> {
+        // 0. If variant already has an offer price or listPrice attached (e.g. from findAllProductsForVendor), return it directly!
+        if ((variant as any).listPrice !== undefined && (variant as any).listPrice !== null && Number((variant as any).listPrice) > 0) {
+            return Number((variant as any).listPrice);
+        }
+        if ((variant as any).price !== undefined && (variant as any).price !== null && Number((variant as any).price) > 0) {
+            return Number((variant as any).price);
+        }
+
         // If logged-in vendor, check their offer first
         try {
             const vendor = ctx.activeUserId ? await this.vendorService.findByUserId(ctx, ctx.activeUserId.toString()).catch(() => null) : null;

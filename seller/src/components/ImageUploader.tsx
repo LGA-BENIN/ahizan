@@ -329,7 +329,7 @@ export default function ImageUploader({
                                     />
 
                                     {/* Order / Featured Badge */}
-                                    <div className="absolute top-2 left-2 z-10 flex items-center gap-1">
+                                    <div className="absolute top-1.5 left-1.5 z-20 flex items-center gap-1 pointer-events-none">
                                         {isFeatured ? (
                                             <span className="flex items-center gap-1 bg-primary text-primary-foreground text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-md tracking-wider">
                                                 <Star className="w-2.5 h-2.5 fill-current" />
@@ -342,35 +342,49 @@ export default function ImageUploader({
                                         )}
                                     </div>
 
-                                    {/* Actions overlay */}
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-2 rounded-2xl">
-                                        {!isFeatured && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setFeaturedSafe(asset.id)}
-                                                className="w-full flex items-center justify-center gap-1 bg-white text-black text-[10px] font-bold py-1.5 rounded-lg shadow hover:bg-primary hover:text-white transition-colors"
-                                            >
-                                                <Star className="w-3 h-3" />
-                                                Définir principale
-                                            </button>
-                                        )}
+                                    {/* Touch-Friendly Action Buttons (Always accessible on Mobile & Desktop) */}
+                                    <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-1">
+                                        {/* Crop button */}
                                         <button
                                             type="button"
-                                            onClick={() => handleOpenCropForAsset(asset)}
-                                            className="w-full flex items-center justify-center gap-1 bg-muted/90 text-foreground text-[10px] font-bold py-1.5 rounded-lg shadow hover:bg-muted transition-colors"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOpenCropForAsset(asset);
+                                            }}
+                                            className="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-md active:scale-90 transition-all cursor-pointer"
+                                            title="Recadrer la photo"
                                         >
-                                            <Crop className="w-3 h-3" />
-                                            Recadrer (optionnel)
+                                            <Crop className="w-3.5 h-3.5" />
                                         </button>
+
+                                        {/* Delete button */}
                                         <button
                                             type="button"
-                                            onClick={() => removeAsset(asset.id)}
-                                            className="w-full flex items-center justify-center gap-1 bg-red-500/90 text-white text-[10px] font-bold py-1.5 rounded-lg shadow hover:bg-red-600 transition-colors"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                removeAsset(asset.id);
+                                            }}
+                                            className="w-7 h-7 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow-md active:scale-90 transition-all cursor-pointer"
+                                            title="Supprimer cette photo"
                                         >
-                                            <X className="w-3 h-3" />
-                                            Supprimer
+                                            <X className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
+
+                                    {/* Set As Primary Button (Bottom) */}
+                                    {!isFeatured && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setFeaturedSafe(asset.id);
+                                            }}
+                                            className="absolute bottom-1.5 left-1.5 right-1.5 z-20 bg-background/90 hover:bg-primary hover:text-white backdrop-blur-xs text-foreground text-[10px] font-bold py-1 px-1.5 rounded-lg border border-border shadow-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
+                                        >
+                                            <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                            <span className="truncate">Définir principale</span>
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })}

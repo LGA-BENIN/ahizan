@@ -254,6 +254,25 @@ function evaluateSectionRules(rulesJsonStr?: string, selectedLocation?: any): bo
     }
 }
 
+class SectionErrorBoundary extends React.Component<{ sectionType?: string; children: React.ReactNode }, { hasError: boolean }> {
+    constructor(props: any) {
+        super(props);
+        this.state = { hasError: false };
+    }
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+    componentDidCatch(error: any) {
+        console.warn(`[SectionErrorBoundary] Section "${this.props.sectionType}" failed to render:`, error?.message || error);
+    }
+    render() {
+        if (this.state.hasError) {
+            return null;
+        }
+        return this.props.children;
+    }
+}
+
 /**
  * Strict body-section renderer.
  * Each case renders ONLY if the section has meaningful data.
@@ -290,7 +309,8 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
 
     const wrapper = "max-w-[1720px] mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8";
 
-    switch (type) {
+    const renderContent = () => {
+        switch (type) {
         case 'PRODUCT_COLLECTION': {
             return (
                 <div className="w-full mt-2 md:mt-3">
@@ -478,4 +498,11 @@ export function BodySectionRenderer({ section, siteCategories, globalPromoConfig
         default:
             return null;
     }
+    };
+
+    return (
+        <SectionErrorBoundary sectionType={type}>
+            {renderContent()}
+        </SectionErrorBoundary>
+    );
 }

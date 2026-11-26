@@ -287,6 +287,7 @@ const GET_GLOBAL_SETTINGS = `
         globalSettings {
             customFields {
                 minimumMarketplacePrice
+                minimumMarketplaceStock
                 whatsappNumber
             }
         }
@@ -300,6 +301,7 @@ const UPDATE_GLOBAL_SETTINGS = `
                 id
                 customFields {
                     minimumMarketplacePrice
+                    minimumMarketplaceStock
                     whatsappNumber
                 }
             }
@@ -1360,6 +1362,7 @@ export function ProductListComponent() {
     const facets = facetsData?.facets?.items || [];
     const vendors = vendorsData?.vendors?.items || [];
     const minPrice = globalSettingsData?.globalSettings?.customFields?.minimumMarketplacePrice ?? 0;
+    const minStock = globalSettingsData?.globalSettings?.customFields?.minimumMarketplaceStock ?? 1;
 
     // Automatically populate offersMap from productsData.sellerOffers on load
     useEffect(() => {
@@ -2553,33 +2556,38 @@ export function ProductListComponent() {
         }
     };
 
-    // Minimum Price Setting Mutation
+    // Marketplace Settings (Minimum Price & Stock) Mutation
     const [minPriceInput, setMinPriceInput] = useState<string>('');
-    const [isSavingMinPrice, setIsSavingMinPrice] = useState(false);
+    const [minStockInput, setMinStockInput] = useState<string>('');
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-    const minPriceMutation = useMutation({
-        mutationFn: (price: number) => fetchGraphQL(UPDATE_GLOBAL_SETTINGS, {
+    const settingsMutation = useMutation({
+        mutationFn: (values: { price: number; stock: number }) => fetchGraphQL(UPDATE_GLOBAL_SETTINGS, {
             input: {
                 customFields: {
-                    minimumMarketplacePrice: price,
+                    minimumMarketplacePrice: values.price,
+                    minimumMarketplaceStock: values.stock,
                 },
             },
         }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['globalSettings'] });
-            setIsSavingMinPrice(false);
-            alert('Prix minimum marketplace mis à jour avec succès !');
+            setIsSavingSettings(false);
+            alert('Paramètres marketplace (Prix et Stock minimum) mis à jour avec succès !');
         },
         onError: (err: any) => {
-            setIsSavingMinPrice(false);
+            setIsSavingSettings(false);
             alert('Erreur: ' + err.message);
         },
     });
 
-    const handleSaveMinPrice = (e: React.FormEvent) => {
+    const handleSaveSettings = (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSavingMinPrice(true);
-        minPriceMutation.mutate(Number(minPriceInput || minPrice));
+        setIsSavingSettings(true);
+        settingsMutation.mutate({
+            price: Number(minPriceInput !== '' ? minPriceInput : minPrice),
+            stock: Number(minStockInput !== '' ? minStockInput : minStock),
+        });
     };
 
     return (
@@ -2705,36 +2713,76 @@ export function ProductListComponent() {
                     <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{minPrice.toLocaleString('fr-FR')} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FCFA</span></div>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Seuil minimal autorisé à la vente</div>
                 </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '16px 20px', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em' }}>Stock Minimum Requis</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', marginTop: '4px' }}>{minStock} <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>unité(s)</span></div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>Seuil minimal de stock par offre</div>
+                </div>
             </div>
 
             {/* ── 3. TAB CONTENT: SETTINGS TAB ── */}
             {activeTab === 'settings' && (
                 <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-                    <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>Configuration du Marché &amp; Prix Minimum</h2>
-                    <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px 0', maxWidth: '600px' }}>
-                        Définissez le montant minimal en FCFA à partir duquel un vendeur marchand peut créer une offre sur le catalogue Ahizan.
+                    <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0', color: '#0f172a' }}>Configuration du Marché &amp; Règles de Validation</h2>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px 0', maxWidth: '650px' }}>
+                        Définissez les seuils minimaux obligatoires (prix en FCFA et stock en unités) requis pour que les vendeurs marchands puissent publier des offres sur la marketplace Ahizan.
                     </p>
-                    <form onSubmit={handleSaveMinPrice} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type="number"
-                                min="0"
-                                placeholder={minPrice.toString()}
-                                value={minPriceInput !== '' ? minPriceInput : minPrice}
-                                onChange={e => setMinPriceInput(e.target.value)}
-                                style={{ width: '180px', padding: '10px 48px 10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700 }}
-                            />
-                            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
-                                FCFA
-                            </span>
+                    <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                                    Prix Minimum Garanti (FCFA) *
+                                </label>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        placeholder={minPrice.toString()}
+                                        value={minPriceInput !== '' ? minPriceInput : minPrice}
+                                        onChange={e => setMinPriceInput(e.target.value)}
+                                        style={{ width: '100%', padding: '10px 48px 10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700, boxSizing: 'border-box' }}
+                                    />
+                                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
+                                        FCFA
+                                    </span>
+                                </div>
+                                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                                    Tout prix ou prix soldé inférieur sera strictement rejeté.
+                                </span>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                                    Stock Minimum Requis (Unités) *
+                                </label>
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        placeholder={minStock.toString()}
+                                        value={minStockInput !== '' ? minStockInput : minStock}
+                                        onChange={e => setMinStockInput(e.target.value)}
+                                        style={{ width: '100%', padding: '10px 52px 10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', fontWeight: 700, boxSizing: 'border-box' }}
+                                    />
+                                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>
+                                        unités
+                                    </span>
+                                </div>
+                                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                                    Quantité minimale en stock requise pour activer une déclinaison.
+                                </span>
+                            </div>
                         </div>
-                        <button
-                            type="submit"
-                            disabled={isSavingMinPrice}
-                            style={{ padding: '10px 20px', borderRadius: '8px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '12px', fontWeight: 700, cursor: isSavingMinPrice ? 'not-allowed' : 'pointer' }}
-                        >
-                            {isSavingMinPrice ? 'Sauvegarde...' : 'Enregistrer le seuil'}
-                        </button>
+
+                        <div>
+                            <button
+                                type="submit"
+                                disabled={isSavingSettings}
+                                style={{ padding: '11px 24px', borderRadius: '8px', background: '#0f172a', color: '#ffffff', border: 'none', fontSize: '12px', fontWeight: 700, cursor: isSavingSettings ? 'not-allowed' : 'pointer' }}
+                            >
+                                {isSavingSettings ? 'Sauvegarde en cours...' : 'Enregistrer les seuils marketplace'}
+                            </button>
+                        </div>
                     </form>
                 </div>
             )}

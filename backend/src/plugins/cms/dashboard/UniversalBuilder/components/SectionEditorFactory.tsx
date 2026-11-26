@@ -38,6 +38,7 @@ import {
     CircularCategoryNavSettings, 
     TrustFooterBarSettings 
 } from './sections/ModernSectionSettings';
+import { TabbedProductGridSettings } from './sections/TabbedProductGridSettings';
 import { useEditor } from '../hooks/EditorContext';
 import { fetchGraphQL } from '../../lib/utils';
 import { FileUploadField } from './sections/FileUploadField';
@@ -148,6 +149,10 @@ export const SectionEditorFactory = ({ section, sectionIndex, onSaveSuccess }: S
     );
 
     switch (section.type) {
+        case 'TABBED_PRODUCT_GRID':
+        case 'PRODUCT_GRID':
+            return withCodePanel(<TabbedProductGridSettings data={data} onSave={handleSave} />);
+
         case 'PRODUCT_COLLECTION':
             return withCodePanel(<UniversalProductCollectionSettings data={data} onSave={handleSave} />);
 

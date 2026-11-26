@@ -40,7 +40,7 @@ export function UniversalProductCollection(props: UniversalProductCollectionProp
     }
 
     // Grille de produits universelle (avec ou sans onglets)
-    const tabsConfig = props.tabs && props.tabs.length > 0 ? props.tabs : [{
+    const tabsConfig = (props.tabs && props.tabs.length > 0 ? props.tabs : [{
         id: 'universal-tab',
         label: title || 'Produits',
         filterType: props.filterType || 'LATEST',
@@ -50,7 +50,11 @@ export function UniversalProductCollection(props: UniversalProductCollectionProp
         selectionMode: props.selectionMode || 'COLLECTIONS',
         facetValueIds: props.facetValueIds,
         take: props.take || props.limit || 8
-    }];
+    }]).map((t: any) => ({
+        ...t,
+        take: t.take || props.take || props.limit || 8,
+        selectionMode: t.selectionMode || props.selectionMode || (t.filterType === 'COLLECTION' ? 'COLLECTIONS' : 'AUTOMATIC'),
+    }));
 
     return (
         <TabbedProductGrid

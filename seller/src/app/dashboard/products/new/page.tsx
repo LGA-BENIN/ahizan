@@ -1,5 +1,6 @@
 import { query } from '@/lib/vendure/api';
 import { GetCollectionsTreeQuery, GetMyVendorFullProfileQuery } from '@/lib/vendure/queries';
+import { fetchMarketplaceSettings } from '@/lib/vendure/vendor-product-mutations';
 import { getAuthToken } from '@/lib/auth';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -14,7 +15,7 @@ export default async function NewProductPage() {
     noStore();
     const token = await getAuthToken();
 
-    const [{ data: collectionsData }, { data: vendorData }] = await Promise.all([
+    const [{ data: collectionsData }, { data: vendorData }, marketplaceSettings] = await Promise.all([
         query(GetCollectionsTreeQuery, {}, { token, useAuthToken: true }).catch((err) => {
             console.error('[NewProductPage] Failed to fetch collections:', err);
             return { data: null };
@@ -22,7 +23,8 @@ export default async function NewProductPage() {
         query(GetMyVendorFullProfileQuery, {}, { token, useAuthToken: true }).catch((err) => {
             console.error('[NewProductPage] Failed to fetch vendor profile:', err);
             return { data: null };
-        })
+        }),
+        fetchMarketplaceSettings().catch(() => ({ minimumMarketplacePrice: 300, minimumMarketplaceStock: 1 }))
     ]);
     const collectionTree = (collectionsData as any)?.cmsCollectionsTree || [];
     const vendorProfile = (vendorData as any)?.myVendorProfile || null;
@@ -50,7 +52,7 @@ export default async function NewProductPage() {
             </div>
 
             <div className="pt-2">
-                <NewProductClient collectionTree={collectionTree} hasLocation={hasLocation} />
+                <NewProductClient collectionTree={collectionTree} hasLocation={hasLocation} marketplaceSettings={marketplaceSettings} />
             </div>
         </div>
     );

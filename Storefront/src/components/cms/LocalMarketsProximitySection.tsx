@@ -153,8 +153,12 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
         }
 
         // 2. User coordinates or commune
-        const uLat = selectedLocation?.latitude ? Number(selectedLocation.latitude) : null;
-        const uLon = selectedLocation?.longitude ? Number(selectedLocation.longitude) : null;
+        const rawLat = selectedLocation?.latitude ?? (selectedLocation as any)?.centerLatitude;
+        const rawLon = selectedLocation?.longitude ?? (selectedLocation as any)?.centerLongitude;
+        const uLat = rawLat !== undefined && rawLat !== null ? Number(rawLat) : null;
+        const uLon = rawLon !== undefined && rawLon !== null ? Number(rawLon) : null;
+        const effectiveUserLat = (uLat !== null && !isNaN(uLat)) ? uLat : 6.3654;
+        const effectiveUserLon = (uLon !== null && !isNaN(uLon)) ? uLon : 2.4183;
         const uCommune = (selectedLocation?.commune || selectedLocation?.name || '').toLowerCase();
 
         items = items.map((m: any, index: number) => {
@@ -162,13 +166,13 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
             const mLat = m.centerLatitude !== undefined && m.centerLatitude !== null ? Number(m.centerLatitude) : null;
             const mLon = m.centerLongitude !== undefined && m.centerLongitude !== null ? Number(m.centerLongitude) : null;
 
-            if (uLat !== null && uLon !== null && mLat !== null && mLon !== null && !isNaN(uLat) && !isNaN(uLon) && !isNaN(mLat) && !isNaN(mLon)) {
-                const d = calculateDistanceKm(uLat, uLon, mLat, mLon);
+            if (mLat !== null && mLon !== null && !isNaN(mLat) && !isNaN(mLon)) {
+                const d = calculateDistanceKm(effectiveUserLat, effectiveUserLon, mLat, mLon);
                 distanceKm = Math.round(d * 10) / 10;
             }
 
             const zoneName = (m.geoZone?.name || m.geoZone?.parent?.name || '').toLowerCase();
-            const isSameCommune = uCommune && zoneName && (zoneName.includes(uCommune) || uCommune.includes(zoneName));
+            const isSameCommune = Boolean(uCommune && zoneName && (zoneName.includes(uCommune) || uCommune.includes(zoneName)));
 
             // Curated fallback photo so cards are NEVER blank
             const fallbackImg = CURATED_MARKET_IMAGES[index % CURATED_MARKET_IMAGES.length];
@@ -187,29 +191,25 @@ export function LocalMarketsProximitySection({ config = {} }: LocalMarketsProxim
             };
         });
 
-        // 3. Filter / Sort:
-        // If the user selected a specific commune, show all markets of that commune
-        const sameCommuneItems = items.filter((m: any) => m.isSameCommune);
-        
-        let finalItems = items;
-        if (sameCommuneItems.length > 0) {
-            sameCommuneItems.sort((a: any, b: any) => {
-                if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
-                return (a.name || '').localeCompare(b.name || '');
-            });
-            finalItems = sameCommuneItems;
-        } else {
-            finalItems.sort((a: any, b: any) => {
-                if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
-                if (a.distanceKm !== null) return -1;
-                if (b.distanceKm !== null) return 1;
-                return 0;
-            });
-        }
+        // 3. Sort:
+        // Always display all markets, ordered from closest to furthest (tri par proximité strict)
+        items.sort((a: any, b: any) => {
+            if (a.distanceKm !== null && b.distanceKm !== null) {
+                return a.distanceKm - b.distanceKm;
+            }
+            if (a.distanceKm !== null) return -1;
+            if (b.distanceKm !== null) return 1;
+            if (a.isSameCommune && !b.isSameCommune) return -1;
+            if (!a.isSameCommune && b.isSameCommune) return 1;
+            return (a.name || '').localeCompare(b.name || '');
+        });
 
-        const take = Number(config.take || 12);
-        return finalItems.slice(0, Math.max(take, sameCommuneItems.length));
-    }, [rawMarkets, selectedLocation, config.selectionMode, config.selectedMarketIds, config.marketOverrides, config.take]);
+        const currentLayout = config.layout || 'grid';
+        const requestedTake = Number(config.take || 12);
+        // In carousel layout, show all available markets so the user can scroll through the entire list from closest to farthest
+        const finalTake = currentLayout === 'carousel' ? Math.max(requestedTake, items.length) : requestedTake;
+        return items.slice(0, finalTake);
+    }, [rawMarkets, selectedLocation, config.selectionMode, config.selectedMarketIds, config.marketOverrides, config.take, config.layout]);
 
     const title = interpolateLocalVariables(config.title || 'Marchés Populaires & Traditionnels', selectedLocation);
     const subtitle = interpolateLocalVariables(config.subtitle || 'Explorez les grands marchés du Bénin et faites vos achats directement auprès de leurs commerçants.', selectedLocation);

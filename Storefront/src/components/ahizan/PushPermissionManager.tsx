@@ -208,10 +208,11 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
             }
         }
 
-        // Delay before showing the banner
-        const delayLimit = isForceTest ? 500 : (delaySeconds !== undefined ? delaySeconds : 3) * 1000;
-        const timer = setTimeout(() => setShowPrompt(true), delayLimit);
-        return () => clearTimeout(timer);
+        // Strictly contextual: Never auto-trigger on initial page load (only when adding to cart, checkout, or testing)
+        if (isForceTest) {
+            const timer = setTimeout(() => setShowPrompt(true), 500);
+            return () => clearTimeout(timer);
+        }
     }, [delaySeconds, maxPerDay, intervalMinutes]);
 
     // For logged-in users: silent re-registration if permission already granted
@@ -355,56 +356,50 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
 
     return (
         <>
-            {/* Standard Prompt Banner */}
+            {/* Standard Prompt Banner (Slim & Compact) */}
             {showPrompt && (
                 <div
-                    className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-2rem)] max-w-md"
+                    className="fixed top-3 left-1/2 -translate-x-1/2 z-[9999] w-[calc(100%-1.5rem)] max-w-sm"
                     role="dialog"
                     aria-label="Activer les notifications push"
                 >
-                    <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-xl p-2.5 sm:p-3 flex items-start gap-2.5 animate-in slide-in-from-top-3 duration-300 font-sans">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                             {status === 'denied'
-                                ? <BellOff className="w-5 h-5 text-red-500" />
+                                ? <BellOff className="w-4 h-4 text-red-500" />
                                 : status === 'success'
-                                    ? <Bell className="w-5 h-5 text-green-500" />
-                                    : <Bell className="w-5 h-5 text-primary" />
+                                    ? <Bell className="w-4 h-4 text-green-500" />
+                                    : <Bell className="w-4 h-4 text-primary" />
                             }
                         </div>
                         <div className="flex-1 min-w-0">
                             {status === 'success' ? (
                                 <>
-                                    <p className="text-sm font-semibold text-gray-900">Notifications activées</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {isLoggedIn
-                                            ? 'Vous recevrez des alertes pour vos commandes et livraisons.'
-                                            : 'Vous recevrez des alertes sur les promotions et nouveautés. Connectez-vous pour un suivi personnalisé.'
-                                        }
+                                    <p className="text-xs font-bold text-gray-900 dark:text-white">Notifications activées</p>
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">
+                                        Alertes pour vos commandes et livraisons.
                                     </p>
                                 </>
                             ) : status === 'denied' ? (
                                 <>
-                                    <p className="text-sm font-semibold text-red-600">Notifications bloquées</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
+                                    <p className="text-xs font-bold text-red-600">Notifications bloquées</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
                                         Ouverture du guide de déblocage...
                                     </p>
                                 </>
                             ) : (
                                 <>
-                                    <p className="text-sm font-semibold text-gray-900">
+                                    <p className="text-xs font-bold text-gray-900 dark:text-white leading-tight">
                                         Activez les notifications
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {isLoggedIn
-                                            ? 'Soyez informé de vos commandes, livraisons et promotions en temps réel.'
-                                            : 'Recevez les meilleures offres et promotions en temps réel.'
-                                        }
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5 leading-snug">
+                                        Suivi de commandes et promotions en temps réel.
                                     </p>
-                                    <div className="flex items-center gap-2 mt-3">
+                                    <div className="flex items-center gap-1.5 mt-2">
                                         <button
                                             onClick={handleSubscribe}
                                             disabled={isLoading}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 transition disabled:opacity-60"
+                                            className="flex items-center gap-1 px-2.5 h-7 bg-primary text-white text-[11px] font-bold rounded-lg hover:bg-primary/90 transition disabled:opacity-60 cursor-pointer shadow-sm"
                                         >
                                             {isLoading
                                                 ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -414,7 +409,7 @@ export function PushPermissionManager({ authToken, userId, shopApiUrl, vapidPubl
                                         </button>
                                         <button
                                             onClick={handleDismissPrompt}
-                                            className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition"
+                                            className="px-2 h-7 text-[11px] font-medium text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition cursor-pointer"
                                         >
                                             Pas maintenant
                                         </button>

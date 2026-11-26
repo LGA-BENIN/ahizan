@@ -1,6 +1,7 @@
 import { query } from '@/lib/vendure/api';
 import { GetMyVendorProductQuery } from '@/lib/vendure/vendor-product-mutations';
 import { GetCollectionsTreeQuery } from '@/lib/vendure/queries';
+import { fetchMarketplaceSettings } from '@/lib/vendure/vendor-product-mutations';
 import { getAuthToken } from '@/lib/auth';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     const token = await getAuthToken();
 
     // Parallel fetch
-    const [productResult, collectionsResult] = await Promise.all([
+    const [productResult, collectionsResult, marketplaceSettings] = await Promise.all([
         query(GetMyVendorProductQuery, { id }, { token }).catch((err) => {
             console.error('[EditProductPage] Failed to fetch product:', err);
             return { data: { myVendorProduct: null } };
@@ -25,7 +26,8 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         query(GetCollectionsTreeQuery, {}, { token }).catch((err) => {
             console.error('[EditProductPage] Failed to fetch collections:', err);
             return { data: null };
-        })
+        }),
+        fetchMarketplaceSettings().catch(() => ({ minimumMarketplacePrice: 300, minimumMarketplaceStock: 1 }))
     ]);
 
     const product = productResult.data?.myVendorProduct;
@@ -69,7 +71,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
                 </div>
 
                 <div className="bg-card rounded-2xl md:rounded-[2.5rem] border border-border shadow-sm p-4 sm:p-10">
-                    <CreateProductForm initialProduct={product} collectionTree={collectionTree} />
+                    <CreateProductForm initialProduct={product} collectionTree={collectionTree} marketplaceSettings={marketplaceSettings} />
                 </div>
             </div>
         );
@@ -90,7 +92,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
             </div>
 
             <div className="bg-card rounded-2xl md:rounded-[2.5rem] border border-border shadow-sm p-4 sm:p-10">
-                <EditProductForm product={product} collectionTree={collectionTree} />
+                <EditProductForm product={product} collectionTree={collectionTree} marketplaceSettings={marketplaceSettings} />
             </div>
         </div>
     );

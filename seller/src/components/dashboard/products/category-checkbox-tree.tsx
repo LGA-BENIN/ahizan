@@ -217,7 +217,7 @@ export default function CategoryCheckboxTree({
     };
 
     return (
-        <div className="space-y-3 border border-border bg-card rounded-xl p-4 shadow-sm">
+        <div className="space-y-3 border border-border bg-card rounded-2xl p-4 shadow-sm">
             {/* Header controls */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <div className="relative flex-grow">
@@ -227,14 +227,14 @@ export default function CategoryCheckboxTree({
                         placeholder="Rechercher une catégorie..."
                         value={searchQuery}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                        className="pl-9 h-9 text-xs rounded-lg"
+                        className="pl-9 h-10 sm:h-9 text-xs rounded-xl"
                     />
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                    <Button type="button" variant="outline" size="sm" onClick={expandAll} className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider">
+                <div className="grid grid-cols-2 sm:flex items-center gap-1.5 shrink-0">
+                    <Button type="button" variant="outline" size="sm" onClick={expandAll} className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider rounded-xl">
                         Tout dérouler
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={collapseAll} className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider">
+                    <Button type="button" variant="outline" size="sm" onClick={collapseAll} className="h-9 px-3 text-[10px] uppercase font-bold tracking-wider rounded-xl">
                         Tout replier
                     </Button>
                 </div>

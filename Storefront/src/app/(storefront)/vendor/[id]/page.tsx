@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import { rawQuery } from '@/lib/vendure/raw-api';
 import { notFound } from 'next/navigation';
@@ -87,6 +88,7 @@ async function getVendorData(id: string) {
     try {
         const data = await rawQuery(GET_VENDOR_PROFILE, {
             variables: { id },
+            revalidate: 60,
         });
         return data?.vendor || null;
     } catch (e) {
@@ -95,22 +97,28 @@ async function getVendorData(id: string) {
     }
 }
 
-async function resolveVendor(paramId: string) {
+const resolveVendor = cache(async (paramId: string) => {
     if (!paramId) return null;
 
-    // 1. Try decoded ID (if it was an encoded hash)
-    const decoded = decodeId(paramId);
-    if (decoded && decoded !== paramId) {
-        const vendorByDecoded = await getVendorData(decoded);
-        if (vendorByDecoded) return vendorByDecoded;
+    // 1. If numeric (direct ID), query directly without false decoding
+    if (/^\d+$/.test(paramId)) {
+        const vendor = await getVendorData(paramId);
+        if (vendor) return vendor;
+    } else {
+        // 2. Encoded base62 hash - decode first
+        const decoded = decodeId(paramId);
+        if (decoded && decoded !== paramId) {
+            const vendorByDecoded = await getVendorData(decoded);
+            if (vendorByDecoded) return vendorByDecoded;
+        }
+
+        // Fallback to raw string ID
+        const vendorByRaw = await getVendorData(paramId);
+        if (vendorByRaw) return vendorByRaw;
     }
 
-    // 2. Try raw param directly (e.g. numeric ID '53' or string ID)
-    const vendorByRaw = await getVendorData(paramId);
-    if (vendorByRaw) return vendorByRaw;
-
     return null;
-}
+});
 
 export async function generateMetadata({ params }: VendorPageProps): Promise<Metadata> {
     const { id: paramId } = await params;

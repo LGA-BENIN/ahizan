@@ -1,4 +1,4 @@
-import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, CustomerService, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction, ProductVariantService, SearchService, GlobalSettingsService, EventBus, ProductEvent, Collection, ProductVariant, ChannelService, ProductOptionGroupService, ProductOptionService } from '@vendure/core';
+import { Allow, Ctx, Permission, RequestContext, PaginatedList, Product, ProductService, OrderService, CustomerService, Customer, Address, Order, OrderStateTransitionError, AssetService, Asset, TransactionalConnection, Transaction, ProductVariantService, SearchService, GlobalSettingsService, EventBus, ProductEvent, Collection, ProductVariant, ChannelService, ProductOptionGroupService, ProductOptionService } from '@vendure/core';
 import { In, Not } from 'typeorm';
 import { Args, Mutation, Query, Resolver, ResolveField, Parent } from '@nestjs/graphql';
 import { VendorService } from '../service/vendor.service';
@@ -531,7 +531,13 @@ export class VendorAdminResolver {
     @Query()
     @Allow(Permission.Authenticated)
     async adminVendorProducts(@Ctx() ctx: RequestContext, @Args('options') options: any): Promise<PaginatedList<Product>> {
-        return this.productService.findAll(ctx, options, [
+        const productList = await this.productService.findAll(ctx, {
+            ...options,
+            filter: {
+                ...(options?.filter || {}),
+                enabled: { eq: true },
+            }
+        }, [
             'featuredAsset',
             'variants',
             'variants.featuredAsset',
@@ -539,8 +545,169 @@ export class VendorAdminResolver {
             'variants.options.group',
             'customFields.vendor',
         ]);
+
+        // Filter out disabled or deleted variants to guarantee only valid sellable variants are selectable
+        for (const prod of productList.items) {
+            if (prod.variants) {
+                prod.variants = prod.variants.filter((v: any) => v.enabled !== false && !v.deletedAt) as any;
+            }
+        }
+
+        return productList;
     }
 
+    @Query()
+    @Allow(Permission.Authenticated, Permission.Public)
+    async calculateGeoEngineDeliveryFee(
+        @Ctx() ctx: RequestContext,
+        @Args('latitude') lat: number,
+        @Args('longitude') lng: number,
+        @Args('variantIds') variantIds: string[],
+    ): Promise<{
+        shippingFee: number;
+        distanceKm: number;
+        vendorName?: string;
+        vendorCity?: string;
+        clientLatitude: number;
+        clientLongitude: number;
+        eligible: boolean;
+    }> {
+        const cleanLat = Number(lat) || 6.3654;
+        const cleanLng = Number(lng) || 2.4183;
+
+        if (!variantIds || variantIds.length === 0) {
+            return {
+                shippingFee: 500,
+                distanceKm: 0,
+                clientLatitude: cleanLat,
+                clientLongitude: cleanLng,
+                eligible: true,
+            };
+        }
+
+        const rawConn = this.connection.rawConnection;
+
+        // Fetch vendors for these variant IDs
+        const rawVendors = await rawConn.query(`
+            SELECT DISTINCT COALESCE(so_vendor.id, p_vendor.id) as "vendorId",
+                   COALESCE(so_vendor.name, p_vendor.name) as "vendorName",
+                   COALESCE(so_vendor.address, p_vendor.address, 'Cotonou') as "vendorCity",
+                   COALESCE(so_vendor.latitude, p_vendor.latitude) as latitude,
+                   COALESCE(so_vendor.longitude, p_vendor.longitude) as longitude,
+                   COALESCE(so_vendor."physicalMarketId", p_vendor."physicalMarketId") as "physicalMarketId",
+                   COALESCE(so_vendor."locationId", p_vendor."locationId") as "locationId"
+            FROM product_variant pv
+            JOIN product p ON pv."productId" = p.id
+            LEFT JOIN vendor p_vendor ON (p."customFieldsVendorid" IS NOT NULL AND p_vendor.id = CAST(p."customFieldsVendorid" AS INTEGER))
+            LEFT JOIN seller_offer so ON (so."productVariantId" = pv.id)
+            LEFT JOIN vendor so_vendor ON (so."vendorId" = so_vendor.id)
+            WHERE pv.id = ANY($1)
+        `, [variantIds.map(Number)]);
+
+        let maxFee = 500;
+        let maxDistance = 0;
+        let mainVendorName = 'Marketplace Ahizan';
+        let mainVendorCity = 'Cotonou';
+
+        const clientGps = { lat: cleanLat, lng: cleanLng };
+
+        // Fetch platform settings for baseFee and feePerKm
+        const settings = await rawConn.query(`SELECT "deliveryBaseFee", "deliveryFeePerKm" FROM platform_settings WHERE id = 'platform_settings' LIMIT 1`);
+        const globalBaseFee = settings && settings[0] && settings[0].deliveryBaseFee != null ? Number(settings[0].deliveryBaseFee) : 500;
+        const deliveryFeePerKm = settings && settings[0] && settings[0].deliveryFeePerKm != null ? Number(settings[0].deliveryFeePerKm) : 100;
+
+        if (rawVendors && rawVendors.length > 0) {
+            for (const v of rawVendors) {
+                if (v.vendorName) mainVendorName = v.vendorName;
+                if (v.vendorCity) mainVendorCity = v.vendorCity;
+
+                let vLat: number | null = v.latitude ? parseFloat(v.latitude) : null;
+                let vLng: number | null = v.longitude ? parseFloat(v.longitude) : null;
+
+                if ((vLat == null || vLng == null) && v.physicalMarketId) {
+                    const mkt = await rawConn.query(`SELECT "centerLatitude", "centerLongitude" FROM physical_market WHERE id = $1 LIMIT 1`, [v.physicalMarketId]);
+                    if (mkt && mkt[0] && mkt[0].centerLatitude != null) {
+                        vLat = parseFloat(mkt[0].centerLatitude);
+                        vLng = parseFloat(mkt[0].centerLongitude);
+                    }
+                }
+
+                if ((vLat == null || vLng == null) && v.locationId) {
+                    const loc = await rawConn.query(`SELECT "centerLatitude", "centerLongitude" FROM geo_zone WHERE id = $1 LIMIT 1`, [v.locationId]);
+                    if (loc && loc[0] && loc[0].centerLatitude != null) {
+                        vLat = parseFloat(loc[0].centerLatitude);
+                        vLng = parseFloat(loc[0].centerLongitude);
+                    }
+                }
+
+                if (vLat == null || vLng == null) {
+                    vLat = 6.3670;
+                    vLng = 2.4400; // Dantokpa Cotonou fallback
+                }
+
+                const distanceMeters = await this.geoService.calculateDistance(ctx, { lat: vLat, lng: vLng }, clientGps);
+                const distanceKm = (distanceMeters / 1000) * 1.30;
+                maxDistance = Math.max(maxDistance, distanceKm);
+
+                const fee = globalBaseFee + Math.round(distanceKm * deliveryFeePerKm);
+                maxFee = Math.max(maxFee, fee);
+            }
+        } else {
+            const distanceMeters = await this.geoService.calculateDistance(ctx, { lat: 6.3670, lng: 2.4400 }, clientGps);
+            maxDistance = (distanceMeters / 1000) * 1.30;
+            maxFee = globalBaseFee + Math.round(maxDistance * deliveryFeePerKm);
+        }
+
+        if (this.geoService.getMatchingZonePrices) {
+            const zonePrices = await this.geoService.getMatchingZonePrices(ctx, clientGps);
+            if (zonePrices?.maxPrice != null && zonePrices.maxPrice > 0) {
+                maxFee = Math.min(maxFee, zonePrices.maxPrice);
+            }
+        }
+
+        maxFee = Math.max(maxFee, globalBaseFee);
+
+        return {
+            shippingFee: Math.round(maxFee),
+            distanceKm: Math.round(maxDistance * 10) / 10,
+            vendorName: mainVendorName,
+            vendorCity: mainVendorCity,
+            clientLatitude: cleanLat,
+            clientLongitude: cleanLng,
+            eligible: true,
+        };
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async searchPlatformCustomers(
+        @Ctx() ctx: RequestContext,
+        @Args('term') term?: string,
+    ): Promise<Customer[]> {
+        const cleanTerm = (term || '').trim().toLowerCase();
+        const customerRepo = this.connection.getRepository(ctx, Customer);
+        const qb = customerRepo.createQueryBuilder('customer')
+            .leftJoinAndSelect('customer.addresses', 'address')
+            .leftJoinAndSelect('customer.user', 'user')
+            .take(20);
+
+        if (cleanTerm) {
+            qb.where('LOWER(customer.emailAddress) LIKE :term', { term: `%${cleanTerm}%` })
+              .orWhere('LOWER(customer.phoneNumber) LIKE :term', { term: `%${cleanTerm}%` })
+              .orWhere('LOWER(customer.firstName) LIKE :term', { term: `%${cleanTerm}%` })
+              .orWhere('LOWER(customer.lastName) LIKE :term', { term: `%${cleanTerm}%` });
+        } else {
+            qb.orderBy('customer.createdAt', 'DESC');
+        }
+
+        qb.addOrderBy('address.defaultShippingAddress', 'DESC')
+          .addOrderBy('address.updatedAt', 'DESC')
+          .addOrderBy('address.id', 'DESC');
+
+        return qb.getMany();
+    }
+
+    @Transaction()
     @Mutation()
     @Allow(Permission.Authenticated)
     async createAssistedOrder(
@@ -552,66 +719,107 @@ export class VendorAdminResolver {
             throw new Error('Au moins un produit doit être ajouté à la commande.');
         }
 
-        // 1. Create Draft Order
+        // 1. Create Draft Order (Native Vendure Order lifecycle)
         const draftOrder = await this.orderService.createDraft(ctx);
 
-        // 2. Set Customer
+        // 2. Set Customer (Existing account if customerId or email provided, else create)
         const cleanPhone = (customer.phoneNumber || '').trim();
-        const baseEmail = `client-${cleanPhone.replace(/[^0-9]/g, '') || 'commande'}`;
-        const email = `${baseEmail}@ahizan.local`;
+        let customerEntity: any = null;
 
-        try {
-            const customerEntity = await this.customerService.createOrUpdate(ctx, {
-                firstName: customer.firstName.trim(),
-                lastName: (customer.lastName || customer.firstName).trim(),
-                emailAddress: email,
-                phoneNumber: cleanPhone,
+        if (customer.customerId) {
+            customerEntity = await this.customerService.findOne(ctx, customer.customerId);
+        }
+
+        if (!customerEntity && customer.emailAddress) {
+            customerEntity = await this.connection.getRepository(ctx, Customer).findOne({
+                where: { emailAddress: customer.emailAddress.trim().toLowerCase() }
             });
-            if (customerEntity && !(customerEntity as any).errorCode) {
-                await this.orderService.addCustomerToOrder(ctx, draftOrder.id, customerEntity as any);
-            }
-        } catch (e: any) {
+        }
+
+        if (!customerEntity && cleanPhone) {
+            customerEntity = await this.connection.getRepository(ctx, Customer).findOne({
+                where: { phoneNumber: cleanPhone }
+            });
+        }
+
+        if (!customerEntity) {
+            const baseEmail = customer.emailAddress?.trim() || `client-${cleanPhone.replace(/[^0-9]/g, '') || Date.now()}@ahizan.local`;
             try {
-                const customerEntity = await this.customerService.createOrUpdate(ctx, {
-                    firstName: customer.firstName.trim(),
-                    lastName: (customer.lastName || customer.firstName).trim(),
-                    emailAddress: `${baseEmail}-${Date.now()}@ahizan.local`,
+                customerEntity = await this.customerService.createOrUpdate(ctx, {
+                    firstName: (customer.firstName || 'Client').trim(),
+                    lastName: (customer.lastName || customer.firstName || 'Ahizan').trim(),
+                    emailAddress: baseEmail,
                     phoneNumber: cleanPhone,
                 });
-                if (customerEntity && !(customerEntity as any).errorCode) {
-                    await this.orderService.addCustomerToOrder(ctx, draftOrder.id, customerEntity as any);
+            } catch (e: any) {
+                try {
+                    customerEntity = await this.customerService.createOrUpdate(ctx, {
+                        firstName: (customer.firstName || 'Client').trim(),
+                        lastName: (customer.lastName || customer.firstName || 'Ahizan').trim(),
+                        emailAddress: `client-${Date.now()}@ahizan.local`,
+                        phoneNumber: cleanPhone,
+                    });
+                } catch (custErr) {
+                    console.warn('[createAssistedOrder] Customer assignment warning:', custErr);
                 }
-            } catch (custErr) {
-                console.warn('[createAssistedOrder] Customer assignment warning:', custErr);
             }
         }
 
-        // 3. Add items
-        let primaryVendorId: string | null = null;
-        for (const it of items) {
-            const addRes = await this.orderService.addItemToOrder(ctx, draftOrder.id, it.productVariantId, it.quantity);
-            if ((addRes as any)?.__typename && (addRes as any).__typename !== 'Order') {
-                throw new Error((addRes as any).message || `Erreur lors de l'ajout de la variante ${it.productVariantId}`);
-            }
+        if (customerEntity && !(customerEntity as any).errorCode) {
+            await this.orderService.addCustomerToOrder(ctx, draftOrder.id, customerEntity as any);
+        }
 
-            // Determine vendor for this item
+        // 3. Add items with proper customFields and vendor assignment
+        let primaryVendorId: string | null = null;
+        const allVendorIds = new Set<string>();
+
+        for (const it of items) {
+            // Safety check: ensure variant and parent product are active so Vendure native check succeeds
+            await this.connection.rawConnection.query(`
+                UPDATE product SET enabled = true, "updatedAt" = NOW() 
+                WHERE id = (SELECT "productId" FROM product_variant WHERE id = $1) AND enabled = false;
+                UPDATE product_variant SET enabled = true, "updatedAt" = NOW() 
+                WHERE id = $1 AND enabled = false;
+            `, [Number(it.productVariantId)]).catch(() => null);
+
+            // Determine vendor and sellerOffer for this item
             let vendorId = it.vendorId ? String(it.vendorId) : null;
-            if (!vendorId) {
+            let sellerOfferId = it.sellerOfferId ? String(it.sellerOfferId) : null;
+            if (!vendorId || !sellerOfferId) {
                 const offer = await this.connection.rawConnection.query(`
-                    SELECT "vendorId" FROM seller_offer WHERE "productVariantId" = $1 ORDER BY id DESC LIMIT 1
-                `, [it.productVariantId]).catch(() => null);
-                if (offer?.[0]?.vendorId) {
-                    vendorId = String(offer[0].vendorId);
+                    SELECT id, "vendorId" FROM seller_offer 
+                    WHERE "productVariantId" = $1 AND status = 'approved' 
+                    ORDER BY id DESC LIMIT 1
+                `, [Number(it.productVariantId)]).catch(() => null);
+                if (offer?.[0]) {
+                    if (!vendorId) vendorId = String(offer[0].vendorId);
+                    if (!sellerOfferId) sellerOfferId = String(offer[0].id);
                 } else {
                     const prod = await this.connection.rawConnection.query(`
                         SELECT "customFieldsVendorid" FROM product WHERE id = (
                             SELECT "productId" FROM product_variant WHERE id = $1
                         ) LIMIT 1
-                    `, [it.productVariantId]).catch(() => null);
+                    `, [Number(it.productVariantId)]).catch(() => null);
                     if (prod?.[0]?.customFieldsVendorid) {
                         vendorId = String(prod[0].customFieldsVendorid);
                     }
                 }
+            }
+
+            const lineCustomFields: Record<string, any> = {};
+            if (vendorId) lineCustomFields.assignedVendorId = String(vendorId);
+            if (sellerOfferId) lineCustomFields.sellerOfferId = String(sellerOfferId);
+
+            const addRes = await this.orderService.addItemToOrder(
+                ctx, 
+                draftOrder.id, 
+                it.productVariantId, 
+                it.quantity, 
+                Object.keys(lineCustomFields).length > 0 ? lineCustomFields : undefined
+            );
+
+            if ((addRes as any)?.__typename && (addRes as any).__typename !== 'Order') {
+                throw new Error((addRes as any).message || `Erreur lors de l'ajout de la variante ${it.productVariantId}`);
             }
 
             if (vendorId && !primaryVendorId) {
@@ -619,6 +827,7 @@ export class VendorAdminResolver {
             }
 
             if (vendorId) {
+                allVendorIds.add(vendorId);
                 const vendor = await this.vendorService.findOne(ctx, vendorId);
                 const channelId = vendor?.channelId || null;
                 // Assign vendor and seller status to line
@@ -632,26 +841,118 @@ export class VendorAdminResolver {
             }
         }
 
-        if (primaryVendorId) {
-            await this.connection.rawConnection.query(`
-                UPDATE "order" SET "customFieldsVendorid" = $1 WHERE id = $2
-            `, [Number(primaryVendorId), Number(draftOrder.id)]);
+        // Initialize vendorStatuses JSON map so Storefront and Backend have exact per-vendor tracking
+        const initialVendorStatuses: Record<string, any> = {};
+        for (const vId of allVendorIds) {
+            initialVendorStatuses[vId] = {
+                sellerStatus: 'pending',
+                adminStatus: 'pending',
+                isVendorPaid: false,
+                updatedAt: new Date().toISOString()
+            };
         }
 
-        // 4. Set Shipping Address
+        await this.connection.rawConnection.query(`
+            UPDATE "order" 
+            SET "customFieldsVendorid" = $1,
+                "customFieldsSellerstatus" = 'pending',
+                "customFieldsAdminstatus" = 'pending',
+                "customFieldsVendorstatuses" = $2
+            WHERE id = $3
+        `, [
+            primaryVendorId ? Number(primaryVendorId) : null,
+            JSON.stringify(initialVendorStatuses),
+            Number(draftOrder.id)
+        ]);
+
+        // 4. Set Shipping Address with GeoEngine coordinates
+        let lat = customer.latitude ? Number(customer.latitude) : null;
+        let lng = customer.longitude ? Number(customer.longitude) : null;
+
+        if (lat == null || lng == null) {
+            const cityNorm = (customer.city || '').toLowerCase();
+            if (cityNorm.includes('cotonou')) { lat = 6.3722; lng = 2.4251; }
+            else if (cityNorm.includes('porto') || cityNorm.includes('novo')) { lat = 6.4840; lng = 2.6202; }
+            else if (cityNorm.includes('calavi') || cityNorm.includes('abomey')) { lat = 6.5217; lng = 2.3252; }
+            else if (cityNorm.includes('parakou')) { lat = 9.3371; lng = 2.6303; }
+            else if (cityNorm.includes('ouidah')) { lat = 6.3631; lng = 2.0851; }
+            else if (cityNorm.includes('bohicon')) { lat = 7.1783; lng = 2.0667; }
+            else { lat = 6.3722; lng = 2.4251; }
+        }
+
         try {
             await this.orderService.setShippingAddress(ctx, draftOrder.id, {
                 fullName: `${customer.firstName} ${customer.lastName || ''}`.trim(),
                 streetLine1: customer.neighborhood || customer.city,
-                city: customer.city,
+                city: customer.city || 'Cotonou',
+                province: customer.province || 'Littoral',
                 countryCode: 'BJ',
                 phoneNumber: cleanPhone,
+                customFields: {
+                    latitude: lat,
+                    longitude: lng,
+                }
             });
         } catch (addrErr) {
             console.warn('[createAssistedOrder] Warning setting shipping address:', addrErr);
         }
 
-        // 5. Set Shipping Method
+        // 4b. Sync & save customer active address in database for platform tracking
+        if (customerEntity?.id) {
+            try {
+                const addressRepo = this.connection.rawConnection.getRepository(Address);
+                let custAddr = await addressRepo.findOne({
+                    where: { customer: { id: customerEntity.id }, defaultShippingAddress: true },
+                    order: { id: 'DESC' }
+                }) || await addressRepo.findOne({
+                    where: { customer: { id: customerEntity.id } },
+                    order: { id: 'DESC' }
+                });
+
+                await addressRepo.update(
+                    { customer: { id: customerEntity.id } },
+                    { defaultShippingAddress: false }
+                );
+
+                if (custAddr) {
+                    custAddr.city = customer.city || 'Cotonou';
+                    custAddr.streetLine1 = customer.neighborhood || customer.city;
+                    custAddr.province = customer.province || 'Littoral';
+                    custAddr.defaultShippingAddress = true;
+                    custAddr.customFields = {
+                        ...(custAddr.customFields || {}),
+                        latitude: lat,
+                        longitude: lng,
+                    };
+                    custAddr.updatedAt = new Date();
+                    await addressRepo.save(custAddr);
+                } else {
+                    const newAddr = addressRepo.create({
+                        customer: customerEntity,
+                        fullName: `${customer.firstName} ${customer.lastName || ''}`.trim() || 'Client Ahizan',
+                        company: '',
+                        streetLine1: customer.neighborhood || customer.city,
+                        streetLine2: '',
+                        city: customer.city || 'Cotonou',
+                        province: customer.province || 'Littoral',
+                        postalCode: '',
+                        phoneNumber: cleanPhone,
+                        defaultShippingAddress: true,
+                        defaultBillingAddress: true,
+                        country: { id: 1 } as any,
+                        customFields: {
+                            latitude: lat,
+                            longitude: lng,
+                        },
+                    });
+                    await addressRepo.save(newAddr);
+                }
+            } catch (saveAddrErr) {
+                console.warn('[createAssistedOrder] Warning saving customer address:', saveAddrErr);
+            }
+        }
+
+        // 5. Set Shipping Method (calculated natively by GeoEngine)
         try {
             const eligibleMethods = await this.orderService.getEligibleShippingMethods(ctx, draftOrder.id).catch(() => []);
             const chosenMethodId = shippingMethodId || eligibleMethods?.[0]?.id || '1';
@@ -1149,6 +1450,7 @@ export class VendorAdminResolver {
 
         // 1. Pre-validation checks
         await this.validateMinimumPrice(ctx, input.price);
+        await this.validateMinimumStock(ctx, (input as any).stock);
 
         return this.connection.withTransaction(ctx, async (transactionalCtx: RequestContext) => {
             // 2. Create Product
@@ -1341,6 +1643,9 @@ export class VendorAdminResolver {
         // 1. Pre-validation checks (Price and SKU uniqueness)
         if (input.price !== undefined) {
             await this.validateMinimumPrice(ctx, input.price);
+        }
+        if ((input as any).stock !== undefined) {
+            await this.validateMinimumStock(ctx, (input as any).stock);
         }
         if (input.sku !== undefined) {
             await this.validateSkuUniqueness(ctx, input.sku, input.id);
@@ -2618,7 +2923,30 @@ export class VendorAdminResolver {
         const globalSettings = await this.globalSettingsService.getSettings(ctx);
         const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice || 0;
         if (price !== undefined && price !== null && price < minPrice) {
-            throw new Error(`Le prix du produit doit être au minimum de ${minPrice}`);
+            throw new Error(`Le prix du produit (${price} FCFA) doit être au minimum de ${minPrice} FCFA.`);
         }
+    }
+
+    /**
+     * Enforce minimum marketplace stock on a stock value
+     */
+    private async validateMinimumStock(ctx: RequestContext, stock?: number): Promise<void> {
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minStock = (globalSettings.customFields as any)?.minimumMarketplaceStock ?? 1;
+        if (stock !== undefined && stock !== null && stock < minStock) {
+            throw new Error(`Le stock du produit (${stock}) doit être au minimum de ${minStock} unité(s).`);
+        }
+    }
+
+    @Query()
+    @Allow(Permission.Authenticated)
+    async marketplaceSettings(@Ctx() ctx: RequestContext): Promise<{ minimumMarketplacePrice: number; minimumMarketplaceStock: number }> {
+        const globalSettings = await this.globalSettingsService.getSettings(ctx);
+        const minPrice = (globalSettings.customFields as any)?.minimumMarketplacePrice ?? 0;
+        const minStock = (globalSettings.customFields as any)?.minimumMarketplaceStock ?? 1;
+        return {
+            minimumMarketplacePrice: minPrice,
+            minimumMarketplaceStock: minStock,
+        };
     }
 }

@@ -13,9 +13,13 @@ import LocationRequiredModal from '@/components/dashboard/products/location-requ
 interface NewProductClientProps {
     collectionTree: any[];
     hasLocation?: boolean;
+    marketplaceSettings?: {
+        minimumMarketplacePrice: number;
+        minimumMarketplaceStock: number;
+    };
 }
 
-export default function NewProductClient({ collectionTree, hasLocation }: NewProductClientProps) {
+export default function NewProductClient({ collectionTree, hasLocation, marketplaceSettings }: NewProductClientProps) {
     const [activeMode, setActiveMode] = useState<'create' | 'affiliate'>('create');
     const [preselectedGraftTerm, setPreselectedGraftTerm] = useState<string>('');
     const [preselectedProduct, setPreselectedProduct] = useState<any>(null);
@@ -107,11 +111,13 @@ export default function NewProductClient({ collectionTree, hasLocation }: NewPro
                         initialSearchTerm={preselectedGraftTerm}
                         initialSelectedProduct={preselectedProduct}
                         initialSelectedVariantId={preselectedVariantId}
+                        marketplaceSettings={marketplaceSettings}
                     />
                 ) : (
                     <CreateProductForm 
                         collectionTree={collectionTree} 
                         onSwitchToGraft={handleSwitchToGraft}
+                        marketplaceSettings={marketplaceSettings}
                     />
                 )}
             </div>

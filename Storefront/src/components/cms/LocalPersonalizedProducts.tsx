@@ -183,7 +183,6 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
             const shopApiUrl = getShopApiUrl();
             let localProductsList: any[] = [];
 
-            const candidateTake = Math.min(Math.max((limit || 8) * 2, 12), 24);
             const searchCandidateQuery = `
                 query GetCandidatesForLocal($take: Int!) {
                     search(input: { take: $take, groupByProduct: false }) {
@@ -206,15 +205,77 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 }
             `;
 
-            // Fetch search candidate products directly
-            const searchRes = await fetchWithClientCache(shopApiUrl, searchCandidateQuery, { take: candidateTake }).catch(() => null);
+            const nearbyVendorsQuery = `
+                query GetNearbyVendorsForLocal($marketId: ID, $locationId: ID, $latitude: Float, $longitude: Float, $radiusKm: Float) {
+                    vendors(
+                        marketId: $marketId, 
+                        locationId: $locationId, 
+                        latitude: $latitude, 
+                        longitude: $longitude,
+                        radiusKm: $radiusKm,
+                        options: { filter: { status: { eq: "APPROVED" } }, take: 50 }
+                    ) {
+                        items {
+                            id
+                            name
+                            latitude
+                            longitude
+                            physicalMarket { id name }
+                            location { id name }
+                            products {
+                                id
+                                name
+                                slug
+                                featuredAsset { preview }
+                                variants {
+                                    id
+                                    name
+                                    priceWithTax
+                                    featuredAsset { preview }
+                                }
+                            }
+                        }
+                    }
+                }
+            `;
+
+            // Fetch search candidate products & nearby vendor products in parallel
+            const [searchRes, vendorsRes] = await Promise.all([
+                fetchWithClientCache(shopApiUrl, searchCandidateQuery, { take: 100 }).catch(() => null),
+                fetchWithClientCache(shopApiUrl, nearbyVendorsQuery, {
+                    marketId: variables.marketId,
+                    locationId: variables.locationId,
+                    latitude: variables.latitude,
+                    longitude: variables.longitude,
+                    radiusKm: variables.radiusKm,
+                }).catch(() => null),
+            ]);
 
             const rawVendorProducts: any[] = [];
 
             // Multivendor seller offers to support modern catalog architecture
             try {
                 const sItems = searchRes?.search?.items || [];
-                const variantIds = Array.from(new Set(sItems.map((i: any) => i.productVariantId).filter(Boolean))).slice(0, 24);
+                const vVendors = vendorsRes?.vendors?.items || [];
+                const vItems = vVendors.flatMap((v: any) =>
+                    (v.products || []).flatMap((p: any) =>
+                        (p.variants || []).map((vr: any) => ({
+                            productId: p.id,
+                            productName: p.name,
+                            slug: p.slug,
+                            productAsset: p.featuredAsset,
+                            productVariantId: vr.id,
+                            productVariantName: vr.name,
+                            featuredAsset: vr.featuredAsset || p.featuredAsset,
+                            priceWithTax: { __typename: 'SinglePrice', value: vr.priceWithTax },
+                            inStock: true,
+                            vendor: v,
+                        }))
+                    )
+                );
+
+                const candidatePool = [...vItems, ...sItems];
+                const variantIds = Array.from(new Set(candidatePool.map((i: any) => String(i.productVariantId || i.id)).filter(Boolean))).slice(0, 150);
 
                 if (variantIds.length > 0) {
                     const sellerOffersQuery = `
@@ -261,8 +322,8 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                     const offersRes = await fetchWithClientCache(shopApiUrl, sellerOffersQuery, { variantIds });
                     const offers: any[] = offersRes?.sellerOffersForVariants || [];
 
-                    for (const item of sItems) {
-                        const vId = String(item.productVariantId);
+                    for (const item of candidatePool) {
+                        const vId = String(item.productVariantId || item.id);
                         const matchingOffers = offers.filter(o => String(o.productVariant?.id) === vId && o.vendor?.id);
                         for (const off of matchingOffers) {
                             const resolvedAsset = off.featuredAsset 
@@ -327,6 +388,7 @@ export function LocalPersonalizedProducts({ config }: LocalPersonalizedProductsP
                 marketId: variables.marketId ?? activeLoc?.marketId,
                 locationId: variables.locationId ?? activeLoc?.geoZoneId ?? activeLoc?.id,
                 communeName: displayName || activeLoc?.commune || activeLoc?.name,
+                limit: limit,
                 maxItemsPerVendor: config?.maxItemsPerVendor || (config?.experienceStrategy === 'HOME_FEED' ? 3 : 4),
                 maxVariantsPerCentralProduct: config?.maxVariantsPerCentralProduct || 2,
                 boostCertifiedVendors: config?.boostCertifiedVendors !== false,

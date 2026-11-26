@@ -87,9 +87,20 @@ export async function expandProductsWithSellerOffers(
         }));
     }
 
+    // Expand variant lookup up to 150 candidates (supporting rich catalog with real seller offers)
     const variantIds = Array.from(
-        new Set(items.map(i => i.productVariantId || i.id).filter(Boolean))
-    ).slice(0, 24);
+        new Set(
+            items.flatMap(i => {
+                if (i.productVariantId) return [String(i.productVariantId)];
+                if (Array.isArray(i.variants) && i.variants.length > 0) {
+                    return i.variants.map((v: any) => String(v.id)).filter(Boolean);
+                }
+                if (i.productVariant?.id) return [String(i.productVariant.id)];
+                if (i.id) return [String(i.id)];
+                return [];
+            }).filter(Boolean)
+        )
+    ).slice(0, 150);
 
     if (variantIds.length === 0) return items;
 
@@ -103,13 +114,23 @@ export async function expandProductsWithSellerOffers(
         // Prepare items with attached offers (ONLY variants with active seller offers)
         const rawItemsWithOffers: any[] = [];
         for (const item of items) {
-            const vId = String(item.productVariantId || item.id);
+            const itemVariantIds = new Set<string>();
+            if (item.productVariantId) itemVariantIds.add(String(item.productVariantId));
+            if (item.productVariant?.id) itemVariantIds.add(String(item.productVariant.id));
+            if (Array.isArray(item.variants)) {
+                for (const v of item.variants) {
+                    if (v?.id) itemVariantIds.add(String(v.id));
+                }
+            }
+            if (item.id) itemVariantIds.add(String(item.id));
+
             const matchingOffers = offers.filter(
-                o => String(o.productVariant?.id) === vId && o.vendor?.id
+                o => itemVariantIds.has(String(o.productVariant?.id)) && o.vendor?.id
             );
 
             if (matchingOffers.length > 0) {
                 for (const offer of matchingOffers) {
+                    const vId = String(offer.productVariant?.id);
                     const rawAssetObj = offer.featuredAsset 
                         || offer.productVariant?.featuredAsset 
                         || offer.productVariant?.product?.featuredAsset 
@@ -120,8 +141,8 @@ export async function expandProductsWithSellerOffers(
 
                     rawItemsWithOffers.push({
                         ...item,
-                        productId: item.productId || item.product?.id || item.id,
-                        productName: item.productName || item.name,
+                        productId: item.productId || item.product?.id || offer.productVariant?.product?.id || item.id,
+                        productName: item.productName || item.name || offer.productVariant?.product?.name,
                         productAsset: rawAssetObj,
                         productPreview: rawAssetObj?.preview || item.productPreview,
                         featuredAsset: rawAssetObj,

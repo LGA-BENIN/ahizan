@@ -334,11 +334,23 @@ export function scoreOffer(
             offer.fallbackLevel = 1;
             offer.fallbackLabel = vendor.physicalMarket?.name || vendor.location?.name || userCityName;
         } else if (userCityName) {
-            // User specified a city, but vendor is in another city
-            tierBaseScore = 1000;
-            geoFineBonus = 0;
-            offer.fallbackLevel = 3;
-            offer.fallbackLabel = vendor.location?.name || vendor.zone || 'Autre région';
+            // Check if vendor is in another identifiable city
+            const isDistantOtherCity = vendorAddress.includes('porto-novo') || vendorZone.includes('porto-novo') ||
+                vendorAddress.includes('parakou') || vendorZone.includes('parakou') ||
+                vendorAddress.includes('bohicon') || vendorZone.includes('bohicon');
+
+            if (isDistantOtherCity) {
+                tierBaseScore = 1000;
+                geoFineBonus = 0;
+                offer.fallbackLevel = 3;
+                offer.fallbackLabel = vendor.location?.name || vendor.zone || 'Autre région';
+            } else {
+                // National / Unspecified location (e.g. registered shop without GPS) -> Tier 2 so it remains accessible
+                tierBaseScore = 20000;
+                geoFineBonus = 500;
+                offer.fallbackLevel = 2;
+                offer.fallbackLabel = vendor.location?.name || vendor.zone || 'Boutique nationale';
+            }
         }
     }
 
@@ -459,6 +471,7 @@ function extractOfferCandidates(rawItems: any[]): {
 } {
     const offers: any[] = [];
     const productMap = new Map<string, any>();
+    const seenOfferKeys = new Set<string>();
 
     for (const item of rawItems) {
         if (!item) continue;
@@ -552,6 +565,9 @@ function extractOfferCandidates(rawItems: any[]): {
             };
 
             const vendorId = String(vendorInfo.id || 'main');
+            const offerKey = `${prodId}-${vrId}-${vendorId}`;
+            if (seenOfferKeys.has(offerKey)) continue;
+            seenOfferKeys.add(offerKey);
             const vrAsset = (typeof item.featuredAsset === 'string' ? { preview: item.featuredAsset } : (item.featuredAsset?.preview ? item.featuredAsset : null))
                 || (typeof vr.featuredAsset === 'string' ? { preview: vr.featuredAsset } : (vr.featuredAsset?.preview ? vr.featuredAsset : null))
                 || (typeof item.productVariantAsset === 'string' ? { preview: item.productVariantAsset } : (item.productVariantAsset?.preview ? item.productVariantAsset : null))
@@ -692,46 +708,179 @@ export function processAndResolveDisplayItems(
         }
     }
 
-    // 7. Apply Diversity & Anti-Monopoly Policy
-    // On vendor store: no diversity limits (all declination offers of this vendor are shown).
-    // On marketplace/collections/home: allow multiple distinct declinations per product (e.g. max 2 or 3)
-    // while preventing a single vendor from monopolizing the entire grid (max 3 or 4 per vendor).
+    // 7. Apply Fair Diversity, Round-Robin Interleaving & Controlled Stochastic Jitter ("Le Hasard")
+    // On marketplace/collections/home: guarantees fair round-robin across different vendors,
+    // category diversity when no specific category is locked, and fresh randomized order on every visit.
+    const targetLimit = context.limit && context.limit > 0 ? context.limit : (isVendorStore ? Infinity : 50);
     const maxVariantsPerCentralProduct = isVendorStore 
         ? Infinity 
-        : (context.maxVariantsPerCentralProduct ?? context.diversityPolicy?.maxVariantsPerCentralProduct ?? 2);
+        : (context.maxVariantsPerCentralProduct ?? context.diversityPolicy?.maxVariantsPerCentralProduct ?? 1);
 
     const maxVariantsPerSeller = isVendorStore 
         ? Infinity 
         : (context.maxItemsPerVendor ?? context.diversityPolicy?.maxVariantsPerSeller ?? 4);
 
-    const productCountMap = new Map<string, number>();
-    const sellerCountMap = new Map<string, number>();
-    const selectedOffers: any[] = [];
-    const overflowOffers: any[] = [];
+    let selectedOffers: any[] = [];
 
-    // Pass 1: Strict diversity quota
-    for (const off of filteredByTerritoryOffers) {
-        const pCount = productCountMap.get(off.productId) || 0;
-        const vCount = sellerCountMap.get(off.vendor?.id || 'main') || 0;
+    if (isVendorStore) {
+        // Vendor store: direct sequence of this vendor's catalog
+        selectedOffers = filteredByTerritoryOffers.slice(0, targetLimit);
+    } else {
+        const productCountMap = new Map<string, number>();
+        const sellerCountMap = new Map<string, number>();
+        const seenProductIds = new Set<string>();
 
-        if (pCount < maxVariantsPerCentralProduct && vCount < maxVariantsPerSeller) {
-            selectedOffers.push(off);
-            productCountMap.set(off.productId, pCount + 1);
-            sellerCountMap.set(off.vendor?.id || 'main', vCount + 1);
-        } else {
-            overflowOffers.push(off);
-        }
-    }
+        // Check if CMS explicitly targeted a single category/collection
+        const isSingleCategoryLocked = Boolean(
+            context.collectionSlug || 
+            (Array.isArray((context as any).collectionIds) && (context as any).collectionIds.length === 1)
+        );
 
-    // Pass 2: Backfill if section limit not reached and candidates exist
-    const targetLimit = context.limit && context.limit > 0 ? context.limit : (isVendorStore ? Infinity : 50);
-    if (selectedOffers.length < targetLimit && overflowOffers.length > 0) {
-        for (const off of overflowOffers) {
+        // Partition candidate pool into strict territorial tiers:
+        // Tier 1: Local / Proximity (score >= 100,000)
+        // Tier 2: Agglomération / Communes proches (score >= 20,000 and < 100,000)
+        // Tier 3: Distant / Marchands nationaux (score < 20,000)
+        const tier1 = filteredByTerritoryOffers.filter(o => (o.score || 0) >= 100000);
+        const tier2 = filteredByTerritoryOffers.filter(o => (o.score || 0) >= 20000 && (o.score || 0) < 100000);
+        const tier3 = filteredByTerritoryOffers.filter(o => (o.score || 0) < 20000);
+
+        const tiers = [tier1, tier2, tier3].filter(t => t.length > 0);
+
+        for (const tierOffers of tiers) {
             if (selectedOffers.length >= targetLimit) break;
-            const pCount = productCountMap.get(off.productId) || 0;
-            if (pCount <= maxVariantsPerCentralProduct + 1) {
+
+            // Group offers of this tier by vendor
+            const vendorMap = new Map<string, any[]>();
+            for (const off of tierOffers) {
+                const vId = String(off.vendor?.id || 'main');
+                if (!vendorMap.has(vId)) {
+                    vendorMap.set(vId, []);
+                }
+                vendorMap.get(vId)!.push(off);
+            }
+
+            // Shuffle offers inside each vendor's bucket with score-weighted random jitter
+            for (const [vId, vList] of vendorMap.entries()) {
+                vList.sort((a, b) => {
+                    const jitterA = Math.random() * 40 - 20;
+                    const jitterB = Math.random() * 40 - 20;
+                    return (b.score + jitterB) - (a.score + jitterA);
+                });
+            }
+
+            // Shuffle starting vendor order with random jitter so starting vendor varies on every load / client
+            const vendorIds = Array.from(vendorMap.keys());
+            vendorIds.sort(() => Math.random() - 0.5);
+
+            // Round-Robin Interleaving across vendors within this tier
+            let hasMore = true;
+            let round = 0;
+            const maxRounds = 25;
+
+            while (hasMore && selectedOffers.length < targetLimit && round < maxRounds) {
+                hasMore = false;
+                round++;
+
+                for (const vId of vendorIds) {
+                    if (selectedOffers.length >= targetLimit) break;
+
+                    const vCount = sellerCountMap.get(vId) || 0;
+                    if (vCount >= maxVariantsPerSeller) continue;
+
+                    const vList = vendorMap.get(vId) || [];
+                    if (vList.length === 0) continue;
+
+                    const lastSelected = selectedOffers[selectedOffers.length - 1];
+                    const lastCategoryId = lastSelected?.collections?.[0]?.id 
+                        ? String(lastSelected.collections[0].id) 
+                        : null;
+
+                    // Priority 1: Pick an offer from this vendor that doesn't exceed product limit,
+                    // and if possible belongs to a different category than the immediately preceding item
+                    let chosenIdx = -1;
+
+                    if (!isSingleCategoryLocked && lastCategoryId) {
+                        chosenIdx = vList.findIndex(off => {
+                            if (!isVendorStore && seenProductIds.has(off.productId)) return false;
+                            const pCount = productCountMap.get(off.productId) || 0;
+                            if (pCount >= maxVariantsPerCentralProduct) return false;
+                            const offCatId = off.collections?.[0]?.id ? String(off.collections[0].id) : null;
+                            return offCatId !== lastCategoryId;
+                        });
+                    }
+
+                    // Priority 2: Pick any valid offer under product limit
+                    if (chosenIdx === -1) {
+                        chosenIdx = vList.findIndex(off => {
+                            if (!isVendorStore && seenProductIds.has(off.productId)) return false;
+                            const pCount = productCountMap.get(off.productId) || 0;
+                            return pCount < maxVariantsPerCentralProduct;
+                        });
+                    }
+
+                    if (chosenIdx !== -1) {
+                        const [chosen] = vList.splice(chosenIdx, 1);
+                        selectedOffers.push(chosen);
+                        productCountMap.set(chosen.productId, (productCountMap.get(chosen.productId) || 0) + 1);
+                        sellerCountMap.set(vId, vCount + 1);
+                        if (!isVendorStore) seenProductIds.add(chosen.productId);
+                        hasMore = true;
+                    }
+                }
+            }
+        }
+
+        // Pass 2: Backfill if targetLimit not reached and remaining candidates exist
+        if (selectedOffers.length < targetLimit) {
+            const remainingOffers = filteredByTerritoryOffers.filter(o => 
+                !selectedOffers.some(s => s.id === o.id) &&
+                (isVendorStore || !seenProductIds.has(o.productId))
+            );
+            remainingOffers.sort(() => Math.random() - 0.5);
+
+            for (const off of remainingOffers) {
+                if (selectedOffers.length >= targetLimit) break;
+                if (!isVendorStore && seenProductIds.has(off.productId)) continue;
+
+                const lastVendorId = selectedOffers[selectedOffers.length - 1]?.vendor?.id;
+                const thisVendorId = off.vendor?.id;
+
+                // Try to avoid putting same vendor consecutively even in backfill
+                if (thisVendorId && lastVendorId && thisVendorId === lastVendorId && remainingOffers.length > 1) {
+                    const altIdx = remainingOffers.findIndex(ro => 
+                        ro.vendor?.id !== lastVendorId && 
+                        !selectedOffers.some(s => s.id === ro.id) &&
+                        (isVendorStore || !seenProductIds.has(ro.productId))
+                    );
+                    if (altIdx !== -1) {
+                        const [alt] = remainingOffers.splice(altIdx, 1);
+                        selectedOffers.push(alt);
+                        if (!isVendorStore) seenProductIds.add(alt.productId);
+                        continue;
+                    }
+                }
                 selectedOffers.push(off);
-                productCountMap.set(off.productId, pCount + 1);
+                if (!isVendorStore) seenProductIds.add(off.productId);
+            }
+        }
+
+        // Pass 3: Post-processing swap to fix any accidental adjacent duplicates from the same vendor
+        if (selectedOffers.length > 2) {
+            for (let i = 0; i < selectedOffers.length - 1; i++) {
+                const curVendor = selectedOffers[i]?.vendor?.id;
+                const nextVendor = selectedOffers[i + 1]?.vendor?.id;
+                if (curVendor && nextVendor && curVendor === nextVendor) {
+                    // Find a later element with a different vendor to swap with
+                    for (let j = i + 2; j < selectedOffers.length; j++) {
+                        const swapVendor = selectedOffers[j]?.vendor?.id;
+                        if (swapVendor && swapVendor !== curVendor) {
+                            const temp = selectedOffers[i + 1];
+                            selectedOffers[i + 1] = selectedOffers[j];
+                            selectedOffers[j] = temp;
+                            break;
+                        }
+                    }
+                }
             }
         }
     }

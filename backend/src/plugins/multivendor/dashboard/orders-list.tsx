@@ -198,6 +198,7 @@ const GET_PRODUCTS_MINIMAL = `
                     sku
                     stockOnHand
                     stockLevel
+                    enabled
                     vendor {
                         id
                         name
@@ -228,6 +229,59 @@ const CREATE_ASSISTED_ORDER = `
             code
             state
             totalWithTax
+        }
+    }
+`;
+
+const SEARCH_PLATFORM_CUSTOMERS = `
+    query SearchPlatformCustomers($term: String) {
+        searchPlatformCustomers(term: $term) {
+            id
+            firstName
+            lastName
+            emailAddress
+            phoneNumber
+            addresses {
+                id
+                fullName
+                streetLine1
+                city
+                province
+                phoneNumber
+                defaultShippingAddress
+                customFields {
+                    latitude
+                    longitude
+                }
+            }
+        }
+    }
+`;
+
+const CALCULATE_GEOENGINE_DELIVERY_FEE = `
+    query CalculateGeoEngineDeliveryFee($latitude: Float!, $longitude: Float!, $variantIds: [ID!]!) {
+        calculateGeoEngineDeliveryFee(latitude: $latitude, longitude: $longitude, variantIds: $variantIds) {
+            shippingFee
+            distanceKm
+            vendorName
+            vendorCity
+            clientLatitude
+            clientLongitude
+            eligible
+        }
+    }
+`;
+
+const SET_CUSTOMER_ACTIVE_LOCATION = `
+    mutation SetCustomerActiveLocation($input: SetCustomerActiveLocationInput!) {
+        setCustomerActiveLocation(input: $input) {
+            success
+            customerId
+            city
+            streetLine1
+            latitude
+            longitude
+            message
         }
     }
 `;
@@ -409,14 +463,91 @@ export function OrdersListComponent() {
     const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
     const [createOrderSearch, setCreateOrderSearch] = useState('');
     const [createOrderCart, setCreateOrderCart] = useState<OrderCartItem[]>([]);
-    const [createOrderCustomer, setCreateOrderCustomer] = useState({
+    const [createOrderCustomer, setCreateOrderCustomer] = useState<{
+        customerId?: string;
+        firstName: string;
+        lastName: string;
+        phone: string;
+        email?: string;
+        city: string;
+        neighborhood: string;
+        latitude?: number;
+        longitude?: number;
+        isSubmitting: boolean;
+    }>({
         firstName: '',
         lastName: '',
         phone: '',
         city: 'Cotonou',
         neighborhood: '',
+        latitude: 6.3722,
+        longitude: 2.4251,
         isSubmitting: false,
     });
+    const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
+    const [isLoadingCustomerSearch, setIsLoadingCustomerSearch] = useState(false);
+    const [selectedCustomerAccount, setSelectedCustomerAccount] = useState<any | null>(null);
+    const [customerInputMode, setCustomerInputMode] = useState<'search' | 'manual'>('search');
+    const [shippingFeePreview, setShippingFeePreview] = useState<{
+        shippingFee: number;
+        distanceKm: number;
+        vendorName?: string;
+        vendorCity?: string;
+        loading: boolean;
+        error?: string;
+    } | null>(null);
+    const [osmSearchQuery, setOsmSearchQuery] = useState('');
+    const [osmSearchResults, setOsmSearchResults] = useState<any[]>([]);
+    const [isSearchingOsm, setIsSearchingOsm] = useState(false);
+
+    // Live GeoEngine shipping fee calculation preview
+    useEffect(() => {
+        if (!isCreateOrderModalOpen || createOrderCart.length === 0) {
+            setShippingFeePreview(null);
+            return;
+        }
+
+        const lat = createOrderCustomer.latitude != null ? Number(createOrderCustomer.latitude) : 6.3722;
+        const lng = createOrderCustomer.longitude != null ? Number(createOrderCustomer.longitude) : 2.4251;
+        const variantIds = createOrderCart.map(item => item.variantId);
+
+        let cancelled = false;
+        setShippingFeePreview(prev => prev ? { ...prev, loading: true } : { shippingFee: 500, distanceKm: 0, loading: true });
+
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetchGraphQL(CALCULATE_GEOENGINE_DELIVERY_FEE, {
+                    latitude: lat,
+                    longitude: lng,
+                    variantIds,
+                });
+                if (!cancelled && res?.calculateGeoEngineDeliveryFee) {
+                    setShippingFeePreview({
+                        shippingFee: res.calculateGeoEngineDeliveryFee.shippingFee,
+                        distanceKm: res.calculateGeoEngineDeliveryFee.distanceKm,
+                        vendorName: res.calculateGeoEngineDeliveryFee.vendorName,
+                        vendorCity: res.calculateGeoEngineDeliveryFee.vendorCity,
+                        loading: false,
+                    });
+                }
+            } catch (err: any) {
+                if (!cancelled) {
+                    setShippingFeePreview(prev => prev ? { ...prev, loading: false, error: err.message } : null);
+                }
+            }
+        }, 250);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [
+        isCreateOrderModalOpen, 
+        createOrderCart.map(i => `${i.variantId}:${i.quantity}`).join(','), 
+        createOrderCustomer.latitude, 
+        createOrderCustomer.longitude
+    ]);
 
     const take = 15;
     const skip = (page - 1) * take;
@@ -949,9 +1080,14 @@ export function OrdersListComponent() {
                     return `https://api.ahizan.com/assets/${preview.replace(/^\/+/, '')}`;
                 };
 
+                const activeSellableProducts = availableProducts.filter((p: any) => {
+                    const validVariants = (p.variants || []).filter((v: any) => v.enabled !== false && v.stockLevel !== 'OUT_OF_STOCK');
+                    return validVariants.length > 0;
+                });
+
                 const filteredProductsForOrder = (!createOrderSearch.trim())
-                    ? availableProducts.slice(0, 50)
-                    : availableProducts.filter((p: any) => {
+                    ? activeSellableProducts.slice(0, 50)
+                    : activeSellableProducts.filter((p: any) => {
                         const term = createOrderSearch.toLowerCase().trim();
                         const matchName = (p.name || '').toLowerCase().includes(term);
                         const matchVendor = (p.customFields?.vendor?.name || '').toLowerCase().includes(term);
@@ -1033,6 +1169,16 @@ export function OrdersListComponent() {
 
                 const totalCartPrice = createOrderCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
+                const CITY_COORDINATES: Record<string, { lat: number; lng: number; province: string }> = {
+                    'Cotonou': { lat: 6.3722, lng: 2.4251, province: 'Littoral' },
+                    'Abomey-Calavi': { lat: 6.5217, lng: 2.3252, province: 'Atlantique' },
+                    'Porto-Novo': { lat: 6.4840, lng: 2.6202, province: 'Ouémé' },
+                    'Parakou': { lat: 9.3371, lng: 2.6303, province: 'Borgou' },
+                    'Ouidah': { lat: 6.3631, lng: 2.0851, province: 'Atlantique' },
+                    'Bohicon': { lat: 7.1783, lng: 2.0667, province: 'Zou' },
+                    'Sèmè-Kpodji': { lat: 6.3833, lng: 2.6167, province: 'Ouémé' },
+                };
+
                 const handleCreateOrderSubmit = async () => {
                     if (!createOrderCustomer.firstName.trim() || !createOrderCustomer.phone.trim()) {
                         alert('Veuillez renseigner au moins le prénom et le numéro WhatsApp / Téléphone du client.');
@@ -1045,18 +1191,29 @@ export function OrdersListComponent() {
 
                     setCreateOrderCustomer(prev => ({ ...prev, isSubmitting: true }));
                     try {
+                        const city = createOrderCustomer.city || 'Cotonou';
+                        const coords = CITY_COORDINATES[city] || CITY_COORDINATES['Cotonou'];
+                        const lat = createOrderCustomer.latitude ?? coords.lat;
+                        const lng = createOrderCustomer.longitude ?? coords.lng;
+
                         const input = {
                             customer: {
+                                customerId: createOrderCustomer.customerId || undefined,
                                 firstName: createOrderCustomer.firstName.trim(),
                                 lastName: (createOrderCustomer.lastName || createOrderCustomer.firstName).trim(),
                                 phoneNumber: createOrderCustomer.phone.trim(),
-                                city: createOrderCustomer.city || 'Cotonou',
-                                neighborhood: createOrderCustomer.neighborhood || '',
+                                emailAddress: createOrderCustomer.email?.trim() || undefined,
+                                city,
+                                neighborhood: createOrderCustomer.neighborhood || city,
+                                province: coords.province,
+                                latitude: lat,
+                                longitude: lng,
                             },
                             items: createOrderCart.map(item => ({
                                 productVariantId: item.variantId,
                                 quantity: Number(item.quantity) || 1,
                                 vendorId: item.vendorId || undefined,
+                                sellerOfferId: item.sellerOfferId || undefined,
                             })),
                             notes: 'Commande assistée (WhatsApp / Téléphone) - Enregistrée via administration',
                         };
@@ -1067,15 +1224,22 @@ export function OrdersListComponent() {
                             throw new Error(res?.errors?.[0]?.message || "Impossible de créer et finaliser la commande assistée.");
                         }
 
-                        alert(`🎉 Commande #${order.code} créée et confirmée avec succès !\nStatut: Payée / Confirmée\nMontant total: ${formatPrice(totalCartPrice, 'XOF')}\nLes vendeurs ont reçu la commande et une notification automatique.`);
+                        alert(`🎉 Commande #${order.code} créée et confirmée avec succès !\nStatut: Payée / Confirmée\nFrais de livraison et articles calculés par GeoEngine.\nLes vendeurs ont reçu la commande.`);
                         setIsCreateOrderModalOpen(false);
                         setCreateOrderCart([]);
+                        setSelectedCustomerAccount(null);
+                        setCustomerSearchTerm('');
+                        setCustomerSearchResults([]);
                         setCreateOrderCustomer({
+                            customerId: undefined,
                             firstName: '',
                             lastName: '',
                             phone: '',
+                            email: '',
                             city: 'Cotonou',
                             neighborhood: '',
+                            latitude: undefined,
+                            longitude: undefined,
                             isSubmitting: false,
                         });
                         queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
@@ -1150,7 +1314,7 @@ export function OrdersListComponent() {
                                         ) : (
                                             filteredProductsForOrder.map((product: any) => {
                                                 const productImg = getImgUrl(product.featuredAsset?.preview);
-                                                const variants = product.variants || [];
+                                                const variants = (product.variants || []).filter((v: any) => v.enabled !== false);
 
                                                 return (
                                                     <div 
@@ -1306,9 +1470,259 @@ export function OrdersListComponent() {
                                     
                                     {/* Customer Form */}
                                     <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#ffffff' }}>
-                                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
-                                            👤 Coordonnées du Client
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                👤 Compte & Coordonnées Client
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCustomerInputMode('search')}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 700,
+                                                        border: customerInputMode === 'search' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                        background: customerInputMode === 'search' ? '#eff6ff' : 'white',
+                                                        color: customerInputMode === 'search' ? '#1d4ed8' : '#64748b',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    🔍 Compte existant
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCustomerInputMode('manual');
+                                                        setSelectedCustomerAccount(null);
+                                                        setCreateOrderCustomer(prev => ({ ...prev, customerId: undefined }));
+                                                    }}
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 700,
+                                                        border: customerInputMode === 'manual' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                                                        background: customerInputMode === 'manual' ? '#eff6ff' : 'white',
+                                                        color: customerInputMode === 'manual' ? '#1d4ed8' : '#64748b',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    ✍️ Nouveau client
+                                                </button>
+                                            </div>
                                         </div>
+
+                                        {/* Customer Search / Selection Box */}
+                                        {customerInputMode === 'search' && (
+                                            <div style={{ marginBottom: '12px', position: 'relative' }}>
+                                                {selectedCustomerAccount ? (
+                                                    <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div>
+                                                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <span>✅</span>
+                                                                <span>{selectedCustomerAccount.firstName} {selectedCustomerAccount.lastName}</span>
+                                                                <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 600 }}>(Compte #{selectedCustomerAccount.id})</span>
+                                                            </div>
+                                                            <div style={{ fontSize: '11px', color: '#166534', marginTop: '2px' }}>
+                                                                📧 {selectedCustomerAccount.emailAddress} {selectedCustomerAccount.phoneNumber ? `• 📞 ${selectedCustomerAccount.phoneNumber}` : ''}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedCustomerAccount(null);
+                                                                setCreateOrderCustomer(prev => ({ ...prev, customerId: undefined }));
+                                                            }}
+                                                            style={{ background: '#fee2e2', border: 'none', borderRadius: '6px', color: '#dc2626', fontSize: '11px', fontWeight: 700, padding: '4px 8px', cursor: 'pointer' }}
+                                                        >
+                                                            Changer
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div>
+                                                        <div style={{ position: 'relative' }}>
+                                                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Rechercher par email, téléphone ou nom du client..."
+                                                                value={customerSearchTerm}
+                                                                onChange={async (e) => {
+                                                                    const val = e.target.value;
+                                                                    setCustomerSearchTerm(val);
+                                                                    if (val.trim().length >= 2) {
+                                                                        setIsLoadingCustomerSearch(true);
+                                                                        try {
+                                                                            const res = await fetchGraphQL(SEARCH_PLATFORM_CUSTOMERS, { term: val.trim() });
+                                                                            setCustomerSearchResults(res?.searchPlatformCustomers || []);
+                                                                        } catch (err) {
+                                                                            console.error(err);
+                                                                        } finally {
+                                                                            setIsLoadingCustomerSearch(false);
+                                                                        }
+                                                                    } else {
+                                                                        setCustomerSearchResults([]);
+                                                                    }
+                                                                }}
+                                                                style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                            />
+                                                            {isLoadingCustomerSearch && (
+                                                                <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#64748b' }}>
+                                                                    ⏳
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Autocomplete Dropdown */}
+                                                        {customerSearchResults.length > 0 && (
+                                                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', borderRadius: '10px', border: '1px solid #cbd5e1', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', zIndex: 100, maxHeight: '200px', overflowY: 'auto', marginTop: '4px' }}>
+                                                                 {customerSearchResults.map((cust: any) => (
+                                                                    <div
+                                                                        key={cust.id}
+                                                                        onClick={() => {
+                                                                            setSelectedCustomerAccount(cust);
+                                                                            const validAddrs = (cust.addresses || []).filter((a: any) => 
+                                                                                a.city && a.customFields?.latitude != null && a.customFields?.longitude != null
+                                                                            );
+                                                                            const activeAddr = validAddrs.find((a: any) => a.defaultShippingAddress) || validAddrs[0];
+
+                                                                            if (activeAddr) {
+                                                                                setCreateOrderCustomer(prev => ({
+                                                                                    ...prev,
+                                                                                    customerId: cust.id,
+                                                                                    firstName: cust.firstName || '',
+                                                                                    lastName: cust.lastName || '',
+                                                                                    phone: cust.phoneNumber || prev.phone,
+                                                                                    email: cust.emailAddress || '',
+                                                                                    city: activeAddr.city,
+                                                                                    neighborhood: activeAddr.streetLine1 || '',
+                                                                                    latitude: Number(activeAddr.customFields.latitude),
+                                                                                    longitude: Number(activeAddr.customFields.longitude),
+                                                                                }));
+                                                                            } else {
+                                                                                const defaultCoords = CITY_COORDINATES['Cotonou'];
+                                                                                setCreateOrderCustomer(prev => ({
+                                                                                    ...prev,
+                                                                                    customerId: cust.id,
+                                                                                    firstName: cust.firstName || '',
+                                                                                    lastName: cust.lastName || '',
+                                                                                    phone: cust.phoneNumber || prev.phone,
+                                                                                    email: cust.emailAddress || '',
+                                                                                    city: 'Cotonou',
+                                                                                    neighborhood: '',
+                                                                                    latitude: defaultCoords.lat,
+                                                                                    longitude: defaultCoords.lng,
+                                                                                }));
+                                                                            }
+                                                                            setCustomerSearchResults([]);
+                                                                        }}
+                                                                        style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.1s' }}
+                                                                        onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                                                                        onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                                                                    >
+                                                                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                                                                            {cust.firstName} {cust.lastName}
+                                                                        </div>
+                                                                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                                                            📧 {cust.emailAddress} {cust.phoneNumber ? `• 📞 ${cust.phoneNumber}` : ''}
+                                                                            {cust.addresses?.length > 0 ? ` • 🏠 ${cust.addresses.length} adresse(s)` : ''}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Customer platform location status indicator */}
+                                                {selectedCustomerAccount && (() => {
+                                                    const validAddrs = (selectedCustomerAccount.addresses || []).filter((a: any) => 
+                                                        a.city && a.customFields?.latitude != null && a.customFields?.longitude != null
+                                                    );
+                                                    const hasConfirmedLocation = validAddrs.length > 0;
+
+                                                    return (
+                                                        <div style={{ marginTop: '8px' }}>
+                                                            {hasConfirmedLocation ? (
+                                                                <div style={{ background: '#f0fdf4', border: '1.5px solid #22c55e', borderRadius: '10px', padding: '10px 12px' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                            <span style={{ fontSize: '18px' }}>📍</span>
+                                                                            <div>
+                                                                                <div style={{ fontSize: '11px', fontWeight: 800, color: '#15803d' }}>
+                                                                                    Localisation enregistrée sur la plateforme
+                                                                                </div>
+                                                                                <div style={{ fontSize: '12px', fontWeight: 900, color: '#0f172a' }}>
+                                                                                    {createOrderCustomer.city} {createOrderCustomer.neighborhood ? `— ${createOrderCustomer.neighborhood}` : ''}
+                                                                                </div>
+                                                                                {createOrderCustomer.latitude && createOrderCustomer.longitude && (
+                                                                                    <div style={{ fontSize: '10px', color: '#16a34a', marginTop: '1px' }}>
+                                                                                        GPS : ({createOrderCustomer.latitude.toFixed(4)}, {createOrderCustomer.longitude.toFixed(4)})
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <span style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 800 }}>
+                                                                            Vérifiée
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div style={{ background: '#fffbeb', border: '1.5px solid #f59e0b', borderRadius: '10px', padding: '10px 12px' }}>
+                                                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                                                        <span style={{ fontSize: '18px', lineHeight: 1 }}>⚠️</span>
+                                                                        <div>
+                                                                            <div style={{ fontSize: '11px', fontWeight: 900, color: '#b45309' }}>
+                                                                                Le client n'a pas encore choisi sa localisation sur la plateforme !
+                                                                            </div>
+                                                                            <div style={{ fontSize: '10.5px', color: '#92400e', marginTop: '2px', lineHeight: '1.3' }}>
+                                                                                Ce client n'a pas encore défini sa ville ou son adresse sur le site. Veuillez sélectionner sa ville et préciser son quartier ci-dessous afin que GeoEngine calcule les frais de livraison exacts.
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Multiple saved addresses selector */}
+                                                            {selectedCustomerAccount.addresses && selectedCustomerAccount.addresses.length > 1 && (
+                                                                <div style={{ marginTop: '8px' }}>
+                                                                    <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#0369a1', textTransform: 'uppercase', marginBottom: '3px' }}>
+                                                                        📍 Choisir parmi ses adresses ({selectedCustomerAccount.addresses.length}) :
+                                                                    </label>
+                                                                    <select
+                                                                        onChange={e => {
+                                                                            const chosen = selectedCustomerAccount.addresses.find((a: any) => String(a.id) === e.target.value);
+                                                                            if (chosen) {
+                                                                                const cCity = chosen.city || createOrderCustomer.city;
+                                                                                const coords = CITY_COORDINATES[cCity] || CITY_COORDINATES['Cotonou'];
+                                                                                const lat = chosen.customFields?.latitude != null ? Number(chosen.customFields.latitude) : coords.lat;
+                                                                                const lng = chosen.customFields?.longitude != null ? Number(chosen.customFields.longitude) : coords.lng;
+                                                                                setCreateOrderCustomer(prev => ({
+                                                                                    ...prev,
+                                                                                    city: cCity,
+                                                                                    neighborhood: chosen.streetLine1 || prev.neighborhood,
+                                                                                    latitude: lat,
+                                                                                    longitude: lng,
+                                                                                }));
+                                                                            }
+                                                                        }}
+                                                                        style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid #7dd3fc', background: '#f0f9ff', fontSize: '11px', fontWeight: 700, color: '#0369a1', boxSizing: 'border-box' }}
+                                                                    >
+                                                                        {selectedCustomerAccount.addresses.map((a: any) => (
+                                                                            <option key={a.id} value={a.id}>
+                                                                                {a.city} {a.streetLine1 ? `- ${a.streetLine1}` : ''} {a.defaultShippingAddress ? '(Défaut)' : ''}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Prénom *</label>
@@ -1332,42 +1746,191 @@ export function OrdersListComponent() {
                                             </div>
                                         </div>
 
-                                        <div style={{ marginBottom: '10px' }}>
-                                            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Téléphone WhatsApp / Appel *</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="ex: +229 97 00 00 00" 
-                                                value={createOrderCustomer.phone}
-                                                onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, phone: e.target.value })}
-                                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
-                                            />
-                                        </div>
-
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Ville / Commune</label>
-                                                <select 
-                                                    value={createOrderCustomer.city}
-                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, city: e.target.value })}
-                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: 'white', boxSizing: 'border-box' }}
-                                                >
-                                                    <option value="Cotonou">Cotonou</option>
-                                                    <option value="Abomey-Calavi">Abomey-Calavi</option>
-                                                    <option value="Porto-Novo">Porto-Novo</option>
-                                                    <option value="Parakou">Parakou</option>
-                                                    <option value="Ouidah">Ouidah</option>
-                                                    <option value="Bohicon">Bohicon</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Quartier / Repère</label>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Téléphone WhatsApp *</label>
                                                 <input 
                                                     type="text" 
-                                                    placeholder="ex: Haie Vive, en face..." 
-                                                    value={createOrderCustomer.neighborhood}
-                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, neighborhood: e.target.value })}
+                                                    placeholder="ex: +229 97 00 00 00" 
+                                                    value={createOrderCustomer.phone}
+                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, phone: e.target.value })}
                                                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
                                                 />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Email (optionnel)</label>
+                                                <input 
+                                                    type="email" 
+                                                    placeholder="client@gmail.com" 
+                                                    value={createOrderCustomer.email || ''}
+                                                    onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, email: e.target.value })}
+                                                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* LOCATION & GPS COORDINATES SECTION */}
+                                        <div style={{ marginTop: '6px', background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    📍 Localisation exacte & Coordonnées GPS
+                                                </span>
+                                                <span style={{ fontSize: '10px', color: '#0369a1', fontWeight: 700 }}>
+                                                    {createOrderCustomer.latitude && createOrderCustomer.longitude 
+                                                        ? `GPS : ${createOrderCustomer.latitude.toFixed(5)}, ${createOrderCustomer.longitude.toFixed(5)}`
+                                                        : 'Coordonnées par défaut'}
+                                                </span>
+                                            </div>
+
+                                            {/* OpenStreetMap Search Bar */}
+                                            <div style={{ marginBottom: '8px', position: 'relative' }}>
+                                                <div style={{ position: 'relative' }}>
+                                                    <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                    <input 
+                                                        type="text"
+                                                        placeholder="🔍 Rechercher un quartier ou repère au Bénin (ex: Haie Vive, Akpakpa...)"
+                                                        value={osmSearchQuery}
+                                                        onChange={async (e) => {
+                                                            const val = e.target.value;
+                                                            setOsmSearchQuery(val);
+                                                            if (val.trim().length >= 3) {
+                                                                setIsSearchingOsm(true);
+                                                                try {
+                                                                    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val.trim())}&countrycodes=bj&format=json&limit=5`, {
+                                                                        headers: { 'Accept': 'application/json' }
+                                                                    });
+                                                                    if (res.ok) {
+                                                                        const data = await res.json();
+                                                                        setOsmSearchResults(data || []);
+                                                                    }
+                                                                } catch (err) {
+                                                                    console.error(err);
+                                                                } finally {
+                                                                    setIsSearchingOsm(false);
+                                                                }
+                                                            } else {
+                                                                setOsmSearchResults([]);
+                                                            }
+                                                        }}
+                                                        style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                    />
+                                                    {isSearchingOsm && (
+                                                        <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#64748b' }}>
+                                                            ⏳
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {osmSearchResults.length > 0 && (
+                                                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 8px 20px rgba(0,0,0,0.12)', zIndex: 110, maxHeight: '160px', overflowY: 'auto', marginTop: '4px' }}>
+                                                        {osmSearchResults.map((place: any, idx: number) => {
+                                                            const placeName = place.display_name.split(',')[0];
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    onClick={() => {
+                                                                        const lat = parseFloat(place.lat);
+                                                                        const lon = parseFloat(place.lon);
+                                                                        const parts = place.display_name.split(',').map((s: string) => s.trim());
+                                                                        const cityGuess = parts.find((p: string) => ['Cotonou', 'Abomey-Calavi', 'Porto-Novo', 'Parakou', 'Ouidah', 'Bohicon', 'Sèmè-Kpodji'].includes(p)) || createOrderCustomer.city || 'Cotonou';
+                                                                        setCreateOrderCustomer(prev => ({
+                                                                            ...prev,
+                                                                            city: cityGuess,
+                                                                            neighborhood: placeName,
+                                                                            latitude: lat,
+                                                                            longitude: lon,
+                                                                        }));
+                                                                        setOsmSearchResults([]);
+                                                                        setOsmSearchQuery('');
+                                                                    }}
+                                                                    style={{ padding: '6px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '11px' }}
+                                                                    onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                                                                    onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                                                                >
+                                                                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{placeName}</div>
+                                                                    <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                        {place.display_name} • ({parseFloat(place.lat).toFixed(4)}, {parseFloat(place.lon).toFixed(4)})
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* City and Neighborhood Inputs */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Ville / Commune</label>
+                                                    <select 
+                                                        value={createOrderCustomer.city}
+                                                        onChange={e => {
+                                                            const c = e.target.value;
+                                                            const coords = CITY_COORDINATES[c] || CITY_COORDINATES['Cotonou'];
+                                                            setCreateOrderCustomer(prev => ({
+                                                                ...prev,
+                                                                city: c,
+                                                                latitude: coords.lat,
+                                                                longitude: coords.lng,
+                                                            }));
+                                                        }}
+                                                        style={{ width: '100%', padding: '7px 8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, background: 'white', boxSizing: 'border-box' }}
+                                                    >
+                                                        <option value="Cotonou">Cotonou</option>
+                                                        <option value="Abomey-Calavi">Abomey-Calavi</option>
+                                                        <option value="Porto-Novo">Porto-Novo</option>
+                                                        <option value="Parakou">Parakou</option>
+                                                        <option value="Ouidah">Ouidah</option>
+                                                        <option value="Bohicon">Bohicon</option>
+                                                        <option value="Sèmè-Kpodji">Sèmè-Kpodji</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '3px' }}>Quartier / Repère</label>
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="ex: Haie Vive, en face..." 
+                                                        value={createOrderCustomer.neighborhood}
+                                                        onChange={e => setCreateOrderCustomer({ ...createOrderCustomer, neighborhood: e.target.value })}
+                                                        style={{ width: '100%', padding: '7px 8px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 600, boxSizing: 'border-box' }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Numeric Latitude & Longitude Inputs */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: 800, color: '#0369a1', marginBottom: '2px' }}>
+                                                        🌐 Latitude GPS (ex: 6.372200)
+                                                    </label>
+                                                    <input 
+                                                        type="number"
+                                                        step="0.000001"
+                                                        placeholder="6.372200"
+                                                        value={createOrderCustomer.latitude ?? ''}
+                                                        onChange={e => {
+                                                            const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                                                            setCreateOrderCustomer(prev => ({ ...prev, latitude: val }));
+                                                        }}
+                                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1px solid #7dd3fc', background: '#f0f9ff', fontSize: '12px', fontWeight: 700, color: '#0369a1', boxSizing: 'border-box' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '10.5px', fontWeight: 800, color: '#0369a1', marginBottom: '2px' }}>
+                                                        🌐 Longitude GPS (ex: 2.425100)
+                                                    </label>
+                                                    <input 
+                                                        type="number"
+                                                        step="0.000001"
+                                                        placeholder="2.425100"
+                                                        value={createOrderCustomer.longitude ?? ''}
+                                                        onChange={e => {
+                                                            const val = e.target.value ? parseFloat(e.target.value) : undefined;
+                                                            setCreateOrderCustomer(prev => ({ ...prev, longitude: val }));
+                                                        }}
+                                                        style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1px solid #7dd3fc', background: '#f0f9ff', fontSize: '12px', fontWeight: 700, color: '#0369a1', boxSizing: 'border-box' }}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1467,10 +2030,41 @@ export function OrdersListComponent() {
 
                                     {/* Cart Footer: Total & Submit */}
                                     <div style={{ padding: '16px 20px', background: 'white', borderTop: '1px solid #e2e8f0' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
-                                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Total de la commande :</span>
-                                            <span style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>
+                                        {/* Subtotal */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+                                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Sous-total articles :</span>
+                                            <span style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
                                                 {formatPrice(totalCartPrice, 'XOF')}
+                                            </span>
+                                        </div>
+
+                                        {/* GeoEngine Dynamic Delivery Fee */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span>🚚</span> Frais de livraison (GeoEngine) :
+                                                </span>
+                                                {shippingFeePreview && (
+                                                    <span style={{ fontSize: '10.5px', color: '#64748b', marginTop: '1px' }}>
+                                                        {shippingFeePreview.distanceKm} km depuis {shippingFeePreview.vendorName || 'Boutique'} ({shippingFeePreview.vendorCity || 'Cotonou'})
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span style={{ fontSize: '14px', fontWeight: 800, color: shippingFeePreview?.loading ? '#94a3b8' : '#0369a1' }}>
+                                                {shippingFeePreview?.loading 
+                                                    ? '⏳ Calcul...' 
+                                                    : formatPrice(shippingFeePreview?.shippingFee ?? 500, 'XOF')}
+                                            </span>
+                                        </div>
+
+                                        {/* Total General TTC */}
+                                        <div style={{ borderTop: '2px dashed #e2e8f0', paddingTop: '10px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                            <div>
+                                                <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>Total Général TTC :</div>
+                                                <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 700 }}>Paiement à la livraison (Cash on Delivery)</div>
+                                            </div>
+                                            <span style={{ fontSize: '20px', fontWeight: 900, color: '#16a34a' }}>
+                                                {formatPrice(totalCartPrice + (shippingFeePreview?.shippingFee ?? 500), 'XOF')}
                                             </span>
                                         </div>
 
@@ -1497,10 +2091,15 @@ export function OrdersListComponent() {
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    gap: '8px'
+                                                    gap: '8px',
+                                                    boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
                                                 }}
                                             >
-                                                {createOrderCustomer.isSubmitting ? '⏳ Création de la commande...' : `✅ Valider la Commande (${formatPrice(totalCartPrice, 'XOF')})`}
+                                                {createOrderCustomer.isSubmitting ? (
+                                                    <>⏳ Finalisation de la commande...</>
+                                                ) : (
+                                                    <>✅ Valider la Commande ({formatPrice(totalCartPrice + (shippingFeePreview?.shippingFee ?? 500), 'XOF')})</>
+                                                )}
                                             </button>
                                         </div>
                                     </div>
@@ -1818,11 +2417,55 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <span style={{ fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '8px', color: meta.color, backgroundColor: meta.bg, border: `1px solid ${meta.border}` }}>
-                                                    {meta.label}
-                                                </span>
-                                                <span style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginLeft: '4px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                {/* Per-vendor Seller Status Selector */}
+                                                <select
+                                                    value={soVendorStatus}
+                                                    onChange={e => onUpdateSeller(e.target.value, so.vendor.id)}
+                                                    disabled={isMutating}
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 800,
+                                                        borderRadius: '8px',
+                                                        border: `1px solid ${meta.border}`,
+                                                        color: meta.color,
+                                                        background: meta.bg,
+                                                        cursor: isMutating ? 'wait' : 'pointer'
+                                                    }}
+                                                    title="Modifier le statut de validation de ce vendeur"
+                                                >
+                                                    <option value="pending">⏳ En attente</option>
+                                                    <option value="confirmed">✅ Confirmé</option>
+                                                    <option value="ready_for_pickup">📦 Prêt ramassage</option>
+                                                    <option value="refused">❌ Refusé</option>
+                                                    <option value="reassigning">🔄 En réassignation</option>
+                                                </select>
+
+                                                {/* Per-vendor Admin/Shipping Status Selector */}
+                                                <select
+                                                    value={vendorStatusesMap[vId]?.adminStatus || 'pending'}
+                                                    onChange={e => onUpdateAdmin(e.target.value, so.vendor.id)}
+                                                    disabled={isMutating}
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        fontSize: '11px',
+                                                        fontWeight: 800,
+                                                        borderRadius: '8px',
+                                                        border: '1px solid #cbd5e1',
+                                                        color: '#1e293b',
+                                                        background: 'white',
+                                                        cursor: isMutating ? 'wait' : 'pointer'
+                                                    }}
+                                                    title="Modifier le statut d'expédition de ce vendeur"
+                                                >
+                                                    <option value="pending">⏳ Préparation</option>
+                                                    <option value="in_transit">✈️ En transit</option>
+                                                    <option value="shipped">🚚 Expédiée</option>
+                                                    <option value="delivered">📦 Livré</option>
+                                                </select>
+
+                                                <span style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a', marginLeft: '4px' }}>
                                                     {formatPrice(so.total, order.currencyCode)}
                                                 </span>
 
@@ -1836,7 +2479,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                             setReassignVendorModal(true);
                                                         }}
                                                         style={{
-                                                            padding: '5px 10px',
+                                                            padding: '4px 8px',
                                                             background: '#f1f5f9',
                                                             color: '#334155',
                                                             border: '1px solid #cbd5e1',
@@ -1850,7 +2493,7 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                                                         }}
                                                         title="Transférer tous les articles de ce vendeur à un autre vendeur"
                                                     >
-                                                        🔄 Transférer à un autre vendeur
+                                                        🔄 Transférer
                                                     </button>
                                                 )}
                                             </div>
@@ -2015,25 +2658,51 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                         
                         {/* 1. CLIENT VISIBILITY OVERRIDES */}
                         <div style={{ background: '#f8fafc', padding: '18px', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
-                            <h4 style={{ fontSize: '12px', fontWeight: 900, margin: '0 0 14px 0', textTransform: 'uppercase', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
+                            <h4 style={{ fontSize: '12px', fontWeight: 900, margin: '0 0 8px 0', textTransform: 'uppercase', color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.05em' }}>
                                 <Activity size={16} color="#2563eb" /> Statuts Visibles par le Client
                             </h4>
+                            <p style={{ fontSize: '11px', color: '#64748b', margin: '0 0 12px 0', lineHeight: '1.4' }}>
+                                Synchronisé en direct sur l'espace client du Storefront par boutique.
+                            </p>
+
+                            {/* Multi-vendor targeted selector */}
+                            {vendorSubOrders.length > 1 && (
+                                <div style={{ marginBottom: '14px', textAlign: 'left' }}>
+                                    <label style={{ fontSize: '11px', fontWeight: 800, color: '#1e293b', display: 'block', marginBottom: '5px' }}>
+                                        Boutique ciblée ({vendorSubOrders.length} vendeurs)
+                                    </label>
+                                    <div className="po-select-wrapper">
+                                        <select
+                                            className="po-select"
+                                            value={selectedSubOrderIndex === 'all' ? 0 : selectedSubOrderIndex}
+                                            onChange={e => setSelectedSubOrderIndex(Number(e.target.value))}
+                                            style={{ fontWeight: 800, fontSize: '12px', background: 'white', border: '1.5px solid #2563eb' }}
+                                        >
+                                            {vendorSubOrders.map((so, idx) => (
+                                                <option key={idx} value={idx}>🏪 {so.vendor.name}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={15} className="po-select-icon" />
+                                    </div>
+                                </div>
+                            )}
                             
                             {/* Validation Vendeur override */}
                             <div style={{ marginBottom: '14px', textAlign: 'left' }}>
                                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                                    Validation Vendeur (Affiché au client)
+                                    Validation Vendeur {activeSubOrderVendor?.name ? `(${activeSubOrderVendor.name})` : ''}
                                 </label>
                                 <div className="po-select-wrapper">
                                     <select 
                                         className="po-select" 
-                                        value={order.customFields?.sellerStatus || 'pending'}
-                                        onChange={e => onUpdateSeller(e.target.value, undefined)}
+                                        value={sStat}
+                                        onChange={e => onUpdateSeller(e.target.value, activeSubOrderVendor?.id)}
                                         disabled={isMutating}
                                         style={{ fontWeight: 800, fontSize: '12px', background: 'white' }}
                                     >
                                         <option value="pending">⏳ En attente validation</option>
                                         <option value="confirmed">✅ Confirmée (Acceptée)</option>
+                                        <option value="ready_for_pickup">📦 Prêt pour ramassage</option>
                                         <option value="refused">❌ Refusée</option>
                                         <option value="reassigning">🔄 En cours de réassignation</option>
                                     </select>
@@ -2044,13 +2713,13 @@ function OrderModal({ order, onClose, onTransition, onUpdateSeller, onUpdateAdmi
                             {/* Statut d'expédition override */}
                             <div style={{ textAlign: 'left' }}>
                                 <label style={{ fontSize: '11px', fontWeight: 800, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                                    Statut Expédition (Affiché au client)
+                                    Statut Expédition {activeSubOrderVendor?.name ? `(${activeSubOrderVendor.name})` : ''}
                                 </label>
                                 <div className="po-select-wrapper">
                                     <select 
                                         className="po-select" 
-                                        value={order.customFields?.adminStatus || 'pending'}
-                                        onChange={e => onUpdateAdmin(e.target.value, undefined)}
+                                        value={aStat}
+                                        onChange={e => onUpdateAdmin(e.target.value, activeSubOrderVendor?.id)}
                                         disabled={isMutating}
                                         style={{ fontWeight: 800, fontSize: '12px', background: 'white' }}
                                     >

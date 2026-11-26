@@ -43,11 +43,11 @@ export function NavigationProgress() {
             });
         }, 120);
 
-        // Safety timeout in case navigation stalls
+        // Safety timeout in case navigation stalls or takes longer on slow networks
         const timeout = setTimeout(() => {
             setIsNavigating(false);
             setProgress(0);
-        }, 8000);
+        }, 3500);
 
         return () => {
             clearInterval(interval);
@@ -55,7 +55,7 @@ export function NavigationProgress() {
         };
     }, [isNavigating]);
 
-    // Intercept clicks on internal links to start progress immediately (0ms feedback)
+    // Intercept clicks on internal links to start progress indicator
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
             const target = (e.target as HTMLElement).closest('a');
@@ -64,34 +64,39 @@ export function NavigationProgress() {
             const href = target.getAttribute('href');
             if (!href) return;
 
-            // Ignore external links, downloads, new tabs, anchors, and tel/mailto
+            // Ignore external links, downloads, new tabs, anchors, tel/mailto, and data-no-progress
             if (
                 target.target === '_blank' ||
+                target.hasAttribute('download') ||
+                target.getAttribute('data-no-progress') === 'true' ||
                 href.startsWith('http://') ||
                 href.startsWith('https://') ||
                 href.startsWith('mailto:') ||
                 href.startsWith('tel:') ||
                 href.startsWith('#') ||
+                href.startsWith('javascript:') ||
                 e.ctrlKey ||
                 e.metaKey ||
                 e.shiftKey ||
-                e.altKey
+                e.altKey ||
+                e.defaultPrevented
             ) {
                 return;
             }
 
             // If navigating to the exact same pathname + search, do nothing
             const currentUrl = window.location.pathname + window.location.search;
-            if (href === currentUrl) return;
+            if (href === currentUrl || href === window.location.pathname) return;
 
-            // Reset scroll to top instantly before new route mounts
-            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+            // Never call window.scrollTo here! Abrupt scroll on touch devices interrupts the click
+            // event dispatch and cancels Next.js link navigation.
             setIsNavigating(true);
         };
 
-        document.addEventListener('click', handleClick, { capture: true });
+        // Use standard bubble phase so we don't interfere with preventDefault() or mobile touch gestures
+        document.addEventListener('click', handleClick);
         return () => {
-            document.removeEventListener('click', handleClick, { capture: true });
+            document.removeEventListener('click', handleClick);
         };
     }, []);
 

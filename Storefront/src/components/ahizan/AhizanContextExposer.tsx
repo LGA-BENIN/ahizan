@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from 'react';
+import { syncCustomerActiveLocationAction } from '@/lib/vendure/location-actions';
 
 declare global {
     interface Window {
@@ -48,6 +49,19 @@ export function AhizanContextExposer({ page, order, customer, market, neighborho
             };
         }
     }, [page, order, customer, market, neighborhood]);
+
+    // Automatically sync localStorage client location with authenticated customer profile in DB
+    useEffect(() => {
+        if (customer?.id && typeof window !== 'undefined') {
+            try {
+                const stored = localStorage.getItem('ahizan_client_location');
+                if (stored) {
+                    const loc = JSON.parse(stored);
+                    syncCustomerActiveLocationAction(loc).catch(() => {});
+                }
+            } catch {}
+        }
+    }, [customer?.id]);
 
     return null;
 }

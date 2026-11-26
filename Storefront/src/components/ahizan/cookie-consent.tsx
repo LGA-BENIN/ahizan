@@ -24,8 +24,8 @@ export function CookieConsent({ config }: CookieConsentProps) {
 
         const consent = localStorage.getItem('ahizan_cookie_consent');
         if (!consent) {
-            // Show after a short delay
-            const timer = setTimeout(() => setIsVisible(true), 1500);
+            // Calm delay (25s): let the user freely browse products and categories first
+            const timer = setTimeout(() => setIsVisible(true), 25000);
             return () => clearTimeout(timer);
         }
     }, [config]);

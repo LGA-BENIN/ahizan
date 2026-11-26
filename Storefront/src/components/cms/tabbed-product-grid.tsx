@@ -101,7 +101,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         const take = tab.take || 10;
         const collectionSlug = tab.collectionSlug || '';
         const collectionIds = tab.collectionIds || [];
-        const selectionMode = (tab as any).selectionMode || 'COLLECTIONS';
+        const selectionMode = (tab as any).selectionMode || (tab.filterType === 'FEATURED' || tab.filterType === 'BEST_SELLERS' || tab.filterType === 'AUTOMATIC' ? 'AUTOMATIC' : 'COLLECTIONS');
         const manualProductIds = (tab as any).manualProductIds || [];
 
         const searchQuery = `
@@ -129,11 +129,12 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         `;
 
         const shopApiUrl = getShopApiUrl();
+        const candidateTake = Math.max(take * 8, 100);
 
         const fetchForCollection = async (collectionId?: string) => {
             const input: any = {
                 groupByProduct: false,
-                take,
+                take: candidateTake,
             };
 
             if (collectionId && String(collectionId).trim() !== '' && String(collectionId) !== 'undefined') {
@@ -165,7 +166,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                             }
                         }
                     `;
-                    const fallbackData = await fetchWithClientCache(shopApiUrl, fallbackQuery, { slug: collectionSlug, take });
+                    const fallbackData = await fetchWithClientCache(shopApiUrl, fallbackQuery, { slug: collectionSlug, take: candidateTake });
                     const variants = fallbackData?.collection?.productVariants?.items || [];
                     if (variants.length > 0) {
                         items = variants.map((v: any) => ({
@@ -260,7 +261,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                                 locationId: $locationId, 
                                 latitude: $latitude, 
                                 longitude: $longitude,
-                                options: { filter: { status: { eq: "APPROVED" } }, take: 12 }
+                                options: { filter: { status: { eq: "APPROVED" } }, take: 50 }
                             ) {
                                 items {
                                     id
@@ -313,15 +314,25 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     })));
                 }
 
-                if (items.length === 0) {
-                    const fallbackSearchInput = {
-                        groupByProduct: false,
-                        take,
-                        sort: { price: 'DESC' }
-                    };
-                    const resultFallback = await fetchWithClientCache(shopApiUrl, searchQuery, { input: fallbackSearchInput });
-                    items = resultFallback?.search?.items || [];
+                // In AUTOMATIC mode, always fetch additional catalog candidates from search to supplement vendors
+                const fallbackSearchInput: any = {
+                    groupByProduct: false,
+                    take: candidateTake,
+                };
+                if (tab.filterType === 'BEST_SELLERS' || tab.filterType === 'FEATURED') {
+                    fallbackSearchInput.sort = { price: 'DESC' };
                 }
+                const resultFallback = await fetchWithClientCache(shopApiUrl, searchQuery, { input: fallbackSearchInput }).catch(() => null);
+                const searchCandidates = resultFallback?.search?.items || [];
+                const seenItemKeys = new Set<string>();
+                const deduplicatedItems: any[] = [];
+                for (const it of [...items, ...searchCandidates]) {
+                    const k = String(it.productId || it.product?.id || it.id || '');
+                    if (k && seenItemKeys.has(k)) continue;
+                    if (k) seenItemKeys.add(k);
+                    deduplicatedItems.push(it);
+                }
+                items = deduplicatedItems;
 
                 const displayContext = {
                     userLat: selectedLocation?.latitude ? Number(selectedLocation.latitude) : undefined,
@@ -329,6 +340,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
                     locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
                     communeName: selectedLocation?.commune || selectedLocation?.name,
+                    limit: take,
                 };
                 const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
@@ -340,6 +352,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
                     locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
                     communeName: selectedLocation?.commune || selectedLocation?.name,
+                    limit: take,
                 };
                 const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
@@ -364,6 +377,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
                     locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
                     communeName: selectedLocation?.commune || selectedLocation?.name,
+                    limit: take,
                 };
                 const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 setProductsMap(prev => ({ ...prev, [tab.id]: resolved.slice(0, take) }));
@@ -383,6 +397,7 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
                     marketId: selectedLocation?.marketId || (selectedLocation?.type === 'MARKET' ? selectedLocation.id : undefined),
                     locationId: selectedLocation?.geoZoneId || (selectedLocation && selectedLocation.type !== 'MARKET' ? selectedLocation.id : undefined),
                     communeName: selectedLocation?.commune || selectedLocation?.name,
+                    limit: take,
                 };
                 const resolved = await expandProductsWithSellerOffers(items, displayContext);
                 const sortedByImage = [...resolved].sort((a, b) => {
@@ -401,16 +416,13 @@ export function TabbedProductGrid(props: TabbedProductGridProps) {
         }
     }, [selectedLocation]);
 
-    // Fetch all tabs on mount, and refetch when tab changes
+    // Fetch all tabs on mount, and refetch when tabs or selectedLocation changes
     useEffect(() => {
         if (!props.tabs || props.tabs.length === 0) return;
-        // Pre-fetch all tabs
         props.tabs.forEach(tab => {
-            if (!productsMap[tab.id] && !loadingMap[tab.id]) {
-                fetchProducts(tab);
-            }
+            fetchProducts(tab);
         });
-    }, [JSON.stringify(props.tabs)]);
+    }, [JSON.stringify(props.tabs), selectedLocation?.id, selectedLocation?.latitude, selectedLocation?.longitude, selectedLocation?.name]);
 
     if (!props.tabs || props.tabs.length === 0) return null;
 

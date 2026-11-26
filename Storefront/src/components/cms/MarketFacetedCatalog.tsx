@@ -29,7 +29,8 @@ import {
     X, 
     ChevronLeft,
     Loader2,
-    ArrowRight
+    ArrowRight,
+    Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAssetUrl, getShopApiUrl } from '@/lib/vendure/api-utils';
@@ -1016,19 +1017,14 @@ export function MarketFacetedCatalog({ config = {} }: MarketFacetedCatalogProps)
                                                     </div>
                                                 </div>
 
-                                                {/* Full-width Ahizan Red CTA Button matching Image 1 */}
-                                                <button
-                                                    onClick={() => handleAddToCart(item)}
-                                                    disabled={isAdding}
-                                                    className="w-full mt-2.5 bg-primary hover:bg-red-700 active:scale-98 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                                                {/* Full-width Ahizan Red CTA Button linking directly to product */}
+                                                <Link
+                                                    href={productHref}
+                                                    className="w-full mt-2.5 bg-primary hover:bg-red-700 active:scale-98 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
                                                 >
-                                                    {isAdding ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : (
-                                                        <ShoppingCart className="w-3.5 h-3.5" />
-                                                    )}
-                                                    <span>Ajouter au panier</span>
-                                                </button>
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                    <span>Voir l'article</span>
+                                                </Link>
                                             </div>
                                         </div>
                                     );
